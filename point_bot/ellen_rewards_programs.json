@@ -1,0 +1,26 @@
+[
+    {
+        "point_bot_user": "ellen",
+        "rewards_program_name": "Hilton",
+        "rewards_username": "empty",
+        "rewards_user_email": "HIlton",
+        "rewards_user_pw": "hilton",
+        "created_time": "2020-05-28 00:29:46.699550",
+        "altered_time": "2020-05-28 00:29:46.699699",
+        "valid": 0,
+        "last_successful_login": "Never",
+        "times_accessed": 0
+    },
+    {
+        "point_bot_user": "ellen",
+        "rewards_program_name": "american airlines",
+        "rewards_username": "empty",
+        "rewards_user_email": "asdf",
+        "rewards_user_pw": "ddd",
+        "created_time": "2020-05-28 00:29:57.342137",
+        "altered_time": "2020-05-28 00:29:57.342160",
+        "valid": 0,
+        "last_successful_login": "Never",
+        "times_accessed": 0
+    }
+]
