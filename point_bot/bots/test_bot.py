@@ -1,9 +1,4 @@
-# from bots.base_bot import PointBotDriver
 from bots.base_bot import PointBotDriver
-
-# from base_bot import PointBotDriver
-
-# from base_bot import PointBotDriver #when running __main__
 import re
 from time import sleep
 from bs4 import BeautifulSoup
@@ -75,19 +70,10 @@ class TestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 },
-                "step4": {
+                "rawheaders": {
                     "action": "redirect",
-                    "description": "User Agent2",
-                    "url": "https://www.whoishostingthis.com/tools/user-agent/",
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "",
-                    "output_capture": 1,
-                },
-                "step5": {
-                    "action": "redirect",
-                    "description": "Browser Info",
-                    "url": "https://www.whoishostingthis.com/tools/user-agent/#browser-information",
+                    "description": "rawheaders",
+                    "url": "view-source:https://httpbin.org/headers",
                     "take_screenshot": 1,
                     "log_html": 1,
                     "capture_variable": "",
@@ -138,5 +124,18 @@ class TestBot(PointBotDriver):
 
 
 if __name__ == "__main__":
-    tb = TestBot("jkail")
-    tb.go_to_test()
+    from base_bot import PointBotDriver
+    from ..point_bot_profile_parameters  import PointBotProfileParameters
+    from ..setup_point_bot  import PointBotSetup
+    pbs = PointBotSetup()
+    pbs.start()
+    headless = True
+    print(f'\n\n\n Headless = {headless} \n\n\n ')
+    for user in ["jkail"]: #"jkail", "ellen"
+        pbp = PointBotProfileParameters(pbs,user)
+
+        for kwargs in pbp.parameter_list:
+
+            if kwargs["rewards_program_name"] == "Test":
+                tb = TestBot(headless_input=headless, **kwargs)
+                tb.mine_test_bot()

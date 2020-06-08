@@ -17,7 +17,8 @@ from bots.test_bot import TestBot
 if __name__ == "__main__":
     pbs = PointBotSetup()
     pbs.start()
-    headless = False
+    headless = True
+    print(f'\n\n\n Headless = {headless} \n\n\n ')
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works
     # with Xvfb() as xvfb:# does not work on mac
@@ -35,7 +36,6 @@ if __name__ == "__main__":
                 mb.mine_hotel_stay_points()
 
             if kwargs['rewards_program_name'] == 'Southwest':
-                #print(kwargs)
                 sb = SouthwestBot(headless_input = headless, **kwargs)
                 sb.mine_southwest_points()
 

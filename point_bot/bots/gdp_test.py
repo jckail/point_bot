@@ -54,35 +54,13 @@ class BotDriver:
             sleep(speed)
             element.send_keys(character)
         sleep(1)
+
     def main(self):
         breaker = '-'* 20 
-        #x = self.driver.execute_cdp_cmd("Network.getResponseBody", {})
+        #x = self.driver.execute_cdp_cmd("Network.getResponseBody", {}) # has to pass response
         x = self.driver.execute('getLog', {'type': 'performance'})['value']
         print(f'\n{breaker}\n{x}\n{breaker}\n')
 
-
-        element0 = self.get_element( By.LINK_TEXT,"Sign In or Join" )
-        element0.click()
-        element1 = self.get_element( By.XPATH,'//*[@id="user-id"]' )
-        element1.click()
-        self.slow_keys(self.username,element1)
-        element2 = self.get_element( By.XPATH,'//*[@id="password"]' )
-        element2.click()
-        self.slow_keys(self.pw,element2)
-        self.driver.get_screenshot_as_file(f"before_submit.png")
-        element3 = self.get_element( By.XPATH,"//button[@name='submitButton']" )
-        element3.click()
-        self.driver.get_screenshot_as_file(f"after_submit.png")
-        sleep(3)
-        #test string to find
-        soup = BeautifulSoup(self.driver.page_source, 'lxml')
-        test = soup.body.findAll(text='My Trips')
-        if len(test) > 1:
-            print(f'\n\n\n Login Success ({test} len {len(test)})\n\n\n')
-        else:
-            print(f'\n\n\n Login failed ({test} len {len(test)})\n\n\n')
-        self.driver.get(self.url_behind_login)
-        self.driver.get_screenshot_as_file(f"last.png")
 
 
 if __name__ == "__main__":
