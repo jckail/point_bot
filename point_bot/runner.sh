@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#add screen
 echo "Executing Nord VPN"
 nordvpn connect us5215
 echo "Executing Python"
