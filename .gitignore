@@ -136,3 +136,13 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+#custom for pointbot
+*.html
+*.png
+*encryptionkey.txt
+point_botpointbotencryptionkey.txt
+point_bot/data/*
+resources/encryptionkeys/*
+chromedriver
+.vscode/
