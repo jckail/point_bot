@@ -1,5 +1,6 @@
-#from bots.base_bot import PointBotDriver
+# from bots.base_bot import PointBotDriver
 from bots.base_bot import PointBotDriver
+
 # from base_bot import PointBotDriver
 
 # from base_bot import PointBotDriver #when running __main__
@@ -16,35 +17,38 @@ import time
 class TestBot(PointBotDriver):
     def __init__(
         self,
-        point_bot_user= None,
-        rewards_program_name = None,
-        rewards_user_email= None,
-        rewards_user_pw = None, 
+        point_bot_user=None,
+        rewards_program_name=None,
+        rewards_user_email=None,
+        rewards_user_pw=None,
         timestr=None,
         start_url=None,
-        base_datapath = 'data/',
-        bot_datapath=None,
+        datapath=None,
         headless_input=True,
-        **kwargs
+        **kwargs,
     ):
-        self.point_bot_user = point_bot_user  
+        self.point_bot_user = point_bot_user
         self.rewards_program_name = rewards_program_name
         self.rewards_user_email = rewards_user_email
         self.rewards_user_pw = rewards_user_pw
         self.run_timestr = timestr
         self.start_url = start_url
-        self.datapath =  base_datapath + bot_datapath
         self.headless_input = headless_input
-        
-
-
         self.botname = __class__.__name__
+        self.datapath = datapath
+        if self.datapath == None:
+            self.datapath = f"data/botsdata/{self.botname.lower()}/"
+
         super().__init__(
-            self.point_bot_user, self.rewards_program_name, 
-            self.rewards_user_email ,self.rewards_user_pw,
-            self.run_timestr,self.start_url,
-            self.datapath,self.headless_input,
-            **kwargs
+            self.point_bot_user,
+            self.rewards_program_name,
+            self.rewards_user_email,
+            self.rewards_user_pw,
+            self.run_timestr,
+            self.start_url,
+            self.datapath,
+            self.headless_input,
+            **kwargs,
         )
 
     def mine_test_bot(self):
@@ -71,7 +75,7 @@ class TestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 },
-                                "step4": {
+                "step4": {
                     "action": "redirect",
                     "description": "User Agent2",
                     "url": "https://www.whoishostingthis.com/tools/user-agent/",
@@ -80,7 +84,7 @@ class TestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 },
-                                                "step5": {
+                "step5": {
                     "action": "redirect",
                     "description": "Browser Info",
                     "url": "https://www.whoishostingthis.com/tools/user-agent/#browser-information",
@@ -98,7 +102,7 @@ class TestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 },
-                                "step8": {
+                "step8": {
                     "action": "redirect",
                     "description": "Chrome Headless2",
                     "url": "https://antoinevastel.com/bots",
@@ -124,7 +128,7 @@ class TestBot(PointBotDriver):
             bigspaces = "\n" * 3
             print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
             if self.headless_input == False:
-                print('Sleeping 30 Seconds')
+                print("Sleeping 30 Seconds")
                 sleep(30)
             self.driver.quit()
         except Exception as e:

@@ -21,8 +21,7 @@ class SouthwestBot(PointBotDriver):
         rewards_user_pw=None,
         timestr=None,
         start_url=None,
-        base_datapath="data/",
-        bot_datapath=None,
+        datapath=None,
         headless_input=True,
         **kwargs,
     ):
@@ -32,10 +31,11 @@ class SouthwestBot(PointBotDriver):
         self.rewards_user_pw = rewards_user_pw
         self.run_timestr = timestr
         self.start_url = start_url
-        self.datapath = base_datapath + bot_datapath
         self.headless_input = headless_input
-
         self.botname = __class__.__name__
+        self.datapath = datapath
+        if self.datapath == None:
+            self.datapath = f"data/botsdata/{self.botname.lower()}/"
         super().__init__(
             self.point_bot_user,
             self.rewards_program_name,

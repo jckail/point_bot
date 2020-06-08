@@ -21,7 +21,8 @@ import json
 from datetime import datetime
 import time
 import random
-import random_user_agent
+#import random_user_agent ### could use random agent
+
 
 class PointBotDriver:
     def __init__(  
@@ -160,12 +161,14 @@ class PointBotDriver:
             print(e)
 
     def screenshot(self,filename,when):
-        pass
+        
         #this effects prelogin detction on sw #maybe window?
-        #S = lambda X: self.driver.execute_script('return document.body.parentNode.scroll'+X)
-        #self.driver.set_window_size(S('Width'),S('Height')) # May need manual adjustment                                                                                                                
-        #self.driver.find_element_by_tag_name('body').screenshot(f"{self.datapath}screencaps/{filename}_{when}.png")
+        S = lambda X: self.driver.execute_script('return document.body.parentNode.scroll'+X)
+        self.driver.set_window_size(S('Width'),S('Height')) # May need manual adjustment                                                                                                                
+        self.driver.find_element_by_tag_name('body').screenshot(f"{self.datapath}screencaps/{filename}_{when}.png")
+        #self.driver.maximize_window()
         #self.driver.save_screenshot(f"{self.datapath}screencaps/{filename}_{when}.png")
+        #pass
     def savehtml(self,filename,when):
         with open(f"{self.datapath}raw_html/{filename}_{when}.html" ,"w+") as oFile:
             oFile.write(self.driver.page_source)

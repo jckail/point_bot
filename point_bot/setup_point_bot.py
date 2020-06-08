@@ -23,9 +23,10 @@ class PointBotSetup:
         ],
         dir_config = [            
             {"data": ["user", "reward_program_configs", "botsdata"]},
-            {"resources": ["reward_program_configs"]}],
-        username=getpass.getuser(),
-        hostname=socket.gethostname(),
+            {"bots": []},
+            {"resources": ["reward_program_configs","encryptionkeys"]}],
+        sys_username=getpass.getuser(),
+        sys_hostname=socket.gethostname(),
         userdatapath="data/user/all_users_rewards_programs.json",
         configpath="data/reward_program_configs/all_config_reward_programs.json",
         timestr=time.strftime("%Y%m%d%H%M%S"),
@@ -41,18 +42,31 @@ class PointBotSetup:
         self.subdirs = subdirs
         self.datasubdirs = datasubdirs
         self.botsubdirs = botsubdirs
-        self.username = username
-        self.hostname = hostname
+        self.sys_username = sys_username
+        self.sys_hostname = sys_hostname
         self.userdatapath = userdatapath
         self.configpath = configpath
         self.timestr = timestr
         self.sysplatform = sysplatform
-        self.ssysname = sysplatform
-        self.version = sysplatform
-        self.release = sysplatform
-        self.machine = sysplatform
-        self.nodename = sysplatform
+        self.ssysname = ssysname
+        self.version = version
+        self.release = release
+        self.machine = machine
+        self.nodename = nodename
         self.dir_config = dir_config
+
+        #this is where you would create a unique runstring that for x type of machine indicates this string
+        self.system_info_dict = {
+            'timestr': self.timestr,
+            'sys_username': self.sys_username,
+            'sys_hostname': self.sys_hostname,
+            'sysplatform': self.sysplatform,
+            'ssysname': self.ssysname,
+            'version': self.version,
+            'release': self.release,
+            'machine': self.machine,
+            'nodename': self.nodename,
+        }
 
     def create_dir(self, directory):
         directory = f"{self.pbs_cwd}/{directory}"
@@ -64,26 +78,28 @@ class PointBotSetup:
         return [self.create_dir(f"{parent_dir}/{subdir}") for subdir in subdirs]
 
     def identify_files(self,subdir = "bots",extension='_bot.py',replacer='bot'):
-        return [print(filex.replace(extension,replacer))for filex in os.listdir(self.create_dir( subdir))if filex.endswith(extension)]
+        return [filex.replace(extension,replacer)for filex in os.listdir(self.create_dir( subdir))if filex.endswith(extension)]
 
-    def gen_dir_config(self):
-        [self.dir_config.append({f'{self.pbs_cwd}/bots/{x}':self.botsubdirs}) for x in self.identify_files(subdir = "bots",extension='_bot.py',replacer='bot')]
-        
+    def gen_bit_config(self):
+        return [self.dir_config.append({f'data/botsdata/{x}':self.botsubdirs}) for x in self.identify_files(subdir = "bots",extension='_bot.py',replacer='bot')]
+    
+    def generate_directories(self):
+        self.gen_bit_config()
+        [[self.create_sub_dirs(y, x[y]) for y in x.keys()] for x in self.dir_config]
 
-        return self.dir_config
-    def main(self):
-        x= self.create_sub_dirs('sleepy2', ['go','night'])
-        print(x)
-
+    def start(self):
+        self.generate_directories()
 
 if __name__ == "__main__":
     pbs = PointBotSetup()
-    pbs.main()
-    path = os.getcwd()
-    print(path)
+    pbs.start()
+    # pbs.generate_directories()
+    # path = os.getcwd()
+    # print(path)
+    # x = 'abc'
+    # print(cardnality(x))
+
+    #print(PointBotSetup().system_info_dict)
 
 
 
-        dirconfig=[
-
-        ],

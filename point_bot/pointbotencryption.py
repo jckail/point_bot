@@ -3,9 +3,9 @@ import os
 
 
 class PointBotEncryption:
-    def __init__(self, key_path=os.getcwd(), key_file_name="pointbotencryptionkey.txt"):
+    def __init__(self, key_path=os.getcwd(), key_file_name="pointbot"):
         self.key_path = key_path
-        self.key_file_name = key_file_name
+        self.key_file_name = key_file_name+ "encryptionkey.txt"
         self.key_full_path = self.key_path + self.key_file_name
         self.fkey = None
 
