@@ -6,7 +6,6 @@ from datetime import datetime
 
 
 def create_append_json_file(file_name, new_datas=[] ,all_users=0):
-    print('in json',new_datas)
     existing_datas = []
     append_flag = 1
     try:
@@ -27,8 +26,6 @@ def create_append_json_file(file_name, new_datas=[] ,all_users=0):
         with open(file_name, "w+") as output_file:
             if append_flag == 1:
                 try:
-                    print('new',new_datas)
-                    print('existing',new_datas)
                     new_datas = new_datas + existing_datas
                 except Exception as e:
                     print(e)
@@ -43,9 +40,6 @@ def load_user_data(potential_user_files=[f"{os.getcwd()}/users.json"]):
         try:
             print(f""" Looking for {user_file}""")
             user_data = json.load(open(user_file))
-            # ensure user, pw, program are valid
-            # create logic that choses user_data or merges many records together
-            # create logic that ensures strcuture of dict passed out
             return user_data  # returns dict
 
         except Exception as e:
@@ -96,7 +90,6 @@ def rewards_program_dict(
                                         "times_accessed": 0,
                                     }
         reward_programs.append(reward_program)
-        print('before json',reward_programs)
         
         add_another_reward = input(
                 f"\nWould you like to add another rewards program? y|n \n"
@@ -104,8 +97,6 @@ def rewards_program_dict(
         if add_another_reward == 'y':
             return rewards_program_dict(point_bot_user= point_bot_user, reward_programs= reward_programs)
         else:
-            print('out',reward_programs)
-            print(type(reward_programs))
             return reward_programs
     else:
         if point_bot_user == None:
@@ -141,11 +132,7 @@ def create_append_user_data(
         if point_bot_user:
             rewards_programs = rewards_program_dict(point_bot_user = point_bot_user)
             print('before go go ', rewards_programs)
-            data = [{
-                    "point_bot_user": point_bot_user,
-                    "rewards_programs": rewards_programs,
-                    "created_time": str(datetime.now()),
-                }]
+            data = rewards_programs
             
             create_append_json_file( users_file,data,1)
             create_append_json_file( f"{point_bot_user}_rewards_programs.json",rewards_programs,0)
@@ -170,7 +157,7 @@ def create_append_user_data(
 
 
 def main():
-    x = create_append_user_data("ellen")
+    x = create_append_user_data()
     print(x)
 
 

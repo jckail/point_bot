@@ -1,0 +1,22 @@
+[
+    {
+        "rewards_program_name": "Test",
+        "botname": "TestBot",
+        "bot_datapath": "testbot/",
+        "start_url": "https://www.google.com/",
+    },
+    {
+        "rewards_program_name": "Marriott",
+        "botname": "MarriottBot",
+        "bot_datapath": "marriottbot/",
+        "start_url": "https://www.marriott.com/default.mi",
+
+    },
+    {
+        "rewards_program_name": "Southwest",
+        "botname": "SouthwestBot",
+        "bot_datapath": "southwestbot/",
+        "start_url": "https://www.southwest.com/",
+
+    }
+]

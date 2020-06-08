@@ -1,0 +1,138 @@
+#from bots.base_bot import PointBotDriver
+from bots.base_bot import PointBotDriver
+# from base_bot import PointBotDriver
+
+# from base_bot import PointBotDriver #when running __main__
+import re
+from time import sleep
+from bs4 import BeautifulSoup
+from selenium.webdriver.common.by import By
+import pandas as pd
+from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
+import time
+
+
+class TestBot(PointBotDriver):
+    def __init__(
+        self,
+        point_bot_user= None,
+        rewards_program_name = None,
+        rewards_user_email= None,
+        rewards_user_pw = None, 
+        timestr=None,
+        start_url=None,
+        base_datapath = 'data/',
+        bot_datapath=None,
+        headless_input=True,
+        **kwargs
+    ):
+        self.point_bot_user = point_bot_user  
+        self.rewards_program_name = rewards_program_name
+        self.rewards_user_email = rewards_user_email
+        self.rewards_user_pw = rewards_user_pw
+        self.run_timestr = timestr
+        self.start_url = start_url
+        self.datapath =  base_datapath + bot_datapath
+        self.headless_input = headless_input
+        
+
+
+        self.botname = __class__.__name__
+        super().__init__(
+            self.point_bot_user, self.rewards_program_name, 
+            self.rewards_user_email ,self.rewards_user_pw,
+            self.run_timestr,self.start_url,
+            self.datapath,self.headless_input,
+            **kwargs
+        )
+
+    def mine_test_bot(self):
+        funcname = str(self.mine_test_bot.__name__)
+        print(f"Starting: {self.botname} : {funcname}")
+        try:
+            self.startupdriver()
+            kwargs = {
+                "step1": {
+                    "action": "redirect",
+                    "description": "Testing Against Random Site",
+                    "url": "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                "step2": {
+                    "action": "redirect",
+                    "description": "Ip Location Test",
+                    "url": "https://www.iplocation.net/",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                                "step4": {
+                    "action": "redirect",
+                    "description": "User Agent2",
+                    "url": "https://www.whoishostingthis.com/tools/user-agent/",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                                                "step5": {
+                    "action": "redirect",
+                    "description": "Browser Info",
+                    "url": "https://www.whoishostingthis.com/tools/user-agent/#browser-information",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                "step7": {
+                    "action": "redirect",
+                    "description": "Chrome Headless",
+                    "url": "https://arh.antoinevastel.com/bots/areyouheadless",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                                "step8": {
+                    "action": "redirect",
+                    "description": "Chrome Headless2",
+                    "url": "https://antoinevastel.com/bots",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+                "step9": {
+                    "action": "last_step",
+                    "description": "Last Step",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "",
+                    "output_capture": 1,
+                },
+            }
+
+            time_track_dict = self.run_bot_function(
+                botname=self.botname, funcname=funcname, **kwargs
+            )
+
+            bigspaces = "\n" * 3
+            print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
+            if self.headless_input == False:
+                print('Sleeping 30 Seconds')
+                sleep(30)
+            self.driver.quit()
+        except Exception as e:
+            print(e)
+            print(f"{self.point_bot_user}_{self.botname}_{funcname} FAILED")
+            self.driver.quit()
+
+
+if __name__ == "__main__":
+    tb = TestBot("jkail")
+    tb.go_to_test()
