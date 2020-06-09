@@ -184,6 +184,15 @@ class MarriottBot(PointBotDriver):
                     "capture_variable": "datalayer",
                     "output_capture": 1,
                 },
+            }
+ 
+            time_track_dict = self.run_bot_function(
+                botname=self.botname, funcname=funcname, **kwargs)
+
+            if 1 == input('input to unpause'):
+                pass           
+            
+            kwargs = {
                 "step5": {
                     "action": "login_test",
                     "description": "Ensure Login Worked",
