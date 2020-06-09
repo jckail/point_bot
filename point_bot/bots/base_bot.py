@@ -1,12 +1,13 @@
 import os
 import sys
-import undetected_chromedriver as uc
-chrome_driver_path = f"{os.getcwd()}/chromedriver"
+#import undetected_chromedriver as uc
+#chrome_driver_path = f"{os.getcwd()}/chromedriver_j"
 #uc.install(executable_path=chrome_driver_path)
 #uc.TARGET_VERSION = 78  #this is what was fucking u
-uc.install() #important this is first
+#uc.install() #important this is first
 from time import sleep
-from selenium.webdriver import Chrome, ChromeOptions
+from selenium import webdriver
+#from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
@@ -54,23 +55,36 @@ class PointBotDriver:
         d = DesiredCapabilities.CHROME
         d['goog:loggingPrefs']={'performance':'ALL'}
 
-        chrome_options = ChromeOptions()
+        chrome_options = webdriver.ChromeOptions()
         chrome_options.headless = self.headless_input
         #chrome_options.add_argument("--incognito")
         #chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument("--start-maximized")
         #chrome_options.add_argument("--window-size=1920x1080")
         #user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
-        user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
-        #user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
+        #user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
+        user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
+        #user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
         chrome_options.add_argument(f'user-agent={user_agent}')
-
-        print('Chrome Options: ',chrome_options.arguments)
+        chromedriverpath = f"{os.getcwd()}/chromedriver"
+        cd = 'chromedriver'
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        print('Chrome Options: ',chrome_options.arguments, '\n Chrome Driver Path: ',chromedriverpath)
+        self.driver = webdriver.Chrome(executable_path=chromedriverpath,chrome_options=chrome_options,desired_capabilities=d)
+        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined
+            })
+        """
+        })
+        # self.driver.execute_cdp_cmd("Network.enable", {})
+        # self.driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": {"User-Agent": "browser1"}})
         
-        self.driver = Chrome(chrome_options=chrome_options,desired_capabilities=d)
         #examples of cdp
-        # original_user_agent_string = self.driver.execute_script( "return navigator.userAgent")
-
+        original_user_agent_string = self.driver.execute_script( "return navigator.userAgent")
+        print(original_user_agent_string)
         # self.driver.execute_cdp_cmd(
         #     "Network.setUserAgentOverride",
         #     {

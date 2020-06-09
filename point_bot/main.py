@@ -35,9 +35,9 @@ if __name__ == "__main__":
                 mb = MarriottBot(headless_input = headless, **kwargs)
                 mb.mine_hotel_stay_points()
 
-            if kwargs['rewards_program_name'] == 'Southwest':
-                sb = SouthwestBot(headless_input = headless, **kwargs)
-                sb.mine_southwest_points()
+            # if kwargs['rewards_program_name'] == 'Southwest':
+            #     sb = SouthwestBot(headless_input = headless, **kwargs)
+            #     sb.mine_southwest_points()
 
             if kwargs["rewards_program_name"] == "Test":
                 tb = TestBot(headless_input=headless, **kwargs)
