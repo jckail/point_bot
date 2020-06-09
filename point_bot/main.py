@@ -17,7 +17,7 @@ from bots.test_bot import TestBot
 if __name__ == "__main__":
     pbs = PointBotSetup()
     pbs.start()
-    headless = False
+    headless = True
     print(f'\n\n\n Headless = {headless} \n\n\n ')
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works
@@ -31,13 +31,13 @@ if __name__ == "__main__":
         for kwargs in pbp.parameter_list:
             #print(kwargs)
             
-            if kwargs['rewards_program_name'] == 'Marriott':
-                mb = MarriottBot(headless_input = headless, **kwargs)
-                mb.mine_hotel_stay_points()
+            # if kwargs['rewards_program_name'] == 'Marriott':
+            #     mb = MarriottBot(headless_input = headless, **kwargs)
+            #     mb.mine_hotel_stay_points()
 
-            # if kwargs['rewards_program_name'] == 'Southwest':
-            #     sb = SouthwestBot(headless_input = headless, **kwargs)
-            #     sb.mine_southwest_points()
+            if kwargs['rewards_program_name'] == 'Southwest':
+                sb = SouthwestBot(headless_input = headless, **kwargs)
+                sb.mine_southwest_points()
 
             if kwargs["rewards_program_name"] == "Test":
                 tb = TestBot(headless_input=headless, **kwargs)

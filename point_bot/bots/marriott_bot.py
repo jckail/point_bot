@@ -189,8 +189,8 @@ class MarriottBot(PointBotDriver):
             time_track_dict = self.run_bot_function(
                 botname=self.botname, funcname=funcname, **kwargs)
 
-            if 1 == input('input to unpause'):
-                pass           
+            # if 1 == input('input to unpause'):
+            #     pass           
             
             kwargs = {
                 "step5": {
