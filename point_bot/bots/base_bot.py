@@ -85,13 +85,13 @@ class PointBotDriver:
         #examples of cdp
         original_user_agent_string = self.driver.execute_script( "return navigator.userAgent")
         print(original_user_agent_string)
-        # self.driver.execute_cdp_cmd(
-        #     "Network.setUserAgentOverride",
-        #     {
-        #         "userAgent": original_user_agent_string.replace("Headless", ""),
-        #         "platform": "Windows",
-        #     },
-        # )
+        self.driver.execute_cdp_cmd(
+            "Network.setUserAgentOverride",
+            {
+                "userAgent": original_user_agent_string.replace("Headless", ""),
+                "platform": "MacIntel",
+            },
+        )
         # new_user_agent_string = self.driver.execute_script( "return navigator.userAgent")
         # print(f'\n\n\n{original_user_agent_string}\n\n\n')
         # print(f'\n\n\n{new_user_agent_string}\n\n\n')
@@ -104,7 +104,7 @@ class PointBotDriver:
         #self.driver.get('https://www.google.com/')
         self.driver.maximize_window()
         self.driver.get(url)
-        sleep(random.uniform(1.1, 5))
+        sleep(random.uniform(2.1, 5))
         
 
     def gen_soup(self):
@@ -245,6 +245,7 @@ class PointBotDriver:
                 self.capturevariable(filename,when,capture_variable)
 
             self.performaction(action, step, filename, **kwargs)
+            sleep(random.uniform(1.1, 2.5))
             when = 'after'
             if take_screenshot == 1 and output_capture == 1:
                 self.screenshot(filename,when)
