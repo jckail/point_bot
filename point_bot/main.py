@@ -17,7 +17,7 @@ from bots.test_bot import TestBot
 if __name__ == "__main__":
     pbs = PointBotSetup()
     pbs.start()
-    headless = True
+    headless = False
     print(f'\n\n\n Headless = {headless} \n\n\n ')
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works
