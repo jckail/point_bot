@@ -141,7 +141,7 @@ cython_debug/
 *.html
 *.png
 *encryptionkey.txt
-point_botpointbotencryptionkey.txt
+*key.txt
 point_bot/data/*
 resources/encryptionkeys/*
 chromedriver
