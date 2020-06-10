@@ -1,13 +1,13 @@
 import os
 import sys
-#import undetected_chromedriver as uc
+import undetected_chromedriver as uc
 #chrome_driver_path = f"{os.getcwd()}/chromedriver_j"
 #uc.install(executable_path=chrome_driver_path)
-#uc.TARGET_VERSION = 78  #this is what was fucking u
-#uc.install() #important this is first
+uc.TARGET_VERSION = 83  #this is what was fucking u
+uc.install() #important this is first
 from time import sleep
-from selenium import webdriver
-#from selenium.webdriver import Chrome, ChromeOptions
+#from selenium import webdriver
+from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
@@ -55,7 +55,7 @@ class PointBotDriver:
         d = DesiredCapabilities.CHROME
         d['goog:loggingPrefs']={'performance':'ALL'}
 
-        chrome_options = webdriver.ChromeOptions()
+        chrome_options = ChromeOptions()
         chrome_options.headless = self.headless_input
         #chrome_options.add_argument("--incognito")
         #chrome_options.add_argument('--disable-extensions')
@@ -71,7 +71,8 @@ class PointBotDriver:
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         print('Chrome Options: ',chrome_options.arguments, '\n Chrome Driver Path: ',chromedriverpath)
-        self.driver = webdriver.Chrome(executable_path=chromedriverpath,chrome_options=chrome_options,desired_capabilities=d)
+        #self.driver = webdriver.Chrome(executable_path=chromedriverpath,chrome_options=chrome_options,desired_capabilities=d)
+        self.driver = Chrome(chrome_options=chrome_options,desired_capabilities=d)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
             Object.defineProperty(navigator, 'webdriver', {
