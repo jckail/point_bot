@@ -10,6 +10,7 @@ from point_bot_profile_parameters import PointBotProfileParameters
 from bots.marriott_bot import MarriottBot
 from bots.southwest_bot import SouthwestBot
 from bots.test_bot import TestBot
+from visualize_data import VisualizeData
 
 # from xvfbwrapper import Xvfb
 # from pyvirtualdisplay import Display
@@ -17,7 +18,7 @@ from bots.test_bot import TestBot
 #pip3.8 install xvfbwrapper
 
 if __name__ == "__main__":
-    headless = False # note pass headless to setup so we can record
+    headless = True # note pass headless to setup so we can record
     pbs = PointBotSetup(headless = headless)
     pbs.start()
     print(f'\n\n\n Headless = {headless} \n\n\n ')
@@ -32,6 +33,7 @@ if __name__ == "__main__":
         # CAN WRITE LAMBDA TO FIND KEYS
         for kwargs in pbp.parameter_list:
             #print(kwargs)
+
             # if kwargs['rewards_program_name'] == 'Marriott':
             #     mb = MarriottBot(pbs,  **kwargs)
             #     mb.mine_hotel_stay_points()
@@ -40,9 +42,12 @@ if __name__ == "__main__":
                 sb = SouthwestBot(pbs, **kwargs)
                 sb.mine_southwest_points()
 
-    #         if kwargs["rewards_program_name"] == "Test":
-    #             tb = TestBot(headless_input=headless, **kwargs)
-    #             tb.mine_test_bot()
+            if kwargs["rewards_program_name"] == "Test":
+                tb = TestBot(headless_input=headless, **kwargs)
+                tb.mine_test_bot()
+    
+    vds = VisualizeData(pbs,'jkail')
+    vds.main()
 
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works

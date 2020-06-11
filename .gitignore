@@ -139,7 +139,6 @@ cython_debug/
 
 #custom for pointbot
 *.html
-*.png
 *encryptionkey.txt
 *key.txt
 src/point_bot/data/*
