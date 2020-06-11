@@ -8,20 +8,20 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+#build/
 develop-eggs/
-dist/
+#dist/
 downloads/
 eggs/
 .eggs/
-lib/
+#lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
 share/python-wheels/
-*.egg-info/
+#*.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
@@ -142,7 +142,7 @@ cython_debug/
 *.png
 *encryptionkey.txt
 *key.txt
-point_bot/data/*
-resources/encryptionkeys/*
-chromedriver
+src/point_bot/data/*
+src/point_bot/resources/encryptionkeys/*
+src/point_bot/chromedriver
 .vscode/

@@ -1,0 +1,4 @@
+peppercorn
+bs4
+selenium
+pandas

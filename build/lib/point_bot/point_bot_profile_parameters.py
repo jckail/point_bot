@@ -10,15 +10,14 @@ from setup_point_bot import PointBotSetup
 class PointBotProfileParameters(PointBotSetup):
     def __init__(
         self,
-        pbs,
-        point_bot_user = None,
+        PointBotSetup,
+        point_bot_user,
         userdatapath="data/user/all_users_rewards_programs.json",
         configpath="resources/reward_program_configs/all_config_reward_programs.json",
         timestr=None,
     ):
+
         self.point_bot_user = point_bot_user
-        if self.point_bot_user == None:
-            self.point_bot_user = pbs.point_bot_user
         self.userdata_path = userdatapath
         self.configpath = configpath
         self.run_timestr = timestr
@@ -29,17 +28,17 @@ class PointBotProfileParameters(PointBotSetup):
             == self.point_bot_user
         ]       
         self.output_userdata_df = pd.DataFrame()
-        self.system_info_dict = pbs.system_info_dict
+        self.system_info_dict = PointBotSetup.system_info_dict
 
         self.config_df = pd.read_json(self.configpath, orient="records")
+        #print(f' \n {self.system_info_dict} \n\n\n' )
 
         self.userdata_df = self.userdata_df.sort_values(by=['rewards_program_name','created_time','last_successful_login_time'], ascending=False)
         #print(f' userdata: \n {self.userdata_df} \n' )
-        self.userdata_df['best_record_rank'] =self.userdata_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max') + self.userdata_df.groupby("rewards_program_name")['created_time'].rank(ascending = True, method = 'max')
+        self.userdata_df['best_record_rank'] =self.userdata_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max') + self.userdata_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max')
         self.userdata_df['best_record_rank'] =self.userdata_df.groupby("rewards_program_name")['best_record_rank'].rank(ascending = False, method = 'max')
         self.userdata_df = self.userdata_df.sort_values(by=['rewards_program_name','best_record_rank'], ascending=True).reset_index(drop=True)
         
-
         self.output_userdata_df = self.userdata_df[self.userdata_df['best_record_rank'] == 1.0].copy()
         self.output_userdata_df['sys_username'] = self.system_info_dict['sys_username']
         self.output_userdata_df['sys_hostname'] = self.system_info_dict['sys_hostname']
@@ -50,10 +49,8 @@ class PointBotProfileParameters(PointBotSetup):
         self.output_userdata_df['machine'] = self.system_info_dict['machine']
         self.output_userdata_df['nodename'] = self.system_info_dict['nodename']
         self.output_userdata_df['timestr'] = self.system_info_dict['timestr']
-        self.output_userdata_df['headless'] = self.system_info_dict['headless']
         #print(f' output: \n\n\n {self.config_df} \n' )
         self.output_userdata_df =self.output_userdata_df.merge(self.config_df,how='inner',on='rewards_program_name')
-        #print(self.output_userdata_df)
         #print(f' output: \n\n\n {self.output_userdata_df} \n' )
         
         self.parameter_list = self.output_userdata_df.to_dict(orient='records')
