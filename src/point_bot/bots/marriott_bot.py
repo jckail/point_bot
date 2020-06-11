@@ -20,6 +20,7 @@ class MarriottBot(PointBotDriver):
         point_bot_user=None,
         rewards_program_name=None,
         rewards_user_email=None,
+        rewards_username = None,
         rewards_user_pw=None,
         timestr=None,
         start_url=None,
@@ -28,11 +29,12 @@ class MarriottBot(PointBotDriver):
         headless=True,
         **kwargs,
     ):
-        print(kwargs)
+
         self.pbs = pbs
         self.point_bot_user = point_bot_user
         self.rewards_program_name = rewards_program_name
         self.rewards_user_email = rewards_user_email
+        self.rewards_username = rewards_username,
         self.rewards_user_pw = rewards_user_pw
         self.run_timestr = timestr
         self.start_url = start_url
@@ -49,6 +51,7 @@ class MarriottBot(PointBotDriver):
             self.point_bot_user,
             self.rewards_program_name,
             self.rewards_user_email,
+            self.rewards_username,
             self.rewards_user_pw,
             self.run_timestr,
             self.start_url,
@@ -146,6 +149,7 @@ class MarriottBot(PointBotDriver):
     def mine_hotel_stay_points(self):
         funcname = str(self.mine_hotel_stay_points.__name__)
         print(f"Starting: {self.botname} : {funcname}")
+        #print(self.decrypt("gAAAAABe4SSRRb6euQwnm-VHmJhigLZxRcgtmUPPOs-6UhPfZVj6Kjjhx48JsmGNiy_VZQgNYp4rzaVtAMC-7fWjUz4i36RT4A=="))
         try:
 
             kwargs = {
@@ -175,7 +179,7 @@ class MarriottBot(PointBotDriver):
                     "description": "Input Password",
                     "argument_to_click": '//*[@id="password"]',
                     "findby": By.XPATH,
-                    "input_keys": self.rewards_user_pw,
+                    "input_keys": self.decrypt(self.rewards_user_pw),
                     # "input_keys2": Keys.ENTER,
                     "take_screenshot": 1,
                     "log_html": 1,
@@ -221,7 +225,7 @@ class MarriottBot(PointBotDriver):
                 },
             }
 
-            time_track_dict = self.run_bot_function(
+            time_track_dict = self.run_bot_function(time_track_dict,
                 botname=self.botname, funcname=funcname, **kwargs
             )
 
@@ -295,7 +299,7 @@ class MarriottBot(PointBotDriver):
 
 
 if __name__ == "__main__":
-    mb = MarriottBot("jkail", pw="Zun!2020", headless=True)
+    mb = MarriottBot("jkail", pw="GTFO", headless=True)
     mb.mine_hotel_stay_points()
     # print(mb.df_rewards_user)
     # print(mb.df_rewards_user.iloc[0]["rewards_user_email"])

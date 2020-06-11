@@ -17,32 +17,30 @@ from bots.test_bot import TestBot
 #pip3.8 install xvfbwrapper
 
 if __name__ == "__main__":
-    headless = True # note pass headless to setup so we can record
-    pbs = PointBotSetup(headless = True)
+    headless = False # note pass headless to setup so we can record
+    pbs = PointBotSetup(headless = headless)
     pbs.start()
-    pbe = PointBotEncryption(pbs)
-    pbe.load_key()
-
     print(f'\n\n\n Headless = {headless} \n\n\n ')
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works
     # with Xvfb() as xvfb:# does not work on mac
-    #pbu = Point_Bot_User(pbs,pbe).load_user()
-    for user in [ "jkail"]: #"jkail", "ellen"
-        pbp = PointBotProfileParameters(pbs,user)
+    #pbu = Point_Bot_User(pbs)
+    #for user in [pbu.point_bot_user]: #"jkail", "ellen"'chuck'
+        # pbp = PointBotProfileParameters(pbs,user)
+    for user in ['jkail']: #"jkail", "ellen"'chuck'
+        pbp = PointBotProfileParameters(pbs,'jkail')
 
         # this is where you would create async bots!
         # CAN WRITE LAMBDA TO FIND KEYS
         for kwargs in pbp.parameter_list:
-            #print(kwargs)
             
-            if kwargs['rewards_program_name'] == 'Marriott':
-                mb = MarriottBot(pbs, **kwargs)
-                mb.mine_hotel_stay_points()
+            # if kwargs['rewards_program_name'] == 'Marriott':
+            #     mb = MarriottBot(pbs,  **kwargs)
+            #     mb.mine_hotel_stay_points()
 
-    #         if kwargs['rewards_program_name'] == 'Southwest':
-    #             sb = SouthwestBot(headless_input = headless, **kwargs)
-    #             sb.mine_southwest_points()
+            if kwargs['rewards_program_name'] == 'Southwest':
+                sb = SouthwestBot(pbs, **kwargs)
+                sb.mine_southwest_points()
 
     #         if kwargs["rewards_program_name"] == "Test":
     #             tb = TestBot(headless_input=headless, **kwargs)

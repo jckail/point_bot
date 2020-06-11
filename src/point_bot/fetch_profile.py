@@ -1,33 +1,32 @@
 #!/usr/bin/env python3.8
 
 import shared_functions as sf
+from pointbotencryption import PointBotEncryption
 from datetime import datetime
 import pandas as pd
 import os
 
 
 
+
 class Point_Bot_User:
 
 
-    def __init__(self, pbs, pbe, point_bot_user=None):
+    def __init__(self, pbs, point_bot_user=None):
         self.pbs = pbs
-        self.pbe = pbe
-        print(pbs.configpath)
-        #pbs.configpath, self.all_configs = sf.open_json(pbs.configpath)
         self.config_df = pd.read_json(pbs.configpath, orient="records")
         self.configured_reward_programs = self.config_df['rewards_program_name'].tolist()
-        #print('Running From: ' , os.getcwd())
         self.point_bot_user = point_bot_user
         if self.point_bot_user == None:
-            # self.point_bot_user = input("\n What is your point bot username? \n")
             self.point_bot_user = sf.recursive_input(
                 "What is your point bot username?", self.point_bot_user
             ).lower()
+        pbs.point_bot_user = self.point_bot_user
+        self.pbe = PointBotEncryption(pbs)
         self.unique_user_file = pbs.uniqueuserdatapath + f'{self.point_bot_user}_rewards_programs.json'
         self.all_users_data = sf.open_json(pbs.userdatapath)
         print(f"\nWelcome {self.point_bot_user}!")
-         
+        self.load_user()
 
 
     def generate_rewards_program_dict(self,
@@ -49,7 +48,7 @@ class Point_Bot_User:
                 if rewards_username in bad_evals:
                     rewards_username = sf.recursive_input(f"Whats your User name for {rewards_program_name}? (Programs like Southwest use this instead of your email)",rewards_username)
                 if rewards_user_pw in bad_evals:
-                    rewards_user_pw = sf.recursive_input(f"Whats the password you use for {rewards_program_name}? humans will not see this as it will be encrypted",rewards_user_pw)
+                    rewards_user_pw = sf.recursive_input(f"Whats the password you use for {rewards_program_name}? humans will not see this as it will be encrypted",rewards_user_pw,is_pw=True)
                 
                 if (
                                 self.point_bot_user
@@ -57,7 +56,6 @@ class Point_Bot_User:
                                 and rewards_user_email
                                 and rewards_user_pw
                             ):          
-                    print(self.pbe.encrypt_string(str(rewards_user_pw)))
                     rewards_program_dict =  {
                                                 "point_bot_user": str(self.point_bot_user),
                                                 "rewards_program_name": str(rewards_program_name),
@@ -69,7 +67,7 @@ class Point_Bot_User:
                                                 "valid": 0,
                                                 "last_successful_login_time": "2020-01-01 01:01:00.000000",
                                                 "times_accessed": 0,
-                                                "decryptionkey":self.pbs.timestr
+                                                "decryptionkey":str(self.point_bot_user)+str(self.pbs.timestr)
                                                 
                                             }
 

@@ -39,7 +39,7 @@ class PointBotSetup:
         release=os.uname().release,
         machine=os.uname().machine,
         nodename=os.uname().nodename,
-        headless = True,
+        headless = None,
     ):
         self.pbs_cwd = pbs_cwd
 
@@ -60,11 +60,12 @@ class PointBotSetup:
         self.machine = machine
         self.nodename = nodename
         self.dir_config = dir_config
-        self.headless = headless,
+        self.headless = headless
+        self.point_bot_user = None
 
         #this is where you would create a unique runstring that for x type of machine indicates this string
         self.system_info_dict = {
-            'timestr': self.timestr,
+            'timestr': str(self.timestr),
             'sys_username': self.sys_username,
             'sys_hostname': self.sys_hostname,
             'sysplatform': self.sysplatform,
@@ -75,7 +76,7 @@ class PointBotSetup:
             'nodename': self.nodename,
             'headless' : self.headless
         }
-
+# need to also create a create configs script! calls on 
     def create_dir(self, directory):
         directory = f"{self.pbs_cwd}/{directory}"
         if not os.path.exists(directory):

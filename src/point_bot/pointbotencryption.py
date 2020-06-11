@@ -3,17 +3,24 @@ import os
 
 
 class PointBotEncryption:
-    def __init__(self, pbs, key_full_path=None,keyfilename=None):
+    def __init__(self, pbs, key_full_path=None, keyfilename=None,point_bot_user=None):
+        print(pbs.point_bot_user )
+        if point_bot_user == None:
+            self.point_bot_user = pbs.point_bot_user 
+        else: 
+            self.point_bot_user = point_bot_user
         if key_full_path == None:
             self.key_full_path = pbs.encryptionkeypath 
         else: 
             self.key_full_path = key_full_path
         if keyfilename == None:
-            self.keyfilename = pbs.timestr+'pointbotencryptionkey.txt'
+            self.keyfilename = self.point_bot_user+pbs.timestr+'pointbotencryptionkey.txt'
         else:
             self.keyfilename = keyfilename+'pointbotencryptionkey.txt'
+            
         self.keyfilename = self.key_full_path+self.keyfilename
         self.fkey = None
+        self.load_key()
 
     def create_key(self):
         encryption_key = Fernet.generate_key()

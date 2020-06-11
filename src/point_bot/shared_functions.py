@@ -4,6 +4,7 @@ import json
 import re
 from time import sleep
 import pandas as pd
+from getpass import getpass
 # Make a regular expression 
 # for validating an Email 
 
@@ -88,7 +89,7 @@ def try_key(dictonary_objects, dict_key, compare_key):
 
 
 def recursive_input(
-    input_prompt, eval_value=None, attempts=0, max_attempts=3, options=[],check_type=None
+    input_prompt, eval_value=None, attempts=0, max_attempts=3, options=[],check_type=None,is_pw=False
 ):
     attempts += 1
     bad_evals = [None, ""]
@@ -98,7 +99,7 @@ def recursive_input(
         else:
             splitter = ', '
         
-        options_string = f"\n Options: {splitter.join(options)}"
+        options_string = f"\n           Options: {splitter.join(options)}"
     else:
         options_string = ""
     if attempts > 1:
@@ -108,10 +109,12 @@ def recursive_input(
     try:
         if attempts <= max_attempts:
             if eval_value in bad_evals or eval_value not in options:
-                eval_value = input(
-                    f"\n{input_prompt} {options_string}  {attempt_string} \n\n"
-                )
-
+                if is_pw == True:
+                    eval_value = getpass(f"\n{input_prompt} {options_string}  {attempt_string} \n\n")
+                else:
+                    eval_value = input(
+                        f"\n{input_prompt} {options_string}  {attempt_string} \n\n"
+                    )
                 if eval_value not in bad_evals and checker(eval_value,check_type):
                     if options != []:
                         if eval_value in options:

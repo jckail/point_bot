@@ -22,7 +22,8 @@ import json
 from datetime import datetime
 import time
 import random
-from  point_bot.bots.pointbotencryption import PointBotEncryption
+from  point_bot.pointbotencryption import PointBotEncryption
+
 #import random_user_agent ### could use random agent
 
 
@@ -33,6 +34,7 @@ class PointBotDriver:
         point_bot_user= None,
         rewards_program_name = None,
         rewards_user_email= None,
+        rewards_username = None,
         rewards_user_pw = None, 
         timestr=None,
         start_url=None,
@@ -45,6 +47,7 @@ class PointBotDriver:
         self.point_bot_user = point_bot_user  
         self.rewards_program_name = rewards_program_name
         self.rewards_user_email = rewards_user_email
+        self.rewards_username = rewards_username,
         self.rewards_user_pw = rewards_user_pw
         self.run_timestr = timestr
         self.start_url = start_url
@@ -55,7 +58,7 @@ class PointBotDriver:
             self.headless_text = '_hl' #applied to ouput files
         else:
             self.headless_text = ''
-
+        print(self.headless)
         d = DesiredCapabilities.CHROME
         d['goog:loggingPrefs']={'performance':'ALL'}
 
@@ -105,7 +108,7 @@ class PointBotDriver:
     def decrypt(self,stringtodecrypt):
         pbe2 = PointBotEncryption(self.pbs,keyfilename=self.decryptionkey)
         pbe2.load_key()
-        print(pbe2.decrypt_string("gAAAAABe4SSRRb6euQwnm-VHmJhigLZxRcgtmUPPOs-6UhPfZVj6Kjjhx48JsmGNiy_VZQgNYp4rzaVtAMC-7fWjUz4i36RT4A==".encode()))
+        #print(pbe2.decrypt_string("gAAAAABe4SSRRb6euQwnm-VHmJhigLZxRcgtmUPPOs-6UhPfZVj6Kjjhx48JsmGNiy_VZQgNYp4rzaVtAMC-7fWjUz4i36RT4A==".encode()))
         return pbe2.decrypt_string(stringtodecrypt.encode())
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
@@ -141,7 +144,7 @@ class PointBotDriver:
         
         for character in input_keys:
             speed = random.uniform(0.1, .5)
-            print(speed)
+            #print(speed)
             # print(character)
             sleep(speed)
             element.send_keys(character)
