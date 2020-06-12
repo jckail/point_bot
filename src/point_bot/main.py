@@ -34,17 +34,17 @@ if __name__ == "__main__":
         for kwargs in pbp.parameter_list:
             #print(kwargs)
 
-            # if kwargs['rewards_program_name'] == 'Marriott':
-            #     mb = MarriottBot(pbs,  **kwargs)
-            #     mb.mine_hotel_stay_points()
+            if kwargs['rewards_program_name'] == 'Marriott':
+                mb = MarriottBot(pbs,  **kwargs)
+                mb.mine_hotel_stay_points()
 
             if kwargs['rewards_program_name'] == 'Southwest':
                 sb = SouthwestBot(pbs, **kwargs)
                 sb.mine_southwest_points()
 
-            if kwargs["rewards_program_name"] == "Test":
-                tb = TestBot(headless_input=headless, **kwargs)
-                tb.mine_test_bot()
+            # if kwargs["rewards_program_name"] == "Test":
+            #     tb = TestBot(headless_input=headless, **kwargs)
+            #     tb.mine_test_bot()
     
     vds = VisualizeData(pbs,'jkail')
     vds.main()

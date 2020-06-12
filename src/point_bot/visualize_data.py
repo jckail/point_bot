@@ -63,56 +63,63 @@ class VisualizeData:
         if new_points_column == None:
             new_points_column = points_column
 
-        df[new_points_column] = df[points_column].apply(lambda x: int(x.split(' ')[0].replace('plus','').replace('minus','-') + x.split(' ')[1].replace(',','')) )
+        df[new_points_column] = df[points_column].apply(lambda x: int(x.split(' ')[0].replace('plus','').replace('minus','-').replace('zero','0') + x.split(' ')[1].replace(',','').replace('points','')) )
         return df
 
-    def get_data(self,point_bot_user,dflist):
+    def addmarriott(self,point_bot_user,dflist):
         try:
-            try:
-                botname = 'marriottbot'
-                datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
-                df_marriott = pd.read_json(datalocationpathbase, orient="records")
-                df_marriott = df_marriott.sort_values(by=['start_date'])
-                df_marriott['total_points_running_sum'] = df_marriott['total_points'].cumsum()
-                df_marriott['rewards_program'] = 'Marriott'
-                df_marriott = self.fixdatecolumn(df_marriott,'start_date',fmt = '%m/%d/%Y')
-                df_marriott['point_bot_user'] = point_bot_user
-                df_marriott2 = df_marriott[['point_bot_user','rewards_program','start_date','total_points_running_sum']]
-                dflist.append(df_marriott2)
-                print(f'{point_bot_user} has marriott data')
-            except Exception as e:
-                print(e)
-                print('no marriott data', point_bot_user)
-                raise Exception('no marriott data', point_bot_user)
+            botname = 'marriottbot'
+            datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
             
-            try:
-                botname = 'southwestbot'
-                datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
-                df_southwest = pd.read_json(datalocationpathbase, orient="records")
-                df_southwest = df_southwest.sort_values(by=['DATE'])
-                df_southwest['point_bot_user'] = point_bot_user
-                df_southwest['rewards_program'] = 'Southwest'
-                df_southwest['start_date'] = df_southwest['DATE']
-                df_southwest = self.fixsouthwestpoints(df_southwest,'POINTS',new_points_column= 'total_points')
-                df_southwest['total_points_running_sum'] = df_southwest['total_points'].cumsum()
-                df_southwest2 = df_southwest[['point_bot_user','rewards_program','start_date','total_points_running_sum']]
-                dflist.append(df_southwest2)
-                print(f'{point_bot_user} has southwest data')
-            except Exception as e:
-                print(e)
-                print('no southwest data', point_bot_user)
-                raise Exception('no southwest data', point_bot_user)
+            df_marriott = pd.read_json(datalocationpathbase, orient="records")
+            df_marriott = df_marriott.sort_values(by=['start_date'])
+            df_marriott['total_points_running_sum'] = df_marriott['total_points'].cumsum()
+            df_marriott['rewards_program'] = 'Marriott'
+            df_marriott = self.fixdatecolumn(df_marriott,'start_date',fmt = '%m/%d/%Y')
+            df_marriott['point_bot_user'] = point_bot_user
+            df_marriott2 = df_marriott[['point_bot_user','rewards_program','start_date','total_points_running_sum']]
+            dflist.append(df_marriott2)
+            print(f'{point_bot_user} has marriott data')
         except Exception as e:
             print(e)
+            dflist.append(None)
+            print('no marriott data', point_bot_user)
+            #raise Exception('no marriott data', point_bot_user)
+            
+    def addsouthwest(self,point_bot_user,dflist):
+        try:
+            botname = 'southwestbot'
+            datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
+            print(datalocationpathbase)
+            print('/home/ubuntu/point_bot/src/point_bot/data/botsdata/southwestbot/parsed/russ_southwest_points_parsed.json')
+            df_southwest = pd.read_json(datalocationpathbase, orient="records")
+            df_southwest = df_southwest.sort_values(by=['DATE'])
+            df_southwest['point_bot_user'] = point_bot_user
+            df_southwest['rewards_program'] = 'Southwest'
+            df_southwest['start_date'] = df_southwest['DATE']
+            df_southwest = self.fixsouthwestpoints(df_southwest,'POINTS',new_points_column= 'total_points')
+            df_southwest['total_points_running_sum'] = df_southwest['total_points'].cumsum()
+            #print(df_southwest)
+            df_southwest2 = df_southwest[['point_bot_user','rewards_program','start_date','total_points_running_sum']]
+            dflist.append(df_southwest2)
+            print(f'{point_bot_user} has southwest data')
+        except Exception as e:
+            print(e)
+            dflist.append(None)
+            print('no southwest data', point_bot_user)
+            #raise Exception('no southwest data', point_bot_user)
+
 
 
     def main(self):
         dflist = []
-        for point_bot_user in ['jkail','chuck','russ','ellen']:
+        for point_bot_user in  ['jkail','chuck','russ','ellen']: #['russ']:
             print(point_bot_user)
-            self.get_data(point_bot_user,dflist)
-        print
+            self.addmarriott(point_bot_user,dflist)
+            self.addsouthwest(point_bot_user,dflist)
+        #print(dflist)
         df = pd.concat(dflist)
+        print(df)
 
         plt.figure(figsize=(15,5))
         ax = sns.lineplot(x="start_date", y="total_points_running_sum",  hue="rewards_program", style="point_bot_user", data=df)
