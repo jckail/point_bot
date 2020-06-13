@@ -113,7 +113,7 @@ class VisualizeData:
 
     def main(self):
         dflist = []
-        for point_bot_user in  ['jkail','chuck','russ','ellen']: #['russ']:
+        for point_bot_user in  ['jkail','chuck','russ','ellen','kat']: #['russ']:
             print(point_bot_user)
             self.addmarriott(point_bot_user,dflist)
             self.addsouthwest(point_bot_user,dflist)
