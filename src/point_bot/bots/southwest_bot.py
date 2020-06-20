@@ -120,6 +120,7 @@ class SouthwestBot(PointBotDriver):
                 }}
             time_track_dict = self.run_bot_function(
                 botname=self.botname, funcname=funcname, **kwargs)
+            print('xxxxxxx')
             kwargs ={
                 "step6": {
                     "action": "redirect",

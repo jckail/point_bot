@@ -18,7 +18,7 @@ from visualize_data import VisualizeData
 #pip3.8 install xvfbwrapper
 
 if __name__ == "__main__":
-    headless = True # note pass headless to setup so we can record
+    headless = False # note pass headless to setup so we can record
     pbs = PointBotSetup(headless = headless)
     pbs.start()
     print(f'\n\n\n Headless = {headless} \n\n\n ')
