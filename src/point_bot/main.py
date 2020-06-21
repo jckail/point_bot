@@ -27,13 +27,12 @@ if __name__ == "__main__":
     for user in [pbs.point_bot_user]: #"jkail", "ellen"'chuck' 
         pbp = PointBotProfileParameters(pbs,user)
         
-    # for user in ['jkail']: #"jkail", "ellen"'chuck'
-    #     pbp = PointBotProfileParameters(pbs,'jkail')
+    # for user in ['jkail','chuck','alex','ellen']: #"jkail", "ellen"'chuck' 'jkail',
+    #     pbp = PointBotProfileParameters(pbs,user)
 
         # this is where you would create async bots!
         # CAN WRITE LAMBDA TO FIND KEYS
         for kwargs in pbp.parameter_list:
-            #print(kwargs)
 
             if kwargs['rewards_program_name'] == 'Marriott':
                 mb = MarriottBot(pbs,  **kwargs)
@@ -43,12 +42,12 @@ if __name__ == "__main__":
                 sb = SouthwestBot(pbs, **kwargs)
                 sb.mine_southwest_points()
 
-            # if kwargs["rewards_program_name"] == "Test":
-            #     tb = TestBot(pbs, **kwargs)
-            #     tb.mine_test_bot()
+            if kwargs["rewards_program_name"] == "Test":
+                tb = TestBot(pbs, **kwargs)
+                tb.mine_test_bot()
     
-    # vds = VisualizeData(pbs,'jkail')
-    # vds.main()
+    vds = VisualizeData(pbs,'jkail')
+    vds.main()
 
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works

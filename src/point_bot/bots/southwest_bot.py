@@ -80,7 +80,7 @@ class SouthwestBot(PointBotDriver):
                     "description": "Entering Username",
                     "argument_to_click": "//input[@id='username']",
                     "findby": By.XPATH,
-                    "input_keys": self.rewards_username,
+                    "input_keys": str(self.rewards_username),
                     "take_screenshot": 1,
                     "log_html": 1,
                     "capture_variable": "",

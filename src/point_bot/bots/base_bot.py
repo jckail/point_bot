@@ -137,7 +137,7 @@ class PointBotDriver:
         
 
     def sleep_keys(self,element,input_keys):
-        
+        input_keys = str(input_keys)
         for character in input_keys:
             speed = random.uniform(0.1, .5)
             sleep(speed)

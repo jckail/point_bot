@@ -136,6 +136,7 @@ class VisualizeData:
 
     def main(self):
         dflist = []
+        #my_list = list(set(basedf['point_bot_user'].to_list()))
         for point_bot_user in  ['alex','jkail','chuck','russ','ellen','kat']: #['russ']:['jkail','chuck','russ','ellen','kat']
             #print(point_bot_user)
             self.addmarriott(point_bot_user,dflist)
