@@ -1,42 +1,41 @@
 from cryptography.fernet import Fernet
+from setup_point_bot import PointBotSetup
 import os
 
 
 class PointBotEncryption:
     def __init__(self, pbs, key_full_path=None, keyfilename=None,point_bot_user=None):
-        print(pbs.point_bot_user )
+        self.pbs = pbs
         if point_bot_user == None:
             self.point_bot_user = pbs.point_bot_user 
         else: 
             self.point_bot_user = point_bot_user
+
         if key_full_path == None:
             self.key_full_path = pbs.encryptionkeypath 
         else: 
             self.key_full_path = key_full_path
+
         if keyfilename == None:
-            self.keyfilename = self.point_bot_user+pbs.timestr+'pointbotencryptionkey.txt'
+            self.keyfilename = self.point_bot_user+self.pbs.timestr+'pointbotencryptionkey.txt'
         else:
             self.keyfilename = keyfilename+'pointbotencryptionkey.txt'
             
         self.keyfilename = self.key_full_path+self.keyfilename
+
         self.fkey = None
         self.load_key()
 
     def create_key(self):
         encryption_key = Fernet.generate_key()
         self.fkey = Fernet(encryption_key)
-        file = open(self.keyfilename, "wb")
-        print('saving:  ',self.keyfilename)
-        file.write(encryption_key)  # The key is type bytes still
-        file.close()
+        print('creating: ',self.keyfilename)
+        self.pbs.pbsavefile(self.keyfilename, encryption_key,writetype="wb")
 
     def load_key(self):
 
         try:
-            file = open(self.keyfilename, "rb")
-            encryption_key = file.read()  # The key will be type bytes
-            file.close()
-            self.fkey = Fernet(encryption_key)
+            self.fkey = self.pbs.pbloadfile(self.keyfilename, "rb")
 
         except Exception as e:
             print(e)
@@ -60,12 +59,11 @@ class PointBotEncryption:
             self.load_key()
         pre, ext = os.path.splitext(input_file)
         output_file = f"{pre}{ext.replace('.','__')}.encrypted"
-        with open(input_file, "rb") as f:
-            data = f.read()
+
+        data = self.pbs.pbloadfile(input_file, "rb")
         encrypted = self.fkey.encrypt(data)
 
-        with open(output_file, "wb") as f:
-            f.write(encrypted)
+        self.pbs.pbsavefile(self.keyfilename, encrypted,writetype="wb")
 
         if remove_input == True:
             os.remove(input_file)
@@ -80,28 +78,26 @@ class PointBotEncryption:
         pre, ext = os.path.splitext(input_file)
 
         output_file = pre.replace("__", ".")
-        with open(input_file, "rb") as f:
-            data = f.read()
+        data = self.pbs.pbloadfile(input_file, "rb")
 
         decrypted = self.fkey.decrypt(data)
-        with open(output_file, "wb") as f:
-            f.write(decrypted)
+
+        self.pbs.pbsavefile(self.keyfilename, decrypted,writetype="wb")
+
         if remove_input == True:
             os.remove(input_file)
         else:
             print(f"CATION {input_file} WAS NOT DELETED")
         print(f"Decrypted: {input_file} --> {output_file}")
 
-    # def decrypt_obj(self,decrypt_obj):
-    #     f = Fernet(self.encryption_key)
-    #     encrypted = f.decrypt(message)
 
 
 if __name__ == "__main__":
+    pbs = PointBotSetup(headless = False,offlinemode=0,point_bot_user='jkail')
+    pbs.start()
     # pbe = PointBotEncryption().create_key()
-    pbe = PointBotEncryption()
-    # pbe.load_key()
+    pbe = PointBotEncryption(pbs)
     # print(pbe.encrypt_string('test'))
     ##print(pbe.decrypt_string(pbe.encrypt_string('test')))
-    pbe.encrypt_file("aaa.txt")
-    pbe.decrypt_file("aaa__txt.encrypted")
+    # pbe.encrypt_file("aaa.txt")
+    # pbe.decrypt_file("aaa__txt.encrypted")

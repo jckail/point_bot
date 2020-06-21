@@ -17,15 +17,10 @@ class S3Helper(object):
     def __init__(self,  local_file=None, remote_file=None, bucket= 'pointupdata'):
 
         self.bucket = bucket
-        #print(local_file)
-        #print(os.getcwd())
-        #print(local_file.replace(os.getcwd()+'/',''))
         self.local_file = local_file
         self.local_file_save = local_file.replace('parsed','xxxx')
         self.s3_file = local_file.replace(os.getcwd()+'/','') # replace with lookup
         self.remote_file = remote_file
-        #print(self.local_file)
-        #self.s3 = boto3.client('s3')
         self.s3 = boto3.resource('s3')
 
     def save_to_s3(self):

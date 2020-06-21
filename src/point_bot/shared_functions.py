@@ -110,7 +110,14 @@ def recursive_input(
         if attempts <= max_attempts:
             if eval_value in bad_evals or eval_value not in options:
                 if is_pw == True:
-                    eval_value = getpass(f"\n{input_prompt} {options_string}  {attempt_string} \n\n")
+                    passgo = False
+                    while passgo ==False:
+                        eval_value = getpass(f"\n{input_prompt} {options_string}  {attempt_string} \n\n")
+                        eval_value2 = getpass(f"\n{input_prompt} {options_string} (again) {attempt_string} \n\n")
+                        if eval_value == eval_value2:
+                            passgo = True
+                        else:
+                            print(' \nPasswords do not match please try again!\n')
                 else:
                     eval_value = input(
                         f"\n{input_prompt} {options_string}  {attempt_string} \n\n"
