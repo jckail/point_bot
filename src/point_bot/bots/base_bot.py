@@ -23,6 +23,7 @@ from datetime import datetime
 import time
 import random
 from  point_bot.pointbotencryption import PointBotEncryption
+from io import BytesIO
 
 #import random_user_agent ### could use random agent
 
@@ -55,7 +56,7 @@ class PointBotDriver:
         self.decryptionkey = decryptionkey
         self.headless = headless
         if self.headless == True:
-            self.headless_text = '_hl' #applied to ouput files
+            self.headless_text = '_hl'
         else:
             self.headless_text = ''
         d = DesiredCapabilities.CHROME
@@ -67,16 +68,12 @@ class PointBotDriver:
         #chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument("--start-maximized")
         #chrome_options.add_argument("--window-size=1920x1080")
-        #user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
-        #user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
         user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
-        #user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
         chrome_options.add_argument(f'user-agent={user_agent}')
         chromedriverpath = f"{os.getcwd()}/chromedriver"
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         print('Chrome Options: ',chrome_options.arguments, '\n Chrome Driver Path: ',chromedriverpath)
-        #self.driver = webdriver.Chrome(executable_path=chromedriverpath,chrome_options=chrome_options,desired_capabilities=d)
         self.driver = Chrome(chrome_options=chrome_options,desired_capabilities=d)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
@@ -107,8 +104,8 @@ class PointBotDriver:
     def decrypt(self,stringtodecrypt):
         pbe2 = PointBotEncryption(self.pbs,keyfilename=self.decryptionkey)
         pbe2.load_key()
-        #print(pbe2.decrypt_string("gAAAAABe4SSRRb6euQwnm-VHmJhigLZxRcgtmUPPOs-6UhPfZVj6Kjjhx48JsmGNiy_VZQgNYp4rzaVtAMC-7fWjUz4i36RT4A==".encode()))
         return pbe2.decrypt_string(stringtodecrypt.encode())
+
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
             url = self.start_url
@@ -143,13 +140,10 @@ class PointBotDriver:
         
         for character in input_keys:
             speed = random.uniform(0.1, .5)
-            # print(speed)
-            # print(character)
             sleep(speed)
             element.send_keys(character)
 
     def click_text(self, argument_to_click, findby, input_keys = None, input_keys2 = None, description = '', action=None, attempts = 0, datalayer=None,**kwargs):
-        #print(kwargs)
         attempts += 1
         try:
             if attempts <= self.max_attempts:
@@ -159,16 +153,13 @@ class PointBotDriver:
                     )
                     if input_keys != None:
                         self.move_n_click(element)
-                        #element.click()
                         sleep(random.uniform(0.1, 1.5))
                         self.sleep_keys(element,input_keys)
                         if input_keys2 != None:
                             self.sleep_keys(element,input_keys2)
-                        
                             
                     else:
                         self.move_n_click(element)
-                        #element.click()
                     
                     print(f"{description} Success! ")
                     return self.driver
@@ -187,23 +178,24 @@ class PointBotDriver:
             print(e)
 
     def screenshot(self,filename,when):
-        
-        #this effects prelogin detction on sw #maybe window?
         S = lambda X: self.driver.execute_script('return document.body.parentNode.scroll'+X)
-        self.driver.set_window_size(S('Width'),S('Height')) # May need manual adjustment                                                                                                                
-        self.driver.find_element_by_tag_name('body').screenshot(f"{self.datapath}screencaps/{filename}_{when}.png")
-        #self.driver.maximize_window()
-        #self.driver.save_screenshot(f"{self.datapath}screencaps/{filename}_{when}.png")
-        #pass
+        self.driver.set_window_size(S('Width'),S('Height')) # May need manual adjustment 
+        pngfile = f"{self.datapath}screencaps/{filename}_{when}.png"
+        if self.pbs.offlinemode == 1:                                                                                                               
+            self.driver.find_element_by_tag_name('body').screenshot(pngfile)
+        else:
+            screenshotx = self.driver.find_element_by_tag_name('body').screenshot_as_png
+            databuffer = BytesIO(screenshotx)
+            self.pbs.pbsaves3(pngfile,databuffer.getvalue())
+
     def savehtml(self,filename,when):
-        with open(f"{self.datapath}raw_html/{filename}_{when}.html" ,"w+") as oFile:
-            oFile.write(self.driver.page_source)
+        self.pbs.pbsavefile(f"{self.datapath}raw_html/{filename}_{when}.html",self.driver.page_source,writetype='w+')
     
-    def capturevariable(self,filename,when,capture_variable):
-        with open(f"{self.datapath}dataLayer/{filename}_{capture_variable}_{when}.json", 'w+') as fp:
-            capture_variable = f'return {capture_variable};'
-            # this should be json.dump([self.driver.execute_script(capture_variable)], fp, indent=4)
-            #json.dump([self.driver.execute_script("return dataLayer;")], fp, indent=4)
+    #this was on marriott datalayer
+    # def capturevariable(self,filename,when,capture_variable):
+    #     with open(f"{self.datapath}dataLayer/{filename}_{capture_variable}_{when}.json", 'w+') as fp:
+    #         capture_variable = f'return {capture_variable};'
+
 
     def performaction(self, action, step,filename, **kwargs):
             log_list = []
@@ -225,23 +217,22 @@ class PointBotDriver:
                 
             log_list.append({'browser_after':self.driver.get_log('browser')})
             log_list.append({'driver_after':self.driver.get_log('driver')})
+            res = {k: v for d in log_list for k, v in d.items()} 
+            df = pd.DataFrame(res.items(), columns=['event', 'log_value'])
 
-            with open(f"{self.datapath}console_logger/{filename}_logger.json", 'w') as fp:
-                json.dump(log_list, fp, indent=4)
+
+            self.pbs.pbsavedf(f"{self.datapath}console_logger/{filename}_logger.json",df)
 
             return log_list
 
     def actions(self, time_track_dict, take_screenshot=1, log_html=1, output_capture = 0, capture_variable = "", **kwargs):
-        #print('\n','kwargs: ',kwargs,'\n')
         for step in kwargs.keys():
-            #self.driver.get_cookies()
             desc = kwargs[step]['description']
             print(f'\n{self.rewards_user_email} {step}: {desc}')
             when = 'before'
             action = kwargs[step]['action']
             capture_variable = kwargs[step]['capture_variable']
             output_capture = kwargs[step]['output_capture']
-            #self.driver.get_cookies()
             time_track_dict[f'start_{step}'] = str(datetime.now())
 
             filename = f"{time_track_dict['file_prefix']}_{step}{self.headless_text}"
@@ -252,8 +243,8 @@ class PointBotDriver:
             if log_html ==1:
                 self.savehtml(filename,when)
 
-            if capture_variable != "":
-                self.capturevariable(filename,when,capture_variable)
+            # if capture_variable != "":
+            #     self.capturevariable(filename,when,capture_variable)
 
             self.performaction(action, step, filename, **kwargs)
             sleep(random.uniform(1.1, 2.5))
@@ -264,8 +255,8 @@ class PointBotDriver:
             if log_html ==1 and output_capture == 1:
                 self.savehtml(filename,when)
             
-            if capture_variable != "" and output_capture == 1:
-                self.capturevariable(filename,when,capture_variable)
+            # if capture_variable != "" and output_capture == 1:
+            #     self.capturevariable(filename,when,capture_variable)
 
             time_track_dict[f'end_{step}'] = str(datetime.now())
             sleep(random.uniform(0.1, 1.5))
@@ -286,12 +277,9 @@ class PointBotDriver:
 
     def stop_time_tracking(self,time_track_dict):
         time_track_dict[f"end_function"] = str(datetime.now())
-        ttdf = pd.DataFrame([time_track_dict])
-        ttdf.to_json(
-                    f"{self.datapath}tracking_data/{time_track_dict['file_prefix']}.json",
-                    orient="records",
-                    indent=4,
-                )
+        timetrackfile = f"{self.datapath}tracking_data/{time_track_dict['file_prefix']}.json"
+        self.pbs.pbsavedf(timetrackfile,df=pd.DataFrame([time_track_dict]))
+
 
     def run_bot_function(self,time_track_dict = None, botname='',funcname='', **kwargs):
         try:

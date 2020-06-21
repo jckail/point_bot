@@ -77,12 +77,17 @@ class Point_Bot_User:
 
                     if 'y' == sf.recursive_input(
                             f"""
-                            ---------------------------------------------
+
+
                             Can you Confirm?
+
+                            ---------------------------------------------
                             Rewards Program: {rewards_program_name}
                             Rewards Program Email: {rewards_user_email} 
                             Rewards Program Password: *Encrypted*
                             ---------------------------------------------
+
+
                             """,
                             options=["y", "n"],
                         ):
@@ -136,10 +141,8 @@ class Point_Bot_User:
         except:
             print("No Rewards Profiles Found", end="")
             self.orginal_df = self.generate_rewards_program_df()
-            
-        ###TEMP
+
         self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,self.new_df,printdf=0)
-        # sf.save_json(self.unique_user_file,self.attributes,newdata=new_data)
 
 
 if __name__ == "__main__":

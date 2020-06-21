@@ -12,37 +12,48 @@ import time
 class TestBot(PointBotDriver):
     def __init__(
         self,
+        pbs,
         point_bot_user=None,
         rewards_program_name=None,
         rewards_user_email=None,
+        rewards_username = None,
         rewards_user_pw=None,
         timestr=None,
         start_url=None,
         datapath=None,
-        headless_input=True,
+        decryptionkey = None,
+        headless=True,
         **kwargs,
     ):
+
+        self.pbs = pbs
         self.point_bot_user = point_bot_user
         self.rewards_program_name = rewards_program_name
         self.rewards_user_email = rewards_user_email
+        self.rewards_username = rewards_username
         self.rewards_user_pw = rewards_user_pw
         self.run_timestr = timestr
         self.start_url = start_url
-        self.headless_input = headless_input
+       
         self.botname = __class__.__name__
         self.datapath = datapath
         if self.datapath == None:
             self.datapath = f"data/botsdata/{self.botname.lower()}/"
+        self.decryptionkey = decryptionkey
+        self.headless = headless
 
         super().__init__(
+            self.pbs,
             self.point_bot_user,
             self.rewards_program_name,
             self.rewards_user_email,
+            self.rewards_username,
             self.rewards_user_pw,
             self.run_timestr,
             self.start_url,
             self.datapath,
-            self.headless_input,
+            self.decryptionkey,
+            self.headless,
             **kwargs,
         )
 
@@ -97,7 +108,7 @@ class TestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 },
-                "step9": {
+                "last_step": {
                     "action": "last_step",
                     "description": "Last Step",
                     "take_screenshot": 1,
@@ -113,7 +124,7 @@ class TestBot(PointBotDriver):
 
             bigspaces = "\n" * 3
             print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
-            if self.headless_input == False:
+            if self.headless == False:
                 print("Sleeping 30 Seconds")
                 sleep(30)
             self.driver.quit()

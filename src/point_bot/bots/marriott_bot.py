@@ -46,6 +46,7 @@ class MarriottBot(PointBotDriver):
         self.decryptionkey = decryptionkey
         self.headless = headless
 
+
         super().__init__(
             self.pbs,
             self.point_bot_user,
@@ -138,18 +139,11 @@ class MarriottBot(PointBotDriver):
         df["timestr"] = self.run_timestr
         df["point_bot_user"] = self.point_bot_user
         df["rewards_email"] = self.rewards_user_email
-        df_dict = df.to_dict(orient="records")
-        df.to_json(
-            f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",
-            orient="records",
-            indent=4,
-        )
-        return df_dict
+        self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",df)
 
     def mine_hotel_stay_points(self):
         funcname = str(self.mine_hotel_stay_points.__name__)
         print(f"Starting: {self.botname} : {funcname}")
-        #print(self.decrypt("gAAAAABe4SSRRb6euQwnm-VHmJhigLZxRcgtmUPPOs-6UhPfZVj6Kjjhx48JsmGNiy_VZQgNYp4rzaVtAMC-7fWjUz4i36RT4A=="))
         try:
 
             kwargs = {

@@ -42,7 +42,7 @@ class PointBotSetup:
         release=os.uname().release,
         machine=os.uname().machine,
         nodename=os.uname().nodename,
-        headless = None,
+        headless = True,
         s3bucket= 'pointupdata',
         offlinemode = 0,
         point_bot_user = None
@@ -67,6 +67,7 @@ class PointBotSetup:
         self.nodename = nodename
         self.dir_config = dir_config
         self.headless = headless
+
         self.point_bot_user = point_bot_user
         self.s3bucket = s3bucket
         self.s3client = boto3.client('s3')
@@ -123,7 +124,6 @@ class PointBotSetup:
 
             if compress ==1:
                 filename = filename+'.gz'
-            print(f'Saving: {filename}')
 
             if self.offlinemode == 1:
                 print(f'Saving: "{filename}" as dataframe to local')

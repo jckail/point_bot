@@ -17,7 +17,7 @@ from setup_point_bot import PointBotSetup
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-
+from io import BytesIO
 
 #import random_user_agent ### could use random agent
 
@@ -73,7 +73,8 @@ class VisualizeData:
             botname = 'marriottbot'
             datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
             
-            df_marriott = pd.read_json(datalocationpathbase, orient="records")
+            # df_marriott = pd.read_json(datalocationpathbase, orient="records")
+            df_marriott = self.pbs.pbloaddf(datalocationpathbase)
             df_marriott['rewards_program'] = 'Marriott' #add to canonicalizer
             df_marriott['point_bot_user'] = point_bot_user
             #print(df_marriott)
@@ -106,8 +107,8 @@ class VisualizeData:
         try:
             botname = 'southwestbot'
             datalocationpathbase = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
-            df_southwest = pd.read_json(datalocationpathbase, orient="records")
-            
+            #df_southwest = pd.read_json(datalocationpathbase, orient="records")
+            df_southwest = self.pbs.pbloaddf(datalocationpathbase)
             df_southwest['rewards_program'] = 'Southwest'
             df_southwest['point_bot_user'] = point_bot_user
             df_southwest['activity_date'] = df_southwest['DATE']
@@ -144,14 +145,17 @@ class VisualizeData:
         ax = sns.lineplot(x="activity_date", y="total_points_running_sum",  hue="rewards_program", style="point_bot_user", data=df)
         ax.axhline(0, ls='-',color='black')
         #ax.set_xticklabels(ax.get_xticklabels(), fontsize='x-large')
-        ax.get_figure().savefig("compare points.png")
-
+        pngfile = "compare points.png"
+        fig = ax.get_figure()
+        if self.pbs.offlinemode == 1:
+            fig.savefig("compare points.png")
+        else:
+            img_data = BytesIO()
+            plt.savefig(img_data, format='png')
+            img_data.seek(0)
+            self.pbs.pbsaves3(pngfile,img_data)
         df['activity_date'] = df['activity_date'].astype(str)
-        df.to_json(
-            f"/Users/jordankail/projects/point_bot/src/point_bot/data/user/all_users_parsed.json",
-            orient="records",
-            indent=4,
-        )
+        self.pbs.pbsavedf(f"/Users/jordankail/projects/point_bot/src/point_bot/data/user/all_users_parsed.json",df=df)
 
 if __name__ == '__main__':
     headless = False # note pass headless to setup so we can record

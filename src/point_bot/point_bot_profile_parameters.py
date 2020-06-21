@@ -51,6 +51,7 @@ class PointBotProfileParameters(PointBotSetup):
         self.output_userdata_df['machine'] = self.system_info_dict['machine']
         self.output_userdata_df['nodename'] = self.system_info_dict['nodename']
         self.output_userdata_df['timestr'] = self.system_info_dict['timestr']
+        self.output_userdata_df['headless'] = self.system_info_dict['headless']
         #print(f' output: \n\n\n {self.config_df} \n' )
         self.output_userdata_df =self.output_userdata_df.merge(self.config_df,how='inner',on='rewards_program_name')
         #print(f' output: \n\n\n {self.output_userdata_df} \n' )
