@@ -118,9 +118,9 @@ class SouthwestBot(PointBotDriver):
                     "capture_variable": "",
                     "output_capture": 1,
                 }}
-            time_track_dict = self.run_bot_function(
+            time_track_dict, loginresult = self.run_bot_function(
                 botname=self.botname, funcname=funcname, **kwargs)
-
+            
             kwargs ={
                 "step6": {
                     "action": "redirect",
@@ -140,12 +140,18 @@ class SouthwestBot(PointBotDriver):
                     "output_capture": 1,
                 },
             }
-            time_track_dict = self.run_bot_function(time_track_dict,
+
+            time_track_dict, loginresult = self.run_bot_function(time_track_dict,
                 botname=self.botname, funcname=funcname, **kwargs)
 
             df = pd.read_html(self.driver.page_source)[0] #this returns a list
+
+
             df.columns = [column.replace('sortable column  ','') for column in df.columns]
             self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_southwest_points_parsed.json",df=df)
+            
+            
+            
             bigspaces = "\n" * 3
             print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
             if self.headless == False:

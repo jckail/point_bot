@@ -15,7 +15,7 @@ class PointBotSetup:
         self,
         pbs_cwd=os.getcwd(),
         subdirs=["data", "resources", "bots"],
-        datasubdirs=["user", "reward_program_configs", "botsdata"],
+        datasubdirs=["user",  "botsdata"],
         resourcessubdirs=["reward_program_configs"],
         botsubdirs=[
             "console_logger",
@@ -24,17 +24,19 @@ class PointBotSetup:
             "raw_html",
             "screencaps",
             "tracking_data",
+            "scripts"
         ],
         dir_config = [            
             {"data": ["user", "reward_program_configs", "botsdata"]},
             {"bots": []},
-            {"resources": ["reward_program_configs","encryptionkeys"]}],
+            {"resources": ["reward_program_configs","encryptionkeys",'param_history']}],
         sys_username=getpass.getuser(),
         sys_hostname=socket.gethostname(),
         userdatapath="data/user/all_users_rewards_programs.json",
         uniqueuserdatapath="data/user/",
         configpath="resources/reward_program_configs/all_config_reward_programs.json",
         encryptionkeypath="resources/encryptionkeys/",
+        paramhistorypath="resources/param_history/",
         timestr=time.strftime("%Y%m%d%H%M%S"),
         sysplatform=sys.platform,
         ssysname=os.uname().sysname,
@@ -45,7 +47,8 @@ class PointBotSetup:
         headless = True,
         s3bucket= 'pointupdata',
         offlinemode = 0,
-        point_bot_user = None
+        point_bot_user = None,
+        runspecificbots = []
     ):
         self.pbs_cwd = pbs_cwd
 
@@ -58,6 +61,7 @@ class PointBotSetup:
         self.uniqueuserdatapath=uniqueuserdatapath
         self.configpath = configpath
         self.encryptionkeypath = encryptionkeypath
+        self.paramhistorypath = paramhistorypath
         self.timestr = timestr
         self.sysplatform = sysplatform
         self.ssysname = ssysname
@@ -74,8 +78,31 @@ class PointBotSetup:
         self.offlinemode = offlinemode
         self.s3resource = boto3.resource('s3')
         self.config_df = self.pbloaddf(self.configpath)
+        self.configured_reward_programs = self.config_df['rewards_program_name'].tolist()
+        
+        if runspecificbots == []:
+            self.botstorun = self.configured_reward_programs
+        else:
+            self.botstorun = runspecificbots
+        
+        #        for configured_reward_program in self.configured_reward_programs:
+            # if configured_reward_program in self.botstorun:
+            #     self.user_rewards_info_df[configured_reward_program] = 1
+            # else:
+            #     self.user_rewards_info_df[configured_reward_program] = 1
+        #put logic on config_df to control what is run via iloc
 
         #this is where you would create a unique runstring that for x type of machine indicates this string
+        if runspecificbots == []:
+            self.config_df['run'] = 1
+        else:
+            self.config_df['run'] = 0
+            
+            for bottorun in runspecificbots:
+                self.config_df.loc[self.config_df.rewards_program_name == bottorun, 'run'] = 1
+        #print(self.config_df)
+        
+
         self.system_info_dict = {
             'timestr': str(self.timestr),
             'sys_username': self.sys_username,
@@ -88,6 +115,13 @@ class PointBotSetup:
             'nodename': self.nodename,
             'headless' : self.headless
         }
+
+        if self.point_bot_user != None:
+            self.unique_user_file = self.uniqueuserdatapath + f'{self.point_bot_user}_rewards_programs.json'
+            self.user_rewards_info_df = self.pbloaddf(self.unique_user_file)
+        else:
+            self.unique_user_file = ''
+            self.user_rewards_info_df = None
 
 # need to also create a create configs script! calls on 
     def create_dir(self, directory):
@@ -232,7 +266,42 @@ class PointBotSetup:
         if self.offlinemode == 1:
             self.generate_directories()
         #else check for s3 bucket create if not exists
-            
+
+    def selectparameters(self):
+        self.user_rewards_info_df = self.user_rewards_info_df.sort_values(by=['rewards_program_name','created_time','last_successful_login_time'], ascending=False)
+        self.user_rewards_info_df['best_record_rank'] =self.user_rewards_info_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max') + self.user_rewards_info_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max')
+        self.user_rewards_info_df['best_record_rank'] =self.user_rewards_info_df.groupby("rewards_program_name")['best_record_rank'].rank(ascending = False, method = 'max')
+        self.user_rewards_info_df = self.user_rewards_info_df.sort_values(by=['rewards_program_name','best_record_rank'], ascending=True).reset_index(drop=True)
+        
+        
+
+        self.user_rewards_info_df['sys_username'] = self.sys_username
+        self.user_rewards_info_df['sys_hostname'] = self.sys_hostname
+        self.user_rewards_info_df['sysplatform'] = self.sysplatform
+        self.user_rewards_info_df['ssysname'] = self.ssysname
+        self.user_rewards_info_df['version'] = self.version
+        self.user_rewards_info_df['release'] = self.release
+        self.user_rewards_info_df['machine'] = self.machine
+        self.user_rewards_info_df['nodename'] = self.nodename
+        self.user_rewards_info_df['timestr'] = str(self.timestr)
+        self.user_rewards_info_df['headless'] = self.headless
+
+        self.user_rewards_info_df =self.user_rewards_info_df.merge(self.config_df,how='inner',on='rewards_program_name')        
+        
+        #print(self.user_rewards_info_df[["rewards_program_name","run"]])
+        self.user_rewards_info_df.loc[(self.user_rewards_info_df['run'] == 1)&(self.user_rewards_info_df['best_record_rank'] == 1.0), 'run'] =1
+
+        #print(self.user_rewards_info_df[["rewards_program_name","run"]])
+        
+        return self.user_rewards_info_df.to_dict(orient='records')
+
+    def closeoutfunction(self):
+        self.pbsavedf(self.paramhistorypath+self.point_bot_user+self.timestr+'run_history.json',self.user_rewards_info_df)
+        newuserfiledf = self.user_rewards_info_df[["point_bot_user","rewards_program_name"
+            ,"rewards_user_email","rewards_username","rewards_user_pw"
+            ,"created_time","altered_time","valid","last_successful_login_time"
+            ,"times_accessed","decryptionkey"]]
+        self.pbsavedf(self.unique_user_file,newuserfiledf,printdf=0)
 
 if __name__ == "__main__":
     pbs = PointBotSetup(offlinemode=0)

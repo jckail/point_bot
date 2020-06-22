@@ -73,6 +73,8 @@ class PointBotDriver:
         chromedriverpath = f"{os.getcwd()}/chromedriver"
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
+
+        self.pbs.user_rewards_info_df['user_agent'] = user_agent
         print('Chrome Options: ',chrome_options.arguments, '\n Chrome Driver Path: ',chromedriverpath)
         self.driver = Chrome(chrome_options=chrome_options,desired_capabilities=d)
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -102,9 +104,7 @@ class PointBotDriver:
         self.max_attempts = 3 
 
     def decrypt(self,stringtodecrypt):
-        pbe2 = PointBotEncryption(self.pbs,keyfilename=self.decryptionkey)
-        pbe2.load_key()
-        return pbe2.decrypt_string(stringtodecrypt.encode())
+        return PointBotEncryption(self.pbs,keyfilename=self.decryptionkey).decrypt_string(stringtodecrypt.encode())
 
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
@@ -114,12 +114,13 @@ class PointBotDriver:
         self.driver.get(url)
         sleep(random.uniform(2.1, 5))
         
+        
 
     def gen_soup(self):
         self.soup = BeautifulSoup(self.driver.page_source, 'lxml')
         return self.soup
 
-    def login_test(self,soup, input_keys='None',**kwargs):
+    def exist_test(self,soup, input_keys='None',**kwargs):
         test = soup.body.findAll(text=input_keys)
         if len(test) > 0:
             print(f'\n\n\n Login Success ({test} len {len(test)})\n\n\n')
@@ -195,19 +196,59 @@ class PointBotDriver:
     # def capturevariable(self,filename,when,capture_variable):
     #     with open(f"{self.datapath}dataLayer/{filename}_{capture_variable}_{when}.json", 'w+') as fp:
     #         capture_variable = f'return {capture_variable};'
+    def modify_user_rewards_info_df(self,loginresult):
+        if loginresult:
+            self.pbs.user_rewards_info_df.loc[
+                (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
+                (self.pbs.user_rewards_info_df.rewards_program_name == self.rewards_program_name) &
+                (self.pbs.user_rewards_info_df.rewards_user_email == self.rewards_user_email) &
+                (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
+                (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
+                (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
+                'last_successful_login_time' ] = self.run_timestr
 
+            self.pbs.user_rewards_info_df.loc[
+                (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
+                (self.pbs.user_rewards_info_df.rewards_program_name == self.rewards_program_name) &
+                (self.pbs.user_rewards_info_df.rewards_user_email == self.rewards_user_email) &
+                (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
+                (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
+                (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
+                'times_accessed' ] += 1
+
+            self.pbs.user_rewards_info_df.loc[
+                (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
+                (self.pbs.user_rewards_info_df.rewards_program_name == self.rewards_program_name) &
+                (self.pbs.user_rewards_info_df.rewards_user_email == self.rewards_user_email) &
+                (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
+                (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
+                (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
+                'valid' ] = 1
+        else:
+            self.pbs.user_rewards_info_df.loc[
+                (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
+                (self.pbs.user_rewards_info_df.rewards_program_name == self.rewards_program_name) &
+                (self.pbs.user_rewards_info_df.rewards_user_email == self.rewards_user_email) &
+                (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
+                (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
+                (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
+                'valid' ] = 0
 
     def performaction(self, action, step,filename, **kwargs):
             log_list = []
+            loginresult = True
             log_list.append({'browser_start':self.driver.get_log('browser')})
             log_list.append({'driver_start':self.driver.get_log('driver')})
             
             if action == 'click_text':
                 self.click_text(**kwargs[step])
 
+            if action == 'exist_test':
+                loginresult = self.exist_test(self.gen_soup(),**kwargs[step])
+
             if action == 'login_test':
-                self.login_test(self.gen_soup(),**kwargs[step])
-                sleep(random.uniform(0.1, 1.5))
+                loginresult = self.exist_test(self.gen_soup(),**kwargs[step])
+                self.modify_user_rewards_info_df(loginresult)
 
             if action == 'redirect':
                 sleep(random.uniform(1.1, 2.5))
@@ -223,9 +264,10 @@ class PointBotDriver:
 
             self.pbs.pbsavedf(f"{self.datapath}console_logger/{filename}_logger.json",df)
 
-            return log_list
+            return log_list,loginresult
 
     def actions(self, time_track_dict, take_screenshot=1, log_html=1, output_capture = 0, capture_variable = "", **kwargs):
+        loginresult = True
         for step in kwargs.keys():
             desc = kwargs[step]['description']
             print(f'\n{self.rewards_user_email} {step}: {desc}')
@@ -246,8 +288,7 @@ class PointBotDriver:
             # if capture_variable != "":
             #     self.capturevariable(filename,when,capture_variable)
 
-            self.performaction(action, step, filename, **kwargs)
-            sleep(random.uniform(1.1, 2.5))
+            log_list,loginresult = self.performaction(action, step, filename, **kwargs)
             when = 'after'
             if take_screenshot == 1 and output_capture == 1:
                 self.screenshot(filename,when)
@@ -259,10 +300,9 @@ class PointBotDriver:
             #     self.capturevariable(filename,when,capture_variable)
 
             time_track_dict[f'end_{step}'] = str(datetime.now())
-            sleep(random.uniform(0.1, 1.5))
 
 
-        return time_track_dict
+        return time_track_dict, loginresult
     def start_time_tracking(self,file_prefix,botname,funcname):
         return  {
                     "run_timestr" : self.run_timestr,
@@ -280,23 +320,38 @@ class PointBotDriver:
         timetrackfile = f"{self.datapath}tracking_data/{time_track_dict['file_prefix']}.json"
         self.pbs.pbsavedf(timetrackfile,df=pd.DataFrame([time_track_dict]))
 
+    def updateuserprofile(self):
+        df = self.pbs.pbloaddf(self.pbs.unique_user_file)
+        print(self.pbs.user_rewards_info_df )
+        #if login sucessful updates that record
+        #updates larger rewards info df with a good or bad login scructure update
 
-    def run_bot_function(self,time_track_dict = None, botname='',funcname='', **kwargs):
+    def botlogin(self):
+        self.startupdriver()
+        #create timedict
+        # pass kwargs load via xbot_login.json
+        # #function =  login
+        # call run_bot_function    for logins   
+
+
+    def run_bot_function(self,time_track_dict = None, botname='',funcname='',islogin=0, **kwargs):
         try:
-
+            
             file_prefix = f"{self.point_bot_user}_{botname}_{funcname}"
             
             if time_track_dict == None:
                 self.startupdriver()
                 time_track_dict=  self.start_time_tracking(file_prefix,botname,funcname)
 
-            time_track_dict = self.actions(time_track_dict, **kwargs)
-
+            time_track_dict,loginresult = self.actions(time_track_dict, **kwargs)
             
             if  'last_step' in kwargs.keys():
                 self.stop_time_tracking(time_track_dict)
-
-            return time_track_dict
+            #if loginresult == True and islogin == 1 : # then append userconfig with succesfull login
+            #where rewardprogram = rewardprogram, userid= userid, email = email, pw = pw
+                #print(self.pbs.unique_user_file,loginresult,self.point_bot_user,self.rewards_program_name,self.rewards_user_email,self.rewards_username,self.rewards_user_pw)
+                
+            return time_track_dict,loginresult
 
         except Exception as e:
             print(e)

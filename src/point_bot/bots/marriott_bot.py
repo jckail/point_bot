@@ -139,8 +139,8 @@ class MarriottBot(PointBotDriver):
         df["timestr"] = self.run_timestr
         df["point_bot_user"] = self.point_bot_user
         df["rewards_email"] = self.rewards_user_email
-        self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",df)
-
+        return df
+        
     def mine_hotel_stay_points(self):
         funcname = str(self.mine_hotel_stay_points.__name__)
         print(f"Starting: {self.botname} : {funcname}")
@@ -190,15 +190,6 @@ class MarriottBot(PointBotDriver):
                     "capture_variable": "datalayer",
                     "output_capture": 1,
                 },
-            }
- 
-            time_track_dict = self.run_bot_function(
-                botname=self.botname, funcname=funcname, **kwargs)
-
-            # if 1 == input('input to unpause'):
-            #     pass           
-            
-            kwargs = {
                 "step5": {
                     "action": "login_test",
                     "description": "Ensure Login Worked",
@@ -208,10 +199,21 @@ class MarriottBot(PointBotDriver):
                     "capture_variable": "datalayer",
                     "output_capture": 1,
                 },
+            }
+            
+            
+            time_track_dict, loginresult = self.run_bot_function(
+                botname=self.botname, funcname=funcname,islogin = 1, **kwargs)
+            print('login result: ',loginresult)
+            # if 1 == input('input to unpause'):
+            #     pass           
+            
+            kwargs = {
+                
                 "step6": {
                     "action": "redirect",
                     "description": "Hotel Stay data",
-                    "url": "https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24",
+                    "url": "https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber=1&activityPerPage=10",
                     "take_screenshot": 1,
                     "log_html": 1,
                     "capture_variable": "datalayer",
@@ -219,7 +221,7 @@ class MarriottBot(PointBotDriver):
                 },
             }
 
-            time_track_dict = self.run_bot_function(time_track_dict,
+            time_track_dict, loginresult = self.run_bot_function(time_track_dict,
                 botname=self.botname, funcname=funcname, **kwargs
             )
 
@@ -234,26 +236,27 @@ class MarriottBot(PointBotDriver):
                     "capture_variable": "datalayer",
                     "output_capture": 1,
                 },
-                "step8": {
-                    "action": "click_text",
-                    "description": "Select 5 Records",
-                    "argument_to_click": "selectric-opt01",
-                    "findby": By.ID,
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "datalayer",
-                    "output_capture": 1,
-                },
-                "step9": {
-                    "action": "last_step",
-                    "description": "Last Step",
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "",
-                    "output_capture": 1,
-                },
+                #this is where you would paginate from result of number of total records from last script in gen activity
+                # "step8": {
+                #     "action": "click_text",
+                #     "description": "Select 5 Records",
+                #     "argument_to_click": "selectric-opt01",
+                #     "findby": By.ID,
+                #     "take_screenshot": 1,
+                #     "log_html": 1,
+                #     "capture_variable": "datalayer",
+                #     "output_capture": 1,
+                # },
+                # "step9": {
+                #     "action": "last_step",
+                #     "description": "Last Step",
+                #     "take_screenshot": 1,
+                #     "log_html": 1,
+                #     "capture_variable": "",
+                #     "output_capture": 1,
+                # },
             }
-            time_track_dict = self.run_bot_function(
+            time_track_dict, loginresult = self.run_bot_function(
                 time_track_dict, botname=self.botname, funcname=funcname, **kwargs
             )
             # create general action so can pass records per page, total records, does math of pagnations and just needs to know which is next button
@@ -262,9 +265,10 @@ class MarriottBot(PointBotDriver):
                 "div", class_="m-pagination-total-items t-color-standard-90"
             )
             try:
+                total_records = [x.text for x in headers][0].replace("total", "").replace(" ", "")
                 print(
                     "total records ",
-                    [x.text for x in headers][0].replace("total", "").replace(" ", ""),
+                    total_records
                 )
             except Exception as e:
                 print(e)
@@ -272,8 +276,11 @@ class MarriottBot(PointBotDriver):
             ##todo pagnate the page create loop #append start and end then add iteration to string
             time_track_dict[f"start_8"] = str(datetime.now())
 
+
+
             try:
-                self.parse_hotel_stay()
+                df = self.parse_hotel_stay()
+                self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",df)
             except Exception as e:
                 print(e)
                 print("no hotel_stay")

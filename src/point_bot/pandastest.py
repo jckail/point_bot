@@ -1,19 +1,14 @@
 import pandas as pd
 
-botname = 'marriottbot'
-point_bot_user = 'jkail'
 
-#userfile = '/Users/jordankail/projects/point_bot/src/point_bot/data/user/all_users_parsed.json'
-#userfile = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
-import boto3
-BUCKET = 'pointupdata'
-FILE_TO_READ = 'FOLDER_PATH/my_file.json'
-client = boto3.client('s3')
-result = client.get_object(Bucket=BUCKET, Key='data/user/all_users_parsed.json') 
-s3_clientdata = result['Body'].read().decode('utf-8')
-userfile = "https://s3.console.aws.amazon.com/s3/object/pointupdata/data/user/all_users_parsed.json"
-df = pd.read_json(s3_clientdata, orient="records")
-print(df)
+
+def updateuserprofile(pbs):
+    #df = pbs.pbloaddf(pbs.unique_user_file)
+    print(pbs.user_rewards_info_df)
+    pw = 'gAAAAABe4WZFRAFx9GlIwYjeQ9G29ns2INvyMjbj1LjFcGjRdIsjw9ZL3lsgbAO0vNh1-4s3gZZhXUtwxEXISaQmLhqFum957g=='
+    rewards_program_name = "Test"
+    rewards_username = "abcd"
+    rewards_user_email = "test@gmail.com"
 
 # sum_col = df.groupby(['point_bot_user','rewards_program','start_date']).sum()
 # df = df.set_index(['point_bot_user','rewards_program','start_date'])
@@ -23,17 +18,20 @@ print(df)
 
 #df2 = g['total_points_running_sum'].sum().reset_index()
 #print(df2)
-print(df)
+# print(df)
 
 
-def canocolize_program_comparison(point_bot_user,file,points_column,date_column,dateformat):
-    pass
+# def canocolize_program_comparison(point_bot_user,file,points_column,date_column,dateformat):
+#     pass
 
 
 
 
 if __name__ == '__main__':
-    botname = 'marriottbot'
-    point_bot_user = 'jkail'
-    userfile = f"data/botsdata/{botname}/parsed/{point_bot_user}_{botname.replace('bot','')}_points_parsed.json"
-    canocolize_program_comparison('jkail', userfile)
+    eval("print('suh')")
+    # botname = 'marriottbot'
+    # point_bot_user = 'jkail'
+    # from setup_point_bot import PointBotSetup
+    # pbs = PointBotSetup(headless = False,offlinemode=0,point_bot_user=point_bot_user)
+    # pbs.start()
+    # updateuserprofile(pbs)

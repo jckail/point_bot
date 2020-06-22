@@ -156,7 +156,7 @@ class VisualizeData:
             img_data.seek(0)
             self.pbs.pbsaves3(pngfile,img_data)
         df['activity_date'] = df['activity_date'].astype(str)
-        self.pbs.pbsavedf(f"/Users/jordankail/projects/point_bot/src/point_bot/data/user/all_users_parsed.json",df=df)
+        self.pbs.pbsavedf(f"data/user/all_users_parsed.json",df=df)
 
 if __name__ == '__main__':
     headless = False # note pass headless to setup so we can record

@@ -14,23 +14,23 @@ class Point_Bot_User:
 
     def __init__(self, pbs, point_bot_user=None):
         self.pbs = pbs
-        #self.config_df = pd.read_json(pbs.configpath, orient="records")
-        #self.config_df = pd.read_json(pbs.configpath, orient="records")
-        self.config_df = pbs.config_df
-        self.configured_reward_programs = self.config_df['rewards_program_name'].tolist()
+        
+        self.configured_reward_programs = pbs.configured_reward_programs
+        
         if self.pbs.point_bot_user == None:
             self.pbs.point_bot_user = sf.recursive_input(
                 "What is your point bot username?", self.pbs.point_bot_user
             ).lower()
-        pbs.point_bot_user = self.pbs.point_bot_user
+            pbs.point_bot_user = self.pbs.point_bot_user
+            pbs.unique_user_file = pbs.uniqueuserdatapath + f'{self.pbs.point_bot_user}_rewards_programs.json'
+            self.unique_user_file = pbs.unique_user_file
+            pbs.user_rewards_info_df = pbs.pbloaddf(self.unique_user_file)
         self.pbe = PointBotEncryption(pbs)
-        self.unique_user_file = pbs.uniqueuserdatapath + f'{self.pbs.point_bot_user}_rewards_programs.json'
-        pbs.uniqueuserdatapath = self.unique_user_file
-
-        self.user_rewards_info_df = pbs.pbloaddf(self.unique_user_file)
-        self.new_df = pd.DataFrame()
+        self.user_rewards_info_df = pbs.user_rewards_info_df
         print(f"\nWelcome {self.pbs.point_bot_user}!")
+        self.new_df = pd.DataFrame()
         self.load_user()
+        pbs.user_rewards_info_df = self.user_rewards_info_df
 
 
     def generate_rewards_program_df(self,
@@ -143,7 +143,7 @@ class Point_Bot_User:
             self.orginal_df = self.generate_rewards_program_df()
 
         self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,self.new_df,printdf=0)
-
+        
 
 if __name__ == "__main__":
     main()

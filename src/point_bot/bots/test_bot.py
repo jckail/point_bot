@@ -118,7 +118,7 @@ class TestBot(PointBotDriver):
                 },
             }
 
-            time_track_dict = self.run_bot_function(
+            time_track_dict, loginresult = self.run_bot_function(
                 botname=self.botname, funcname=funcname, **kwargs
             )
 
@@ -135,9 +135,7 @@ class TestBot(PointBotDriver):
 
 
 if __name__ == "__main__":
-    from base_bot import PointBotDriver
-    from ..point_bot_profile_parameters  import PointBotProfileParameters
-    from ..setup_point_bot  import PointBotSetup
+
     pbs = PointBotSetup()
     pbs.start()
     headless = True

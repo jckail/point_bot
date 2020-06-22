@@ -1,10 +1,10 @@
 from cryptography.fernet import Fernet
-from setup_point_bot import PointBotSetup
+
 import os
 
 
 class PointBotEncryption:
-    def __init__(self, pbs, key_full_path=None, keyfilename=None,point_bot_user=None):
+    def __init__(self, pbs, key_full_path=None, keyfilename=None,point_bot_user=None,timestr=None):
         self.pbs = pbs
         if point_bot_user == None:
             self.point_bot_user = pbs.point_bot_user 
@@ -16,12 +16,17 @@ class PointBotEncryption:
         else: 
             self.key_full_path = key_full_path
 
+        if timestr == None:
+            self.timestr = pbs.timestr 
+        else: 
+            self.timestr = timestr
+
         if keyfilename == None:
-            self.keyfilename = self.point_bot_user+self.pbs.timestr+'pointbotencryptionkey.txt'
+            self.keyfilename = self.point_bot_user+self.timestr
         else:
-            self.keyfilename = keyfilename+'pointbotencryptionkey.txt'
+            self.keyfilename = keyfilename
             
-        self.keyfilename = self.key_full_path+self.keyfilename
+        self.keyfilename = self.key_full_path+self.keyfilename+'pointbotencryptionkey.txt'
 
         self.fkey = None
         self.load_key()
@@ -93,6 +98,7 @@ class PointBotEncryption:
 
 
 if __name__ == "__main__":
+    from setup_point_bot import PointBotSetup
     pbs = PointBotSetup(headless = False,offlinemode=0,point_bot_user='jkail')
     pbs.start()
     # pbe = PointBotEncryption().create_key()
