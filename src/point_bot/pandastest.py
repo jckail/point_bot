@@ -27,7 +27,11 @@ def updateuserprofile(pbs):
 
 
 
+
 if __name__ == '__main__':
+    totalrecords = 61
+    recordsperpage =10
+    print(getloopnumber(totalrecords,recordsperpage))
     eval("print('suh')")
     # botname = 'marriottbot'
     # point_bot_user = 'jkail'

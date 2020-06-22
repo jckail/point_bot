@@ -204,16 +204,16 @@ class MarriottBot(PointBotDriver):
             
             time_track_dict, loginresult = self.run_bot_function(
                 botname=self.botname, funcname=funcname,islogin = 1, **kwargs)
-            print('login result: ',loginresult)
+
             # if 1 == input('input to unpause'):
             #     pass           
-            
+            pagenum = 1
             kwargs = {
                 
                 "step6": {
                     "action": "redirect",
                     "description": "Hotel Stay data",
-                    "url": "https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber=1&activityPerPage=10",
+                    "url": f"https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber={pagenum}&activityPerPage=10",
                     "take_screenshot": 1,
                     "log_html": 1,
                     "capture_variable": "datalayer",
@@ -256,6 +256,7 @@ class MarriottBot(PointBotDriver):
                 #     "output_capture": 1,
                 # },
             }
+            
             time_track_dict, loginresult = self.run_bot_function(
                 time_track_dict, botname=self.botname, funcname=funcname, **kwargs
             )
@@ -264,8 +265,9 @@ class MarriottBot(PointBotDriver):
             headers = self.gen_soup().find_all(
                 "div", class_="m-pagination-total-items t-color-standard-90"
             )
+            total_records = 0 
             try:
-                total_records = [x.text for x in headers][0].replace("total", "").replace(" ", "")
+                total_records = int([x.text for x in headers][0].replace("total", "").replace(" ", ""))
                 print(
                     "total records ",
                     total_records
@@ -274,13 +276,33 @@ class MarriottBot(PointBotDriver):
                 print(e)
                 print("no pagnation")
             ##todo pagnate the page create loop #append start and end then add iteration to string
+            
+            
             time_track_dict[f"start_8"] = str(datetime.now())
-
-
-
+            dflist = [self.parse_hotel_stay()]
+            
+            if total_records > 0:
+                for pagenum in self.getloopnumber(total_records,10):
+                    pagenum += 1
+                    kwargs = {
+                    
+                    f"step6_pag_{pagenum}": {
+                        "action": "redirect",
+                        "description": f"Downloading: pagenum {pagenum}",
+                        "url": f"https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber={pagenum}&activityPerPage=10",
+                        "take_screenshot": 1,
+                        "log_html": 1,
+                        "capture_variable": "datalayer",
+                        "output_capture": 1,
+                            },
+                        }
+                    time_track_dict, loginresult = self.run_bot_function(
+                        time_track_dict, botname=self.botname, funcname=funcname, **kwargs)
+                    dflist.append(self.parse_hotel_stay())
             try:
-                df = self.parse_hotel_stay()
-                self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",df)
+                dfout = pd.concat(dflist)
+                self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",dfout)
+            
             except Exception as e:
                 print(e)
                 print("no hotel_stay")

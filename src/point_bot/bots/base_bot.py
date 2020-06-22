@@ -89,7 +89,7 @@ class PointBotDriver:
         
         #examples of cdp
         original_user_agent_string = self.driver.execute_script( "return navigator.userAgent")
-        print('original user agent: ', original_user_agent_string)
+        # print('original user agent: ', original_user_agent_string)
         self.driver.execute_cdp_cmd(
             "Network.setUserAgentOverride",
             {
@@ -251,10 +251,10 @@ class PointBotDriver:
                 self.modify_user_rewards_info_df(loginresult)
 
             if action == 'redirect':
-                sleep(random.uniform(1.1, 2.5))
+                sleep(random.uniform(1.1, 2.0))
                 'Redirecting to: '+kwargs[step]['url']
                 self.driver.get(kwargs[step]['url'])
-                sleep(random.uniform(1.1, 2.5))
+                sleep(random.uniform(1.5, 2.5))
                 
             log_list.append({'browser_after':self.driver.get_log('browser')})
             log_list.append({'driver_after':self.driver.get_log('driver')})
@@ -357,6 +357,12 @@ class PointBotDriver:
             print(e)
             print(f"{self.point_bot_user}_{botname}_{funcname} FAILED")
             raise Exception(f"{self.point_bot_user}_{botname}_{funcname} FAILED")
+
+    def getloopnumber(self,totalrecords,recordsperpage):
+        loops = totalrecords // recordsperpage 
+        if totalrecords % recordsperpage > 0:
+            loops += 1
+        return range(1,loops)
 
 
 if __name__ == "__main__":
