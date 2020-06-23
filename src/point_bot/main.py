@@ -19,8 +19,9 @@ from visualize_data import VisualizeData
 if __name__ == "__main__":
     headless = True # note pass headless to setup so we can record
     #pass users up here  ['jkail','chuck','alex','ellen','kat','russ']: #"jkail", "ellen"'chuck' 'jkail',
-    for user in ['chuck','alex','ellen','kat','russ']:#['jkail','chuck','alex','ellen','kat','russ']:
-        pbs = PointBotSetup(point_bot_user = user, headless = headless,offlinemode=0,runspecificbots = ['Marriott','Southwest']) # ,runspecificbots = ['Southwest']
+    for user in ['jkail','chuck','alex','ellen','kat','russ']:#['jkail','chuck','alex','ellen','kat','russ']:
+    #for user in ['jkail']:#['jkail','chuck','alex','ellen','kat','russ']:
+        pbs = PointBotSetup(point_bot_user = user, headless = headless,offlinemode=0,runspecificbots = ['Marriott','Southwest','Test']) # ,runspecificbots = ['Southwest']
         pbs.start()
         print(f'\n\n\n Headless = {headless} \n\n\n ')
 

@@ -164,18 +164,18 @@ class PointBotSetup:
                 if printdf ==1:
                     print(df)
                 if compress == 1:
-                    df.to_json(filename,orient="records",indent=4,compression='gzip')
+                    df.to_json(filename,orient="records",date_format='iso',indent=4,compression='gzip')
                 else:
-                    df.to_json(filename,orient="records",indent=4)
+                    df.to_json(filename,orient="records",date_format='iso',indent=4)
             else:
                 databuffer = StringIO()
                 print(f'Saving: "{filename}" as dataframe to s3')
                 if printdf ==1:
                     print(df)
                 if compress == 1:
-                    df.to_json(databuffer,orient="records",indent=4,compression='gzip')
+                    df.to_json(databuffer,orient="records",date_format='iso',indent=4,compression='gzip')
                 else:
-                    df.to_json(databuffer,orient="records",indent=4)
+                    df.to_json(databuffer,orient="records",date_format='iso',indent=4)
                 self.pbsaves3(filename,databuffer.getvalue())
         except Exception as e:
             print(e)
@@ -191,7 +191,7 @@ class PointBotSetup:
             try:
                 if self.offlinemode == 1:
                     if compress ==1:
-                        df = pd.read_json(filename, orient="records",compression = 'gzip')
+                        df = pd.read_json(filename, orient="records",date_format='iso',compression = 'gzip')
                     else:
                         df = pd.read_json(filename, orient="records")
                     print(f'Returning local file: "{filename}" as dataframe')
@@ -200,7 +200,7 @@ class PointBotSetup:
                     return df
                 else:
                     if compress ==1:
-                        df = pd.read_json(self.pbloads3(filename), orient="records",compression = 'gzip')
+                        df = pd.read_json(self.pbloads3(filename), orient="records",date_format='iso',compression = 'gzip')
                     else:
                         df = pd.read_json(self.pbloads3(filename), orient="records")
                     print(f'Returning S3 file: "{filename}" as dataframe')

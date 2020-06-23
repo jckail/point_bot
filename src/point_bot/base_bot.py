@@ -203,7 +203,7 @@ class PointBotDriver:
                 (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
                 (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
                 (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
-                'last_successful_login_run_timestr' ] = self.run_timestr
+                'last_successful_login_run_timestr' ] = str(self.run_timestr)
 
             self.pbs.user_rewards_info_df.loc[
                 (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
