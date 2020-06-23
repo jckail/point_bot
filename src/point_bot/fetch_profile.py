@@ -70,7 +70,7 @@ class Point_Bot_User:
                                                 "altered_time": str(datetime.now()),
                                                 "valid": 0,
                                                 "last_successful_login_time": "2020-01-01 01:01:00.000000",
-                                                "last_successful_login_run": "2020-01-01 01:01:00.000000",
+                                                "last_successful_login_run_timestr": "2020-01-01 01:01:00.000000",
                                                 "times_accessed": 0,
                                                 "decryptionkey":str(self.pbs.point_bot_user)+str(self.pbs.timestr)
                                                 

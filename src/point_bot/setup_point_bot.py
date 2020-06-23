@@ -291,17 +291,26 @@ class PointBotSetup:
         #print(self.user_rewards_info_df[["rewards_program_name","run"]])
         self.user_rewards_info_df.loc[(self.user_rewards_info_df['run'] == 1)&(self.user_rewards_info_df['best_record_rank'] == 1.0), 'run'] =1
         #print(self.user_rewards_info_df)
+        #print(self.user_rewards_info_df)
         #print(self.user_rewards_info_df[["rewards_program_name","run"]])
         #exit(1)
         return self.user_rewards_info_df.to_dict(orient='records')
 
     def closeoutfunction(self):
         self.pbsavedf(self.paramhistorypath+self.point_bot_user+self.timestr+'run_history.json',self.user_rewards_info_df)
-        newuserfiledf = self.user_rewards_info_df[["point_bot_user","rewards_program_name"
-            ,"rewards_user_email","rewards_username","rewards_user_pw"
-            ,"created_time","altered_time","valid","last_successful_login_time"
+        newuserfiledf = self.user_rewards_info_df[[
+            "point_bot_user"
+            ,"rewards_program_name"
+            ,"rewards_user_email"
+            ,"rewards_username"
+            ,"rewards_user_pw"
+            ,"created_time"
+            ,"altered_time"
+            ,"valid"
+            ,"last_successful_login_time"
             ,"last_successful_login_run_timestr"
-            ,"times_accessed","decryptionkey"]]
+            ,"times_accessed"
+            ,"decryptionkey"]]
         self.pbsavedf(self.unique_user_file,newuserfiledf,printdf=0)
 
 if __name__ == "__main__":
