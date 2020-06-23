@@ -6,9 +6,9 @@ from setup_point_bot import PointBotSetup
 from pointbotencryption import PointBotEncryption
 from fetch_profile import Point_Bot_User
 
-from bots.marriott_bot import MarriottBot
-from bots.southwest_bot import SouthwestBot
-from bots.test_bot import TestBot
+from marriott_bot import MarriottBot
+from southwest_bot import SouthwestBot
+from test_bot import TestBot
 from visualize_data import VisualizeData
 
 # from xvfbwrapper import Xvfb
@@ -17,9 +17,9 @@ from visualize_data import VisualizeData
 #pip3.8 install xvfbwrapper
 
 if __name__ == "__main__":
-    headless = False # note pass headless to setup so we can record
+    headless = True # note pass headless to setup so we can record
     #pass users up here  ['jkail','chuck','alex','ellen','kat','russ']: #"jkail", "ellen"'chuck' 'jkail',
-    for user in ['kat']:#['jkail','chuck','alex','ellen','kat','russ']:
+    for user in ['ellen']:#['jkail','chuck','alex','ellen','kat','russ']:
         pbs = PointBotSetup(point_bot_user = user, headless = headless,offlinemode=0,runspecificbots = ['Southwest']) # ,runspecificbots = ['Southwest']
         pbs.start()
         print(f'\n\n\n Headless = {headless} \n\n\n ')
@@ -42,10 +42,10 @@ if __name__ == "__main__":
                 tb = TestBot(pbs, **kwargs)
                 tb.mine_test_bot()
 
-        #pbs.closeoutfunction()
+        pbs.closeoutfunction()
 
-    # vds = VisualizeData(pbs,'jkail')
-    # vds.main()
+    vds = VisualizeData(pbs,'jkail')
+    vds.main()
 
     #display = Display(visible=0, size=(800, 600)) # damn this actually works
     #display.start() # damn this actually works

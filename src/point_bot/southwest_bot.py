@@ -1,4 +1,4 @@
-from bots.base_bot import PointBotDriver
+from base_bot import PointBotDriver
 
 # from base_bot import PointBotDriver #when running __main__
 import re
@@ -61,11 +61,9 @@ class SouthwestBot(PointBotDriver):
     def collectandpaginate(self,time_track_dict, funcname, dflist=[], step =  0, **kwargs):
         time_track_dict, loginresult = self.run_bot_function(time_track_dict,
         botname=self.botname, funcname=funcname, **kwargs)
-        print('here!')
         df = pd.read_html(self.driver.page_source)[0] #this returns a list
         df.columns = [column.replace('sortable column  ','') for column in df.columns]
         dflist.append(df)
-        print('here!')
         headers = self.gen_soup().find_all("span", class_="pagination--total-pages",)
         pages = [x.text for x in headers][0]
         for x in range(1,int(pages)):
@@ -91,8 +89,6 @@ class SouthwestBot(PointBotDriver):
     def mine_southwest_points(self):
         funcname = str(self.mine_southwest_points.__name__)
         print(f"Starting: {self.botname} : {funcname}")
-        print(str(self.rewards_username))
-        print('pw', str(self.decrypt(self.rewards_user_pw)))
 
         try:
             kwargs = {
@@ -122,7 +118,7 @@ class SouthwestBot(PointBotDriver):
                     "description": "Entering Password",
                     "argument_to_click": "password",
                     "findby": By.ID,
-                    "input_keys": str(self.decrypt(self.rewards_user_pw)),
+                    "input_keys": self.decrypt(self.rewards_user_pw),
                     #"input_keys2": Keys.ENTER,
                     "take_screenshot": 1,
                     "log_html": 1,
@@ -152,57 +148,60 @@ class SouthwestBot(PointBotDriver):
             time_track_dict, loginresult = self.run_bot_function(
                 botname=self.botname, funcname=funcname, **kwargs)
             #this is the page pagrination begins
-            kwargs ={
-                "step6": {
-                    "action": "redirect",
-                    "description": "Going to Actitivty",
-                    "url": "https://www.southwest.com/myaccount/rapid-rewards/recent-activity/details",
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "",
-                    "output_capture": 1,
-                },
-            }
-            
-            time_track_dict, funcname, dflist = self.collectandpaginate(time_track_dict, funcname, dflist=[], step = 6, **kwargs)
-            
-            kwargs ={
-                "step7": {
-                        "action": "click_text",
-                        "description": "Paginating",
-                        "argument_to_click": "date",
-                        "findby": By.ID,
+            if loginresult:
+                kwargs ={
+                    "step6": {
+                        "action": "redirect",
+                        "description": "Going to Actitivty",
+                        "url": "https://www.southwest.com/myaccount/rapid-rewards/recent-activity/details",
                         "take_screenshot": 1,
                         "log_html": 1,
                         "capture_variable": "",
                         "output_capture": 1,
-                },
-                "step8": {
-                        "action": "click_text",
-                        "description": "Paginating",
-                        "argument_to_click": 'date-menu-item1',
-                        "findby": By.ID,
-                        "take_screenshot": 1,
-                        "log_html": 1,
-                        "capture_variable": "",
-                        "output_capture": 1,
-                },
-            }
-            time_track_dict, funcname, dflist = self.collectandpaginate(time_track_dict, funcname, dflist,step=8, **kwargs)
+                    },
+                }
+                
+                time_track_dict, funcname, dflist = self.collectandpaginate(time_track_dict, funcname, dflist=[], step = 6, **kwargs)
+                
+                kwargs ={
+                    "step7": {
+                            "action": "click_text",
+                            "description": "Paginating",
+                            "argument_to_click": "date",
+                            "findby": By.ID,
+                            "take_screenshot": 1,
+                            "log_html": 1,
+                            "capture_variable": "",
+                            "output_capture": 1,
+                    },
+                    "step8": {
+                            "action": "click_text",
+                            "description": "Paginating",
+                            "argument_to_click": 'date-menu-item1',
+                            "findby": By.ID,
+                            "take_screenshot": 1,
+                            "log_html": 1,
+                            "capture_variable": "",
+                            "output_capture": 1,
+                    },
+                }
+                time_track_dict, funcname, dflist = self.collectandpaginate(time_track_dict, funcname, dflist,step=8, **kwargs)
 
 
 
-            df = pd.concat(dflist)
-            self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_southwest_points_parsed.json",df=df)
-            
-            
-            
-            bigspaces = "\n" * 3
-            print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
-            if self.headless == False:
-                print("Sleeping 30 Seconds")
-                sleep(30)
-            self.driver.quit()
+                df = pd.concat(dflist)
+                self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_southwest_points_parsed.json",df=df)
+                
+                
+                
+                bigspaces = "\n" * 3
+                print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
+                if self.headless == False:
+                    print("Sleeping 30 Seconds")
+                    sleep(30)
+                self.driver.quit()
+            else:
+                raise Exception(f"LOGIN FAILED {self.point_bot_user}_{self.botname}_{funcname} ")
 
         except Exception as e:
             print(e)

@@ -244,7 +244,7 @@ class PointBotSetup:
             print(f'saving:  {filename} to s3')
             self.pbsaves3(filename,data)
 
-    def pbloadfile(self,filename,data,readtype='r+',attempts=0, max_attempts=3):
+    def pbloadfile(self,filename,readtype='r+',attempts=0, max_attempts=3):
         attempts += 1
         if attempts <= max_attempts:
             try:
@@ -258,7 +258,7 @@ class PointBotSetup:
                     print(f'Loading:  {filename} from s3 attempts: {attempts}/{max_attempts}')
                     return self.pbloads3(filename)
             except:
-                return self.pbloadfile(filename=filename,data=data,readtype=readtype, attempts=attempts)
+                return self.pbloadfile(filename=filename,readtype=readtype, attempts=attempts)
         else:
             raise Exception('No Key Found')
 
@@ -290,9 +290,9 @@ class PointBotSetup:
         
         #print(self.user_rewards_info_df[["rewards_program_name","run"]])
         self.user_rewards_info_df.loc[(self.user_rewards_info_df['run'] == 1)&(self.user_rewards_info_df['best_record_rank'] == 1.0), 'run'] =1
-
+        #print(self.user_rewards_info_df)
         #print(self.user_rewards_info_df[["rewards_program_name","run"]])
-        
+        #exit(1)
         return self.user_rewards_info_df.to_dict(orient='records')
 
     def closeoutfunction(self):
@@ -300,6 +300,7 @@ class PointBotSetup:
         newuserfiledf = self.user_rewards_info_df[["point_bot_user","rewards_program_name"
             ,"rewards_user_email","rewards_username","rewards_user_pw"
             ,"created_time","altered_time","valid","last_successful_login_time"
+            ,"last_successful_login_run_timestr"
             ,"times_accessed","decryptionkey"]]
         self.pbsavedf(self.unique_user_file,newuserfiledf,printdf=0)
 

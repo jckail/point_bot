@@ -1,4 +1,4 @@
-from bots.base_bot import PointBotDriver
+from base_bot import PointBotDriver
 import re
 from time import sleep
 from bs4 import BeautifulSoup

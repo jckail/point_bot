@@ -40,7 +40,7 @@ class PointBotEncryption:
     def load_key(self):
 
         try:
-            self.fkey = self.pbs.pbloadfile(self.keyfilename, "rb")
+            self.fkey = Fernet(self.pbs.pbloadfile(self.keyfilename, "rb"))
 
         except Exception as e:
             print(e)
@@ -61,7 +61,7 @@ class PointBotEncryption:
             return self.fkey.decrypt(encrypted_string).decode()
         except Exception as e:
             print(e)
-            print('decrytpion error')
+            print('decryption_error')
             
 
     def encrypt_file(self, input_file, remove_input=True):

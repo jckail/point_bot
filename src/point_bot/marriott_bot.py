@@ -1,4 +1,4 @@
-from bots.base_bot import PointBotDriver
+from base_bot import PointBotDriver
 
 # from base_bot2 import PointBotDriver #when running __main__
 
@@ -205,115 +205,117 @@ class MarriottBot(PointBotDriver):
             time_track_dict, loginresult = self.run_bot_function(
                 botname=self.botname, funcname=funcname,islogin = 1, **kwargs)
 
-            # if 1 == input('input to unpause'):
-            #     pass           
-            pagenum = 1
-            kwargs = {
-                
-                "step6": {
-                    "action": "redirect",
-                    "description": "Hotel Stay data",
-                    "url": f"https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber={pagenum}&activityPerPage=10",
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "datalayer",
-                    "output_capture": 1,
-                },
-            }
-
-            time_track_dict, loginresult = self.run_bot_function(time_track_dict,
-                botname=self.botname, funcname=funcname, **kwargs
-            )
-
-            kwargs = {
-                "step7": {
-                    "action": "click_text",
-                    "description": "Filter Actitivty",
-                    "argument_to_click": f"//div[@id='{self.gen_activityfilter()}']/div/div/div[2]",
-                    "findby": By.XPATH,
-                    "take_screenshot": 1,
-                    "log_html": 1,
-                    "capture_variable": "datalayer",
-                    "output_capture": 1,
-                },
-                #this is where you would paginate from result of number of total records from last script in gen activity
-                # "step8": {
-                #     "action": "click_text",
-                #     "description": "Select 5 Records",
-                #     "argument_to_click": "selectric-opt01",
-                #     "findby": By.ID,
-                #     "take_screenshot": 1,
-                #     "log_html": 1,
-                #     "capture_variable": "datalayer",
-                #     "output_capture": 1,
-                # },
-                # "step9": {
-                #     "action": "last_step",
-                #     "description": "Last Step",
-                #     "take_screenshot": 1,
-                #     "log_html": 1,
-                #     "capture_variable": "",
-                #     "output_capture": 1,
-                # },
-            }
-            
-            time_track_dict, loginresult = self.run_bot_function(
-                time_track_dict, botname=self.botname, funcname=funcname, **kwargs
-            )
-            # create general action so can pass records per page, total records, does math of pagnations and just needs to know which is next button
-            # for page in pages (lenght) [x.text for x in headers][0].replace('total','').replace(' ','')
-            headers = self.gen_soup().find_all(
-                "div", class_="m-pagination-total-items t-color-standard-90"
-            )
-            total_records = 0 
-            try:
-                total_records = int([x.text for x in headers][0].replace("total", "").replace(" ", ""))
-                print(
-                    "total records ",
-                    total_records
-                )
-            except Exception as e:
-                print(e)
-                print("no pagnation")
-            ##todo pagnate the page create loop #append start and end then add iteration to string
-            
-            
-            time_track_dict[f"start_8"] = str(datetime.now())
-            dflist = [self.parse_hotel_stay()]
-            
-            if total_records > 0:
-                for pagenum in self.getloopnumber(total_records,10):
-                    pagenum += 1
-                    kwargs = {
+            if loginresult:     
+                pagenum = 1
+                kwargs = {
                     
-                    f"step6_pag_{pagenum}": {
+                    "step6": {
                         "action": "redirect",
-                        "description": f"Downloading: pagenum {pagenum}",
+                        "description": "Hotel Stay data",
                         "url": f"https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber={pagenum}&activityPerPage=10",
                         "take_screenshot": 1,
                         "log_html": 1,
                         "capture_variable": "datalayer",
                         "output_capture": 1,
-                            },
-                        }
-                    time_track_dict, loginresult = self.run_bot_function(
-                        time_track_dict, botname=self.botname, funcname=funcname, **kwargs)
-                    dflist.append(self.parse_hotel_stay())
-            try:
-                dfout = pd.concat(dflist)
-                self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",dfout)
-            
-            except Exception as e:
-                print(e)
-                print("no hotel_stay")
-                raise Exception("no hotel_stay")
+                    },
+                }
 
-            bigspaces = "\n" * 3
-            print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
-            if self.headless == False:
-                print("Sleeping 30 Seconds")
-                sleep(30)
-            self.driver.quit()
+                time_track_dict, loginresult = self.run_bot_function(time_track_dict,
+                    botname=self.botname, funcname=funcname, **kwargs
+                )
+
+                kwargs = {
+                    "step7": {
+                        "action": "click_text",
+                        "description": "Filter Actitivty",
+                        "argument_to_click": f"//div[@id='{self.gen_activityfilter()}']/div/div/div[2]",
+                        "findby": By.XPATH,
+                        "take_screenshot": 1,
+                        "log_html": 1,
+                        "capture_variable": "datalayer",
+                        "output_capture": 1,
+                    },
+                    #this is where you would paginate from result of number of total records from last script in gen activity
+                    # "step8": {
+                    #     "action": "click_text",
+                    #     "description": "Select 5 Records",
+                    #     "argument_to_click": "selectric-opt01",
+                    #     "findby": By.ID,
+                    #     "take_screenshot": 1,
+                    #     "log_html": 1,
+                    #     "capture_variable": "datalayer",
+                    #     "output_capture": 1,
+                    # },
+                    # "step9": {
+                    #     "action": "last_step",
+                    #     "description": "Last Step",
+                    #     "take_screenshot": 1,
+                    #     "log_html": 1,
+                    #     "capture_variable": "",
+                    #     "output_capture": 1,
+                    # },
+                }
+                
+                time_track_dict, loginresult = self.run_bot_function(
+                    time_track_dict, botname=self.botname, funcname=funcname, **kwargs
+                )
+                # create general action so can pass records per page, total records, does math of pagnations and just needs to know which is next button
+                # for page in pages (lenght) [x.text for x in headers][0].replace('total','').replace(' ','')
+                headers = self.gen_soup().find_all(
+                    "div", class_="m-pagination-total-items t-color-standard-90"
+                )
+                total_records = 0 
+                try:
+                    total_records = int([x.text for x in headers][0].replace("total", "").replace(" ", ""))
+                    print(
+                        "total records ",
+                        total_records
+                    )
+                except Exception as e:
+                    print(e)
+                    print("no pagnation")
+                ##todo pagnate the page create loop #append start and end then add iteration to string
+                
+                
+                time_track_dict[f"start_8"] = str(datetime.now())
+                dflist = [self.parse_hotel_stay()]
+                
+                if total_records > 0:
+                    for pagenum in self.getloopnumber(total_records,10):
+                        pagenum += 1
+                        kwargs = {
+                        
+                        f"step6_pag_{pagenum}": {
+                            "action": "redirect",
+                            "description": f"Downloading: pagenum {pagenum}",
+                            "url": f"https://www.marriott.com/loyalty/myAccount/activity.mi?activityType=stay&monthsFilter=24&pageNumber={pagenum}&activityPerPage=10",
+                            "take_screenshot": 1,
+                            "log_html": 1,
+                            "capture_variable": "datalayer",
+                            "output_capture": 1,
+                                },
+                            }
+                        time_track_dict, loginresult = self.run_bot_function(
+                            time_track_dict, botname=self.botname, funcname=funcname, **kwargs)
+                        dflist.append(self.parse_hotel_stay())
+                try:
+                    dfout = pd.concat(dflist)
+                    self.pbs.pbsavedf(f"{self.datapath}parsed/{self.point_bot_user}_marriott_points_parsed.json",dfout)
+                
+                except Exception as e:
+                    print(e)
+                    print("no hotel_stay")
+                    raise Exception("no hotel_stay")
+
+                bigspaces = "\n" * 3
+                print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
+                if self.headless == False:
+                    print("Sleeping 30 Seconds")
+                    sleep(30)
+                self.driver.quit()
+            else:
+                raise Exception(f"LOGIN FAILED {self.point_bot_user}_{self.botname}_{funcname} ")
+
 
         except Exception as e:
             print(e)

@@ -13,7 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver import ActionChains
-
+from pointbotencryption import PointBotEncryption
 from selenium.webdriver.common.keys import Keys
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -22,7 +22,6 @@ import json
 from datetime import datetime
 import time
 import random
-from  point_bot.pointbotencryption import PointBotEncryption
 from io import BytesIO
 
 #import random_user_agent ### could use random agent
@@ -104,10 +103,7 @@ class PointBotDriver:
         self.max_attempts = 3 
 
     def decrypt(self,stringtodecrypt):
-        print('sup')
-        x = PointBotEncryption(self.pbs,keyfilename=self.decryptionkey).decrypt_string(stringtodecrypt.encode())
-        print('here yo')
-        return x
+        return PointBotEncryption(self.pbs,keyfilename=self.decryptionkey).decrypt_string(stringtodecrypt.encode())
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
             url = self.start_url
@@ -207,7 +203,16 @@ class PointBotDriver:
                 (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
                 (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
                 (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
-                'last_successful_login_time' ] = self.run_timestr
+                'last_successful_login_run_timestr' ] = self.run_timestr
+
+            self.pbs.user_rewards_info_df.loc[
+                (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
+                (self.pbs.user_rewards_info_df.rewards_program_name == self.rewards_program_name) &
+                (self.pbs.user_rewards_info_df.rewards_user_email == self.rewards_user_email) &
+                (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
+                (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
+                (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
+                'last_successful_login_time' ] = str(datetime.now())
 
             self.pbs.user_rewards_info_df.loc[
                 (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
@@ -340,7 +345,6 @@ class PointBotDriver:
         try:
             
             file_prefix = f"{self.point_bot_user}_{botname}_{funcname}"
-            print('uhsuh')
             if time_track_dict == None:
                 self.startupdriver()
                 time_track_dict=  self.start_time_tracking(file_prefix,botname,funcname)
