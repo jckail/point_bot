@@ -145,3 +145,4 @@ src/point_bot/data/*
 src/point_bot/resources/encryptionkeys/*
 src/point_bot/chromedriver
 .vscode/
+.DS_Store

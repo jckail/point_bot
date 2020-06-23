@@ -55,9 +55,14 @@ class PointBotEncryption:
         return self.fkey.encrypt(encoded_string)
 
     def decrypt_string(self, encrypted_string):
-        if self.fkey == None:
-            self.load_key()
-        return self.fkey.decrypt(encrypted_string).decode()
+        try:
+            if self.fkey == None:
+                self.load_key()
+            return self.fkey.decrypt(encrypted_string).decode()
+        except Exception as e:
+            print(e)
+            print('decrytpion error')
+            
 
     def encrypt_file(self, input_file, remove_input=True):
         if self.fkey == None:

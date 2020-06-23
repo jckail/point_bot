@@ -104,8 +104,10 @@ class PointBotDriver:
         self.max_attempts = 3 
 
     def decrypt(self,stringtodecrypt):
-        return PointBotEncryption(self.pbs,keyfilename=self.decryptionkey).decrypt_string(stringtodecrypt.encode())
-
+        print('sup')
+        x = PointBotEncryption(self.pbs,keyfilename=self.decryptionkey).decrypt_string(stringtodecrypt.encode())
+        print('here yo')
+        return x
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
             url = self.start_url
@@ -162,7 +164,7 @@ class PointBotDriver:
                     else:
                         self.move_n_click(element)
                     
-                    print(f"{description} Success! ")
+                    print(f"{description} --Complete-- ")
                     return self.driver
 
                 except Exception as e:
@@ -251,10 +253,10 @@ class PointBotDriver:
                 self.modify_user_rewards_info_df(loginresult)
 
             if action == 'redirect':
-                sleep(random.uniform(1.1, 2.0))
+                sleep(random.uniform(2.1, 3.0))
                 'Redirecting to: '+kwargs[step]['url']
                 self.driver.get(kwargs[step]['url'])
-                sleep(random.uniform(1.5, 2.5))
+                sleep(random.uniform(2.5, 3.5))
                 
             log_list.append({'browser_after':self.driver.get_log('browser')})
             log_list.append({'driver_after':self.driver.get_log('driver')})
@@ -270,7 +272,7 @@ class PointBotDriver:
         loginresult = True
         for step in kwargs.keys():
             desc = kwargs[step]['description']
-            print(f'\n{self.rewards_user_email} {step}: {desc}')
+            print(f'\n{self.point_bot_user} {step}: {desc}')
             when = 'before'
             action = kwargs[step]['action']
             capture_variable = kwargs[step]['capture_variable']
@@ -338,7 +340,7 @@ class PointBotDriver:
         try:
             
             file_prefix = f"{self.point_bot_user}_{botname}_{funcname}"
-            
+            print('uhsuh')
             if time_track_dict == None:
                 self.startupdriver()
                 time_track_dict=  self.start_time_tracking(file_prefix,botname,funcname)
