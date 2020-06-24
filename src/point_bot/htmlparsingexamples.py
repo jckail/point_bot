@@ -1,0 +1,23 @@
+import pandas as pd
+from bs4 import BeautifulSoup
+import time
+import datetime 
+
+systemtime = datetime.datetime.utcnow()
+
+timestr= systemtime.strftime("%Y%m%d%H%M%S")
+
+
+
+
+from bs4 import BeautifulSoup
+#time()
+dumbstring = """<select aria-label="Select your answer" aria-required="true" class="answer-list preproc" data-val="true" data-val-required="Please select an answer.<!--EC:A116-->" id="Questions_0__AnswerKey" name="Questions[0].AnswerKey"><option value=""></option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=F+aF9Y7CnUbWyWfxPqFDBQ==">Abalone</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=5NRq8m+2D9VxOScBaxza1w==">Clam</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=INtJlE/nz8auch+px19Cig==">Conch</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=+NwEzp6g6ztg8wb++jlvuA==">Coral</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=X2PeSCfJGf11iCXRn1RZ3w==">Crab</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=cbwXTM+U3bf+4IQ72UfRDA==">Cuttlefish</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=9Q7qgCTzV7jTIXA7kUhavQ==">Dolphin</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=9UI03imqutffQy7GKorNxg==">Eel</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=1LdM0OUhHBrnJdwurEga3A==">Fish</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=H20PKXqS9zkkCpVFHCHpvg==">Jellyfish</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=WWPCag/sgcTTjKm7G13BKA==">Lobster</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=CrqkzAc9O5KJ2ArMzVu2Yw==">Manatee</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=AnknUeXDzcuvNoPhNgLCWw==">Nautilus</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=cElnBB0s/aKuuOJJF4Be6A==">Octopus</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=um5E4J4lPaRhqX5iXXc6hA==">Orca/killer whale</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=/hCn6/TgZUJpGOOScQw8vA==">Oyster</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=ksgjosKEZa0iwW9gYWGkmw==">Pelican</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=ePiQO62R5dTnThrka+wVZQ==">Penguin</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=VTqrKDBeqo1qLVh4QDoBfQ==">Porpoise</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=97wYsIcyoYT30ak67pfh4Q==">Puffin</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=aZRk3BP2TvxcC45VHvmvMw==">Sea anemone</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=JqWlCOgk44a+hyVPGCCS1w==">Sea cucumber</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=/+xDcqpzBnej/2GPejESAA==">Sea lion</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=cPazoSyS0RgMzHge2/8hYw==">Sea otter</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=tjnu6NMHVN62QkTs1MdaWg==">Sea turtle</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=2cKeWKHoSvtk2BC1Q1NNag==">Sea urchin</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=aGRq75nkGB+kdzMk1f/EFQ==">Seagull</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=YcJhEqksjclrxI5DaA1PqA==">Seahorse</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=62W22YdhlI4hQRMw+UpTxQ==">Seal</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=6s2guRqEsFVo7ZXNd5ZfGw==">Shark</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=lWR3v+3bAArrrOQI7h61Dw==">Shrimp</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=hz/1nOnG9UtbacndPAmENA==">Skate</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=Qe7uxenm85S4Kc/7VvKLRQ==">Snail</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=w1kew9qfpWD83AQs6atdPA==">Squid</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=ZgT/jw737aOgJeW19dQQTQ==">Starfish</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=gBy9U9Wg6WgXf/6MsWniLQ==">Stingray</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=8zS3hZcbZeaWeFdxKPW8Mw==">Walrus</option><option value="2c9VP8uK6VUJlJR4Lmonwk3wy1UGEBgO4VqUYjUqar6kU=qVk/ui4svqlJ7hLMxjpIfQ==">Whale</option></select>"""
+ 
+soup = BeautifulSoup(dumbstring)
+xlist = soup.findAll('option')
+outputlist = []
+for x in xlist:
+    outputlist.append(x.text)
+
+print(outputlist)

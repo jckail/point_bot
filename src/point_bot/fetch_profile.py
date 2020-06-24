@@ -2,7 +2,8 @@
 
 import shared_functions as sf
 from pointbotencryption import PointBotEncryption
-from datetime import datetime
+from united_security_questions import UnitedSecurityQuestions
+import datetime 
 import pandas as pd
 import os
 
@@ -23,8 +24,10 @@ class Point_Bot_User:
             ).lower()
             pbs.point_bot_user = self.pbs.point_bot_user
             pbs.unique_user_file = pbs.uniqueuserdatapath + f'{self.pbs.point_bot_user}_rewards_programs.json'
-            self.unique_user_file = pbs.unique_user_file
-            pbs.user_rewards_info_df = pbs.pbloaddf(self.unique_user_file)
+            
+            pbs.user_rewards_info_df = pbs.pbloaddf(pbs.unique_user_file)
+
+        self.unique_user_file = pbs.unique_user_file
         self.pbe = PointBotEncryption(pbs)
         self.user_rewards_info_df = pbs.user_rewards_info_df
         print(f"\nWelcome {self.pbs.point_bot_user}!")
@@ -47,6 +50,9 @@ class Point_Bot_User:
             if attempts <= max_attempts:
                 if rewards_program_name in bad_evals:
                     rewards_program_name = sf.recursive_input("What is your Rewards Program?",rewards_program_name,options=self.configured_reward_programs)
+                    if rewards_program_name == 'United':
+                        usq = UnitedSecurityQuestions(self.pbs)
+                        usq.configure_questions()
                 if rewards_user_email in bad_evals:
                     rewards_user_email = sf.recursive_input(f"What is the Email you use for {rewards_program_name}",rewards_user_email,check_type='email')
                 if rewards_username in bad_evals:
@@ -59,18 +65,19 @@ class Point_Bot_User:
                                 and rewards_program_name
                                 and rewards_user_email
                                 and rewards_user_pw
-                            ):          
+                            ):      
+                    isotime = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
                     rewards_program_dict =  {
                                                 "point_bot_user": str(self.pbs.point_bot_user),
                                                 "rewards_program_name": str(rewards_program_name),
                                                 "rewards_user_email": str(rewards_user_email),
                                                 "rewards_username": str(rewards_username),
                                                 "rewards_user_pw": self.pbe.encrypt_string(str(rewards_user_pw)).decode(),
-                                                "created_time": str(datetime.now()),
-                                                "altered_time": str(datetime.now()),
+                                                "created_time": isotime,
+                                                "altered_time": isotime,
                                                 "valid": 0,
-                                                "last_successful_login_time": "2020-01-01 01:01:00.000000",
-                                                "last_successful_login_run_timestr": "2020-01-01 01:01:00.000000",
+                                                "last_successful_login_time": "2020-01-01 01:01:00+00:00",
+                                                "last_successful_login_run_timestr": str(self.pbs.timestr),
                                                 "times_accessed": 0,
                                                 "decryptionkey":str(self.pbs.point_bot_user)+str(self.pbs.timestr)
                                                 
@@ -139,11 +146,15 @@ class Point_Bot_User:
                 ):
                     print("adding more data")
                     self.new_df = self.generate_rewards_program_df()   
+
+                    self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,self.new_df,printdf=0)
+                    
         except:
             print("No Rewards Profiles Found", end="")
             self.orginal_df = self.generate_rewards_program_df()
+            self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,printdf=0)
 
-        self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,self.new_df,printdf=0)
+        print(self.user_rewards_info_df)
         
 
 if __name__ == "__main__":

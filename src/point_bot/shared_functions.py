@@ -5,13 +5,9 @@ import re
 from time import sleep
 import pandas as pd
 from getpass import getpass
-# Make a regular expression 
-# for validating an Email 
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
 
-# for custom mails use: '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$' 
-      
-# Define a function for 
-# for validating an Email 
 def checker(check_string,check_type): 
     valid_type = 0
     try:
@@ -39,58 +35,11 @@ def checker(check_string,check_type):
 
 
 
-def open_json(filename,attempts = 0, max_attempts = 3):
-    attempts += 1
-
-    if attempts <= max_attempts:
-        try:
-            print(f"""Loading {filename}""")
-            json_data = json.load(open(filename))
-            return json_data
-
-        except Exception as e:
-            print(e)
-            #print(f"----{filename} not Found---- Retrying Attempt:{attempts}/{max_attempts}")
-            return open_json(filename,attempts)
-    else:
-        print(f"""
-
-            {filename} NOT FOUND CREATING NEW FILE
-        
-        """)
-        json_data = []
-        save_json(filename,json_data)
-        return json_data
-        
-
-def save_json(output_filename,data,newdata=[None]):
-    try:
-        if newdata != [None]:
-            data = data + newdata
-        with open(output_filename, "w") as output_file:
-            json.dump(data, output_file, indent=4)
-        print(f'\n Saving: {output_filename} \n')
-        return data
-    except Exception as e:
-        print(e)
-
-
-def try_key(dictonary_objects, dict_key, compare_key):
-    return_dictionary_objects = []
-    try:
-        for dictonary_object in dictonary_objects:
-            if compare_key == dictonary_object[dict_key]:
-                return_dictionary_objects.append(dictonary_object)
-        return return_dictionary_objects
-
-    except Exception as e:
-        print(e)
-        print("----NO USER DATA----")
-
-
 def recursive_input(
     input_prompt, eval_value=None, attempts=0, max_attempts=3, options=[],check_type=None,is_pw=False
 ):
+    the_completer = WordCompleter(options)
+    
     attempts += 1
     bad_evals = [None, ""]
     if options != []:
@@ -104,8 +53,10 @@ def recursive_input(
         options_string = ""
     if attempts > 1:
         attempt_string = f"Attempt:{attempts}/{max_attempts}"
+        invalid_option_string = f" '{eval_value}' not valid option,"
     else:
         attempt_string = f""
+        invalid_option_string = f""
     try:
         if attempts <= max_attempts:
             if eval_value in bad_evals or eval_value not in options:
@@ -119,9 +70,8 @@ def recursive_input(
                         else:
                             print(' \nPasswords do not match please try again!\n')
                 else:
-                    eval_value = input(
-                        f"\n{input_prompt} {options_string}  {attempt_string} \n\n"
-                    )
+                    eval_value = prompt(f"\n options: {options} \n{attempt_string} {invalid_option_string}\n {input_prompt} (Press Tab Before enter to auto complete)  \n\n", completer=the_completer)
+
                 if eval_value not in bad_evals and checker(eval_value,check_type):
                     if options != []:
                         if eval_value in options:
@@ -153,20 +103,6 @@ def recursive_input(
             raise Exception(f"TOO MANY FAILED ATTEMPTS: {input_prompt}")
     except Exception as e:
         print(e)
-
-
-# def main():
-#     # more_data_flag = recursive_input(
-#     #     "Would you like to add more data? (y|n) ",
-#     #     eval_value=None,
-#     #     attempts=0,
-#     #     max_attempts=3,
-#     #     options=["y", "n"],
-#     # )
-#     # print(more_data_flag)
-#     #checker('jkail@gmail','email')
-#     json_data = open_json('users.json')
-#     save_json(filename,json_data)
 
 if __name__ == "__main__":
     main()

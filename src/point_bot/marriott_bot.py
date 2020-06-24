@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 import pandas as pd
 from selenium.webdriver.support import expected_conditions as EC
-from datetime import datetime
+import datetime
 import time
 from selenium.webdriver.common.keys import Keys
 
@@ -277,7 +277,7 @@ class MarriottBot(PointBotDriver):
                 ##todo pagnate the page create loop #append start and end then add iteration to string
                 
                 
-                time_track_dict[f"start_8"] = str(datetime.now())
+                time_track_dict[f"start_8"] = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
                 dflist = [self.parse_hotel_stay()]
                 
                 if total_records > 0:

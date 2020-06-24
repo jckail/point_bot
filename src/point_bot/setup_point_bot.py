@@ -7,6 +7,7 @@ import glob
 import boto3
 import pandas as pd
 from io import StringIO
+import datetime 
 
 
 
@@ -37,7 +38,7 @@ class PointBotSetup:
         configpath="resources/reward_program_configs/all_config_reward_programs.json",
         encryptionkeypath="resources/encryptionkeys/",
         paramhistorypath="resources/param_history/",
-        timestr=time.strftime("%Y%m%d%H%M%S"),
+        timestr='',
         sysplatform=sys.platform,
         ssysname=os.uname().sysname,
         version=os.uname().version,
@@ -62,7 +63,11 @@ class PointBotSetup:
         self.configpath = configpath
         self.encryptionkeypath = encryptionkeypath
         self.paramhistorypath = paramhistorypath
-        self.timestr = timestr
+
+        self.system_utc_start_time = datetime.datetime.utcnow() 
+        self.timestr = str(self.system_utc_start_time.strftime("%Y%m%d%H%M%S"))
+        self.start_time_iso = self.system_utc_start_time.replace(tzinfo=datetime.timezone.utc).isoformat()
+        
         self.sysplatform = sysplatform
         self.ssysname = ssysname
         self.version = version
@@ -115,7 +120,7 @@ class PointBotSetup:
             'nodename': self.nodename,
             'headless' : self.headless
         }
-
+        
         if self.point_bot_user != None:
             self.unique_user_file = self.uniqueuserdatapath + f'{self.point_bot_user}_rewards_programs.json'
             self.user_rewards_info_df = self.pbloaddf(self.unique_user_file)
@@ -154,8 +159,8 @@ class PointBotSetup:
     def pbsavedf(self,filename,df=pd.DataFrame(),df2=pd.DataFrame(),compress=0,printdf=0):
         try:
             if not df2.empty:
+                print('appending')
                 df = pd.concat([df,df2])
-
             if compress ==1:
                 filename = filename+'.gz'
 
@@ -173,7 +178,7 @@ class PointBotSetup:
                 if printdf ==1:
                     print(df)
                 if compress == 1:
-                    df.to_json(databuffer,orient="records",date_format='iso',indent=4,compression='gzip')
+                    df.to_json(databuffer,orient="records",date_format='iso',indent=4,compression='gzip') #can just add infer argument to save code
                 else:
                     df.to_json(databuffer,orient="records",date_format='iso',indent=4)
                 self.pbsaves3(filename,databuffer.getvalue())
@@ -191,7 +196,7 @@ class PointBotSetup:
             try:
                 if self.offlinemode == 1:
                     if compress ==1:
-                        df = pd.read_json(filename, orient="records",date_format='iso',compression = 'gzip')
+                        df = pd.read_json(filename, orient="records",compression = 'gzip')
                     else:
                         df = pd.read_json(filename, orient="records")
                     print(f'Returning local file: "{filename}" as dataframe')
@@ -200,7 +205,7 @@ class PointBotSetup:
                     return df
                 else:
                     if compress ==1:
-                        df = pd.read_json(self.pbloads3(filename), orient="records",date_format='iso',compression = 'gzip')
+                        df = pd.read_json(self.pbloads3(filename), orient="records",compression = 'gzip')
                     else:
                         df = pd.read_json(self.pbloads3(filename), orient="records")
                     print(f'Returning S3 file: "{filename}" as dataframe')
@@ -268,8 +273,14 @@ class PointBotSetup:
         #else check for s3 bucket create if not exists
 
     def selectparameters(self):
-        self.user_rewards_info_df = self.user_rewards_info_df.sort_values(by=['rewards_program_name','created_time','last_successful_login_time'], ascending=False)
-        self.user_rewards_info_df['best_record_rank'] =self.user_rewards_info_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max') + self.user_rewards_info_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max')
+        print(self.user_rewards_info_df)
+        
+        self.user_rewards_info_df['last_successful_login_time'] = pd.to_datetime(self.user_rewards_info_df['last_successful_login_time'])
+        self.user_rewards_info_df['created_time'] = pd.to_datetime(self.user_rewards_info_df['created_time'])
+        
+        self.user_rewards_info_df = self.user_rewards_info_df.sort_values(by=['rewards_program_name','last_successful_login_time','created_time'], ascending=False) #'created_time',
+
+        self.user_rewards_info_df['best_record_rank'] =self.user_rewards_info_df.groupby("rewards_program_name")['created_time'].rank(ascending = True, method = 'max') + self.user_rewards_info_df.groupby("rewards_program_name")['last_successful_login_time'].rank(ascending = True, method = 'max')
         self.user_rewards_info_df['best_record_rank'] =self.user_rewards_info_df.groupby("rewards_program_name")['best_record_rank'].rank(ascending = False, method = 'max')
         self.user_rewards_info_df = self.user_rewards_info_df.sort_values(by=['rewards_program_name','best_record_rank'], ascending=True).reset_index(drop=True)
         
@@ -292,7 +303,7 @@ class PointBotSetup:
         self.user_rewards_info_df.loc[(self.user_rewards_info_df['run'] == 1)&(self.user_rewards_info_df['best_record_rank'] == 1.0), 'run'] =1
         #print(self.user_rewards_info_df)
         #print(self.user_rewards_info_df)
-        #print(self.user_rewards_info_df[["rewards_program_name","run"]])
+        print(self.user_rewards_info_df[["rewards_program_name","run"]])
         #exit(1)
         return self.user_rewards_info_df.to_dict(orient='records')
 

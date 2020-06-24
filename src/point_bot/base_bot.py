@@ -15,12 +15,9 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver import ActionChains
 from pointbotencryption import PointBotEncryption
 from selenium.webdriver.common.keys import Keys
-from datetime import datetime
 from bs4 import BeautifulSoup
 import pandas as pd
-import json
-from datetime import datetime
-import time
+import datetime
 import random
 from io import BytesIO
 
@@ -110,7 +107,7 @@ class PointBotDriver:
         #self.driver.get('https://www.google.com/')
         self.driver.maximize_window()
         self.driver.get(url)
-        sleep(random.uniform(2.1, 5))
+        sleep(random.uniform(2.1, 3))
         
         
 
@@ -131,7 +128,7 @@ class PointBotDriver:
         actionx = ActionChains(self.driver).move_to_element(element)#.click()
         sleep(random.uniform(0.1, 1.5))
         actionx.perform()
-        sleep(random.uniform(0.1, .8))
+        sleep(random.uniform(0.1, .5))
         actionx.click().perform()
         
 
@@ -152,7 +149,7 @@ class PointBotDriver:
                     )
                     if input_keys != None:
                         self.move_n_click(element)
-                        sleep(random.uniform(0.1, 1.5))
+                        sleep(random.uniform(0.1, 1.1))
                         self.sleep_keys(element,input_keys)
                         if input_keys2 != None:
                             self.sleep_keys(element,input_keys2)
@@ -195,6 +192,7 @@ class PointBotDriver:
     #     with open(f"{self.datapath}dataLayer/{filename}_{capture_variable}_{when}.json", 'w+') as fp:
     #         capture_variable = f'return {capture_variable};'
     def modify_user_rewards_info_df(self,loginresult):
+        isotime = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
         if loginresult:
             self.pbs.user_rewards_info_df.loc[
                 (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
@@ -212,7 +210,7 @@ class PointBotDriver:
                 (self.pbs.user_rewards_info_df.rewards_username == self.rewards_username) & 
                 (self.pbs.user_rewards_info_df.rewards_user_pw == self.rewards_user_pw)& 
                 (self.pbs.user_rewards_info_df.timestr == self.run_timestr),
-                'last_successful_login_time' ] = str(datetime.now())
+                'last_successful_login_time' ] = isotime
 
             self.pbs.user_rewards_info_df.loc[
                 (self.pbs.user_rewards_info_df.point_bot_user == self.point_bot_user) & 
@@ -282,7 +280,10 @@ class PointBotDriver:
             action = kwargs[step]['action']
             capture_variable = kwargs[step]['capture_variable']
             output_capture = kwargs[step]['output_capture']
-            time_track_dict[f'start_{step}'] = str(datetime.now())
+            take_screenshot = kwargs[step]['take_screenshot']
+            log_html = kwargs[step]['log_html']
+
+            time_track_dict[f'start_{step}'] = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
 
             filename = f"{time_track_dict['file_prefix']}_{step}{self.headless_text}"
             
@@ -306,7 +307,7 @@ class PointBotDriver:
             # if capture_variable != "" and output_capture == 1:
             #     self.capturevariable(filename,when,capture_variable)
 
-            time_track_dict[f'end_{step}'] = str(datetime.now())
+            time_track_dict[f'end_{step}'] = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
 
 
         return time_track_dict, loginresult
@@ -318,12 +319,12 @@ class PointBotDriver:
                     "headless":self.headless,
                     "botname": botname,
                     "funcname": funcname,
-                    "start_function": str(datetime.now()),
+                    "start_function": datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat(),
                 }
 
 
     def stop_time_tracking(self,time_track_dict):
-        time_track_dict[f"end_function"] = str(datetime.now())
+        time_track_dict[f"end_function"] = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
         timetrackfile = f"{self.datapath}tracking_data/{time_track_dict['file_prefix']}.json"
         self.pbs.pbsavedf(timetrackfile,df=pd.DataFrame([time_track_dict]))
 
