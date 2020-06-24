@@ -34,7 +34,6 @@ class UnitedSecurityQuestions:
         outputdict = {}
         print(self.reset_question_prompt)
         for iteration in range(1,6):
-            print(outputdict)
             question_keys = ['append'] + self.all_keys
             question = sf.recursive_input(f"Question {iteration}/5, if question does not exit type 'append' ",options= question_keys )
             #if question not present then trigger append function
@@ -70,17 +69,3 @@ if __name__ == '__main__':
 
     usq = UnitedSecurityQuestions(pbs)
     usq.configure_questions()
-
-    # unitedparams = "/Users/jordankail/projects/point_bot/src/point_bot/resources/reward_program_configs/united_security_questions.json"
-    # with open(unitedparams) as json_file:
-    #     unitedlist = json.load(json_file)
-
-    # outputlist = []
-
-    # for uniteddict in unitedlist:
-    #     for question in uniteddict:
-    #         # responses = uniteddict[question]
-    #         # html_completer = WordCompleter(uniteddict[question])
-    #         # text = prompt(question, completer=html_completer)
-    #         text= sf.recursive_input(question,options=uniteddict[question])
-    #         print('You said: %s' % text)

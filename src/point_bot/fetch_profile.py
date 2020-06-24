@@ -42,6 +42,7 @@ class Point_Bot_User:
                             rewards_user_email = None,
                             rewards_username = None,
                             rewards_user_pw = None, 
+                            last_name = None,
                             attempts=0, max_attempts=3
                             ):
         attempts+=1 
@@ -59,7 +60,8 @@ class Point_Bot_User:
                     rewards_username = sf.recursive_input(f"Whats your User name for {rewards_program_name}? (Programs like Southwest use this instead of your email)",rewards_username)
                 if rewards_user_pw in bad_evals:
                     rewards_user_pw = sf.recursive_input(f"Whats the password you use for {rewards_program_name}? humans will not see this as it will be encrypted",rewards_user_pw,is_pw=True)
-                
+                if last_name in bad_evals:
+                    last_name = sf.recursive_input(f"Whats your Last name for {rewards_program_name}? (Programs like Hyatt use this to confirm login creds)",last_name)         
                 if (
                                 self.pbs.point_bot_user
                                 and rewards_program_name
@@ -69,6 +71,7 @@ class Point_Bot_User:
                     isotime = datetime.datetime.utcnow() .replace(tzinfo=datetime.timezone.utc).isoformat()
                     rewards_program_dict =  {
                                                 "point_bot_user": str(self.pbs.point_bot_user),
+                                                "last_name": str(last_name),
                                                 "rewards_program_name": str(rewards_program_name),
                                                 "rewards_user_email": str(rewards_user_email),
                                                 "rewards_username": str(rewards_username),
@@ -76,7 +79,7 @@ class Point_Bot_User:
                                                 "created_time": isotime,
                                                 "altered_time": isotime,
                                                 "valid": 0,
-                                                "last_successful_login_time": "2020-01-01 01:01:00+00:00",
+                                                "last_successful_login_time": isotime,
                                                 "last_successful_login_run_timestr": str(self.pbs.timestr),
                                                 "times_accessed": 0,
                                                 "decryptionkey":str(self.pbs.point_bot_user)+str(self.pbs.timestr)
@@ -85,16 +88,13 @@ class Point_Bot_User:
 
                     if 'y' == sf.recursive_input(
                             f"""
-
-
+                            
                             Can you Confirm?
-
                             ---------------------------------------------
                             Rewards Program: {rewards_program_name}
                             Rewards Program Email: {rewards_user_email} 
                             Rewards Program Password: *Encrypted*
                             ---------------------------------------------
-
 
                             """,
                             options=["y", "n"],
@@ -123,6 +123,7 @@ class Point_Bot_User:
                             rewards_user_email = rewards_user_email,
                             rewards_username = rewards_username,
                             rewards_user_pw = rewards_user_pw, 
+                            last_name = last_name,
                             attempts=attempts, max_attempts=max_attempts
                             )
             else:
@@ -145,16 +146,19 @@ class Point_Bot_User:
                     options=["y", "n"],
                 ):
                     print("adding more data")
+                    
                     self.new_df = self.generate_rewards_program_df()   
-
-                    self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,self.new_df,printdf=0)
+                    print(self.new_df)
+                    self.user_rewards_info_df = pd.concat([self.orginal_df,self.new_df])
+                    print(self.user_rewards_info_df)
+                    self.pbs.pbsavedf(self.unique_user_file,self.user_rewards_info_df,printdf=1)
                     
         except:
             print("No Rewards Profiles Found", end="")
             self.orginal_df = self.generate_rewards_program_df()
             self.pbs.pbsavedf(self.unique_user_file,self.orginal_df,printdf=0)
 
-        print(self.user_rewards_info_df)
+        #print(self.user_rewards_info_df)
         
 
 if __name__ == "__main__":

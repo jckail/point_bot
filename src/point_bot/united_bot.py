@@ -24,6 +24,7 @@ class UnitedBot(PointBotDriver):
         rewards_user_email=None,
         rewards_username = None,
         rewards_user_pw=None,
+        last_name = None,
         timestr=None,
         start_url=None,
         datapath=None,
@@ -38,6 +39,7 @@ class UnitedBot(PointBotDriver):
         self.rewards_user_email = rewards_user_email
         self.rewards_username = rewards_username
         self.rewards_user_pw = rewards_user_pw
+        self.last_name = last_name
         self.run_timestr = timestr
         self.start_url = start_url
        
@@ -57,6 +59,7 @@ class UnitedBot(PointBotDriver):
             self.rewards_user_email,
             self.rewards_username,
             self.rewards_user_pw,
+            self.last_name,
             self.run_timestr,
             self.start_url,
             self.datapath,
@@ -70,9 +73,9 @@ class UnitedBot(PointBotDriver):
             user_answer = self.usq.current_security_questions_df[user_question].tolist()[0]
 
             
-            print('user_question ',user_question)
-            print('question ',question)
-            print('user_answer ',user_answer)
+            # print('user_question ',user_question)
+            # print('question ',question)
+            # print('user_answer ',user_answer)
 
             if  search(user_question, question):
                 return user_answer
@@ -137,7 +140,7 @@ class UnitedBot(PointBotDriver):
             self.pbs.pbsavefile(f"{self.datapath}raw_html/{'finddatahere'}_{'finddatahere'}.html",self.driver.page_source,writetype='w+')    
             x = self.gen_soup().body.findAll(text='To confirm your identity, please answer the following security questions:')
             questionlist = self.gen_soup().find_all("legend", class_="labelStyle",)
-            print(questionlist)
+            #print(questionlist)
             iteration = 0
             
             for num in questionlist:
@@ -150,10 +153,10 @@ class UnitedBot(PointBotDriver):
 
                 el = self.driver.find_element_by_id(idofselect)
                 for option in el.find_elements_by_tag_name('option'):
-                    print(option.text)
+                    #print(option.text)
                     if option.text.lower() == answer.lower():
                         option.click() # select() in earlier versions of webdriver
-                        print('got ya bitch')
+                        #print('got ya bitch')
                         break
                 iteration += 1
 
@@ -181,20 +184,34 @@ class UnitedBot(PointBotDriver):
                 },
                         "step7": {
                         "action": "redirect",
-                        "description": "Hotel Stay data",
+                        "description": "United Activity data",
                         "url": f"https://www.united.com/en/us/account/activity",
                         "take_screenshot": 1,
                         "log_html": 1,
                         "capture_variable": "datalayer",
                         "output_capture": 1,
                     },
-                
+                "step8": {
+                    "action": "login_test",
+                    "description": "Ensure Login Worked",
+                    "input_keys": "Activity",
+                    "take_screenshot": 1,
+                    "log_html": 1,
+                    "capture_variable": "datalayer",
+                    "output_capture": 1,
+                },
                 }
 
             time_track_dict, loginresult = self.run_bot_function(time_track_dict,
                 botname=self.botname, funcname=funcname, **kwargs
             )
-
+            x = self.gen_soup().body.find_all(
+            "li", class_="app-components-AirlineActivity-airlineActivity__activityContentColumns--2kqBB app-components-AirlineActivity-airlineActivity__expandable--1TAst",
+        )
+            #print(x)
+            for z in x:
+                print(z.text)
+                #Award activity detailsActivity date03/15/19Activity detailsUA Express 4594 ATL - DENpqm1,199pqs1pqd429Award Miles2,145 miles
             bigspaces = "\n" * 3
             print(f"{bigspaces}   !GREAT SUCCESS!     {bigspaces}")
             if self.headless == False:

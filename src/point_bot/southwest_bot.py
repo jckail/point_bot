@@ -21,6 +21,7 @@ class SouthwestBot(PointBotDriver):
         rewards_user_email=None,
         rewards_username = None,
         rewards_user_pw=None,
+        last_name = None,
         timestr=None,
         start_url=None,
         datapath=None,
@@ -34,6 +35,7 @@ class SouthwestBot(PointBotDriver):
         self.rewards_user_email = rewards_user_email
         self.rewards_username = rewards_username
         self.rewards_user_pw = rewards_user_pw
+        self.last_name = last_name
         self.run_timestr = timestr
         self.start_url = start_url
        
@@ -51,6 +53,7 @@ class SouthwestBot(PointBotDriver):
             self.rewards_user_email,
             self.rewards_username,
             self.rewards_user_pw,
+            self.last_name,
             self.run_timestr,
             self.start_url,
             self.datapath,

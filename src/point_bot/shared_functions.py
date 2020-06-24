@@ -70,7 +70,7 @@ def recursive_input(
                         else:
                             print(' \nPasswords do not match please try again!\n')
                 else:
-                    eval_value = prompt(f"\n options: {options} \n{attempt_string} {invalid_option_string}\n {input_prompt} (Press Tab Before enter to auto complete)  \n\n", completer=the_completer)
+                    eval_value = prompt(f" \n {input_prompt} (Press Tab Before enter to auto complete)  \n {invalid_option_string} options: {options} \n{attempt_string}", completer=the_completer)
 
                 if eval_value not in bad_evals and checker(eval_value,check_type):
                     if options != []:

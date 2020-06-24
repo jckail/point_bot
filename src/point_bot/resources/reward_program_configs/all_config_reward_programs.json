@@ -27,4 +27,20 @@
         "start_url": "https://www.united.com/en/us"
 
     }
+    ,
+    {
+        "rewards_program_name": "Hyatt",
+        "botname": "HyattBot",
+        "bot_datapath": "hyattbot/",
+        "start_url": "https://www.hyatt.com/"
+
+    }
+    ,
+    {
+        "rewards_program_name": "Delta",
+        "botname": "DeltaBot",
+        "bot_datapath": "deltabot/",
+        "start_url": "https://www.delta.com/"
+
+    }
 ]

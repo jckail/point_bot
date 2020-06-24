@@ -160,7 +160,6 @@ class PointBotSetup:
         try:
             if not df2.empty:
                 print('appending')
-                df = pd.concat([df,df2])
             if compress ==1:
                 filename = filename+'.gz'
 
@@ -273,7 +272,7 @@ class PointBotSetup:
         #else check for s3 bucket create if not exists
 
     def selectparameters(self):
-        print(self.user_rewards_info_df)
+        self.user_rewards_info_df = self.pbloaddf(self.unique_user_file)
         
         self.user_rewards_info_df['last_successful_login_time'] = pd.to_datetime(self.user_rewards_info_df['last_successful_login_time'])
         self.user_rewards_info_df['created_time'] = pd.to_datetime(self.user_rewards_info_df['created_time'])
