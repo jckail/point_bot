@@ -62,8 +62,8 @@ class PointBotDriver:
 
         chrome_options = ChromeOptions()
         chrome_options.headless = self.headless
-        #chrome_options.add_argument("--incognito")
-        #chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument("--incognito")
+        chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument("--start-maximized")
         #chrome_options.add_argument("--window-size=1920x1080")
         user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'
@@ -106,11 +106,12 @@ class PointBotDriver:
     def startupdriver(self,url=None,previouspage='https://www.google.com/'):
         if url== None:
             url = self.start_url
-        #self.driver.get('https://www.google.com/')
+        self.driver.get(previouspage)
         self.driver.maximize_window()
+        #xtest = 'https://www.aa.com/'
         self.driver.get(url)
-        sleep(random.uniform(2.1, 3))
-        
+        sleep(random.uniform(3, 5))
+        print(self.driver.get_cookies())        
         
 
     def gen_soup(self):

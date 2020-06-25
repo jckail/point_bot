@@ -137,13 +137,13 @@ class VisualizeData:
     def main(self):
         dflist = []
         #my_list = list(set(basedf['point_bot_user'].to_list()))
-        for point_bot_user in  ['alex','jkail','chuck','russ','ellen','kat']: #['russ']:['jkail','chuck','russ','ellen','kat']
+        for point_bot_user in  ['alex','jkail','chuck','russ','ellen','kat','ramseyk']: #['russ']:['jkail','chuck','russ','ellen','kat']
             #print(point_bot_user)
             self.addmarriott(point_bot_user,dflist)
             self.addsouthwest(point_bot_user,dflist)
         df = pd.concat(dflist)
         plt.figure(figsize=(15,5))
-        ax = sns.lineplot(x="activity_date", y="total_points_running_sum",  hue="rewards_program", style="point_bot_user", data=df)
+        ax = sns.lineplot(x="activity_date", y="total_points_running_sum",  hue="rewards_program", style="point_bot_user", data=df, dashes=False)
         ax.axhline(0, ls='-',color='black')
         #ax.set_xticklabels(ax.get_xticklabels(), fontsize='x-large')
         pngfile = "compare points.png"

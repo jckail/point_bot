@@ -43,4 +43,20 @@
         "start_url": "https://www.delta.com/"
 
     }
+    ,
+    {
+        "rewards_program_name": "AmericanAirlines",
+        "botname": "AmericanairlinesBot",
+        "bot_datapath": "americanairlinesbot/",
+        "start_url": "https://www.aa.com/homePage.do"
+
+    }
+    ,
+    {
+        "rewards_program_name": "Mgm",
+        "botname": "MgmBot",
+        "bot_datapath": "mgmbot/",
+        "start_url": "https://www.mgmresorts.com/en/mlife-rewards-program.html"
+
+    }
 ]
