@@ -1,13 +1,11 @@
-# assault
 
-A simple CLI load testing tool.
 
 ## Installation
 
 Install using `pip3.7 install point_bot/dist/point_bot-1.0.0-py3-none-any.whl`:
 
 ```
-$ pip install assault
+$ pip install -r requirements.txt
 ```
 
 ## Usage
