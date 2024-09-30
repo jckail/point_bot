@@ -1,81 +1,149 @@
+# PointBot
+
+PointBot is a backend application written in Python that aggregates loyalty program points from various credit cards, airlines and hotels into one centralized place. It automates the scraping process of loyalty accounts using a headless Selenium WebDriver deployed on AWS EC2 and leverages Auth0 for secure login and authentication. Additionally, user passwords are securely stored as encrypted objects in an S3 bucket that is accessible only by a specialized service, ensuring user privacy and security. To get around "scraping and automation detection" I created a hacky "nordVPN" script that runs the bots inside of a VPN that has a randomized locaiton and user agent. (This is a greyzone for terms and conditions for most of these programs)
 
 
-## Installation
+![alt text](image.png)
 
-Install using `pip3.7 install point_bot/dist/point_bot-1.0.0-py3-none-any.whl`:
 
-```
-$ pip install -r requirements.txt
-```
+## Features
 
-## Usage
+### Loyalty Program Scraping:
+PointBot supports scraping loyalty points from the following programs:
+- Marriott Bonvoy
+- Southwest Airlines
+- United Airlines
+- Hyatt
+- Delta Airlines
+- American Airlines
+- MGM Resorts
 
-The simplest usage of `assault` requires only a URL to test against and 500 requests synchronously (one at a time). This is what it would look like:
+### Authentication:
+Secure authentication is handled through Auth0 to protect user credentials.
 
-```
-$ assault https://example.com
-.... Done!
---- Results ---
-[   sortable column  DATE sortable column  CATEGORY                       sortable column  DESCRIPTION             sortable column  POINTS
-0            Jun 3, 2020               Credit Card               Rapid Rewards Credit Card 06/02/2020         plus 730 points  + 730  PTS
-1           May 14, 2020                    Flight  REDEEM - LKEU6D - Las Vegas, NV - LAS to Denve...    minus 9,039 points  - 9,039  PTS
-2           May 14, 2020                    Flight  REDEEM - LJ7SH3 - Denver, CO - DEN to Las Vega...    minus 9,039 points  - 9,039  PTS
-3            May 2, 2020               Credit Card               Rapid Rewards Credit Card 05/01/2020         plus 477 points  + 477  PTS
-4            Apr 3, 2020               Credit Card               Rapid Rewards Credit Card 04/02/2020         plus 710 points  + 710  PTS
-5           Mar 30, 2020                    Flight  REDEEM - TZHI2X - Denver, CO - DEN to Belize C...  minus 28,080 points  - 28,080  PTS
-6           Mar 30, 2020                    Flight                                    REFUND - TZHI2X   plus 28,080 points  + 28,080  PTS
-7           Mar 30, 2020                    Flight  REDEEM - KXDDHX - Denver, CO - DEN to Cancun, ...  minus 17,394 points  - 17,394  PTS
-8            Mar 9, 2020                    Flight  QXCMXJ - Salt Lake City, UT - SLC to Denver, C...     plus 5,226 points  + 5,226  PTS
-9            Mar 7, 2020                    Flight  REDEEM - TXGYBP - Denver, CO - DEN to Salt Lak...  minus 19,923 points  - 19,923  PTS
-10           Mar 7, 2020                    Flight  REDEEM - TXU3H3 - Salt Lake City, UT - SLC to ...  minus 10,304 points  - 10,304  PTS
-11           Mar 7, 2020                    Flight                                    REFUND - TXU3H3   plus 10,304 points  + 10,304  PTS
-12           Mar 3, 2020               Credit Card               Rapid Rewards Credit Card 03/02/2020         plus 723 points  + 723  PTS
-13           Mar 1, 2020                    Flight  Q8L7PF - Denver, CO - DEN to Seattle/Tacoma, W...     plus 7,566 points  + 7,566  PTS
-14           Mar 1, 2020                    Flight  REDEEM - SV9F2P - Salt Lake City, UT - SLC to ...  minus 19,923 points  - 19,923  PTS
-15           Mar 1, 2020                    Flight                                    REFUND - SV9F2P   plus 19,923 points  + 19,923  PTS
-16           Mar 1, 2020                    Flight  REDEEM - SV7ZMR - Denver, CO - DEN to Salt Lak...    minus 8,272 points  - 8,272  PTS
-17           Mar 1, 2020                    Flight                                    REFUND - SV7ZMR     plus 8,272 points  + 8,272  PTS
-18          Feb 27, 2020                    Flight  W7ZH55 - Denver, CO - DEN to Seattle/Tacoma, W...   plus 15,696 points  + 15,696  PTS
-19          Feb 20, 2020                    Flight  W8MH9F - Denver, CO - DEN to Seattle/Tacoma, W...   plus 15,696 points  + 15,696  PTS]
-```
+### Password Encryption:
+User passwords are stored in encrypted form on AWS S3 to ensure privacy and security, accessible only by an external service.
 
-If we want to add concurrency, we'll use the `-c` option, and we can use the `-r` option to specify how many requests that we'd like to make:
+### Headless Mode:
+Selenium web scraping is performed in headless mode on AWS EC2 for efficient and invisible operations.
 
-```
-$ assault -r 3000 -c 10 https://example.com
-.... Done!
---- Results ---
-Successful requests     3000
-Slowest                 0.010s
-Fastest                 0.001s
-Average                 0.003s
-Total time              2.400s
-Requests Per Minute     90000
-Requests Per Second     1250
+## Prerequisites
+To run PointBot, ensure you have the following set up:
+- Python 3.8+
+- AWS EC2 instance with necessary permissions
+- AWS S3 bucket for password storage
+- Auth0 account for authentication
+
+The following Python libraries (install using pip):
+- `pandas`
+- `selenium`
+- `boto3` (for AWS S3)
+- `cryptography` (for encryption)
+
+Other required dependencies (can be found in the `requirements.txt` file).
+
+## Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/point_bot.git
+cd point_bot
 ```
 
-If you'd like to see these results in JSON format, you can use the `-j` option with a path to a JSON file:
-
-```
-$ assault -r 3000 -c 10 -j output.json https://example.com
-.... Done!
+2. Install the required dependencies:
+```bash
+pip install -r requirements.txt
 ```
 
-## Development
-
-For working on `assult`, you'll need to have Python >= 3.7 (because we'll use `asyncio`) and [`pipenv`][1] installed. With those installed, run the following command to create a virtualenv for the project and fetch the dependencies:
-
-```
-$ pipenv install --dev
-...
-```
-
-Next, activate the virtualenv and get to work:
-
-```
-$ pipenv shell
-...
-(assault) $
+3. Configure the following environment variables:
+```bash
+export AUTH0_CLIENT_ID=your_auth0_client_id
+export AUTH0_DOMAIN=your_auth0_domain
+export AUTH0_CLIENT_SECRET=your_auth0_client_secret
+export AWS_ACCESS_KEY_ID=your_aws_access_key_id
+export AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+export S3_BUCKET_NAME=your_s3_bucket_name
 ```
 
-[1]: https://docs.pipenv.org/en/latest/
+4. Set up your AWS EC2 instance and ensure the necessary permissions are granted to access S3 and other services.
+
+5. Store your encrypted credentials on AWS S3.
+
+## Running the Application
+
+To run the PointBot application for testing or production, execute the following command:
+
+```bash
+python3 main.py
+```
+
+The `main.py` file runs the scraping logic, starting with user setup, authentication, and retrieving loyalty points from the supported loyalty programs.
+
+## Main Components
+
+- **PointBotSetup**: Handles the setup of the bot, including selecting the specific loyalty programs to scrape.
+- **PointBotEncryption**: Encrypts and decrypts sensitive user data before storing it in S3.
+- **Point_Bot_User**: Fetches and manages user profiles for the bot's operations.
+- **MarriottBot, SouthwestBot, UnitedBot, HyattBot, DeltaBot, AmericanAirlinesBot, MgmBot**: Individual scrapers for each loyalty program that are responsible for logging into accounts and scraping point balances.
+- **VisualizeData**: Handles visualizing the aggregated data once the points are scraped from various programs.
+
+## Sample Data
+
+Below is a sample of the aggregated loyalty program data collected by PointBot:
+
+| DATE        | CATEGORY     | DESCRIPTION                                                   | POINTS      |
+| ----------- | ------------ | ------------------------------------------------------------- | ----------- |
+| Jun 3, 2020 | Credit Card  | Rapid Rewards Credit Card 06/02/2020                           | +730 PTS    |
+| May 14, 2020| Flight       | REDEEM - LKEU6D - Las Vegas, NV - LAS to Denver...             | -9,039 PTS  |
+| Mar 1, 2020 | Flight       | Q8L7PF - Denver, CO - DEN to Seattle/Tacoma, WA...             | +7,566 PTS  |
+| Mar 1, 2020 | Flight       | REDEEM - SV9F2P - Salt Lake City, UT - SLC to...               | -19,923 PTS |
+| Mar 7, 2020 | Flight       | REDEEM - TXGYBP - Denver, CO - DEN to Salt Lake City...        | -19,923 PTS |
+| Feb 27, 2020| Flight       | W7ZH55 - Denver, CO - DEN to Seattle/Tacoma, WA...             | +15,696 PTS |
+
+## Testing
+
+For testing purposes, the following code snippet in `main.py` allows you to run the scraper in non-headless mode and run bots for specific users:
+
+```python
+if __name__ == "__main__":
+    headless = False  # Set to False to run in non-headless mode
+    for user in ['chuck']:
+        pbs = PointBotSetup(
+            point_bot_user=user,
+            headless=headless,
+            offlinemode=0,
+            runspecificbots=['Hyatt']
+        )
+        pbs.start()
+        print(f'\n\n\n Headless = {headless} \n\n\n')
+
+        pbu = Point_Bot_User(pbs)
+        for kwargs in pbs.selectparameters():
+            if kwargs['rewards_program_name'] == 'Hyatt' and kwargs['run'] == 1:
+                mb = HyattBot(pbs, **kwargs)
+                mb.mine_hyatt_points()
+                pbs.user_rewards_info_df = mb.pbs.user_rewards_info_df
+
+        pbs.closeoutfunction()
+
+    vds = VisualizeData(pbs, 'jkail')
+    vds.main()
+```
+
+## Deployment
+
+- **AWS EC2 Instance**: Ensure that your instance is configured to run the necessary services such as Selenium WebDriver with Chrome, and all the dependencies are installed.
+- **Auth0 Configuration**: Make sure your Auth0 application is set up and the necessary client ID, domain, and secret are added to the environment variables.
+- **AWS S3 for Secure Storage**: Ensure your S3 bucket is correctly set up with encryption enabled and limited access.
+
+## Future Enhancements
+
+- Add more loyalty programs to support additional airlines, hotels, and other rewards platforms.
+- Improved error handling to manage failed logins and connectivity issues more gracefully.
+- Scheduled scraping using AWS Lambda or other serverless computing options to run scrapes automatically.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+Happy scraping with PointBot!
