@@ -10,7 +10,9 @@ import {
   chatAssistantResponseSchema,
   createPortfolioShareRequestSchema,
   createTripGoalRequestSchema,
+  customValuationDtoSchema,
   deletedAccountDtoSchema,
+  setCustomValuationRequestSchema,
   importPortfolioRequestSchema,
   importPortfolioResultDtoSchema,
   ingestDealPageResultDtoSchema,
@@ -60,6 +62,8 @@ const COMPONENT_SCHEMAS = {
   ChatAssistantResponse: chatAssistantResponseSchema,
   ImportPortfolioResultDto: importPortfolioResultDtoSchema,
   BulkUpdateMembershipResultDto: bulkUpdateMembershipResultDtoSchema,
+  CustomValuationDto: customValuationDtoSchema,
+  SetCustomValuationRequest: setCustomValuationRequestSchema,
   ApiError: apiErrorSchema,
   LinkLoyaltyAccountRequest: linkLoyaltyAccountRequestSchema,
   UpdateLoyaltyAccountRequest: updateLoyaltyAccountRequestSchema,
@@ -446,6 +450,35 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           responses: {
             "200": jsonResponse("Public snapshot", ref("PublicPortfolioSnapshotDto")),
             "404": jsonResponse("Token missing, revoked, or expired", ref("ApiError")),
+          },
+        },
+      },
+      "/api/v1/valuations": {
+        get: {
+          summary: "List the caller's custom cents-per-point overrides",
+          responses: {
+            "200": jsonResponse("Custom valuations", arrayOf("CustomValuationDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/valuations/{providerId}": {
+        parameters: [
+          { name: "providerId", in: "path", required: true, schema: { type: "string" } },
+        ],
+        put: {
+          summary: "Set a custom cents-per-point override for a provider",
+          requestBody: body("SetCustomValuationRequest"),
+          responses: {
+            "200": jsonResponse("Saved override", ref("CustomValuationDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        delete: {
+          summary: "Clear a custom override (revert to editorial)",
+          responses: {
+            "204": { description: "Cleared" },
+            ...ERROR_RESPONSES,
           },
         },
       },

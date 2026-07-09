@@ -27,6 +27,7 @@ function account(
     hasStoredCredential: false,
     latestBalance: { points: 10_000, source: "manual", capturedAt: new Date("2026-01-01") },
     estimatedValueCents: 13_000,
+    customCentsPerPoint: null,
     trend: {
       sincePrevious: over.sincePrevious ?? null,
       since30Days: null,

@@ -2,7 +2,9 @@ import { relations } from "drizzle-orm";
 import {
   bigint,
   index,
+  integer,
   pgTable,
+  primaryKey,
   timestamp,
   uniqueIndex,
   varchar,
@@ -136,6 +138,21 @@ export const tripGoals = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (goal) => [index("trip_goal_user_id_idx").on(goal.userId)],
+);
+
+// ─── Custom valuations ─────────────────────────────────────────────────────
+// Per-user override of a provider's editorial cents-per-point. Stored as an
+// integer number of milli-cents (centsPerPoint × 1000) to avoid float drift.
+
+export const userProviderValuations = pgTable(
+  "user_provider_valuation",
+  {
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    providerId: varchar("provider_id", { length: 64 }).notNull(),
+    centsPerPointMilli: integer("cents_per_point_milli").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (row) => [primaryKey({ columns: [row.userId, row.providerId] })],
 );
 
 // ─── Public portfolio shares ───────────────────────────────────────────────

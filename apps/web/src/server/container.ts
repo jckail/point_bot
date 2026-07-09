@@ -13,6 +13,10 @@ import {
   DrizzleTripGoalRepository,
   BedrockAssistant,
   BulkUpdateMembershipNumbers,
+  DeleteCustomValuation,
+  DrizzleCustomValuationRepository,
+  ListCustomValuations,
+  SetCustomValuation,
   ExportPortfolio,
   FirecrawlPageScraper,
   GetBalanceHistory,
@@ -88,6 +92,9 @@ export interface Container {
     getPublicPortfolioSnapshot: GetPublicPortfolioSnapshot;
     chatWithAssistant: ChatWithAssistant;
     getValueAdvice: GetValueAdvice;
+    listCustomValuations: ListCustomValuations;
+    setCustomValuation: SetCustomValuation;
+    deleteCustomValuation: DeleteCustomValuation;
     ingestDealPage: IngestDealPage;
     syncLoyaltyAccount: SyncLoyaltyAccount;
     syncAllLoyaltyAccounts: SyncAllLoyaltyAccounts;
@@ -142,6 +149,7 @@ function buildContainer(): Container {
   const activity = new DrizzleActivityEventRepository(db);
   const tripGoals = new DrizzleTripGoalRepository(db);
   const shares = new DrizzlePortfolioShareRepository(db);
+  const customValuations = new DrizzleCustomValuationRepository(db);
   const vault = buildVault();
   const gateway = new CompositeTravelProviderGateway([
     new SimulatedTravelProviderGateway(),
@@ -157,6 +165,8 @@ function buildContainer(): Container {
   const listLoyaltyAccounts = new ListLoyaltyAccounts(
     loyaltyAccounts,
     balanceSnapshots,
+    undefined,
+    customValuations,
   );
   const linkLoyaltyAccount = new LinkLoyaltyAccount(loyaltyAccounts, activity);
   const recordManualBalance = new RecordManualBalance(
@@ -185,6 +195,8 @@ function buildContainer(): Container {
       getLoyaltyAccount: new GetLoyaltyAccount(
         loyaltyAccounts,
         balanceSnapshots,
+        undefined,
+        customValuations,
       ),
       linkLoyaltyAccount,
       updateLoyaltyAccount,
@@ -241,6 +253,9 @@ function buildContainer(): Container {
         llm,
       ),
       getValueAdvice: new GetValueAdvice(listLoyaltyAccounts),
+      listCustomValuations: new ListCustomValuations(customValuations),
+      setCustomValuation: new SetCustomValuation(customValuations),
+      deleteCustomValuation: new DeleteCustomValuation(customValuations),
       ingestDealPage: new IngestDealPage(scraper),
       syncLoyaltyAccount,
       syncAllLoyaltyAccounts: new SyncAllLoyaltyAccounts(
