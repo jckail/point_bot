@@ -1,0 +1,134 @@
+name: Deploy
+
+# Continuous deployment to AWS on every push to master:
+#   verify -> cdk deploy (web + worker images, full stack) -> run DB migrations
+#
+# One-time setup (see README "Continuous deployment"):
+#   1. npx cdk deploy GithubOidc -c githubRepo=<owner/repo>   (in infra/)
+#   2. Repo secret  AWS_DEPLOY_ROLE_ARN  = the emitted role ARN
+#   3. Repo secret  CLERK_PUBLISHABLE_KEY = pk_live_... (inlined at build time)
+#   4. Optional repo variables: AWS_REGION (default us-east-1),
+#      DIGEST_FROM_EMAIL (verified SES sender for weekly digests)
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC federation - no long-lived AWS keys
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  check-config:
+    name: Check deploy configuration
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -n "$ROLE_ARN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS_DEPLOY_ROLE_ARN secret not set - skipping deployment."
+          fi
+
+  verify:
+    name: Lint, typecheck, test & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build web app
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "1"
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+
+      - name: Build worker bundle
+        run: npm run build --workspace @pointup/worker
+
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    needs: [check-config, verify]
+    if: needs.check-config.outputs.configured == 'true'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: CDK deploy
+        working-directory: infra
+        env:
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          DIGEST_FROM_EMAIL: ${{ vars.DIGEST_FROM_EMAIL }}
+        run: |
+          npx cdk deploy TemplateApp \
+            --require-approval never \
+            --outputs-file cdk-outputs.json
+
+      - name: Run database migrations
+        working-directory: infra
+        run: |
+          CLUSTER=$(jq -r '.TemplateApp.ClusterArn' cdk-outputs.json)
+          TASK_DEF=$(jq -r '.TemplateApp.MigrationTaskDefinitionArn' cdk-outputs.json)
+          SUBNETS=$(jq -r '.TemplateApp.MigrationSubnetIds' cdk-outputs.json)
+          SG=$(jq -r '.TemplateApp.MigrationSecurityGroupId' cdk-outputs.json)
+
+          echo "Starting migration task..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --started-by "github-actions-${GITHUB_RUN_ID}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[?name==`Migrate`] | [0].exitCode' --output text)
+          echo "Migration exit code: $EXIT_CODE"
+          [ "$EXIT_CODE" = "0" ]

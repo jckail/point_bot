@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+# Background worker image: scheduled balance syncs and email digests.
+# Run with a job argument: `docker run <image> sync` or `... digest`.
+
+##### DEPENDENCIES #####
+FROM node:22-alpine AS deps
+WORKDIR /repo
+
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/
+COPY apps/worker/package.json apps/worker/
+COPY packages/core/package.json packages/core/
+COPY packages/api-client/package.json packages/api-client/
+RUN npm ci
+
+##### BUILDER #####
+FROM node:22-alpine AS builder
+WORKDIR /repo
+
+COPY --from=deps /repo/node_modules ./node_modules
+COPY . .
+RUN npm run build --workspace @pointup/worker
+
+##### RUNNER #####
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 worker
+
+# The worker is a single esbuild bundle - no node_modules at runtime.
+COPY --from=builder --chown=worker:nodejs /repo/apps/worker/dist/index.cjs ./index.cjs
+# SQL migrations for the `migrate` job (run as a one-off task on deploy).
+COPY --from=builder --chown=worker:nodejs /repo/packages/core/drizzle ./drizzle
+
+USER worker
+ENTRYPOINT ["node", "index.cjs"]
+CMD ["sync"]

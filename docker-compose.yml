@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Open-source database admin UI: http://localhost:8081
+  # (server: db, user: postgres, password: password, database: app)
+  adminer:
+    image: adminer:latest
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8081:8080"
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?set your Clerk publishable key}
+    profiles: ["app"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/app
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set your Clerk secret key}
+    ports:
+      - "3000:3000"
+
+  # Open-source email testing UI: http://localhost:8025 (SMTP on 1025).
+  # Digests sent by the worker land here instead of real inboxes.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["tools"]
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  # Background jobs. Run on demand:
+  #   docker compose run --rm worker sync
+  #   docker compose run --rm worker digest
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    profiles: ["worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/app
+      MAILER: smtp
+      SMTP_URL: smtp://mailpit:1025
+      DIGEST_FROM_EMAIL: digest@pointup.local
+      # Without a Clerk key, digests go to this address via Mailpit.
+      DIGEST_RECIPIENT_OVERRIDE: dev@pointup.local
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+
+volumes:
+  db-data:

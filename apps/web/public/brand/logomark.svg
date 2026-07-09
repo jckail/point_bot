@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="PointUp logomark">
+  <defs>
+    <linearGradient id="pu-ascent" gradientUnits="userSpaceOnUse" x1="60" y1="200" x2="200" y2="56">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="60" fill="#0B1020"/>
+  <!-- Ascending points -->
+  <circle cx="76" cy="182" r="13" fill="url(#pu-ascent)"/>
+  <circle cx="110" cy="148" r="16" fill="url(#pu-ascent)"/>
+  <circle cx="144" cy="114" r="19" fill="url(#pu-ascent)"/>
+  <!-- Arrow tip -->
+  <path d="M140 60 h58 v58 z" fill="url(#pu-ascent)"/>
+</svg>

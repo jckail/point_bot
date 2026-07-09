@@ -1,0 +1,30 @@
+{
+  "name": "pointup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @pointup/web",
+    "build": "npm run build --workspace @pointup/web",
+    "start": "npm run start --workspace @pointup/web",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace @pointup/core",
+    "db:migrate": "npm run db:migrate --workspace @pointup/core",
+    "db:push": "npm run db:push --workspace @pointup/core",
+    "db:studio": "npm run db:studio --workspace @pointup/core"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.2.10",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

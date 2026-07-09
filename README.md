@@ -1,149 +1,249 @@
-# PointBot
+# PointUp
 
-PointBot is a backend application written in Python that aggregates loyalty program points from various credit cards, airlines and hotels into one centralized place. It automates the scraping process of loyalty accounts using a headless Selenium WebDriver deployed on AWS EC2 and leverages Auth0 for secure login and authentication. Additionally, user passwords are securely stored as encrypted objects in an S3 bucket that is accessible only by a specialized service, ensuring user privacy and security. To get around "scraping and automation detection" I created a hacky "nordVPN" script that runs the bots inside of a VPN that has a randomized locaiton and user agent. (This is a greyzone for terms and conditions for most of these programs)
+Track airline miles, hotel points, credit card rewards, and every other loyalty currency of value in one place. Built as a modern, fully-typed TypeScript monorepo with a framework-agnostic core (DDD / hexagonal architecture), a Next.js web surface, Drizzle ORM on PostgreSQL, and AWS infrastructure as code.
 
+> **This is the `point_bot` repository.** PointUp is the modernized successor to
+> the original Python/Selenium PointBot (now under
+> [`legacy/python-selenium/`](./legacy/python-selenium/)). See
+> [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) for the
+> port, the decisions behind it, and the AWS Bedrock (Claude Sonnet) assistant
+> wiring.
 
-![alt text](image.png)
+| Layer          | Technology                                                                             |
+| -------------- | -------------------------------------------------------------------------------------- |
+| Core           | Native TypeScript domain/application/infrastructure layers (`@pointup/core`)            |
+| Web surface    | [Next.js 16](https://nextjs.org/) App Router + [React 19](https://react.dev/) + [Tailwind CSS 4](https://tailwindcss.com/) |
+| Data           | PostgreSQL via [Drizzle ORM](https://orm.drizzle.team/) + drizzle-kit migrations        |
+| Users          | [Clerk](https://clerk.com/) user management (email, social logins, MFA, user profiles)   |
+| API client     | `@pointup/api-client` — typed, fetch-only, runs on web, mobile, and browser extensions  |
+| Testing        | [Vitest](https://vitest.dev/) unit tests over ports-and-adapters fakes                  |
+| Infrastructure | [AWS CDK](https://docs.aws.amazon.com/cdk/) — ECS Fargate, ALB, RDS PostgreSQL, Secrets Manager |
+| CI             | GitHub Actions (lint, typecheck, test, build, CDK synth)                                |
 
+## Documentation
 
-## Features
+- [docs/roadmap.md](./docs/roadmap.md) — feature roadmap: what's shipped, what's next, and how it's sequenced
+- [docs/api.md](./docs/api.md) — full API v1 reference with request/response examples
+- [docs/architecture.md](./docs/architecture.md) — DDD layering, SOLID mapping, workspace layout
+- [docs/multi-surface.md](./docs/multi-surface.md) — adding mobile apps and browser extensions
+- [docs/integrations.md](./docs/integrations.md) — loyalty providers (airlines, hotels, credit cards, rail, shopping) and credential vaults (1Password, Apple Keychain, Chrome)
+- [docs/brand.md](./docs/brand.md) — brand kit: logo assets, color tokens, typography, voice
+- [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) — how the modernization was ported into `point_bot`, feature-parity checklist, and the Bedrock assistant
 
-### Loyalty Program Scraping:
-PointBot supports scraping loyalty points from the following programs:
-- Marriott Bonvoy
-- Southwest Airlines
-- United Airlines
-- Hyatt
-- Delta Airlines
-- American Airlines
-- MGM Resorts
+## Repository layout
 
-### Authentication:
-Secure authentication is handled through Auth0 to protect user credentials.
-
-### Password Encryption:
-User passwords are stored in encrypted form on AWS S3 to ensure privacy and security, accessible only by an external service.
-
-### Headless Mode:
-Selenium web scraping is performed in headless mode on AWS EC2 for efficient and invisible operations.
-
-## Prerequisites
-To run PointBot, ensure you have the following set up:
-- Python 3.8+
-- AWS EC2 instance with necessary permissions
-- AWS S3 bucket for password storage
-- Auth0 account for authentication
-
-The following Python libraries (install using pip):
-- `pandas`
-- `selenium`
-- `boto3` (for AWS S3)
-- `cryptography` (for encryption)
-
-Other required dependencies (can be found in the `requirements.txt` file).
-
-## Setup
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/point_bot.git
-cd point_bot
+```
+├── apps/
+│   ├── web/                  # Next.js app: pages, components, API routes, composition root
+│   │   ├── src/components/   #   branded UI components (logo, cards, forms)
+│   │   └── public/brand/     #   brand kit assets (SVG logomarks, lockup)
+│   └── worker/               # Background jobs: scheduled syncs + email digests
+├── packages/
+│   ├── core/                 # Domain + application + infrastructure (framework-free)
+│   │   ├── src/domain/       #   entities, provider catalog, repository ports, errors
+│   │   ├── src/application/  #   use cases + outbound ports (gateway, vault, clock)
+│   │   ├── src/contracts/    #   zod wire schemas shared by all surfaces
+│   │   ├── src/infrastructure/  # Drizzle repos, provider gateways, vault adapters
+│   │   └── drizzle/          #   generated SQL migrations
+│   └── api-client/           # Typed HTTP client for mobile / extension surfaces
+├── infra/                    # AWS CDK app (standalone package)
+└── docs/                     # Architecture and integration guides
 ```
 
-2. Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
+## Local development
 
-3. Configure the following environment variables:
-```bash
-export AUTH0_CLIENT_ID=your_auth0_client_id
-export AUTH0_DOMAIN=your_auth0_domain
-export AUTH0_CLIENT_SECRET=your_auth0_client_secret
-export AWS_ACCESS_KEY_ID=your_aws_access_key_id
-export AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
-export S3_BUCKET_NAME=your_s3_bucket_name
-```
-
-4. Set up your AWS EC2 instance and ensure the necessary permissions are granted to access S3 and other services.
-
-5. Store your encrypted credentials on AWS S3.
-
-## Running the Application
-
-To run the PointBot application for testing or production, execute the following command:
+Requirements: Node.js ≥ 20 and Docker (for the local database).
 
 ```bash
-python3 main.py
+# 1. Install all workspaces
+npm install
+
+# 2. Configure environment
+cp .env-example .env
+# Fill in your Clerk keys from https://dashboard.clerk.com (API keys)
+
+# 3. Start PostgreSQL
+docker compose up -d db
+
+# 4. Apply database migrations
+npm run db:migrate
+
+# 5. Run the dev server
+npm run dev
 ```
 
-The `main.py` file runs the scraping logic, starting with user setup, authentication, and retrieving loyalty points from the supported loyalty programs.
+### Root scripts
 
-## Main Components
+| Command               | Description                                              |
+| --------------------- | -------------------------------------------------------- |
+| `npm run dev`         | Start the Next.js dev server                             |
+| `npm run build`       | Production build of the web app                          |
+| `npm run lint`        | ESLint across the whole monorepo                         |
+| `npm run typecheck`   | TypeScript checking in every workspace                   |
+| `npm run test`        | Vitest unit tests (core use cases, no DB needed)         |
+| `npm run db:generate` | Generate a new SQL migration from schema changes         |
+| `npm run db:migrate`  | Apply pending migrations to `DATABASE_URL`               |
+| `npm run db:studio`   | Open Drizzle Studio to browse the database               |
 
-- **PointBotSetup**: Handles the setup of the bot, including selecting the specific loyalty programs to scrape.
-- **PointBotEncryption**: Encrypts and decrypts sensitive user data before storing it in S3.
-- **Point_Bot_User**: Fetches and manages user profiles for the bot's operations.
-- **MarriottBot, SouthwestBot, UnitedBot, HyattBot, DeltaBot, AmericanAirlinesBot, MgmBot**: Individual scrapers for each loyalty program that are responsible for logging into accounts and scraping point balances.
-- **VisualizeData**: Handles visualizing the aggregated data once the points are scraped from various programs.
+### Database workflow
 
-## Sample Data
+The schema lives in `packages/core/src/infrastructure/db/schema.ts`. After editing it:
 
-Below is a sample of the aggregated loyalty program data collected by PointBot:
-
-| DATE        | CATEGORY     | DESCRIPTION                                                   | POINTS      |
-| ----------- | ------------ | ------------------------------------------------------------- | ----------- |
-| Jun 3, 2020 | Credit Card  | Rapid Rewards Credit Card 06/02/2020                           | +730 PTS    |
-| May 14, 2020| Flight       | REDEEM - LKEU6D - Las Vegas, NV - LAS to Denver...             | -9,039 PTS  |
-| Mar 1, 2020 | Flight       | Q8L7PF - Denver, CO - DEN to Seattle/Tacoma, WA...             | +7,566 PTS  |
-| Mar 1, 2020 | Flight       | REDEEM - SV9F2P - Salt Lake City, UT - SLC to...               | -19,923 PTS |
-| Mar 7, 2020 | Flight       | REDEEM - TXGYBP - Denver, CO - DEN to Salt Lake City...        | -19,923 PTS |
-| Feb 27, 2020| Flight       | W7ZH55 - Denver, CO - DEN to Seattle/Tacoma, WA...             | +15,696 PTS |
-
-## Testing
-
-For testing purposes, the following code snippet in `main.py` allows you to run the scraper in non-headless mode and run bots for specific users:
-
-```python
-if __name__ == "__main__":
-    headless = False  # Set to False to run in non-headless mode
-    for user in ['chuck']:
-        pbs = PointBotSetup(
-            point_bot_user=user,
-            headless=headless,
-            offlinemode=0,
-            runspecificbots=['Hyatt']
-        )
-        pbs.start()
-        print(f'\n\n\n Headless = {headless} \n\n\n')
-
-        pbu = Point_Bot_User(pbs)
-        for kwargs in pbs.selectparameters():
-            if kwargs['rewards_program_name'] == 'Hyatt' and kwargs['run'] == 1:
-                mb = HyattBot(pbs, **kwargs)
-                mb.mine_hyatt_points()
-                pbs.user_rewards_info_df = mb.pbs.user_rewards_info_df
-
-        pbs.closeoutfunction()
-
-    vds = VisualizeData(pbs, 'jkail')
-    vds.main()
+```bash
+npm run db:generate   # writes SQL to packages/core/drizzle/
+npm run db:migrate    # applies it to DATABASE_URL
 ```
 
-## Deployment
+Commit the generated migration files — they are the source of truth for production.
 
-- **AWS EC2 Instance**: Ensure that your instance is configured to run the necessary services such as Selenium WebDriver with Chrome, and all the dependencies are installed.
-- **Auth0 Configuration**: Make sure your Auth0 application is set up and the necessary client ID, domain, and secret are added to the environment variables.
-- **AWS S3 for Secure Storage**: Ensure your S3 bucket is correctly set up with encryption enabled and limited access.
+To browse the database with an open-source admin UI ([Adminer](https://www.adminer.org/)):
 
-## Future Enhancements
+```bash
+docker compose --profile tools up -d   # http://localhost:8081
+```
 
-- Add more loyalty programs to support additional airlines, hotels, and other rewards platforms.
-- Improved error handling to manage failed logins and connectivity issues more gracefully.
-- Scheduled scraping using AWS Lambda or other serverless computing options to run scrapes automatically.
+Drizzle Studio (`npm run db:studio`) is also available for a schema-aware view.
 
-## License
+### Background jobs
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+The worker (`apps/worker`) runs the same core use cases outside the request path:
 
-Happy scraping with PointBot!
+```bash
+# Refresh every user's balances
+docker compose run --rm worker sync
+
+# Send portfolio digest emails (delivered to Mailpit locally)
+docker compose --profile tools up -d       # Mailpit UI: http://localhost:8025
+docker compose run --rm worker digest
+
+# Apply pending database migrations (same job CI runs on deploy)
+docker compose run --rm worker migrate
+```
+
+Without Docker: `DATABASE_URL=... npm run dev --workspace @pointup/worker -- sync`. Emails route through the `Mailer` port — [Mailpit](https://mailpit.axllent.org/) (OSS) over SMTP locally, AWS SES in production, or plain console logging when nothing is configured.
+
+### User management
+
+Users, sessions, sign-in flows, MFA, and profiles are handled by [Clerk](https://clerk.com/). Create an application in the Clerk dashboard and copy the publishable + secret keys into `.env`. The application database stores only Clerk user ids next to domain data — there are no local user/password tables to operate.
+
+## API (v1)
+
+All surfaces speak the same versioned API; shapes are defined in `@pointup/core/contracts`. See [docs/api.md](./docs/api.md) for the full reference with request/response examples.
+
+| Method & path | Auth | Description |
+| --- | --- | --- |
+| `GET /api/health` | — | ALB health check |
+| `GET /api/v1/providers` | — | Supported programs (airlines, hotels, credit cards, rail, shopping) |
+| `GET /api/v1/summary` | session | Portfolio totals, per-kind breakdown, last sync |
+| `GET /api/v1/export` | session | Download accounts + history (`?format=json\|csv`) |
+| `POST /api/v1/import` | session | Rehydrate accounts + balances from a CSV export |
+| `GET /api/v1/calendar.ics` | session | iCal feed of account expiration dates |
+| `GET /api/v1/goals` | session | Trip goals with progress against balances |
+| `POST /api/v1/goals` | session | Create a trip goal |
+| `PATCH /api/v1/goals/{id}` | session | Update a trip goal |
+| `DELETE /api/v1/goals/{id}` | session | Delete a trip goal |
+| `POST /api/v1/demo` | session | Seed sample portfolio (empty accounts only) |
+| `GET /api/v1/shares` | session | List privacy-preserving share links |
+| `POST /api/v1/shares` | session | Create a share link |
+| `DELETE /api/v1/shares/{id}` | session | Revoke a share link |
+| `GET /api/v1/public/share/{token}` | — | Public portfolio snapshot (no membership numbers) |
+| `GET /api/v1/loyalty-accounts/deleted` | session | Soft-deleted accounts in the restore window |
+| `POST /api/v1/loyalty-accounts/{id}/restore` | session | Undo an unlink |
+| `POST /api/v1/assistant/chat` | session | Grounded AI portfolio assistant |
+| `GET /api/v1/value-advice` | session | Transfer rankings + bang-for-buck deals |
+| `POST /api/v1/deals/scrape` | session | Scrape a deal URL and re-rank advice |
+| `GET /api/v1/activity` | session | Chronological activity feed |
+| `GET /api/v1/expiring` | session | Accounts expiring within N days (default 90) |
+| `GET /api/v1/loyalty-accounts` | session | Linked accounts with latest balances and trends |
+| `POST /api/v1/loyalty-accounts` | session | Link a program membership |
+| `GET /api/v1/loyalty-accounts/{id}` | session | One account with its latest balance |
+| `PATCH /api/v1/loyalty-accounts/{id}` | session | Update membership number / credential ref |
+| `DELETE /api/v1/loyalty-accounts/{id}` | session | Unlink the account (history cascades) |
+| `GET /api/v1/loyalty-accounts/{id}/balances` | session | Balance history, newest first (`?limit=1..365`) |
+| `POST /api/v1/loyalty-accounts/{id}/balances` | session | Record a manually observed balance |
+| `POST /api/v1/loyalty-accounts/{id}/sync` | session | Fetch and record the current balance (accepts an optional one-time `transientCredential`) |
+| `POST /api/v1/sync` | session | Sync every linked account; per-account outcomes |
+
+Errors are uniform: `{ "error": { "code": "DUPLICATE_LOYALTY_ACCOUNT", "message": "..." } }` with stable codes from the domain layer.
+
+## Deploying to AWS
+
+All infrastructure is defined with the AWS CDK in [`infra/`](./infra):
+
+- **VPC** with public, private (egress) and isolated subnets across two AZs
+- **RDS PostgreSQL 17** in isolated subnets, credentials auto-generated in Secrets Manager, storage encryption, 7-day backups, deletion protection
+- **ECS Fargate** service (2+ tasks, CPU-based autoscaling to 6) behind a public **Application Load Balancer** with `/api/health` health checks and deployment circuit breaker
+- **Docker image** built from the repository `Dockerfile` (monorepo-aware, standalone Next.js output) at deploy time and pushed to a CDK-managed ECR repository
+- **Secrets Manager** secret for the Clerk secret key (placeholder — set the real value after the first deploy); the Clerk publishable key is passed as a Docker build arg since it is inlined into the client bundle
+- **Scheduled worker tasks** (EventBridge → Fargate, from `Dockerfile.worker`): balance syncs every 6 hours and a weekly digest email job on Mondays
+- **SES** for digest delivery — verify a sender identity, then deploy with `-c digestFromEmail=digest@yourdomain.com` (without it the digest job logs instead of sending)
+- **CloudWatch alarms** on ALB 5xx responses and sustained service CPU
+
+```bash
+cd infra
+npm install
+
+# One-time per account/region
+npx cdk bootstrap
+
+# Deploy (builds and pushes the Docker image, then updates the stack)
+npx cdk deploy
+```
+
+After the first deploy:
+
+1. Set the real Clerk secret key in the secret printed as `ClerkSecretArn`:
+
+   ```bash
+   aws secretsmanager put-secret-value \
+     --secret-id <ClerkSecretArn> --secret-string 'sk_live_...'
+   ```
+
+2. Deploy with your real Clerk publishable key so it is baked into the client bundle:
+
+   ```bash
+   npx cdk deploy -c clerkPublishableKey=pk_live_...
+   ```
+
+3. Run the database migrations against RDS (e.g. from a bastion host or an ECS one-off task):
+
+   ```bash
+   DATABASE_URL="postgresql://..." npm run db:migrate
+   ```
+
+4. Add `http://<LoadBalancerUrl>` (or your domain) to the allowed origins in the Clerk dashboard.
+
+5. To enable digest emails, [verify a sender identity in SES](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html) (and move out of the SES sandbox for real recipients), then redeploy with:
+
+   ```bash
+   npx cdk deploy -c clerkPublishableKey=pk_live_... -c digestFromEmail=digest@yourdomain.com
+   ```
+
+For production, add an ACM certificate and a Route 53 hosted zone to `ApplicationLoadBalancedFargateService` in `infra/lib/app-stack.ts` to enable HTTPS, and consider enabling `multiAz` on the database plus a second NAT gateway.
+
+### Continuous deployment
+
+Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full verification (lint, typecheck, tests, builds) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
+
+Authentication uses GitHub OIDC federation — no long-lived AWS keys are stored in the repository. One-time setup:
+
+```bash
+# 1. Create the OIDC provider + deploy role (in infra/)
+npx cdk deploy GithubOidc -c githubRepo=<owner>/<repo>
+
+# 2. In GitHub repo settings, add:
+#    Secret   AWS_DEPLOY_ROLE_ARN   = DeployRoleArn output from step 1
+#    Secret   CLERK_PUBLISHABLE_KEY = pk_live_... (inlined into the client bundle)
+#    Variable AWS_REGION            = deployment region (optional, default us-east-1)
+#    Variable DIGEST_FROM_EMAIL     = verified SES sender (optional)
+```
+
+The deploy role's permissions are minimal: it can only assume the CDK bootstrap roles and run the migration task. Until `AWS_DEPLOY_ROLE_ARN` is configured, the workflow verifies the build and skips deployment. Pull requests run the [CI workflow](./.github/workflows/ci.yml) (checks only, no AWS access).
+
+## Running the full stack in Docker locally
+
+```bash
+docker compose --profile app up --build
+```
+
+This starts PostgreSQL and the production image of the app on [http://localhost:3000](http://localhost:3000).
