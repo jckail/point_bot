@@ -1,4 +1,4 @@
-import { buildOpenApiDocument } from "@pointup/core/contracts";
+import { buildOpenApiDocument } from "@pointup/core/openapi";
 import { NextResponse } from "next/server";
 
 /**
