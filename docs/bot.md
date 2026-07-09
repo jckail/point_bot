@@ -93,6 +93,27 @@ npx cdk deploy -c slackWebhookUrl=https://hooks.slack.com/services/... \
                -c discordWebhookUrl=https://discord.com/api/webhooks/...
 ```
 
+## Proactive alerts
+
+Separate from the weekly digest, the worker's `alerts` job pushes **urgent,
+actionable** items — and only when there's something to say (nothing fires for a
+calm portfolio). Alerts are derived statelessly by `deriveAlerts` in the core
+from the same digest read model:
+
+- **Expiring / expired** points (within the warning window)
+- **Balance drops / jumps** past a threshold (from each account's `trend`)
+- **Goal reached** — enough points to book a trip goal
+
+Delivery reuses the `Notifier` (Slack/Discord) and `Mailer` ports. Run it daily:
+
+```bash
+npm run dev --workspace @pointup/worker   # then: alerts
+# or: docker compose run --rm worker alerts
+```
+
+Thresholds are tunable via `ALERT_EXPIRY_WARNING_DAYS` and
+`ALERT_BIG_CHANGE_PERCENT`. In AWS the `AlertsTask` runs daily at 12:00 UTC.
+
 ## Deploying the bot
 
 `Dockerfile.bot` builds a self-contained bundle (`node index.cjs`, port 8080,

@@ -1,13 +1,14 @@
 import { createContainer } from "./container";
 import { loadEnv } from "./env";
 import { runMigrations } from "./jobs/migrate";
+import { sendAlerts } from "./jobs/send-alerts";
 import { sendDigests } from "./jobs/send-digests";
 import { syncAllUsers } from "./jobs/sync-all-users";
 import { createMailer } from "./mailers";
 import { createNotifier } from "./notifiers";
 import { createUserDirectory } from "./user-directory";
 
-const JOBS = ["sync", "digest", "migrate"] as const;
+const JOBS = ["sync", "digest", "alerts", "migrate"] as const;
 type Job = (typeof JOBS)[number];
 
 async function main(): Promise<void> {
@@ -28,6 +29,21 @@ async function main(): Promise<void> {
   const container = createContainer(env);
   if (job === "sync") {
     await syncAllUsers(container);
+  } else if (job === "alerts") {
+    await sendAlerts(
+      container,
+      createUserDirectory(env),
+      createMailer(env),
+      createNotifier(env),
+      {
+        ...(env.ALERT_EXPIRY_WARNING_DAYS !== undefined
+          ? { expiryWarningDays: env.ALERT_EXPIRY_WARNING_DAYS }
+          : {}),
+        ...(env.ALERT_BIG_CHANGE_PERCENT !== undefined
+          ? { bigChangePercent: env.ALERT_BIG_CHANGE_PERCENT }
+          : {}),
+      },
+    );
   } else {
     await sendDigests(
       container,

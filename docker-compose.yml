@@ -55,6 +55,7 @@ services:
   # Background jobs. Run on demand:
   #   docker compose run --rm worker sync
   #   docker compose run --rm worker digest
+  #   docker compose run --rm worker alerts
   worker:
     build:
       context: .
