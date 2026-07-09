@@ -81,6 +81,11 @@ export class PointUpClient {
     return this.request("GET", "/api/v1/providers");
   }
 
+  /** The OpenAPI 3.1 document describing this API (public). */
+  getOpenApiDocument(): Promise<Record<string, unknown>> {
+    return this.request("GET", "/api/v1/openapi.json");
+  }
+
   listLoyaltyAccounts(): Promise<LoyaltyAccountDto[]> {
     return this.request("GET", "/api/v1/loyalty-accounts");
   }
