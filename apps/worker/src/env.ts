@@ -50,6 +50,10 @@ const envSchema = z.object({
   /** Optional chat digest delivery — Slack / Discord incoming webhooks. */
   SLACK_WEBHOOK_URL: z.url().optional(),
   DISCORD_WEBHOOK_URL: z.url().optional(),
+
+  /** Proactive-alerts thresholds (the `alerts` job); core defaults apply. */
+  ALERT_EXPIRY_WARNING_DAYS: z.coerce.number().int().positive().optional(),
+  ALERT_BIG_CHANGE_PERCENT: z.coerce.number().positive().optional(),
 });
 
 export type WorkerEnv = z.infer<typeof envSchema>;

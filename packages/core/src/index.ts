@@ -20,6 +20,7 @@ export * from "./application/loyalty/get-balance-history";
 export * from "./application/loyalty/record-manual-balance";
 export * from "./application/loyalty/get-portfolio-summary";
 export * from "./application/loyalty/build-portfolio-digest";
+export * from "./application/loyalty/derive-alerts";
 export * from "./application/loyalty/export-portfolio";
 export * from "./application/loyalty/import-portfolio";
 export * from "./application/loyalty/balance-trend";

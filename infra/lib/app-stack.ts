@@ -335,7 +335,48 @@ export class AppStack extends cdk.Stack {
       }),
     );
 
-    for (const task of [syncTask, digestTask]) {
+    // ─── Proactive alerts task (daily) ─────────────────────────────────────
+    // Fires only when a user has something worth flagging (expiring points,
+    // reached goals, large balance moves); delivers via chat + email.
+    const chatWebhookEnv: Record<string, string> = {
+      ...(ctx("slackWebhookUrl")
+        ? { SLACK_WEBHOOK_URL: ctx("slackWebhookUrl")! }
+        : {}),
+      ...(ctx("discordWebhookUrl")
+        ? { DISCORD_WEBHOOK_URL: ctx("discordWebhookUrl")! }
+        : {}),
+    };
+    const alertsTask = new ecsPatterns.ScheduledFargateTask(this, "AlertsTask", {
+      cluster,
+      // Daily at 12:00 UTC.
+      schedule: events.Schedule.cron({ hour: "12", minute: "0" }),
+      subnetSelection: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      scheduledFargateTaskImageOptions: {
+        image: ecs.ContainerImage.fromDockerImageAsset(workerImage),
+        command: ["alerts"],
+        cpu: 256,
+        memoryLimitMiB: 512,
+        environment: {
+          NODE_ENV: "production",
+          MAILER: digestFromEmail ? "ses" : "console",
+          ...(digestFromEmail ? { DIGEST_FROM_EMAIL: digestFromEmail } : {}),
+          ...chatWebhookEnv,
+        },
+        secrets: workerSecrets,
+        logDriver: ecs.LogDrivers.awsLogs({
+          streamPrefix: "worker-alerts",
+          logRetention: logs.RetentionDays.ONE_MONTH,
+        }),
+      },
+    });
+    alertsTask.taskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: ["ses:SendEmail", "ses:SendRawEmail"],
+        resources: ["*"],
+      }),
+    );
+
+    for (const task of [syncTask, digestTask, alertsTask]) {
       database.connections.allowDefaultPortFrom(
         task.task.securityGroups![0]!,
         "Worker tasks to PostgreSQL",
