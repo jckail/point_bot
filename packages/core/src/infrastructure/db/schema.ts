@@ -155,6 +155,16 @@ export const userProviderValuations = pgTable(
   (row) => [primaryKey({ columns: [row.userId, row.providerId] })],
 );
 
+// ─── User settings ─────────────────────────────────────────────────────────
+// One row per user; extended column-by-column as preferences accrue.
+
+export const userSettings = pgTable("user_setting", {
+  userId: varchar("user_id", { length: 255 }).notNull().primaryKey(),
+  /** ISO 4217 display currency, e.g. "EUR". Values stay USD internally. */
+  displayCurrency: varchar("display_currency", { length: 3 }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
 // ─── Award watchlist ───────────────────────────────────────────────────────
 // Watched award/deal pages, re-scraped on a schedule. Cents-per-point values
 // are stored as integer milli-cents (× 1000) like custom valuations.

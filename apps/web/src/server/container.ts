@@ -13,11 +13,17 @@ import {
   DrizzleTripGoalRepository,
   BedrockAssistant,
   BulkUpdateMembershipNumbers,
+  BuildDisplayValue,
   CreateAwardWatch,
   DeleteAwardWatch,
   DrizzleAwardWatchRepository,
   ListAwardWatches,
   DeleteCustomValuation,
+  DrizzleUserSettingsRepository,
+  GetUserSettings,
+  HttpFxRateSource,
+  SetDisplayCurrency,
+  StaticFxRateSource,
   DrizzleCustomValuationRepository,
   ListCustomValuations,
   SetCustomValuation,
@@ -99,6 +105,9 @@ export interface Container {
     createAwardWatch: CreateAwardWatch;
     listAwardWatches: ListAwardWatches;
     deleteAwardWatch: DeleteAwardWatch;
+    getUserSettings: GetUserSettings;
+    setDisplayCurrency: SetDisplayCurrency;
+    buildDisplayValue: BuildDisplayValue;
     setCustomValuation: SetCustomValuation;
     deleteCustomValuation: DeleteCustomValuation;
     ingestDealPage: IngestDealPage;
@@ -157,6 +166,10 @@ function buildContainer(): Container {
   const shares = new DrizzlePortfolioShareRepository(db);
   const customValuations = new DrizzleCustomValuationRepository(db);
   const awardWatches = new DrizzleAwardWatchRepository(db);
+  const settings = new DrizzleUserSettingsRepository(db);
+  const fx = env.FX_API_URL
+    ? new HttpFxRateSource({ baseUrl: env.FX_API_URL })
+    : new StaticFxRateSource();
   const vault = buildVault();
   const gateway = buildTravelProviderGateway({
     aggregator:
@@ -267,6 +280,9 @@ function buildContainer(): Container {
       createAwardWatch: new CreateAwardWatch(awardWatches),
       listAwardWatches: new ListAwardWatches(awardWatches),
       deleteAwardWatch: new DeleteAwardWatch(awardWatches),
+      getUserSettings: new GetUserSettings(settings),
+      setDisplayCurrency: new SetDisplayCurrency(settings),
+      buildDisplayValue: new BuildDisplayValue(settings, fx),
       setCustomValuation: new SetCustomValuation(customValuations),
       deleteCustomValuation: new DeleteCustomValuation(customValuations),
       ingestDealPage: new IngestDealPage(scraper),

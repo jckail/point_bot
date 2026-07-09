@@ -23,6 +23,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
 | `INVALID_AWARD_WATCH` | 422 | Watch label/threshold failed validation |
+| `INVALID_DISPLAY_CURRENCY` | 422 | Display currency not in the supported set |
 | `AWARD_WATCH_NOT_FOUND` | 404 | Watch does not exist **or is not yours** |
 | `INVALID_BALANCE` | 422 | Points value is negative or fractional |
 | `INVALID_CAPTURE_TIME` | 422 | Capture timestamp is malformed or in the future |
@@ -71,6 +72,12 @@ The catalog of supported loyalty programs. Public — surfaces use it to render 
 
 Aggregated portfolio view for the signed-in user.
 
+When the user's display currency (see `/api/v1/settings`) is not USD, the response also carries a best-effort converted total — omitted/null if FX is unavailable:
+
+```json
+{ "display": { "currency": "EUR", "amount": 1877.2, "ratePerUsd": 0.92 } }
+```
+
 ```json
 {
   "totalPoints": 154120,
@@ -90,6 +97,14 @@ Aggregated portfolio view for the signed-in user.
 Monetary fields are whole US cents at each provider's `estimatedCentsPerPoint`.
 
 `byKind` always contains every provider kind, with zeroed entries for kinds the user has no accounts in.
+
+### `GET /api/v1/settings` / `PUT /api/v1/settings`
+
+Per-user display settings. Currently one preference: `displayCurrency` (`USD`, `EUR`, `GBP`, `CAD`, `AUD`, `JPY`; defaults to USD). Valuations stay USD-denominated internally — conversion happens only at the display edge using an FX source (`FX_API_URL`, frankfurter-style; pinned static rates in dev).
+
+```json
+{ "displayCurrency": "EUR" }
+```
 
 ### `GET /api/v1/export`
 

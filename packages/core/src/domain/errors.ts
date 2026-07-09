@@ -52,6 +52,14 @@ export class InvalidValuationError extends DomainError {
   }
 }
 
+export class InvalidDisplayCurrencyError extends DomainError {
+  readonly code = "INVALID_DISPLAY_CURRENCY";
+
+  constructor(currency: string) {
+    super(`Display currency "${currency}" is not supported`);
+  }
+}
+
 export class CredentialUnavailableError extends DomainError {
   readonly code = "CREDENTIAL_UNAVAILABLE";
 
