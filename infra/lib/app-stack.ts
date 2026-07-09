@@ -148,6 +148,23 @@ export class AppStack extends cdk.Stack {
         : {}),
     };
 
+    // Optional loyalty-data aggregator for real balance syncs. API key becomes
+    // a Secrets Manager placeholder gated by `-c enableAggregator=true`; the
+    // base URL is plain config:
+    //   -c enableAggregator=true -c aggregatorApiUrl=https://api.vendor.example
+    const aggregatorSecret = this.node.tryGetContext("enableAggregator")
+      ? placeholderSecret(
+          "AggregatorApiKey",
+          "Loyalty-data aggregator API key (set the real value after deploy)",
+        )
+      : undefined;
+    const aggregatorEnvironment: Record<string, string> = ctx("aggregatorApiUrl")
+      ? { AGGREGATOR_API_URL: ctx("aggregatorApiUrl")! }
+      : {};
+    const aggregatorSecrets: Record<string, ecs.Secret> = aggregatorSecret
+      ? { AGGREGATOR_API_KEY: ecs.Secret.fromSecretsManager(aggregatorSecret) }
+      : {};
+
     const image = new ecrAssets.DockerImageAsset(this, "AppImage", {
       directory: path.join(__dirname, "..", ".."),
       platform: ecrAssets.Platform.LINUX_AMD64,
@@ -185,6 +202,7 @@ export class AppStack extends cdk.Stack {
             // src/env.ts composes DATABASE_URL from the DB_* variables below.
             // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
             ...assistantEnvironment,
+            ...aggregatorEnvironment,
           },
           secrets: {
             DB_HOST: ecs.Secret.fromSecretsManager(dbSecret, "host"),
@@ -194,6 +212,7 @@ export class AppStack extends cdk.Stack {
             DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
             CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
             ...assistantSecrets,
+            ...aggregatorSecrets,
           },
           logDriver: ecs.LogDrivers.awsLogs({
             streamPrefix: "app",
@@ -380,6 +399,7 @@ export class AppStack extends cdk.Stack {
       DB_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, "password"),
       DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
       CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
+      ...aggregatorSecrets,
     };
 
     const syncTask = new ecsPatterns.ScheduledFargateTask(this, "SyncTask", {
@@ -391,7 +411,7 @@ export class AppStack extends cdk.Stack {
         command: ["sync"],
         cpu: 256,
         memoryLimitMiB: 512,
-        environment: { NODE_ENV: "production" },
+        environment: { NODE_ENV: "production", ...aggregatorEnvironment },
         secrets: workerSecrets,
         logDriver: ecs.LogDrivers.awsLogs({
           streamPrefix: "worker-sync",
@@ -571,6 +591,12 @@ export class AppStack extends cdk.Stack {
       new cdk.CfnOutput(this, "FirecrawlSecretArn", {
         value: firecrawlSecret.secretArn,
         description: "Set the real Firecrawl API key (fc-...) in this secret",
+      });
+    }
+    if (aggregatorSecret) {
+      new cdk.CfnOutput(this, "AggregatorSecretArn", {
+        value: aggregatorSecret.secretArn,
+        description: "Set the real loyalty-data aggregator API key in this secret",
       });
     }
 

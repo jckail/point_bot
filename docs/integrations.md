@@ -25,7 +25,7 @@ interface TravelProviderGateway {
 
 1. Add the program to the catalog if it isn't there (one line).
 2. Write an adapter in `packages/core/src/infrastructure/providers/`, e.g. `UnitedGateway implements TravelProviderGateway`, calling the airline's API (or an aggregator such as an NDC/loyalty API vendor).
-3. Register it **ahead of the simulated fallback** in the web composition root (`apps/web/src/server/container.ts`):
+3. Register it **ahead of the simulated fallback** — either add it to the shared `buildTravelProviderGateway()` factory (`packages/core/src/infrastructure/providers/build-gateway.ts`, used by both web and worker) or compose directly for a one-off:
 
 ```ts
 const gateway = new CompositeTravelProviderGateway([
@@ -35,6 +35,39 @@ const gateway = new CompositeTravelProviderGateway([
 ```
 
 No use case, route, or schema changes are required — this is the open/closed principle at work. Balance history accumulates automatically because syncs append `balance_snapshot` rows.
+
+### Shipped: the aggregator gateway
+
+`HttpAggregatorTravelProviderGateway` is a real adapter for a loyalty-data
+aggregator's HTTP API — one integration to cover the long tail of programs. It's
+composed by the shared `buildTravelProviderGateway()` factory (used by both the
+web app and the worker), which registers the aggregator **ahead of** the
+simulated fallback when it's configured:
+
+```ts
+const gateway = buildTravelProviderGateway({
+  aggregator:
+    env.AGGREGATOR_API_URL && env.AGGREGATOR_API_KEY
+      ? { baseUrl: env.AGGREGATOR_API_URL, apiKey: env.AGGREGATOR_API_KEY }
+      : undefined,
+});
+```
+
+Set `AGGREGATOR_API_URL` + `AGGREGATOR_API_KEY` (locally, or via CDK context
+`-c enableAggregator=true -c aggregatorApiUrl=…` in AWS — the key becomes a
+Secrets Manager placeholder) and real syncs route through it; everything else
+falls back to the simulation. The vendor wire contract is:
+
+```
+POST {baseUrl}/v1/balance
+Authorization: Bearer {apiKey}
+{ "providerId", "membershipNumber", "credential"?: { "username", "secret" } }
+→ 200 { "points": number }
+```
+
+Transient credentials the calling surface supplies are forwarded for one-time
+use and never persisted. `supportedProviderIds` scopes the adapter to the
+programs a given vendor actually covers.
 
 ## Credential vaults
 

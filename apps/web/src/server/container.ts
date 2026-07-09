@@ -1,6 +1,6 @@
 import {
   ChatWithAssistant,
-  CompositeTravelProviderGateway,
+  buildTravelProviderGateway,
   createDb,
   type Database,
   CreatePortfolioShare,
@@ -42,7 +42,6 @@ import {
   RestoreLoyaltyAccount,
   RevokePortfolioShare,
   SeedDemoPortfolio,
-  SimulatedTravelProviderGateway,
   StubPageScraper,
   SyncAllLoyaltyAccounts,
   SyncLoyaltyAccount,
@@ -151,9 +150,12 @@ function buildContainer(): Container {
   const shares = new DrizzlePortfolioShareRepository(db);
   const customValuations = new DrizzleCustomValuationRepository(db);
   const vault = buildVault();
-  const gateway = new CompositeTravelProviderGateway([
-    new SimulatedTravelProviderGateway(),
-  ]);
+  const gateway = buildTravelProviderGateway({
+    aggregator:
+      env.AGGREGATOR_API_URL && env.AGGREGATOR_API_KEY
+        ? { baseUrl: env.AGGREGATOR_API_URL, apiKey: env.AGGREGATOR_API_KEY }
+        : undefined,
+  });
 
   const syncLoyaltyAccount = new SyncLoyaltyAccount(
     loyaltyAccounts,

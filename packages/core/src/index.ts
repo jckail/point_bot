@@ -54,6 +54,8 @@ export * from "./infrastructure/repositories/drizzle-loyalty-account-repository"
 export * from "./infrastructure/repositories/drizzle-custom-valuation-repository";
 export * from "./infrastructure/providers/composite-travel-provider-gateway";
 export * from "./infrastructure/providers/simulated-travel-provider-gateway";
+export * from "./infrastructure/providers/http-aggregator-travel-provider-gateway";
+export * from "./infrastructure/providers/build-gateway";
 export * from "./infrastructure/vault/one-password-connect-vault";
 export * from "./infrastructure/vault/null-credential-vault";
 export * from "./infrastructure/llm/openai-compatible-assistant";

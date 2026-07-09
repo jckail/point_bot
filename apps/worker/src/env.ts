@@ -47,6 +47,10 @@ const envSchema = z.object({
   OP_CONNECT_HOST: z.url().optional(),
   OP_CONNECT_TOKEN: z.string().min(1).optional(),
 
+  /** Optional loyalty-data aggregator for real balance syncs. */
+  AGGREGATOR_API_URL: z.url().optional(),
+  AGGREGATOR_API_KEY: z.string().min(1).optional(),
+
   /** Optional chat digest delivery — Slack / Discord incoming webhooks. */
   SLACK_WEBHOOK_URL: z.url().optional(),
   DISCORD_WEBHOOK_URL: z.url().optional(),
