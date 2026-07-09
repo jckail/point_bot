@@ -1,3 +1,7 @@
+import {
+  toValuationOverrides,
+  type CustomValuationRepository,
+} from "../../domain/loyalty/custom-valuation";
 import type {
   BalanceSnapshotRepository,
   LoyaltyAccountRepository,
@@ -13,6 +17,7 @@ export class GetLoyaltyAccount {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly balances: BalanceSnapshotRepository,
     private readonly clock: Clock = systemClock,
+    private readonly valuations?: CustomValuationRepository,
   ) {}
 
   async execute(
@@ -20,14 +25,17 @@ export class GetLoyaltyAccount {
     accountId: string,
   ): Promise<LoyaltyAccountReadModel> {
     const account = await requireOwnedAccount(this.accounts, userId, accountId);
-    const trends = await this.balances.findTrendContextByAccountIds(
-      [account.id],
-      this.clock.now(),
-    );
+    const [trends, overrides] = await Promise.all([
+      this.balances.findTrendContextByAccountIds([account.id], this.clock.now()),
+      this.valuations
+        ? this.valuations.listForUser(userId).then(toValuationOverrides)
+        : Promise.resolve(new Map<string, number>()),
+    ]);
     return toLoyaltyAccountReadModel(
       account,
       trends.get(account.id) ?? null,
       this.clock.now(),
+      overrides,
     );
   }
 }

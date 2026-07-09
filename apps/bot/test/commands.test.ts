@@ -33,6 +33,7 @@ function account(
         ? null
         : { points, source: "manual", capturedAt: new Date("2026-01-01") },
     estimatedValueCents: valueCents ?? 0,
+    customCentsPerPoint: null,
     trend: {} as LoyaltyAccountReadModel["trend"],
     expiresAt: null,
     daysUntilExpiry: daysUntilExpiry ?? null,

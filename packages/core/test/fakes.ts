@@ -2,6 +2,10 @@ import type { ActivityEvent } from "../src/domain/loyalty/activity";
 import type { BalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
 import type { LoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import type { PortfolioShare } from "../src/domain/loyalty/portfolio-share";
+import type {
+  CustomValuation,
+  CustomValuationRepository,
+} from "../src/domain/loyalty/custom-valuation";
 import type { TripGoal } from "../src/domain/loyalty/trip-goal";
 import type {
   ActivityEventRepository,
@@ -216,5 +220,27 @@ export class InMemoryPortfolioShareRepository
 
   async delete(id: string): Promise<void> {
     this.rows.delete(id);
+  }
+}
+
+export class InMemoryCustomValuationRepository
+  implements CustomValuationRepository
+{
+  readonly rows = new Map<string, CustomValuation>();
+
+  private key(userId: string, providerId: string): string {
+    return `${userId}::${providerId}`;
+  }
+
+  async listForUser(userId: string) {
+    return [...this.rows.values()].filter((v) => v.userId === userId);
+  }
+
+  async upsert(valuation: CustomValuation) {
+    this.rows.set(this.key(valuation.userId, valuation.providerId), valuation);
+  }
+
+  async delete(userId: string, providerId: string) {
+    this.rows.delete(this.key(userId, providerId));
   }
 }

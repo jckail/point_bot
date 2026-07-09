@@ -234,6 +234,7 @@ describe("ImportPortfolio", () => {
               capturedAt: new Date("2026-05-01T00:00:00.000Z"),
             },
             estimatedValueCents: 14400,
+            customCentsPerPoint: null,
             trend: {
               sincePrevious: null,
               since30Days: null,
@@ -292,6 +293,7 @@ describe("buildExpirationCalendar", () => {
           capturedAt: new Date("2026-07-01T00:00:00.000Z"),
         },
         estimatedValueCents: 12000,
+        customCentsPerPoint: null,
         trend: {
           sincePrevious: null,
           since30Days: null,

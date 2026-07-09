@@ -70,6 +70,8 @@ export const loyaltyAccountDtoSchema = z.object({
   latestBalance: balanceDtoSchema.nullable(),
   /** Approximate USD value of the latest balance, in whole cents. */
   estimatedValueCents: z.number().int().nonnegative(),
+  /** User override of cents-per-point for this provider; null when unset. */
+  customCentsPerPoint: z.number().nullable(),
   trend: balanceTrendDtoSchema,
   expiresAt: isoDateTimeSchema.nullable(),
   daysUntilExpiry: z.number().int().nullable(),
@@ -146,6 +148,19 @@ export const bulkUpdateMembershipResultDtoSchema = z.object({
     }),
   ),
 });
+
+export const customValuationDtoSchema = z.object({
+  providerId: z.string(),
+  centsPerPoint: z.number().positive(),
+  updatedAt: isoDateTimeSchema,
+});
+
+export const setCustomValuationRequestSchema = z
+  .object({
+    /** Override redemption value of one point, in US cents (0 < v ≤ 100). */
+    centsPerPoint: z.number().positive().max(100),
+  })
+  .strict();
 
 export const recordManualBalanceRequestSchema = z
   .object({
@@ -243,6 +258,7 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   INVALID_REQUEST: 400,
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
+  INVALID_VALUATION: 422,
   INVALID_BALANCE: 422,
   INVALID_CAPTURE_TIME: 422,
   INVALID_GOAL_TITLE: 422,
@@ -293,6 +309,10 @@ export type BulkUpdateMembershipRequest = z.infer<
 export type BulkUpdateMembershipResultDto = z.infer<
   typeof bulkUpdateMembershipResultDtoSchema
 >;
+export type CustomValuationDto = z.infer<typeof customValuationDtoSchema>;
+export type SetCustomValuationRequest = z.infer<
+  typeof setCustomValuationRequestSchema
+>;
 export type RecordManualBalanceRequest = z.infer<
   typeof recordManualBalanceRequestSchema
 >;
@@ -329,6 +349,7 @@ export function toLoyaltyAccountDto(
       ? toBalanceDto(account.latestBalance)
       : null,
     estimatedValueCents: account.estimatedValueCents,
+    customCentsPerPoint: account.customCentsPerPoint,
     trend: account.trend,
     expiresAt: account.expiresAt?.toISOString() ?? null,
     daysUntilExpiry: account.daysUntilExpiry,
@@ -800,3 +821,15 @@ export function toIngestDealPageResultDto(
 // re-exported here: it imports from this module, so re-exporting would create
 // an import cycle (index -> openapi -> index) that fails at load with a TDZ
 // "Cannot access '...' before initialization" error.
+
+export function toCustomValuationDto(valuation: {
+  readonly providerId: string;
+  readonly centsPerPoint: number;
+  readonly updatedAt: Date;
+}): CustomValuationDto {
+  return {
+    providerId: valuation.providerId,
+    centsPerPoint: valuation.centsPerPoint,
+    updatedAt: valuation.updatedAt.toISOString(),
+  };
+}

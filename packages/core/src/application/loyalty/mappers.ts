@@ -1,9 +1,6 @@
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
-import {
-  estimateValueCents,
-  getProviderOrThrow,
-} from "../../domain/loyalty/provider";
+import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type { BalanceTrendContext } from "../../domain/loyalty/repositories";
 import {
   computeBalanceTrend,
@@ -36,12 +33,18 @@ export function toLoyaltyAccountReadModel(
   account: LoyaltyAccount,
   context: BalanceTrendContext | null,
   now: Date = new Date(),
+  /** providerId → user override cents-per-point; applied to value when present. */
+  valuationOverrides: ReadonlyMap<string, number> = new Map(),
 ): LoyaltyAccountReadModel {
   const provider = getProviderOrThrow(account.providerId);
   const latest = context?.latest ?? null;
   const trend: BalanceTrend = context
     ? computeBalanceTrend(context)
     : emptyBalanceTrend();
+
+  const customCentsPerPoint = valuationOverrides.get(provider.id) ?? null;
+  const effectiveCentsPerPoint =
+    customCentsPerPoint ?? provider.estimatedCentsPerPoint;
 
   return {
     id: account.id,
@@ -56,7 +59,11 @@ export function toLoyaltyAccountReadModel(
     membershipNumber: account.membershipNumber,
     hasStoredCredential: account.credentialRef !== null,
     latestBalance: latest ? toBalanceReadModel(latest) : null,
-    estimatedValueCents: latest ? estimateValueCents(provider, latest.points) : 0,
+    // Value uses the user's override when set, else the editorial estimate.
+    estimatedValueCents: latest
+      ? Math.round(latest.points * effectiveCentsPerPoint)
+      : 0,
+    customCentsPerPoint,
     trend,
     expiresAt: account.expiresAt,
     daysUntilExpiry: daysUntil(account.expiresAt, now),

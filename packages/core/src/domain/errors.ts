@@ -44,6 +44,14 @@ export class InvalidMembershipNumberError extends DomainError {
   }
 }
 
+export class InvalidValuationError extends DomainError {
+  readonly code = "INVALID_VALUATION";
+
+  constructor() {
+    super("Cents-per-point must be a number greater than 0 and at most 100");
+  }
+}
+
 export class CredentialUnavailableError extends DomainError {
   readonly code = "CREDENTIAL_UNAVAILABLE";
 

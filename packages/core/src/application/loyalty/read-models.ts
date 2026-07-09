@@ -31,8 +31,13 @@ export interface LoyaltyAccountReadModel {
   readonly membershipNumber: string;
   readonly hasStoredCredential: boolean;
   readonly latestBalance: BalanceReadModel | null;
-  /** Approximate USD value of the latest balance, in whole cents. */
+  /**
+   * Approximate USD value of the latest balance, in whole cents. Uses the
+   * user's custom cents-per-point override when set, else the editorial rate.
+   */
   readonly estimatedValueCents: number;
+  /** User override of cents-per-point for this provider; null when unset. */
+  readonly customCentsPerPoint: number | null;
   /** Change vs. previous / 30-day / 90-day baselines. */
   readonly trend: BalanceTrend;
   /** Projected inactivity expiry; null when the program does not expire. */

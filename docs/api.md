@@ -21,6 +21,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_REQUEST` | 400 | Request body/query failed schema validation |
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
+| `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
 | `INVALID_BALANCE` | 422 | Points value is negative or fractional |
 | `INVALID_CAPTURE_TIME` | 422 | Capture timestamp is malformed or in the future |
 | `INVALID_GOAL_TITLE` | 422 | Goal title/notes failed validation |
@@ -273,6 +274,26 @@ Response:
 ### `DELETE /api/v1/loyalty-accounts/{id}`
 
 Unlink the account. Balance history cascades at the database layer. Returns `204` with no body.
+
+### `GET /api/v1/valuations`
+
+List the caller's custom cents-per-point overrides. Each account's `estimatedValueCents` (and the `customCentsPerPoint` field) reflects the override when one is set; portfolio summary, digests, and alerts all use it.
+
+```json
+[ { "providerId": "chase-ultimate-rewards", "centsPerPoint": 2.05, "updatedAt": "2026-07-09T14:03:00.000Z" } ]
+```
+
+### `PUT /api/v1/valuations/{providerId}`
+
+Set (or replace) a provider's cents-per-point override (`0 < v ≤ 100`). Returns the saved valuation.
+
+```json
+{ "centsPerPoint": 2.05 }
+```
+
+### `DELETE /api/v1/valuations/{providerId}`
+
+Clear the override, reverting the provider to its editorial valuation. Returns `204`.
 
 ### `GET /api/v1/loyalty-accounts/{id}/balances`
 

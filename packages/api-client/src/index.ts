@@ -2,6 +2,8 @@ import type {
   ActivityEventDto,
   BulkUpdateMembershipRequest,
   BulkUpdateMembershipResultDto,
+  CustomValuationDto,
+  SetCustomValuationRequest,
   ApiError,
   ChatAssistantRequest,
   ChatAssistantResponse,
@@ -116,6 +118,28 @@ export class PointUpClient {
     body: BulkUpdateMembershipRequest,
   ): Promise<BulkUpdateMembershipResultDto> {
     return this.request("PATCH", "/api/v1/loyalty-accounts", body);
+  }
+
+  listCustomValuations(): Promise<CustomValuationDto[]> {
+    return this.request("GET", "/api/v1/valuations");
+  }
+
+  setCustomValuation(
+    providerId: string,
+    body: SetCustomValuationRequest,
+  ): Promise<CustomValuationDto> {
+    return this.request(
+      "PUT",
+      `/api/v1/valuations/${encodeURIComponent(providerId)}`,
+      body,
+    );
+  }
+
+  deleteCustomValuation(providerId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/valuations/${encodeURIComponent(providerId)}`,
+    );
   }
 
   /** Balance history, newest first (default 50, max 365 entries). */
