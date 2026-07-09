@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="PointUp logomark (monochrome)">
+  <!-- Single-color variant for favicons, embroidery, low-fidelity contexts.
+       Use currentColor so it inherits its surroundings. -->
+  <g fill="currentColor">
+    <circle cx="76" cy="182" r="13"/>
+    <circle cx="110" cy="148" r="16"/>
+    <circle cx="144" cy="114" r="19"/>
+    <path d="M140 60 h58 v58 z"/>
+  </g>
+</svg>

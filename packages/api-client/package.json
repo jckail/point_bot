@@ -1,0 +1,19 @@
+{
+  "name": "@pointup/api-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Isomorphic, typed HTTP client for the PointUp API. Safe for any surface: web, mobile (React Native / Expo), and browser extensions.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pointup/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

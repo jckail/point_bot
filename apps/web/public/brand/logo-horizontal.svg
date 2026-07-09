@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-label="PointUp logo">
+  <!-- Horizontal lockup. The wordmark uses live text: ensure Sora is
+       available, or convert text to outlines before print use. -->
+  <defs>
+    <linearGradient id="pu-ascent-h" gradientUnits="userSpaceOnUse" x1="30" y1="130" x2="130" y2="30">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="0.55" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="128" height="128" rx="30" fill="#0B1020"/>
+  <circle cx="46" cy="107" r="6.5" fill="url(#pu-ascent-h)"/>
+  <circle cx="63" cy="90" r="8" fill="url(#pu-ascent-h)"/>
+  <circle cx="80" cy="73" r="9.5" fill="url(#pu-ascent-h)"/>
+  <path d="M78 46 h29 v29 z" fill="url(#pu-ascent-h)"/>
+  <text x="172" y="103" font-family="Sora, Inter, system-ui, sans-serif" font-size="64" font-weight="700" fill="#F4F6FF">Point<tspan fill="#7C5CFF">Up</tspan></text>
+</svg>
