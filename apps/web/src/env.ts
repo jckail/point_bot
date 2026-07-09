@@ -53,6 +53,9 @@ export const env = createEnv({
     // Optional loyalty-data aggregator for real balance syncs.
     AGGREGATOR_API_URL: z.url().optional(),
     AGGREGATOR_API_KEY: z.string().min(1).optional(),
+    // Optional FX API for display-currency conversion (frankfurter-style;
+    // falls back to pinned static rates).
+    FX_API_URL: z.url().optional(),
   },
   client: {
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
@@ -75,6 +78,7 @@ export const env = createEnv({
     FIRECRAWL_BASE_URL: process.env.FIRECRAWL_BASE_URL,
     AGGREGATOR_API_URL: process.env.AGGREGATOR_API_URL,
     AGGREGATOR_API_KEY: process.env.AGGREGATOR_API_KEY,
+    FX_API_URL: process.env.FX_API_URL,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

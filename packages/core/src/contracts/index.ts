@@ -232,6 +232,34 @@ export const portfolioExportDtoSchema = z.object({
   ),
 });
 
+export const displayCurrencySchema = z.enum([
+  "USD",
+  "EUR",
+  "GBP",
+  "CAD",
+  "AUD",
+  "JPY",
+]);
+
+export const displayValueDtoSchema = z.object({
+  currency: displayCurrencySchema,
+  /** Decimal amount in the display currency (2dp; 0dp for JPY). */
+  amount: z.number(),
+  /** Units of the currency per 1 USD used for the conversion. */
+  ratePerUsd: z.number().positive(),
+});
+
+export const userSettingsDtoSchema = z.object({
+  displayCurrency: displayCurrencySchema,
+  updatedAt: isoDateTimeSchema,
+});
+
+export const updateUserSettingsRequestSchema = z
+  .object({
+    displayCurrency: displayCurrencySchema,
+  })
+  .strict();
+
 export const portfolioSummaryDtoSchema = z.object({
   totalPoints: z.number().int().nonnegative(),
   /** Approximate USD value of the whole portfolio, in whole cents. */
@@ -246,6 +274,8 @@ export const portfolioSummaryDtoSchema = z.object({
     }),
   ),
   lastSyncedAt: isoDateTimeSchema.nullable(),
+  /** Total value converted to the user's display currency; null for USD. */
+  display: displayValueDtoSchema.nullable().optional(),
 });
 
 export const syncOutcomeDtoSchema = z.discriminatedUnion("ok", [
@@ -279,6 +309,7 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
   INVALID_VALUATION: 422,
+  INVALID_DISPLAY_CURRENCY: 422,
   INVALID_AWARD_WATCH: 422,
   AWARD_WATCH_NOT_FOUND: 404,
   INVALID_BALANCE: 422,
@@ -332,6 +363,11 @@ export type BulkUpdateMembershipResultDto = z.infer<
   typeof bulkUpdateMembershipResultDtoSchema
 >;
 export type CustomValuationDto = z.infer<typeof customValuationDtoSchema>;
+export type DisplayValueDto = z.infer<typeof displayValueDtoSchema>;
+export type UserSettingsDto = z.infer<typeof userSettingsDtoSchema>;
+export type UpdateUserSettingsRequest = z.infer<
+  typeof updateUserSettingsRequestSchema
+>;
 export type AwardWatchDto = z.infer<typeof awardWatchDtoSchema>;
 export type CreateAwardWatchRequest = z.infer<
   typeof createAwardWatchRequestSchema
@@ -475,6 +511,7 @@ function csvEscape(value: string): string {
 
 export function toPortfolioSummaryDto(
   summary: PortfolioSummaryReadModel,
+  display: DisplayValueDto | null = null,
 ): PortfolioSummaryDto {
   return {
     totalPoints: summary.totalPoints,
@@ -482,6 +519,17 @@ export function toPortfolioSummaryDto(
     accountCount: summary.accountCount,
     byKind: summary.byKind,
     lastSyncedAt: summary.lastSyncedAt?.toISOString() ?? null,
+    display,
+  };
+}
+
+export function toUserSettingsDto(settings: {
+  readonly displayCurrency: DisplayValueDto["currency"];
+  readonly updatedAt: Date;
+}): UserSettingsDto {
+  return {
+    displayCurrency: settings.displayCurrency,
+    updatedAt: settings.updatedAt.toISOString(),
   };
 }
 

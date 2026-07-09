@@ -10,6 +10,10 @@ import type {
   AwardWatch,
   AwardWatchRepository,
 } from "../src/domain/loyalty/award-watch";
+import type {
+  UserSettings,
+  UserSettingsRepository,
+} from "../src/domain/loyalty/user-settings";
 import type { TripGoal } from "../src/domain/loyalty/trip-goal";
 import type {
   ActivityEventRepository,
@@ -274,5 +278,17 @@ export class InMemoryAwardWatchRepository implements AwardWatchRepository {
 
   async delete(id: string): Promise<void> {
     this.rows.delete(id);
+  }
+}
+
+export class InMemoryUserSettingsRepository implements UserSettingsRepository {
+  readonly rows = new Map<string, UserSettings>();
+
+  async get(userId: string): Promise<UserSettings | null> {
+    return this.rows.get(userId) ?? null;
+  }
+
+  async upsert(settings: UserSettings): Promise<void> {
+    this.rows.set(settings.userId, settings);
   }
 }

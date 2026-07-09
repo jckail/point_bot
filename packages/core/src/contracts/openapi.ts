@@ -15,6 +15,8 @@ import {
   customValuationDtoSchema,
   deletedAccountDtoSchema,
   setCustomValuationRequestSchema,
+  updateUserSettingsRequestSchema,
+  userSettingsDtoSchema,
   importPortfolioRequestSchema,
   importPortfolioResultDtoSchema,
   ingestDealPageResultDtoSchema,
@@ -67,6 +69,8 @@ const COMPONENT_SCHEMAS = {
   CustomValuationDto: customValuationDtoSchema,
   AwardWatchDto: awardWatchDtoSchema,
   CreateAwardWatchRequest: createAwardWatchRequestSchema,
+  UserSettingsDto: userSettingsDtoSchema,
+  UpdateUserSettingsRequest: updateUserSettingsRequestSchema,
   SetCustomValuationRequest: setCustomValuationRequestSchema,
   ApiError: apiErrorSchema,
   LinkLoyaltyAccountRequest: linkLoyaltyAccountRequestSchema,
@@ -482,6 +486,23 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           summary: "Clear a custom override (revert to editorial)",
           responses: {
             "204": { description: "Cleared" },
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/settings": {
+        get: {
+          summary: "Get display settings (currency)",
+          responses: {
+            "200": jsonResponse("User settings", ref("UserSettingsDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        put: {
+          summary: "Set the display currency",
+          requestBody: body("UpdateUserSettingsRequest"),
+          responses: {
+            "200": jsonResponse("Saved settings", ref("UserSettingsDto")),
             ...ERROR_RESPONSES,
           },
         },

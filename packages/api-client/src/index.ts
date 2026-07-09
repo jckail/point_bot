@@ -5,6 +5,8 @@ import type {
   BulkUpdateMembershipResultDto,
   CreateAwardWatchRequest,
   CustomValuationDto,
+  UpdateUserSettingsRequest,
+  UserSettingsDto,
   SetCustomValuationRequest,
   ApiError,
   ChatAssistantRequest,
@@ -139,6 +141,16 @@ export class PointUpClient {
       "DELETE",
       `/api/v1/watches/${encodeURIComponent(watchId)}`,
     );
+  }
+
+  getUserSettings(): Promise<UserSettingsDto> {
+    return this.request("GET", "/api/v1/settings");
+  }
+
+  updateUserSettings(
+    body: UpdateUserSettingsRequest,
+  ): Promise<UserSettingsDto> {
+    return this.request("PUT", "/api/v1/settings", body);
   }
 
   setCustomValuation(
