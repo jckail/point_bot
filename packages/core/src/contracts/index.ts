@@ -120,6 +120,33 @@ export const updateLoyaltyAccountRequestSchema = z
   })
   .strict();
 
+export const bulkUpdateMembershipRequestSchema = z
+  .object({
+    updates: z
+      .array(
+        z
+          .object({
+            accountId: z.string().min(1),
+            membershipNumber: z.string().min(1),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
+
+export const bulkUpdateMembershipResultDtoSchema = z.object({
+  updated: z.number().int().nonnegative(),
+  failures: z.array(
+    z.object({
+      accountId: z.string(),
+      code: z.string(),
+      message: z.string(),
+    }),
+  ),
+});
+
 export const recordManualBalanceRequestSchema = z
   .object({
     points: z.number().int().nonnegative(),
@@ -259,6 +286,12 @@ export type SyncLoyaltyAccountRequest = z.infer<
 >;
 export type UpdateLoyaltyAccountRequest = z.infer<
   typeof updateLoyaltyAccountRequestSchema
+>;
+export type BulkUpdateMembershipRequest = z.infer<
+  typeof bulkUpdateMembershipRequestSchema
+>;
+export type BulkUpdateMembershipResultDto = z.infer<
+  typeof bulkUpdateMembershipResultDtoSchema
 >;
 export type RecordManualBalanceRequest = z.infer<
   typeof recordManualBalanceRequestSchema

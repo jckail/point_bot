@@ -15,6 +15,7 @@ export * from "./application/loyalty/link-loyalty-account";
 export * from "./application/loyalty/list-loyalty-accounts";
 export * from "./application/loyalty/get-loyalty-account";
 export * from "./application/loyalty/update-loyalty-account";
+export * from "./application/loyalty/bulk-update-membership";
 export * from "./application/loyalty/restore-loyalty-account";
 export * from "./application/loyalty/get-balance-history";
 export * from "./application/loyalty/record-manual-balance";
