@@ -50,6 +50,9 @@ export const env = createEnv({
     // Optional Firecrawl for deal / award-chart scraping.
     FIRECRAWL_API_KEY: z.string().min(1).optional(),
     FIRECRAWL_BASE_URL: z.url().optional(),
+    // Optional loyalty-data aggregator for real balance syncs.
+    AGGREGATOR_API_URL: z.url().optional(),
+    AGGREGATOR_API_KEY: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
@@ -70,6 +73,8 @@ export const env = createEnv({
     AWS_REGION: process.env.AWS_REGION,
     FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY,
     FIRECRAWL_BASE_URL: process.env.FIRECRAWL_BASE_URL,
+    AGGREGATOR_API_URL: process.env.AGGREGATOR_API_URL,
+    AGGREGATOR_API_KEY: process.env.AGGREGATOR_API_KEY,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

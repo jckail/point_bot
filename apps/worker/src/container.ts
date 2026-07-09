@@ -1,6 +1,6 @@
 import {
   BuildPortfolioDigest,
-  CompositeTravelProviderGateway,
+  buildTravelProviderGateway,
   createDb,
   DrizzleBalanceSnapshotRepository,
   DrizzleLoyaltyAccountRepository,
@@ -9,7 +9,6 @@ import {
   ListTripGoals,
   NullCredentialVault,
   OnePasswordConnectVault,
-  SimulatedTravelProviderGateway,
   SyncAllLoyaltyAccounts,
   SyncLoyaltyAccount,
   type CredentialVault,
@@ -41,9 +40,12 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
         })
       : new NullCredentialVault();
 
-  const gateway = new CompositeTravelProviderGateway([
-    new SimulatedTravelProviderGateway(),
-  ]);
+  const gateway = buildTravelProviderGateway({
+    aggregator:
+      env.AGGREGATOR_API_URL && env.AGGREGATOR_API_KEY
+        ? { baseUrl: env.AGGREGATOR_API_URL, apiKey: env.AGGREGATOR_API_KEY }
+        : undefined,
+  });
 
   const syncOne = new SyncLoyaltyAccount(
     accounts,
