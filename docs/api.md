@@ -47,6 +47,10 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 
 Unauthenticated liveness check used by the ALB. Returns `{ "status": "ok" }`.
 
+### `GET /api/v1/openapi.json`
+
+Public OpenAPI 3.1 document for this API, generated from the same zod contracts the server validates against (component schemas via `z.toJSONSchema`). Point Swagger UI or a client generator at it, or fetch via `client.getOpenApiDocument()`.
+
 ### `GET /api/v1/providers`
 
 The catalog of supported loyalty programs. Public — surfaces use it to render link forms before sign-in. `kind` is one of `airline`, `hotel`, `credit_card`, `rail`, or `shopping`, covering airlines, hotels, transferable credit card currencies (Chase Ultimate Rewards, Amex Membership Rewards, Capital One, Citi ThankYou, Bilt), rail (Amtrak Guest Rewards), and shopping portals (Rakuten).

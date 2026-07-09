@@ -794,3 +794,6 @@ export function toIngestDealPageResultDto(
     markdownExcerpt: result.markdownExcerpt,
   };
 }
+
+// OpenAPI 3.1 document generated from the schemas above.
+export * from "./openapi";
