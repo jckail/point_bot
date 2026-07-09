@@ -795,5 +795,8 @@ export function toIngestDealPageResultDto(
   };
 }
 
-// OpenAPI 3.1 document generated from the schemas above.
-export * from "./openapi";
+// The OpenAPI generator (`buildOpenApiDocument`) lives in ./openapi and is
+// exposed via the "@pointup/core/openapi" subpath. It is intentionally NOT
+// re-exported here: it imports from this module, so re-exporting would create
+// an import cycle (index -> openapi -> index) that fails at load with a TDZ
+// "Cannot access '...' before initialization" error.
