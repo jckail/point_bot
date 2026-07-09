@@ -22,6 +22,8 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
+| `INVALID_AWARD_WATCH` | 422 | Watch label/threshold failed validation |
+| `AWARD_WATCH_NOT_FOUND` | 404 | Watch does not exist **or is not yours** |
 | `INVALID_BALANCE` | 422 | Points value is negative or fractional |
 | `INVALID_CAPTURE_TIME` | 422 | Capture timestamp is malformed or in the future |
 | `INVALID_GOAL_TITLE` | 422 | Goal title/notes failed validation |
@@ -294,6 +296,16 @@ Set (or replace) a provider's cents-per-point override (`0 < v ≤ 100`). Return
 ### `DELETE /api/v1/valuations/{providerId}`
 
 Clear the override, reverting the provider to its editorial valuation. Returns `204`.
+
+### `GET /api/v1/watches` / `POST /api/v1/watches` / `DELETE /api/v1/watches/{id}`
+
+Award watchlist: watch an award-chart or deal page and get notified (chat + email via the worker's daily `watch` job) when a redemption at or above your cents-per-point threshold appears — and again only when the best seen value improves.
+
+```json
+{ "url": "https://blog.example/hyatt-sweet-spots", "label": "Hyatt sweet spots", "minCentsPerPoint": 2 }
+```
+
+Returns `201` with the watch (including `bestSeenCentsPerPoint`, `lastCheckedAt`, `lastNotifiedAt`).
 
 ### `GET /api/v1/loyalty-accounts/{id}/balances`
 

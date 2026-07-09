@@ -43,6 +43,13 @@
       "when": 1783581823009,
       "tag": "0005_nice_rage",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783638398794,
+      "tag": "0006_productive_thor",
+      "breakpoints": true
     }
   ]
 }

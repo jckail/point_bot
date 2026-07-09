@@ -51,6 +51,10 @@ const envSchema = z.object({
   AGGREGATOR_API_URL: z.url().optional(),
   AGGREGATOR_API_KEY: z.string().min(1).optional(),
 
+  /** Optional Firecrawl for the award-watch scrape job (falls back to stub). */
+  FIRECRAWL_API_KEY: z.string().min(1).optional(),
+  FIRECRAWL_BASE_URL: z.url().optional(),
+
   /** Optional chat digest delivery — Slack / Discord incoming webhooks. */
   SLACK_WEBHOOK_URL: z.url().optional(),
   DISCORD_WEBHOOK_URL: z.url().optional(),

@@ -155,6 +155,27 @@ export const userProviderValuations = pgTable(
   (row) => [primaryKey({ columns: [row.userId, row.providerId] })],
 );
 
+// ─── Award watchlist ───────────────────────────────────────────────────────
+// Watched award/deal pages, re-scraped on a schedule. Cents-per-point values
+// are stored as integer milli-cents (× 1000) like custom valuations.
+
+export const awardWatches = pgTable(
+  "award_watch",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    url: varchar("url", { length: 2048 }).notNull(),
+    label: varchar("label", { length: 120 }).notNull(),
+    minCentsPerPointMilli: integer("min_cents_per_point_milli").notNull(),
+    bestSeenCentsPerPointMilli: integer("best_seen_cents_per_point_milli"),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (watch) => [index("award_watch_user_id_idx").on(watch.userId)],
+);
+
 // ─── Public portfolio shares ───────────────────────────────────────────────
 
 export const portfolioShares = pgTable(

@@ -509,7 +509,49 @@ export class AppStack extends cdk.Stack {
       }),
     );
 
-    for (const task of [syncTask, digestTask, alertsTask]) {
+    // ─── Award watch task (daily) ──────────────────────────────────────────
+    // Re-scrapes watched award/deal pages and notifies owners when value
+    // improves past their threshold. Uses Firecrawl when configured, else the
+    // stub scraper.
+    const watchTask = new ecsPatterns.ScheduledFargateTask(this, "WatchTask", {
+      cluster,
+      // Daily at 11:00 UTC, before the alerts task.
+      schedule: events.Schedule.cron({ hour: "11", minute: "0" }),
+      subnetSelection: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      scheduledFargateTaskImageOptions: {
+        image: ecs.ContainerImage.fromDockerImageAsset(workerImage),
+        command: ["watch"],
+        cpu: 256,
+        memoryLimitMiB: 512,
+        environment: {
+          NODE_ENV: "production",
+          MAILER: digestFromEmail ? "ses" : "console",
+          ...(digestFromEmail ? { DIGEST_FROM_EMAIL: digestFromEmail } : {}),
+          ...(ctx("firecrawlBaseUrl")
+            ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+            : {}),
+          ...chatWebhookEnv,
+        },
+        secrets: {
+          ...workerSecrets,
+          ...(firecrawlSecret
+            ? { FIRECRAWL_API_KEY: ecs.Secret.fromSecretsManager(firecrawlSecret) }
+            : {}),
+        },
+        logDriver: ecs.LogDrivers.awsLogs({
+          streamPrefix: "worker-watch",
+          logRetention: logs.RetentionDays.ONE_MONTH,
+        }),
+      },
+    });
+    watchTask.taskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: ["ses:SendEmail", "ses:SendRawEmail"],
+        resources: ["*"],
+      }),
+    );
+
+    for (const task of [syncTask, digestTask, alertsTask, watchTask]) {
       database.connections.allowDefaultPortFrom(
         task.task.securityGroups![0]!,
         "Worker tasks to PostgreSQL",

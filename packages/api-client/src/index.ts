@@ -1,7 +1,9 @@
 import type {
   ActivityEventDto,
+  AwardWatchDto,
   BulkUpdateMembershipRequest,
   BulkUpdateMembershipResultDto,
+  CreateAwardWatchRequest,
   CustomValuationDto,
   SetCustomValuationRequest,
   ApiError,
@@ -122,6 +124,21 @@ export class PointUpClient {
 
   listCustomValuations(): Promise<CustomValuationDto[]> {
     return this.request("GET", "/api/v1/valuations");
+  }
+
+  listAwardWatches(): Promise<AwardWatchDto[]> {
+    return this.request("GET", "/api/v1/watches");
+  }
+
+  createAwardWatch(body: CreateAwardWatchRequest): Promise<AwardWatchDto> {
+    return this.request("POST", "/api/v1/watches", body);
+  }
+
+  deleteAwardWatch(watchId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/watches/${encodeURIComponent(watchId)}`,
+    );
   }
 
   setCustomValuation(
