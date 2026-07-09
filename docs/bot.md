@@ -122,5 +122,16 @@ service in `infra/` — deploying it as a public HTTPS service (ALB + ACM cert s
 Slack can reach it, with `SLACK_SIGNING_SECRET` from Secrets Manager) is the
 natural follow-up. The application, image, and local compose service are ready.
 
-Discord **inbound** interactions (ed25519-verified) are a future addition;
-Discord is currently supported as an **outbound** digest channel.
+### Discord
+
+Both directions are supported:
+
+- **Inbound** — `POST /discord/interactions` verifies the Ed25519 signature
+  (`DISCORD_PUBLIC_KEY`), answers the `PING` handshake, and routes application
+  commands through the same `handleCommand` router as Slack. Command text comes
+  from the first string option (register a `/pointbot query:<text>` command) or
+  the command name (register per-action commands like `/portfolio`). With
+  `DISCORD_APP_ID` set, slow commands are deferred (ack now, edit the reply) to
+  stay within Discord's 3-second window. Point the Interactions Endpoint URL in
+  the Discord Developer Portal at `<public-url>/discord/interactions`.
+- **Outbound** — digests and alerts via a Discord webhook (`DISCORD_WEBHOOK_URL`).
