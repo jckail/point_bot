@@ -2,6 +2,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { handleCommand } from "./commands";
 import { createContainer } from "./container";
+import {
+  DISCORD_DEFERRED,
+  DISCORD_PONG,
+  discordMessage,
+  editDiscordReply,
+  parseDiscordInteraction,
+  verifyDiscordSignature,
+} from "./discord";
 import { loadEnv } from "./env";
 import {
   parseSlackCommand,
@@ -94,6 +102,69 @@ async function handleSlack(
   }
 }
 
+async function handleDiscord(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!env.DISCORD_PUBLIC_KEY) {
+    json(res, 503, { error: "Discord integration is not configured" });
+    return;
+  }
+
+  const rawBody = await readBody(req);
+  const ok = verifyDiscordSignature({
+    rawBody,
+    signature: header(req, "x-signature-ed25519"),
+    timestamp: header(req, "x-signature-timestamp"),
+    publicKeyHex: env.DISCORD_PUBLIC_KEY,
+  });
+  if (!ok) {
+    json(res, 401, { error: "invalid signature" });
+    return;
+  }
+
+  const interaction = parseDiscordInteraction(rawBody);
+  if (interaction.type === "ping") {
+    json(res, 200, DISCORD_PONG);
+    return;
+  }
+  if (interaction.type !== "command") {
+    json(res, 200, discordMessage("Unsupported interaction."));
+    return;
+  }
+
+  const userId = resolveUserId(env.BOT_DEFAULT_USER_ID, interaction.userId);
+
+  // With an app id we can defer (ack now, edit the reply later) so slow paths
+  // (a real LLM call) don't blow Discord's 3s window. Otherwise reply inline.
+  if (env.DISCORD_APP_ID) {
+    const appId = env.DISCORD_APP_ID;
+    json(res, 200, DISCORD_DEFERRED);
+    void handleCommand({ userId, text: interaction.commandText }, useCases)
+      .then((text) => editDiscordReply(appId, interaction.token, text))
+      .catch((error: unknown) => {
+        console.error("[bot] discord command failed", error);
+        return editDiscordReply(
+          appId,
+          interaction.token,
+          "Something went wrong handling that command.",
+        );
+      });
+    return;
+  }
+
+  try {
+    const text = await handleCommand(
+      { userId, text: interaction.commandText },
+      useCases,
+    );
+    json(res, 200, discordMessage(text));
+  } catch (error) {
+    console.error("[bot] discord command failed", error);
+    json(res, 200, discordMessage("Something went wrong handling that command."));
+  }
+}
+
 function header(req: IncomingMessage, name: string): string | undefined {
   const value = req.headers[name];
   return Array.isArray(value) ? value[0] : value;
@@ -106,6 +177,13 @@ const server = createServer((req, res) => {
   }
   if (req.method === "POST" && req.url === "/slack/commands") {
     void handleSlack(req, res).catch((error: unknown) => {
+      console.error("[bot] request error", error);
+      if (!res.headersSent) json(res, 500, { error: "internal error" });
+    });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/discord/interactions") {
+    void handleDiscord(req, res).catch((error: unknown) => {
       console.error("[bot] request error", error);
       if (!res.headersSent) json(res, 500, { error: "internal error" });
     });

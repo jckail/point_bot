@@ -89,6 +89,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/app
       SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:-}
+      DISCORD_APP_ID: ${DISCORD_APP_ID:-}
       BOT_DEFAULT_USER_ID: ${BOT_DEFAULT_USER_ID:-}
       # Assistant provider (same vars as the web app); omit for heuristic replies.
       LLM_PROVIDER: ${LLM_PROVIDER:-}

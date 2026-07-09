@@ -24,6 +24,11 @@ const envSchema = z.object({
   /** Slack request signing secret; when unset, the Slack route is disabled. */
   SLACK_SIGNING_SECRET: z.string().min(1).optional(),
 
+  /** Discord app Ed25519 public key (hex); when unset, the Discord route is off. */
+  DISCORD_PUBLIC_KEY: z.string().min(1).optional(),
+  /** Discord application id; enables deferred replies for slow commands. */
+  DISCORD_APP_ID: z.string().min(1).optional(),
+
   /**
    * Self-hosted / personal mode: run every command as this app user id,
    * ignoring the platform-supplied identity. Leave unset in multi-user setups,
