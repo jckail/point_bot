@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+# PointBot chat surface: an HTTP server handling Slack (and future Discord)
+# commands over @pointup/core use cases. Exposes /health and /slack/commands.
+
+##### DEPENDENCIES #####
+FROM node:22-alpine AS deps
+WORKDIR /repo
+
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/
+COPY apps/worker/package.json apps/worker/
+COPY apps/bot/package.json apps/bot/
+COPY packages/core/package.json packages/core/
+COPY packages/api-client/package.json packages/api-client/
+RUN npm ci
+
+##### BUILDER #####
+FROM node:22-alpine AS builder
+WORKDIR /repo
+
+COPY --from=deps /repo/node_modules ./node_modules
+COPY . .
+RUN npm run build --workspace @pointup/bot
+
+##### RUNNER #####
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 bot
+
+# The bot is a single esbuild bundle - no node_modules at runtime.
+COPY --from=builder --chown=bot:nodejs /repo/apps/bot/dist/index.cjs ./index.cjs
+
+USER bot
+EXPOSE 8080
+ENTRYPOINT ["node", "index.cjs"]

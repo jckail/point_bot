@@ -37,4 +37,5 @@ yarn-error.log*
 
 # cdk
 infra/cdk.out/
+infra/cdk.context.json
 **/dist/

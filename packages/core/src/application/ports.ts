@@ -82,6 +82,24 @@ export interface UserDirectory {
   getEmail(userId: string): Promise<string | null>;
 }
 
+/** A short chat/notification message ready to deliver to a channel. */
+export interface OutboundNotification {
+  readonly text: string;
+  /**
+   * Optional richer body for surfaces that render markdown (Slack mrkdwn,
+   * Discord). Adapters that only support plain text fall back to `text`.
+   */
+  readonly markdown?: string;
+}
+
+/**
+ * Chat / notification delivery port (Slack, Discord, console). Sits alongside
+ * `Mailer` so digests and alerts can fan out to chat surfaces, not just email.
+ */
+export interface Notifier {
+  notify(notification: OutboundNotification): Promise<void>;
+}
+
 // ─── AI assistant ──────────────────────────────────────────────────────────
 
 export type AssistantRole = "system" | "user" | "assistant";

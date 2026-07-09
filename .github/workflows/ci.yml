@@ -41,6 +41,9 @@ jobs:
       - name: Build worker bundle
         run: npm run build --workspace @pointup/worker
 
+      - name: Build bot bundle
+        run: npm run build --workspace @pointup/bot
+
   infra:
     name: Typecheck & synth infrastructure
     runs-on: ubuntu-latest

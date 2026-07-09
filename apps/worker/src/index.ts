@@ -4,6 +4,7 @@ import { runMigrations } from "./jobs/migrate";
 import { sendDigests } from "./jobs/send-digests";
 import { syncAllUsers } from "./jobs/sync-all-users";
 import { createMailer } from "./mailers";
+import { createNotifier } from "./notifiers";
 import { createUserDirectory } from "./user-directory";
 
 const JOBS = ["sync", "digest", "migrate"] as const;
@@ -28,7 +29,12 @@ async function main(): Promise<void> {
   if (job === "sync") {
     await syncAllUsers(container);
   } else {
-    await sendDigests(container, createUserDirectory(env), createMailer(env));
+    await sendDigests(
+      container,
+      createUserDirectory(env),
+      createMailer(env),
+      createNotifier(env),
+    );
   }
 }
 
