@@ -117,10 +117,26 @@ Thresholds are tunable via `ALERT_EXPIRY_WARNING_DAYS` and
 ## Deploying the bot
 
 `Dockerfile.bot` builds a self-contained bundle (`node index.cjs`, port 8080,
-`/health` for load-balancer checks). It is **not** yet provisioned as a Fargate
-service in `infra/` — deploying it as a public HTTPS service (ALB + ACM cert so
-Slack can reach it, with `SLACK_SIGNING_SECRET` from Secrets Manager) is the
-natural follow-up. The application, image, and local compose service are ready.
+`/health` for load-balancer checks).
+
+The CDK stack can provision it as a public Fargate service behind an ALB — opt
+in with `-c enableBot=true`. Slack and Discord require **HTTPS**, so supply an
+ACM certificate + domain for a production-usable endpoint:
+
+```bash
+npx cdk deploy -c enableBot=true \
+  -c botCertificateArn=arn:aws:acm:REGION:ACCT:certificate/... \
+  -c botDomainName=bot.example.com \
+  -c botDefaultUserId=user_123 \        # self-hosted single-user mode
+  -c discordPublicKey=<hex> -c discordAppId=<id>
+```
+
+The Slack signing secret is created as a Secrets Manager placeholder
+(`BotSlackSigningSecretArn` output) — set the real value after deploy. The bot
+task gets DB access and, when `bedrockModelId` is configured, Bedrock invoke
+permissions. Without a cert/domain the service comes up on plain HTTP (fine for
+testing; Slack/Discord won't call it until it's HTTPS). Endpoints:
+`<url>/slack/commands` and `<url>/discord/interactions` (`BotUrl` output).
 
 ### Discord
 

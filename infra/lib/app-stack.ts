@@ -223,11 +223,11 @@ export class AppStack extends cdk.Stack {
       "App tasks to PostgreSQL",
     );
 
-    // Allow the web task to invoke Claude on Bedrock (Converse API). Scoped to
-    // foundation-model and inference-profile ARNs in this account/region. Only
-    // attached when a Bedrock model id is configured.
-    if (bedrockModelId) {
-      service.taskDefinition.taskRole.addToPrincipalPolicy(
+    // Grant a task role permission to invoke Claude on Bedrock (Converse API),
+    // scoped to foundation-model + inference-profile ARNs. Reused by the web
+    // service and the optional bot service.
+    const grantBedrockInvoke = (role: iam.IRole) =>
+      role.addToPrincipalPolicy(
         new iam.PolicyStatement({
           actions: [
             "bedrock:InvokeModel",
@@ -242,6 +242,119 @@ export class AppStack extends cdk.Stack {
           ],
         }),
       );
+
+    // Only attached when a Bedrock model id is configured.
+    if (bedrockModelId) {
+      grantBedrockInvoke(service.taskDefinition.taskRole);
+    }
+
+    // ─── PointBot chat surface (optional) ──────────────────────────────────
+    // A public HTTP(S) service handling Slack/Discord commands. Opt in with
+    // `-c enableBot=true`. Slack/Discord require HTTPS, so provide an ACM cert
+    // + domain for a production-usable endpoint:
+    //   npx cdk deploy -c enableBot=true \
+    //     -c botCertificateArn=arn:aws:acm:...:certificate/... \
+    //     -c botDomainName=bot.example.com \
+    //     -c botDefaultUserId=user_123        # self-hosted single-user mode
+    //     -c discordPublicKey=<hex> -c discordAppId=<id>
+    // The Slack signing secret is a Secrets Manager placeholder set after deploy.
+    if (this.node.tryGetContext("enableBot")) {
+      const botImage = new ecrAssets.DockerImageAsset(this, "BotImage", {
+        directory: path.join(__dirname, "..", ".."),
+        file: "Dockerfile.bot",
+        platform: ecrAssets.Platform.LINUX_AMD64,
+        exclude: ["infra", "docs", ".git", "**/node_modules", "**/.next"],
+      });
+
+      const slackSigningSecret = placeholderSecret(
+        "SlackSigningSecret",
+        "Slack signing secret for the bot (set the real value after deploy)",
+      );
+
+      const botCertificateArn = ctx("botCertificateArn");
+      const botDomainName = ctx("botDomainName");
+
+      const botService = new ecsPatterns.ApplicationLoadBalancedFargateService(
+        this,
+        "BotService",
+        {
+          cluster,
+          cpu: 256,
+          memoryLimitMiB: 512,
+          desiredCount: 1,
+          minHealthyPercent: 100,
+          publicLoadBalancer: true,
+          ...(botCertificateArn && botDomainName
+            ? {
+                certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+                  this,
+                  "BotCertificate",
+                  botCertificateArn,
+                ),
+                domainName: botDomainName,
+                redirectHTTP: true,
+              }
+            : {}),
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromDockerImageAsset(botImage),
+            containerPort: 8080,
+            environment: {
+              NODE_ENV: "production",
+              PORT: "8080",
+              ...assistantEnvironment,
+              ...(ctx("botDefaultUserId")
+                ? { BOT_DEFAULT_USER_ID: ctx("botDefaultUserId")! }
+                : {}),
+              ...(ctx("discordPublicKey")
+                ? { DISCORD_PUBLIC_KEY: ctx("discordPublicKey")! }
+                : {}),
+              ...(ctx("discordAppId")
+                ? { DISCORD_APP_ID: ctx("discordAppId")! }
+                : {}),
+            },
+            secrets: {
+              DB_HOST: ecs.Secret.fromSecretsManager(dbSecret, "host"),
+              DB_PORT: ecs.Secret.fromSecretsManager(dbSecret, "port"),
+              DB_USER: ecs.Secret.fromSecretsManager(dbSecret, "username"),
+              DB_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, "password"),
+              DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
+              SLACK_SIGNING_SECRET:
+                ecs.Secret.fromSecretsManager(slackSigningSecret),
+              ...assistantSecrets,
+            },
+            logDriver: ecs.LogDrivers.awsLogs({
+              streamPrefix: "bot",
+              logRetention: logs.RetentionDays.ONE_MONTH,
+            }),
+          },
+          circuitBreaker: { rollback: true },
+        },
+      );
+
+      botService.targetGroup.configureHealthCheck({
+        path: "/health",
+        healthyThresholdCount: 2,
+        interval: cdk.Duration.seconds(15),
+      });
+      database.connections.allowDefaultPortFrom(
+        botService.service,
+        "Bot tasks to PostgreSQL",
+      );
+      if (bedrockModelId) {
+        grantBedrockInvoke(botService.taskDefinition.taskRole);
+      }
+
+      new cdk.CfnOutput(this, "BotUrl", {
+        value: botDomainName
+          ? `https://${botDomainName}`
+          : `http://${botService.loadBalancer.loadBalancerDnsName}`,
+        description:
+          "PointBot endpoint. Slack: <url>/slack/commands, Discord: <url>/discord/interactions",
+      });
+      new cdk.CfnOutput(this, "BotSlackSigningSecretArn", {
+        value: slackSigningSecret.secretArn,
+        description: "Set the real Slack signing secret in this secret",
+      });
     }
 
     // ─── Background worker (scheduled jobs) ────────────────────────────────
