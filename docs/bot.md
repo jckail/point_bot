@@ -114,6 +114,10 @@ npm run dev --workspace @pointup/worker   # then: alerts
 Thresholds are tunable via `ALERT_EXPIRY_WARNING_DAYS` and
 `ALERT_BIG_CHANGE_PERCENT`. In AWS the `AlertsTask` runs daily at 12:00 UTC.
 
+Related: the daily `watch` job re-scrapes **award watchlist** pages
+(`/api/v1/watches`) and notifies when a watched page's best realized ¢/pt
+improves past your threshold (`WatchTask`, 11:00 UTC).
+
 ## Deploying the bot
 
 `Dockerfile.bot` builds a self-contained bundle (`node index.cjs`, port 8080,

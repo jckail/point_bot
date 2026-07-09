@@ -1,5 +1,10 @@
 import {
   BuildPortfolioDigest,
+  CheckAwardWatches,
+  DrizzleAwardWatchRepository,
+  FirecrawlPageScraper,
+  IngestDealPage,
+  StubPageScraper,
   buildTravelProviderGateway,
   createDb,
   DrizzleBalanceSnapshotRepository,
@@ -13,6 +18,7 @@ import {
   SyncLoyaltyAccount,
   type CredentialVault,
   type LoyaltyAccountRepository,
+  type PageScraper,
 } from "@pointup/core";
 
 import type { WorkerEnv } from "./env";
@@ -22,6 +28,7 @@ export interface WorkerContainer {
   useCases: {
     syncAllLoyaltyAccounts: SyncAllLoyaltyAccounts;
     buildPortfolioDigest: BuildPortfolioDigest;
+    checkAwardWatches: CheckAwardWatches;
   };
 }
 
@@ -31,6 +38,7 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
   const accounts = new DrizzleLoyaltyAccountRepository(db);
   const balances = new DrizzleBalanceSnapshotRepository(db);
   const tripGoals = new DrizzleTripGoalRepository(db);
+  const awardWatches = new DrizzleAwardWatchRepository(db);
 
   const vault: CredentialVault =
     env.OP_CONNECT_HOST && env.OP_CONNECT_TOKEN
@@ -56,6 +64,14 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
 
   const listAccounts = new ListLoyaltyAccounts(accounts, balances);
 
+  const scraper: PageScraper =
+    env.FIRECRAWL_API_KEY
+      ? new FirecrawlPageScraper({
+          apiKey: env.FIRECRAWL_API_KEY,
+          baseUrl: env.FIRECRAWL_BASE_URL,
+        })
+      : new StubPageScraper();
+
   return {
     accounts,
     useCases: {
@@ -63,6 +79,10 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
       buildPortfolioDigest: new BuildPortfolioDigest(
         listAccounts,
         new ListTripGoals(tripGoals, balances),
+      ),
+      checkAwardWatches: new CheckAwardWatches(
+        awardWatches,
+        new IngestDealPage(scraper),
       ),
     },
   };

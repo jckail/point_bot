@@ -13,6 +13,10 @@ import {
   DrizzleTripGoalRepository,
   BedrockAssistant,
   BulkUpdateMembershipNumbers,
+  CreateAwardWatch,
+  DeleteAwardWatch,
+  DrizzleAwardWatchRepository,
+  ListAwardWatches,
   DeleteCustomValuation,
   DrizzleCustomValuationRepository,
   ListCustomValuations,
@@ -92,6 +96,9 @@ export interface Container {
     chatWithAssistant: ChatWithAssistant;
     getValueAdvice: GetValueAdvice;
     listCustomValuations: ListCustomValuations;
+    createAwardWatch: CreateAwardWatch;
+    listAwardWatches: ListAwardWatches;
+    deleteAwardWatch: DeleteAwardWatch;
     setCustomValuation: SetCustomValuation;
     deleteCustomValuation: DeleteCustomValuation;
     ingestDealPage: IngestDealPage;
@@ -149,6 +156,7 @@ function buildContainer(): Container {
   const tripGoals = new DrizzleTripGoalRepository(db);
   const shares = new DrizzlePortfolioShareRepository(db);
   const customValuations = new DrizzleCustomValuationRepository(db);
+  const awardWatches = new DrizzleAwardWatchRepository(db);
   const vault = buildVault();
   const gateway = buildTravelProviderGateway({
     aggregator:
@@ -256,6 +264,9 @@ function buildContainer(): Container {
       ),
       getValueAdvice: new GetValueAdvice(listLoyaltyAccounts),
       listCustomValuations: new ListCustomValuations(customValuations),
+      createAwardWatch: new CreateAwardWatch(awardWatches),
+      listAwardWatches: new ListAwardWatches(awardWatches),
+      deleteAwardWatch: new DeleteAwardWatch(awardWatches),
       setCustomValuation: new SetCustomValuation(customValuations),
       deleteCustomValuation: new DeleteCustomValuation(customValuations),
       ingestDealPage: new IngestDealPage(scraper),

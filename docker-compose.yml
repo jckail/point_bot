@@ -56,6 +56,7 @@ services:
   #   docker compose run --rm worker sync
   #   docker compose run --rm worker digest
   #   docker compose run --rm worker alerts
+  #   docker compose run --rm worker watch
   worker:
     build:
       context: .

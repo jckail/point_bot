@@ -1,5 +1,6 @@
 import { createContainer } from "./container";
 import { loadEnv } from "./env";
+import { checkWatches } from "./jobs/check-watches";
 import { runMigrations } from "./jobs/migrate";
 import { sendAlerts } from "./jobs/send-alerts";
 import { sendDigests } from "./jobs/send-digests";
@@ -8,7 +9,7 @@ import { createMailer } from "./mailers";
 import { createNotifier } from "./notifiers";
 import { createUserDirectory } from "./user-directory";
 
-const JOBS = ["sync", "digest", "alerts", "migrate"] as const;
+const JOBS = ["sync", "digest", "alerts", "watch", "migrate"] as const;
 type Job = (typeof JOBS)[number];
 
 async function main(): Promise<void> {
@@ -29,6 +30,13 @@ async function main(): Promise<void> {
   const container = createContainer(env);
   if (job === "sync") {
     await syncAllUsers(container);
+  } else if (job === "watch") {
+    await checkWatches(
+      container,
+      createUserDirectory(env),
+      createMailer(env),
+      createNotifier(env),
+    );
   } else if (job === "alerts") {
     await sendAlerts(
       container,

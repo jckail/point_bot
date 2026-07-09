@@ -7,6 +7,7 @@ export * from "./domain/loyalty/repositories";
 export * from "./domain/loyalty/trip-goal";
 export * from "./domain/loyalty/portfolio-share";
 export * from "./domain/loyalty/custom-valuation";
+export * from "./domain/loyalty/award-watch";
 
 // Application
 export * from "./application/ports";
@@ -17,6 +18,7 @@ export * from "./application/loyalty/list-loyalty-accounts";
 export * from "./application/loyalty/get-loyalty-account";
 export * from "./application/loyalty/update-loyalty-account";
 export * from "./application/loyalty/custom-valuations";
+export * from "./application/loyalty/award-watches";
 export * from "./application/loyalty/bulk-update-membership";
 export * from "./application/loyalty/restore-loyalty-account";
 export * from "./application/loyalty/get-balance-history";
@@ -52,6 +54,7 @@ export * from "./infrastructure/db/client";
 export * as dbSchema from "./infrastructure/db/schema";
 export * from "./infrastructure/repositories/drizzle-loyalty-account-repository";
 export * from "./infrastructure/repositories/drizzle-custom-valuation-repository";
+export * from "./infrastructure/repositories/drizzle-award-watch-repository";
 export * from "./infrastructure/providers/composite-travel-provider-gateway";
 export * from "./infrastructure/providers/simulated-travel-provider-gateway";
 export * from "./infrastructure/providers/http-aggregator-travel-provider-gateway";

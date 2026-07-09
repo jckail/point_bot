@@ -162,6 +162,26 @@ export const setCustomValuationRequestSchema = z
   })
   .strict();
 
+export const awardWatchDtoSchema = z.object({
+  id: z.string(),
+  url: z.url(),
+  label: z.string(),
+  minCentsPerPoint: z.number().positive(),
+  bestSeenCentsPerPoint: z.number().positive().nullable(),
+  lastCheckedAt: isoDateTimeSchema.nullable(),
+  lastNotifiedAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+});
+
+export const createAwardWatchRequestSchema = z
+  .object({
+    url: z.url(),
+    label: z.string().min(1).max(120),
+    /** Notify when a scraped deal reaches this realized ¢/pt (0 < v ≤ 100). */
+    minCentsPerPoint: z.number().positive().max(100),
+  })
+  .strict();
+
 export const recordManualBalanceRequestSchema = z
   .object({
     points: z.number().int().nonnegative(),
@@ -259,6 +279,8 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
   INVALID_VALUATION: 422,
+  INVALID_AWARD_WATCH: 422,
+  AWARD_WATCH_NOT_FOUND: 404,
   INVALID_BALANCE: 422,
   INVALID_CAPTURE_TIME: 422,
   INVALID_GOAL_TITLE: 422,
@@ -310,6 +332,10 @@ export type BulkUpdateMembershipResultDto = z.infer<
   typeof bulkUpdateMembershipResultDtoSchema
 >;
 export type CustomValuationDto = z.infer<typeof customValuationDtoSchema>;
+export type AwardWatchDto = z.infer<typeof awardWatchDtoSchema>;
+export type CreateAwardWatchRequest = z.infer<
+  typeof createAwardWatchRequestSchema
+>;
 export type SetCustomValuationRequest = z.infer<
   typeof setCustomValuationRequestSchema
 >;
@@ -831,5 +857,27 @@ export function toCustomValuationDto(valuation: {
     providerId: valuation.providerId,
     centsPerPoint: valuation.centsPerPoint,
     updatedAt: valuation.updatedAt.toISOString(),
+  };
+}
+
+export function toAwardWatchDto(watch: {
+  readonly id: string;
+  readonly url: string;
+  readonly label: string;
+  readonly minCentsPerPoint: number;
+  readonly bestSeenCentsPerPoint: number | null;
+  readonly lastCheckedAt: Date | null;
+  readonly lastNotifiedAt: Date | null;
+  readonly createdAt: Date;
+}): AwardWatchDto {
+  return {
+    id: watch.id,
+    url: watch.url,
+    label: watch.label,
+    minCentsPerPoint: watch.minCentsPerPoint,
+    bestSeenCentsPerPoint: watch.bestSeenCentsPerPoint,
+    lastCheckedAt: watch.lastCheckedAt?.toISOString() ?? null,
+    lastNotifiedAt: watch.lastNotifiedAt?.toISOString() ?? null,
+    createdAt: watch.createdAt.toISOString(),
   };
 }

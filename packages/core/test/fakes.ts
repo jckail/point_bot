@@ -6,6 +6,10 @@ import type {
   CustomValuation,
   CustomValuationRepository,
 } from "../src/domain/loyalty/custom-valuation";
+import type {
+  AwardWatch,
+  AwardWatchRepository,
+} from "../src/domain/loyalty/award-watch";
 import type { TripGoal } from "../src/domain/loyalty/trip-goal";
 import type {
   ActivityEventRepository,
@@ -242,5 +246,33 @@ export class InMemoryCustomValuationRepository
 
   async delete(userId: string, providerId: string) {
     this.rows.delete(this.key(userId, providerId));
+  }
+}
+
+export class InMemoryAwardWatchRepository implements AwardWatchRepository {
+  readonly rows = new Map<string, AwardWatch>();
+
+  async findById(id: string): Promise<AwardWatch | null> {
+    return this.rows.get(id) ?? null;
+  }
+
+  async findByUserId(userId: string): Promise<AwardWatch[]> {
+    return [...this.rows.values()].filter((w) => w.userId === userId);
+  }
+
+  async findAll(): Promise<AwardWatch[]> {
+    return [...this.rows.values()];
+  }
+
+  async insert(watch: AwardWatch): Promise<void> {
+    this.rows.set(watch.id, watch);
+  }
+
+  async update(watch: AwardWatch): Promise<void> {
+    this.rows.set(watch.id, watch);
+  }
+
+  async delete(id: string): Promise<void> {
+    this.rows.delete(id);
   }
 }

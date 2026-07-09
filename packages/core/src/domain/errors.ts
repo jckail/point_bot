@@ -84,6 +84,22 @@ export class TripGoalNotFoundError extends DomainError {
   }
 }
 
+export class AwardWatchNotFoundError extends DomainError {
+  readonly code = "AWARD_WATCH_NOT_FOUND";
+
+  constructor(watchId: string) {
+    super(`Award watch "${watchId}" was not found`);
+  }
+}
+
+export class InvalidAwardWatchError extends DomainError {
+  readonly code = "INVALID_AWARD_WATCH";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class InvalidGoalTitleError extends DomainError {
   readonly code = "INVALID_GOAL_TITLE";
 

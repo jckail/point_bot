@@ -10,6 +10,8 @@ import {
   chatAssistantResponseSchema,
   createPortfolioShareRequestSchema,
   createTripGoalRequestSchema,
+  awardWatchDtoSchema,
+  createAwardWatchRequestSchema,
   customValuationDtoSchema,
   deletedAccountDtoSchema,
   setCustomValuationRequestSchema,
@@ -63,6 +65,8 @@ const COMPONENT_SCHEMAS = {
   ImportPortfolioResultDto: importPortfolioResultDtoSchema,
   BulkUpdateMembershipResultDto: bulkUpdateMembershipResultDtoSchema,
   CustomValuationDto: customValuationDtoSchema,
+  AwardWatchDto: awardWatchDtoSchema,
+  CreateAwardWatchRequest: createAwardWatchRequestSchema,
   SetCustomValuationRequest: setCustomValuationRequestSchema,
   ApiError: apiErrorSchema,
   LinkLoyaltyAccountRequest: linkLoyaltyAccountRequestSchema,
@@ -479,6 +483,34 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           responses: {
             "204": { description: "Cleared" },
             ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/watches": {
+        get: {
+          summary: "List award watches",
+          responses: {
+            "200": jsonResponse("Award watches", arrayOf("AwardWatchDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          summary: "Watch an award/deal page for value improvements",
+          requestBody: body("CreateAwardWatchRequest"),
+          responses: {
+            "201": jsonResponse("Created watch", ref("AwardWatchDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/watches/{id}": {
+        parameters: [ID_PARAM],
+        delete: {
+          summary: "Stop watching a page",
+          responses: {
+            "204": { description: "Deleted" },
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
           },
         },
       },
