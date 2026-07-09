@@ -71,6 +71,30 @@ services:
       # Without a Clerk key, digests go to this address via Mailpit.
       DIGEST_RECIPIENT_OVERRIDE: dev@pointup.local
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      # Optional: also post the digest to chat.
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+
+  # PointBot chat surface (Slack slash commands): http://localhost:8080
+  #   docker compose --profile bot up bot
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    profiles: ["bot"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/app
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      BOT_DEFAULT_USER_ID: ${BOT_DEFAULT_USER_ID:-}
+      # Assistant provider (same vars as the web app); omit for heuristic replies.
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-}
+    ports:
+      - "8080:8080"
 
 volumes:
   db-data:

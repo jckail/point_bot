@@ -53,4 +53,5 @@ export * from "./infrastructure/vault/one-password-connect-vault";
 export * from "./infrastructure/vault/null-credential-vault";
 export * from "./infrastructure/llm/openai-compatible-assistant";
 export * from "./infrastructure/llm/bedrock-assistant";
+export * from "./infrastructure/notify/webhook-notifiers";
 export * from "./infrastructure/scraper/firecrawl-page-scraper";

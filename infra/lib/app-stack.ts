@@ -98,6 +98,56 @@ export class AppStack extends cdk.Stack {
       );
     }
 
+    // ─── Optional assistant / scraping config ──────────────────────────────
+    // Non-secret config comes from CDK context; API keys become Secrets
+    // Manager placeholders (set the real value after deploy), created only when
+    // opted in so we never provision empty secrets:
+    //   -c enableOpenAiLlm=true  -c llmModel=gpt-4o-mini  -c llmBaseUrl=...
+    //   -c enableFirecrawl=true  -c firecrawlBaseUrl=https://api.firecrawl.dev
+    const ctx = (key: string): string | undefined =>
+      (this.node.tryGetContext(key) as string | undefined) || undefined;
+    const placeholderSecret = (id: string, description: string) =>
+      new secretsmanager.Secret(this, id, {
+        description,
+        generateSecretString: { passwordLength: 40, excludePunctuation: true },
+      });
+
+    const openAiLlmSecret = this.node.tryGetContext("enableOpenAiLlm")
+      ? placeholderSecret(
+          "OpenAiLlmApiKey",
+          "OpenAI-compatible LLM API key (set the real value after deploy)",
+        )
+      : undefined;
+    const firecrawlSecret = this.node.tryGetContext("enableFirecrawl")
+      ? placeholderSecret(
+          "FirecrawlApiKey",
+          "Firecrawl API key (set the real fc-... value after deploy)",
+        )
+      : undefined;
+
+    // Bedrock wins when configured; otherwise fall back to the OpenAI provider
+    // when its secret is present. Non-secret knobs are plain env.
+    const assistantEnvironment: Record<string, string> = {
+      ...(bedrockModelId
+        ? { LLM_PROVIDER: "bedrock", BEDROCK_MODEL_ID: bedrockModelId }
+        : openAiLlmSecret
+          ? { LLM_PROVIDER: "openai" }
+          : {}),
+      ...(ctx("llmModel") ? { LLM_MODEL: ctx("llmModel")! } : {}),
+      ...(ctx("llmBaseUrl") ? { LLM_BASE_URL: ctx("llmBaseUrl")! } : {}),
+      ...(ctx("firecrawlBaseUrl")
+        ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+        : {}),
+    };
+    const assistantSecrets: Record<string, ecs.Secret> = {
+      ...(openAiLlmSecret
+        ? { LLM_API_KEY: ecs.Secret.fromSecretsManager(openAiLlmSecret) }
+        : {}),
+      ...(firecrawlSecret
+        ? { FIRECRAWL_API_KEY: ecs.Secret.fromSecretsManager(firecrawlSecret) }
+        : {}),
+    };
+
     const image = new ecrAssets.DockerImageAsset(this, "AppImage", {
       directory: path.join(__dirname, "..", ".."),
       platform: ecrAssets.Platform.LINUX_AMD64,
@@ -133,10 +183,8 @@ export class AppStack extends cdk.Stack {
           environment: {
             NODE_ENV: "production",
             // src/env.ts composes DATABASE_URL from the DB_* variables below.
-            // Enable the Bedrock-backed assistant when a model id is supplied.
-            ...(bedrockModelId
-              ? { LLM_PROVIDER: "bedrock", BEDROCK_MODEL_ID: bedrockModelId }
-              : {}),
+            // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
+            ...assistantEnvironment,
           },
           secrets: {
             DB_HOST: ecs.Secret.fromSecretsManager(dbSecret, "host"),
@@ -145,6 +193,7 @@ export class AppStack extends cdk.Stack {
             DB_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, "password"),
             DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
             CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
+            ...assistantSecrets,
           },
           logDriver: ecs.LogDrivers.awsLogs({
             streamPrefix: "app",
@@ -259,6 +308,16 @@ export class AppStack extends cdk.Stack {
             NODE_ENV: "production",
             MAILER: digestFromEmail ? "ses" : "console",
             ...(digestFromEmail ? { DIGEST_FROM_EMAIL: digestFromEmail } : {}),
+            // Optional chat digests. Webhook URLs carry a token — pass via
+            // context, or move to Secrets Manager for stricter setups:
+            //   -c slackWebhookUrl=https://hooks.slack.com/services/...
+            //   -c discordWebhookUrl=https://discord.com/api/webhooks/...
+            ...(ctx("slackWebhookUrl")
+              ? { SLACK_WEBHOOK_URL: ctx("slackWebhookUrl")! }
+              : {}),
+            ...(ctx("discordWebhookUrl")
+              ? { DISCORD_WEBHOOK_URL: ctx("discordWebhookUrl")! }
+              : {}),
           },
           secrets: workerSecrets,
           logDriver: ecs.LogDrivers.awsLogs({
@@ -348,6 +407,18 @@ export class AppStack extends cdk.Stack {
       value: clerkSecret.secretArn,
       description: "Set the real Clerk secret key (sk_...) in this secret",
     });
+    if (openAiLlmSecret) {
+      new cdk.CfnOutput(this, "OpenAiLlmSecretArn", {
+        value: openAiLlmSecret.secretArn,
+        description: "Set the real OpenAI-compatible LLM API key in this secret",
+      });
+    }
+    if (firecrawlSecret) {
+      new cdk.CfnOutput(this, "FirecrawlSecretArn", {
+        value: firecrawlSecret.secretArn,
+        description: "Set the real Firecrawl API key (fc-...) in this secret",
+      });
+    }
 
     // Consumed by .github/workflows/deploy.yml to run migrations post-deploy.
     new cdk.CfnOutput(this, "ClusterArn", { value: cluster.clusterArn });

@@ -46,6 +46,10 @@ const envSchema = z.object({
   /** Optional server-side credential vault (1Password Connect). */
   OP_CONNECT_HOST: z.url().optional(),
   OP_CONNECT_TOKEN: z.string().min(1).optional(),
+
+  /** Optional chat digest delivery — Slack / Discord incoming webhooks. */
+  SLACK_WEBHOOK_URL: z.url().optional(),
+  DISCORD_WEBHOOK_URL: z.url().optional(),
 });
 
 export type WorkerEnv = z.infer<typeof envSchema>;

@@ -29,6 +29,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 - [docs/integrations.md](./docs/integrations.md) — loyalty providers (airlines, hotels, credit cards, rail, shopping) and credential vaults (1Password, Apple Keychain, Chrome)
 - [docs/brand.md](./docs/brand.md) — brand kit: logo assets, color tokens, typography, voice
 - [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) — how the modernization was ported into `point_bot`, feature-parity checklist, and the Bedrock assistant
+- [docs/bot.md](./docs/bot.md) — the PointBot chat surface: Slack/Discord commands, the `Notifier` port, digests, and deployment
 
 ## Repository layout
 
@@ -37,7 +38,8 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 │   ├── web/                  # Next.js app: pages, components, API routes, composition root
 │   │   ├── src/components/   #   branded UI components (logo, cards, forms)
 │   │   └── public/brand/     #   brand kit assets (SVG logomarks, lockup)
-│   └── worker/               # Background jobs: scheduled syncs + email digests
+│   ├── worker/               # Background jobs: scheduled syncs + email + chat digests
+│   └── bot/                  # PointBot chat surface: Slack/Discord commands over the core
 ├── packages/
 │   ├── core/                 # Domain + application + infrastructure (framework-free)
 │   │   ├── src/domain/       #   entities, provider catalog, repository ports, errors
