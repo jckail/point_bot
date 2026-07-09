@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PointUp</title>
+    <style>
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, sans-serif;
+        background: #0b1020;
+        color: #f4f6ff;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #9aa5cb;
+        margin: 10px 0 4px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid #232c4e;
+        background: #121a30;
+        color: #f4f6ff;
+      }
+      button {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border: 0;
+        border-radius: 6px;
+        background: #7c5cff;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      #latest {
+        margin: 12px 0 4px;
+        padding: 8px;
+        border-radius: 6px;
+        background: #121a30;
+        font-size: 13px;
+      }
+      #status {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #34d399;
+        min-height: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row button {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PointUp — capture balance</h1>
+
+    <div id="latest">Open a provider page to capture a balance.</div>
+
+    <div class="row">
+      <button id="record">Record balance</button>
+    </div>
+
+    <label for="baseUrl">API URL</label>
+    <input id="baseUrl" type="url" placeholder="https://app.example.com" />
+
+    <label for="token">Session token</label>
+    <input id="token" type="password" placeholder="Clerk session token" />
+
+    <button id="save">Save settings</button>
+
+    <div id="status"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "PointUp balance capture",
+  "version": "1.0.0",
+  "description": "Capture loyalty balances from provider pages you visit and record them in PointUp — sync without sharing credentials.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://*/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "PointUp" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.united.com/*",
+        "https://*.delta.com/*",
+        "https://*.aa.com/*",
+        "https://*.southwest.com/*",
+        "https://*.marriott.com/*",
+        "https://*.hyatt.com/*",
+        "https://*.hilton.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
