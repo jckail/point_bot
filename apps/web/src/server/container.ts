@@ -12,6 +12,7 @@ import {
   DrizzlePortfolioShareRepository,
   DrizzleTripGoalRepository,
   BedrockAssistant,
+  BulkUpdateMembershipNumbers,
   ExportPortfolio,
   FirecrawlPageScraper,
   GetBalanceHistory,
@@ -65,6 +66,7 @@ export interface Container {
     getLoyaltyAccount: GetLoyaltyAccount;
     linkLoyaltyAccount: LinkLoyaltyAccount;
     updateLoyaltyAccount: UpdateLoyaltyAccount;
+    bulkUpdateMembershipNumbers: BulkUpdateMembershipNumbers;
     unlinkLoyaltyAccount: UnlinkLoyaltyAccount;
     restoreLoyaltyAccount: RestoreLoyaltyAccount;
     listDeletedLoyaltyAccounts: ListDeletedLoyaltyAccounts;
@@ -162,6 +164,10 @@ function buildContainer(): Container {
     balanceSnapshots,
     activity,
   );
+  const updateLoyaltyAccount = new UpdateLoyaltyAccount(
+    loyaltyAccounts,
+    activity,
+  );
   const createTripGoal = new CreateTripGoal(
     tripGoals,
     loyaltyAccounts,
@@ -181,7 +187,10 @@ function buildContainer(): Container {
         balanceSnapshots,
       ),
       linkLoyaltyAccount,
-      updateLoyaltyAccount: new UpdateLoyaltyAccount(loyaltyAccounts, activity),
+      updateLoyaltyAccount,
+      bulkUpdateMembershipNumbers: new BulkUpdateMembershipNumbers(
+        updateLoyaltyAccount,
+      ),
       unlinkLoyaltyAccount: new UnlinkLoyaltyAccount(loyaltyAccounts, activity),
       restoreLoyaltyAccount: new RestoreLoyaltyAccount(
         loyaltyAccounts,

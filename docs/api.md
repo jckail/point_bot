@@ -245,6 +245,27 @@ Partial update; omitted fields are unchanged, `"credentialRef": null` clears the
 { "membershipNumber": "MP999999", "credentialRef": null }
 ```
 
+### `PATCH /api/v1/loyalty-accounts`
+
+Bulk-edit membership numbers across many accounts in one request (up to 100). Applies each item independently — an item that fails (e.g. an account the caller doesn't own) is reported rather than failing the whole batch.
+
+Request:
+
+```json
+{ "updates": [
+  { "accountId": "acc_1", "membershipNumber": "MP999999" },
+  { "accountId": "acc_2", "membershipNumber": "DL123456" }
+] }
+```
+
+Response:
+
+```json
+{ "updated": 1, "failures": [
+  { "accountId": "acc_2", "code": "LOYALTY_ACCOUNT_NOT_FOUND", "message": "..." }
+] }
+```
+
 ### `DELETE /api/v1/loyalty-accounts/{id}`
 
 Unlink the account. Balance history cascades at the database layer. Returns `204` with no body.

@@ -1,5 +1,7 @@
 import type {
   ActivityEventDto,
+  BulkUpdateMembershipRequest,
+  BulkUpdateMembershipResultDto,
   ApiError,
   ChatAssistantRequest,
   ChatAssistantResponse,
@@ -102,6 +104,13 @@ export class PointUpClient {
 
   unlinkLoyaltyAccount(accountId: string): Promise<void> {
     return this.request("DELETE", this.accountPath(accountId));
+  }
+
+  /** Bulk-edit membership numbers; returns per-item success/failure counts. */
+  bulkUpdateMembershipNumbers(
+    body: BulkUpdateMembershipRequest,
+  ): Promise<BulkUpdateMembershipResultDto> {
+    return this.request("PATCH", "/api/v1/loyalty-accounts", body);
   }
 
   /** Balance history, newest first (default 50, max 365 entries). */
