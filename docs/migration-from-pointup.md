@@ -81,12 +81,12 @@ the `LlmAssistant` — is implemented in this port:
   `BEDROCK_MODEL_ID` into the task env when a model id is provided via
   `-c bedrockModelId=...`.
 
-> **Verify the model id in-account.** `BEDROCK_MODEL_ID` is region-/profile-
-> prefixed and the exact latest Sonnet id varies by account/region. The default
-> example is `global.anthropic.claude-sonnet-4-5-20250929-v1:0`; confirm the
-> current Sonnet inference-profile id with
-> `aws bedrock list-inference-profiles` (or `list-foundation-models`) before
-> deploy, and enable model access in the Bedrock console.
+> **Model id:** `BEDROCK_MODEL_ID=anthropic.claude-sonnet-5` (Claude Sonnet 5 on
+> Bedrock). Region-scoped inference profiles (`us.anthropic.…` /
+> `global.anthropic.…`) also work. Before deploy, **enable model access** for
+> Sonnet 5 in the Bedrock console for the target account/region; confirm
+> availability with `aws bedrock list-foundation-models` (or
+> `list-inference-profiles`).
 
 ## Running locally
 

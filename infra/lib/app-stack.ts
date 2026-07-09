@@ -88,7 +88,7 @@ export class AppStack extends cdk.Stack {
     // PointUp Assistant on Bedrock. Provide a verified in-account Sonnet model
     // or inference-profile id to enable it; otherwise the app falls back to the
     // heuristic assistant. Set via context or the BEDROCK_MODEL_ID env var:
-    //   npx cdk deploy -c bedrockModelId=global.anthropic.claude-sonnet-4-5-20250929-v1:0
+    //   npx cdk deploy -c bedrockModelId=anthropic.claude-sonnet-5
     const bedrockModelId: string | undefined =
       (this.node.tryGetContext("bedrockModelId") as string | undefined) ??
       process.env.BEDROCK_MODEL_ID;

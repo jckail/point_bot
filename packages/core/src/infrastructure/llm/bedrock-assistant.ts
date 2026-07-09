@@ -37,10 +37,11 @@ export interface BedrockConverseClient {
 
 export interface BedrockAssistantConfig {
   /**
-   * Bedrock model or inference-profile id. On Bedrock these are region- or
-   * profile-prefixed (e.g. `global.anthropic.claude-sonnet-4-5-20250929-v1:0`)
-   * and MUST be verified against the target account — the exact latest Sonnet
-   * id varies by account and region. Provide via env (`BEDROCK_MODEL_ID`).
+   * Bedrock model or inference-profile id — provider-prefixed on Bedrock, e.g.
+   * `anthropic.claude-sonnet-5` (Claude Sonnet 5). Region-scoped inference
+   * profiles (`us.anthropic.…`, `global.anthropic.…`) also work; verify model
+   * access is enabled in the target account/region. Provide via env
+   * (`BEDROCK_MODEL_ID`).
    */
   readonly modelId: string;
   readonly region?: string;
