@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
  */
 export function jsonWithEtag(request: Request, body: unknown): NextResponse {
   const json = JSON.stringify(body);
-  const etag = `W/"${createHash("sha1").update(json).digest("base64url").slice(0, 22)}"`;
+  const etag = `W/"${createHash("sha256").update(json).digest("base64url").slice(0, 22)}"`;
   const headers = { ETag: etag, "Cache-Control": "private, no-cache" };
   const candidates = request.headers.get("if-none-match");
   if (candidates && candidates.split(",").some((tag) => tag.trim() === etag || tag.trim() === "*")) {
