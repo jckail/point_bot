@@ -2,19 +2,23 @@ import "@/styles/globals.css";
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { type Metadata } from "next";
-import { Inter, Sora } from "next/font/google";
+import localFont from "next/font/local";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
-const sora = Sora({
-  subsets: ["latin"],
+// Self-hosted variable fonts (from @fontsource-variable/*) so builds are
+// hermetic: no network access to fonts.googleapis.com is needed.
+const sora = localFont({
+  src: "../fonts/sora-latin-wght-normal.woff2",
+  weight: "100 800",
   variable: "--font-sora",
   display: "swap",
 });
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "../fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-inter",
   display: "swap",
 });

@@ -1,4 +1,4 @@
-import { PointUpApiError, PointUpClient } from "@pointup/api-client";
+import { PointUpClient } from "@pointup/api-client";
 
 import {
   loadConfig,
@@ -7,6 +7,7 @@ import {
 } from "./config";
 import type { ExtractedBalance } from "./extraction";
 import type { ExtensionMessage, RecordResult } from "./messages";
+import { recordCapture } from "./record";
 
 function client(baseUrl: string, token: string): PointUpClient {
   return new PointUpClient({
@@ -21,28 +22,7 @@ async function record(capture: ExtractedBalance): Promise<RecordResult> {
   if (!config.baseUrl || !config.token) {
     return { ok: false, message: "Set the API URL and token in the popup first." };
   }
-
-  const api = client(config.baseUrl, config.token);
-  try {
-    const accounts = await api.listLoyaltyAccounts();
-    const account = accounts.find((a) => a.provider.id === capture.providerId);
-    if (!account) {
-      return {
-        ok: false,
-        message: `No linked ${capture.providerId} account — link it in PointUp first.`,
-      };
-    }
-    await api.recordManualBalance(account.id, { points: capture.points });
-    return {
-      ok: true,
-      message: `Recorded ${capture.points.toLocaleString("en-US")} for ${account.provider.displayName}.`,
-    };
-  } catch (error) {
-    if (error instanceof PointUpApiError) {
-      return { ok: false, message: `API error (${error.status}): ${error.message}` };
-    }
-    return { ok: false, message: "Could not reach the PointUp API." };
-  }
+  return recordCapture(client(config.baseUrl, config.token), config.token, capture);
 }
 
 async function updateBadge(capture: ExtractedBalance | null): Promise<void> {

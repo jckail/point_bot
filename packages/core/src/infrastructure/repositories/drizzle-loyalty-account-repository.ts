@@ -2,9 +2,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
-import type {
-  BalanceSnapshot,
-} from "../../domain/loyalty/balance-snapshot";
+import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
 import type {
   ActivityEventRepository,
   BalanceSnapshotRepository,
@@ -18,10 +16,12 @@ import type { PortfolioShare } from "../../domain/loyalty/portfolio-share";
 import { buildTrendContext } from "../../application/loyalty/balance-trend";
 import type { Database } from "../db/client";
 import {
+  accountTags,
   activityEvents,
   balanceSnapshots,
   loyaltyAccounts,
   portfolioShares,
+  tripGoalAccounts,
   tripGoals,
 } from "../db/schema";
 import type { TripGoal } from "../../domain/loyalty/trip-goal";
@@ -37,17 +37,13 @@ function isUniqueViolation(error: unknown): boolean {
   return isUniqueViolation(candidate.cause);
 }
 
-type LoyaltyAccountRow = typeof loyaltyAccounts.$inferSelect;
+type LoyaltyAccountRow = typeof loyaltyAccounts.$inferSelect & {
+  tags: { tag: string; position: number }[];
+};
+
+/** Eager-load tags in stored order. */
+const withTags = { tags: { orderBy: accountTags.position } } as const;
 type BalanceSnapshotRow = typeof balanceSnapshots.$inferSelect;
-
-function serializeTags(tags: readonly string[]): string {
-  return tags.join(",");
-}
-
-function parseTags(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
-}
 
 function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
   return {
@@ -58,7 +54,7 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
     credentialRef: row.credentialRef,
     expiresAt: row.expiresAt,
     notes: row.notes,
-    tags: parseTags(row.tags),
+    tags: row.tags.map((t) => t.tag),
     pinnedAt: row.pinnedAt,
     deletedAt: row.deletedAt,
     createdAt: row.createdAt,
@@ -76,14 +72,29 @@ function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
   };
 }
 
-export class DrizzleLoyaltyAccountRepository
-  implements LoyaltyAccountRepository
-{
+/** A Drizzle handle or an open transaction on it. */
+type Executor = Pick<Database, "insert" | "delete">;
+
+async function replaceTags(
+  db: Executor,
+  accountId: string,
+  tags: readonly string[],
+): Promise<void> {
+  await db.delete(accountTags).where(eq(accountTags.accountId, accountId));
+  const unique = [...new Set(tags)];
+  if (unique.length === 0) return;
+  await db
+    .insert(accountTags)
+    .values(unique.map((tag, position) => ({ accountId, tag, position })));
+}
+
+export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository {
   constructor(private readonly db: Database) {}
 
   async findById(id: string): Promise<LoyaltyAccount | null> {
     const row = await this.db.query.loyaltyAccounts.findFirst({
       where: eq(loyaltyAccounts.id, id),
+      with: withTags,
     });
     return row ? toLoyaltyAccount(row) : null;
   }
@@ -94,6 +105,7 @@ export class DrizzleLoyaltyAccountRepository
         eq(loyaltyAccounts.userId, userId),
         isNull(loyaltyAccounts.deletedAt),
       ),
+      with: withTags,
       // Pinned first (NULLS LAST), then oldest linked.
       orderBy: (table, { asc: a }) => [
         sql`${table.pinnedAt} DESC NULLS LAST`,
@@ -109,6 +121,7 @@ export class DrizzleLoyaltyAccountRepository
         eq(loyaltyAccounts.userId, userId),
         isNotNull(loyaltyAccounts.deletedAt),
       ),
+      with: withTags,
       orderBy: (table, { desc: d }) => [d(table.deletedAt)],
     });
     return rows.map(toLoyaltyAccount);
@@ -125,6 +138,7 @@ export class DrizzleLoyaltyAccountRepository
         eq(loyaltyAccounts.userId, userId),
         eq(loyaltyAccounts.providerId, providerId),
       ),
+      with: withTags,
     });
     return row ? toLoyaltyAccount(row) : null;
   }
@@ -139,19 +153,21 @@ export class DrizzleLoyaltyAccountRepository
 
   async insert(account: LoyaltyAccount): Promise<void> {
     try {
-      await this.db.insert(loyaltyAccounts).values({
-        id: account.id,
-        userId: account.userId,
-        providerId: account.providerId,
-        membershipNumber: account.membershipNumber,
-        credentialRef: account.credentialRef,
-        expiresAt: account.expiresAt,
-        notes: account.notes,
-        tags: serializeTags(account.tags),
-        pinnedAt: account.pinnedAt,
-        deletedAt: account.deletedAt,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
+      await this.db.transaction(async (tx) => {
+        await tx.insert(loyaltyAccounts).values({
+          id: account.id,
+          userId: account.userId,
+          providerId: account.providerId,
+          membershipNumber: account.membershipNumber,
+          credentialRef: account.credentialRef,
+          expiresAt: account.expiresAt,
+          notes: account.notes,
+          pinnedAt: account.pinnedAt,
+          deletedAt: account.deletedAt,
+          createdAt: account.createdAt,
+          updatedAt: account.updatedAt,
+        });
+        await replaceTags(tx, account.id, account.tags);
       });
     } catch (error) {
       // Two concurrent link requests can both pass the use case's duplicate
@@ -165,19 +181,21 @@ export class DrizzleLoyaltyAccountRepository
   }
 
   async update(account: LoyaltyAccount): Promise<void> {
-    await this.db
-      .update(loyaltyAccounts)
-      .set({
-        membershipNumber: account.membershipNumber,
-        credentialRef: account.credentialRef,
-        expiresAt: account.expiresAt,
-        notes: account.notes,
-        tags: serializeTags(account.tags),
-        pinnedAt: account.pinnedAt,
-        deletedAt: account.deletedAt,
-        updatedAt: account.updatedAt,
-      })
-      .where(eq(loyaltyAccounts.id, account.id));
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(loyaltyAccounts)
+        .set({
+          membershipNumber: account.membershipNumber,
+          credentialRef: account.credentialRef,
+          expiresAt: account.expiresAt,
+          notes: account.notes,
+          pinnedAt: account.pinnedAt,
+          deletedAt: account.deletedAt,
+          updatedAt: account.updatedAt,
+        })
+        .where(eq(loyaltyAccounts.id, account.id));
+      await replaceTags(tx, account.id, account.tags);
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -185,9 +203,7 @@ export class DrizzleLoyaltyAccountRepository
   }
 }
 
-export class DrizzleBalanceSnapshotRepository
-  implements BalanceSnapshotRepository
-{
+export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotRepository {
   constructor(private readonly db: Database) {}
 
   async insert(snapshot: BalanceSnapshot): Promise<void> {
@@ -297,16 +313,28 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
   }
 }
 
-function serializeAccountIds(accountIds: readonly string[]): string {
-  return accountIds.join(",");
-}
+type TripGoalRow = typeof tripGoals.$inferSelect & {
+  accounts: { accountId: string; position: number }[];
+};
 
-function parseAccountIds(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((id) => id.trim()).filter(Boolean);
-}
+const withGoalAccounts = {
+  accounts: { orderBy: tripGoalAccounts.position },
+} as const;
 
-type TripGoalRow = typeof tripGoals.$inferSelect;
+async function replaceGoalAccounts(
+  db: Executor,
+  goalId: string,
+  accountIds: readonly string[],
+): Promise<void> {
+  await db.delete(tripGoalAccounts).where(eq(tripGoalAccounts.goalId, goalId));
+  const unique = [...new Set(accountIds)];
+  if (unique.length === 0) return;
+  await db
+    .insert(tripGoalAccounts)
+    .values(
+      unique.map((accountId, position) => ({ goalId, accountId, position })),
+    );
+}
 
 function toTripGoal(row: TripGoalRow): TripGoal {
   return {
@@ -315,7 +343,7 @@ function toTripGoal(row: TripGoalRow): TripGoal {
     title: row.title,
     targetPoints: row.targetPoints,
     targetDate: row.targetDate,
-    accountIds: parseAccountIds(row.accountIds),
+    accountIds: row.accounts.map((a) => a.accountId),
     status: row.status,
     notes: row.notes,
     createdAt: row.createdAt,
@@ -329,6 +357,7 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
   async findById(id: string): Promise<TripGoal | null> {
     const row = await this.db.query.tripGoals.findFirst({
       where: eq(tripGoals.id, id),
+      with: withGoalAccounts,
     });
     return row ? toTripGoal(row) : null;
   }
@@ -336,39 +365,44 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
   async findByUserId(userId: string): Promise<TripGoal[]> {
     const rows = await this.db.query.tripGoals.findMany({
       where: eq(tripGoals.userId, userId),
+      with: withGoalAccounts,
       orderBy: (table, { desc: d }) => [d(table.updatedAt)],
     });
     return rows.map(toTripGoal);
   }
 
   async insert(goal: TripGoal): Promise<void> {
-    await this.db.insert(tripGoals).values({
-      id: goal.id,
-      userId: goal.userId,
-      title: goal.title,
-      targetPoints: goal.targetPoints,
-      targetDate: goal.targetDate,
-      accountIds: serializeAccountIds(goal.accountIds),
-      status: goal.status,
-      notes: goal.notes,
-      createdAt: goal.createdAt,
-      updatedAt: goal.updatedAt,
+    await this.db.transaction(async (tx) => {
+      await tx.insert(tripGoals).values({
+        id: goal.id,
+        userId: goal.userId,
+        title: goal.title,
+        targetPoints: goal.targetPoints,
+        targetDate: goal.targetDate,
+        status: goal.status,
+        notes: goal.notes,
+        createdAt: goal.createdAt,
+        updatedAt: goal.updatedAt,
+      });
+      await replaceGoalAccounts(tx, goal.id, goal.accountIds);
     });
   }
 
   async update(goal: TripGoal): Promise<void> {
-    await this.db
-      .update(tripGoals)
-      .set({
-        title: goal.title,
-        targetPoints: goal.targetPoints,
-        targetDate: goal.targetDate,
-        accountIds: serializeAccountIds(goal.accountIds),
-        status: goal.status,
-        notes: goal.notes,
-        updatedAt: goal.updatedAt,
-      })
-      .where(eq(tripGoals.id, goal.id));
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(tripGoals)
+        .set({
+          title: goal.title,
+          targetPoints: goal.targetPoints,
+          targetDate: goal.targetDate,
+          status: goal.status,
+          notes: goal.notes,
+          updatedAt: goal.updatedAt,
+        })
+        .where(eq(tripGoals.id, goal.id));
+      await replaceGoalAccounts(tx, goal.id, goal.accountIds);
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -390,9 +424,7 @@ function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
   };
 }
 
-export class DrizzlePortfolioShareRepository
-  implements PortfolioShareRepository
-{
+export class DrizzlePortfolioShareRepository implements PortfolioShareRepository {
   constructor(private readonly db: Database) {}
 
   async findById(id: string): Promise<PortfolioShare | null> {

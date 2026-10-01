@@ -93,6 +93,8 @@ export function extractPointsWithRule(
 export interface ExtractedBalance {
   readonly providerId: string;
   readonly points: number;
+  /** Page the value was read from (origin + path, no query/hash). */
+  readonly sourceUrl?: string;
 }
 
 /**
@@ -104,13 +106,16 @@ export function extractBalance(input: {
   readonly text: string;
 }): ExtractedBalance | null {
   let hostname: string;
+  let sourceUrl: string;
   try {
-    hostname = new URL(input.url).hostname;
+    const parsed = new URL(input.url);
+    hostname = parsed.hostname;
+    sourceUrl = parsed.origin + parsed.pathname;
   } catch {
     return null;
   }
   const rule = detectProvider(hostname);
   if (!rule) return null;
   const points = extractPointsWithRule(rule, input.text);
-  return points === null ? null : { providerId: rule.providerId, points };
+  return points === null ? null : { providerId: rule.providerId, points, sourceUrl };
 }

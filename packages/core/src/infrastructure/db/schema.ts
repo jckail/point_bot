@@ -34,8 +34,6 @@ export const loyaltyAccounts = pgTable(
     /** Projected inactivity expiry; null when the program does not expire. */
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     notes: varchar("notes", { length: 2000 }),
-    /** Comma-separated normalized tags. */
-    tags: varchar("tags", { length: 512 }).notNull().default(""),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     /** Soft-delete tombstone; null while the account is active. */
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -59,8 +57,32 @@ export const loyaltyAccountsRelations = relations(
   loyaltyAccounts,
   ({ many }) => ({
     balanceSnapshots: many(balanceSnapshots),
+    tags: many(accountTags),
   }),
 );
+
+/** Normalized account tags; `position` preserves the user's tag order. */
+export const accountTags = pgTable(
+  "account_tag",
+  {
+    accountId: varchar("account_id", { length: 255 })
+      .notNull()
+      .references(() => loyaltyAccounts.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 64 }).notNull(),
+    position: integer("position").notNull(),
+  },
+  (row) => [
+    primaryKey({ columns: [row.accountId, row.tag] }),
+    index("account_tag_tag_idx").on(row.tag),
+  ],
+);
+
+export const accountTagsRelations = relations(accountTags, ({ one }) => ({
+  account: one(loyaltyAccounts, {
+    fields: [accountTags.accountId],
+    references: [loyaltyAccounts.id],
+  }),
+}));
 
 export const balanceSnapshots = pgTable(
   "balance_snapshot",
@@ -101,7 +123,10 @@ export const activityEvents = pgTable(
     id: varchar("id", { length: 255 }).notNull().primaryKey(),
     userId: varchar("user_id", { length: 255 }).notNull(),
     type: varchar("type", { length: 32 }).notNull(),
-    accountId: varchar("account_id", { length: 255 }),
+    accountId: varchar("account_id", { length: 255 }).references(
+      () => loyaltyAccounts.id,
+      { onDelete: "set null" },
+    ),
     providerId: varchar("provider_id", { length: 64 }),
     summary: varchar("summary", { length: 512 }).notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
@@ -125,11 +150,6 @@ export const tripGoals = pgTable(
     targetPoints: bigint("target_points", { mode: "number" }).notNull(),
     /** Optional calendar date (YYYY-MM-DD) stored as text. */
     targetDate: varchar("target_date", { length: 10 }),
-    /**
-     * Comma-separated loyalty account ids that count toward this goal.
-     * Kept denormalized for a thin first slice; a join table can follow.
-     */
-    accountIds: varchar("account_ids", { length: 2048 }).notNull().default(""),
     status: varchar("status", { length: 16 })
       .$type<"active" | "achieved" | "archived">()
       .notNull(),
@@ -138,6 +158,24 @@ export const tripGoals = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (goal) => [index("trip_goal_user_id_idx").on(goal.userId)],
+);
+
+/** Accounts counting toward a goal; `position` preserves ordering. */
+export const tripGoalAccounts = pgTable(
+  "trip_goal_account",
+  {
+    goalId: varchar("goal_id", { length: 255 })
+      .notNull()
+      .references(() => tripGoals.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 255 })
+      .notNull()
+      .references(() => loyaltyAccounts.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+  },
+  (row) => [
+    primaryKey({ columns: [row.goalId, row.accountId] }),
+    index("trip_goal_account_account_idx").on(row.accountId),
+  ],
 );
 
 // ─── Custom valuations ─────────────────────────────────────────────────────
@@ -249,7 +287,9 @@ export const agentObservations = pgTable(
   {
     id: varchar("id", { length: 255 }).notNull().primaryKey(),
     userId: varchar("user_id", { length: 255 }).notNull(),
-    accountId: varchar("account_id", { length: 255 }).notNull(),
+    accountId: varchar("account_id", { length: 255 })
+      .notNull()
+      .references(() => loyaltyAccounts.id, { onDelete: "cascade" }),
     providerId: varchar("provider_id", { length: 64 }).notNull(),
     skillId: varchar("skill_id", { length: 96 }).notNull(),
     agent: varchar("agent", { length: 64 }).notNull(),
@@ -264,4 +304,18 @@ export const agentObservations = pgTable(
   (row) => [
     index("agent_observation_user_created_idx").on(row.userId, row.createdAt),
   ],
+);
+
+export const tripGoalsRelations = relations(tripGoals, ({ many }) => ({
+  accounts: many(tripGoalAccounts),
+}));
+
+export const tripGoalAccountsRelations = relations(
+  tripGoalAccounts,
+  ({ one }) => ({
+    goal: one(tripGoals, {
+      fields: [tripGoalAccounts.goalId],
+      references: [tripGoals.id],
+    }),
+  }),
 );

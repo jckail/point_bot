@@ -71,6 +71,20 @@
       "when": 1790888024230,
       "tag": "0009_enable_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790888401700,
+      "tag": "0010_normalize_tags_goal_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790888413228,
+      "tag": "0011_enable_rls_join_tables",
+      "breakpoints": true
     }
   ]
 }

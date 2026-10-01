@@ -71,6 +71,11 @@ export const agentSkillDtoSchema = z.object({
   title: z.string(),
   mode: z.enum(["browser", "computer"]),
   version: z.number().int(),
+  /** ISO timestamp of last human verification; null = unverified. */
+  verifiedAt: isoDateTime.nullable(),
+  /** True when start URLs are best-effort; agents must tell the user. */
+  unverified: z.boolean(),
+  notes: z.array(z.string()),
   allowedHosts: z.array(z.string()),
   startUrl: z.url(),
   steps: z.array(z.string()),
@@ -160,6 +165,9 @@ export function toAgentSkillDto(skill: AgentSkillReadModel): AgentSkillDto {
     title: skill.title,
     mode: skill.mode,
     version: skill.version,
+    verifiedAt: skill.verifiedAt,
+    unverified: skill.unverified,
+    notes: [...skill.notes],
     allowedHosts: [...skill.allowedHosts],
     startUrl: skill.startUrl,
     steps: [...skill.steps],

@@ -9,7 +9,7 @@ PointUp never sees passwords. You read a number from a page the **user is alread
 
 ## Flow
 
-1. `pointup_list_skills` with the `providerId`. Note `skillId`, `startUrl`, `allowedHosts`, `accountLinked`, `consentActive`.
+1. `pointup_list_skills` with the `providerId`. Note `skillId`, `startUrl`, `allowedHosts`, `accountLinked`, `consentActive`, `unverified` and `notes`. If `unverified` is true, the start URL is best-effort: tell the user, and if the page does not clearly show the balance, stop instead of guessing. (The same playbook is available as the MCP resource `pointup://skills/{skillId}`.)
 2. If `consentActive` is false → call `pointup_request_consent`. This prompts the **user**; only proceed on an explicit yes. If the client cannot prompt, tell the user to grant consent at the dashboard link returned, then stop.
 3. Pick the tool for the job, in this order:
    - Claude in Chrome / built-in browser tools (preferred, uses the user's own session).

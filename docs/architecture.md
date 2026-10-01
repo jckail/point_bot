@@ -6,10 +6,15 @@ PointUp is organized as a workspace monorepo around a framework-agnostic core, f
 
 ```
 ├── apps/
-│   └── web/                  # Next.js surface (presentation + composition root)
+│   ├── web/                  # Next.js surface (presentation + composition root)
+│   ├── mcp/                  # MCP server (stdio + stateless HTTP) over the API
+│   ├── worker/ bot/          # background jobs; Slack/Discord chat surface
+│   └── extension/            # Chrome MV3 extension
 ├── packages/
 │   ├── core/                 # Domain + application + infrastructure (no framework deps)
 │   └── api-client/           # Typed HTTP client for external surfaces
+├── plugins/                  # Claude plugin + ChatGPT Action generator
+├── e2e/                      # Playwright smoke tests (standalone package)
 ├── infra/                    # AWS CDK (standalone package)
 └── docs/
 ```
@@ -135,6 +140,90 @@ Background jobs are a second host over the same core — proof that the hexagon 
 - **Packaging** — esbuild bundles the worker into a single `dist/index.cjs`; `Dockerfile.worker` ships it as a minimal image with no runtime `node_modules`.
 - **Scheduling** — in AWS, two EventBridge-scheduled Fargate tasks (`sync` every 6 hours, `digest` weekly). Locally: `docker compose run --rm worker sync|digest`, with digests landing in Mailpit's UI.
 - **Migrations** — the image also carries the drizzle SQL migrations and a `migrate` job; CI runs it as a one-off Fargate task after each deploy (drizzle's migrator takes a session advisory lock, so racing deploys serialize safely).
+
+## The agent bounded context
+
+A second bounded context sits next to loyalty tracking: **agent access**. It lets non-browser callers (MCP clients, ChatGPT Actions, browser/computer-use agents, scripts) act for a user with least privilege, and records everything an agent writes back. Details and the threat model are in [agents.md](./agents.md) and [security-review.md](./security-review.md).
+
+```mermaid
+flowchart LR
+    subgraph clients [Agents]
+        CC[Claude / Cursor<br/>stdio MCP]
+        GPT[ChatGPT / claude.ai<br/>remote MCP or Action]
+        BA[Browser / computer-use agent]
+    end
+
+    subgraph mcp ["apps/mcp (stateless, no secrets)"]
+        Tools[MCP tools + prompts]
+    end
+
+    subgraph web ["apps/web  /api/v1"]
+        Guard["withAuthenticatedUser<br/>(session or pu_ token + scope)"]
+    end
+
+    subgraph agentctx ["@pointup/core: agent context"]
+        Tok[AccessToken<br/>SHA-256 hash only]
+        Con[ConsentGrant<br/>per provider, expiring]
+        Skill[AgentSkill catalog<br/>allowed hosts]
+        Sub[SubmitObservation]
+        Obs[(AgentObservation audit)]
+    end
+
+    Loy[Loyalty context<br/>accounts + balance snapshots]
+
+    CC --> Tools
+    GPT --> Tools
+    GPT -.OpenAPI Action.-> Guard
+    BA --> Tools
+    Tools -->|Bearer pu_...| Guard
+    Guard --> Tok
+    Guard --> Sub
+    Sub --> Skill
+    Sub --> Con
+    Sub -->|source=agent| Loy
+    Sub --> Obs
+```
+
+### Write-back sequence
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant M as MCP server
+    participant API as /api/v1/agent/observations
+    participant U as SubmitObservation
+    participant DB as Repositories
+
+    A->>M: pointup_submit_balance(skillId, points, sourceUrl)
+    M->>API: POST + Bearer pu_... (forwarded, never stored)
+    API->>API: authenticate token, require observations:write
+    API->>U: execute(userId, ...)
+    U->>U: skill exists, https, host on allow-list
+    U->>DB: active consent for provider?
+    alt no consent
+        U-->>A: CONSENT_REQUIRED
+    else implausible jump and not confirmed
+        U->>DB: audit (needs_review)
+        U-->>A: needs_review (ask the human)
+    else ok
+        U->>DB: record balance (source=agent) + audit (recorded)
+        U-->>A: recorded
+    end
+```
+
+Key invariants: a token never mints tokens (session-only), tokens only ever hold the scopes they were created with, consent is per provider and time-boxed, and only the source **host** is persisted in the audit trail.
+
+### Delivery and CI
+
+```mermaid
+flowchart LR
+    PR[Pull request] --> CI[ci.yml: app, plugins, e2e, infra, audit]
+    PR --> CQ[codeql.yml]
+    CI --> M[master]
+    M --> D[deploy.yml: verify then cdk deploy]
+    D --> W[web + worker + migrate]
+    D -.ENABLE_MCP=true.-> MS[MCP service<br/>Dockerfile.mcp]
+```
 
 ## SOLID mapping
 

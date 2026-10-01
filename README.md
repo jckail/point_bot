@@ -18,12 +18,13 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 | API client     | `@pointup/api-client` — typed, fetch-only, runs on web, mobile, and browser extensions  |
 | Testing        | [Vitest](https://vitest.dev/) unit tests over ports-and-adapters fakes                  |
 | Infrastructure | [AWS CDK](https://docs.aws.amazon.com/cdk/) — ECS Fargate, ALB, RDS PostgreSQL, Secrets Manager |
-| CI             | GitHub Actions (lint, typecheck, test, build, CDK synth)                                |
+| CI             | GitHub Actions (lint, typecheck, test, build, plugin/spec validation, Playwright MCP smoke test, CDK synth, npm audit, CodeQL, Dependabot) |
 
 ## Documentation
 
 - [docs/agents.md](./docs/agents.md) — MCP server, Claude plugin, ChatGPT Action, consented browser/computer-use write-back, security model
 - [docs/supabase.md](./docs/supabase.md) — run on Supabase (pooler, TLS, RLS)
+- [docs/security-review.md](./docs/security-review.md) — adversarial security review of the agent surface (findings + proposed patches)
 - [docs/review.md](./docs/review.md) — codebase review: findings and status
 - [docs/roadmap.md](./docs/roadmap.md) — feature roadmap: what's shipped, what's next, and how it's sequenced
 - [docs/api.md](./docs/api.md) — full API v1 reference with request/response examples
@@ -57,6 +58,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 ├── plugins/
 │   ├── claude/               # Claude Code plugin: skills, agent, commands, MCP config
 │   └── chatgpt/              # ChatGPT Action spec generator + GPT config
+├── e2e/                      # Playwright smoke test: MCP HTTP server vs a fake API (standalone package)
 ├── supabase/                 # Supabase local config (schema stays in Drizzle)
 ├── infra/                    # AWS CDK app (standalone package)
 └── docs/                     # Architecture and integration guides
@@ -96,6 +98,14 @@ npm run dev
 | `npm run db:generate` | Generate a new SQL migration from schema changes         |
 | `npm run db:migrate`  | Apply pending migrations to `DATABASE_URL`               |
 | `npm run db:studio`   | Open Drizzle Studio to browse the database               |
+
+### End-to-end smoke test
+
+`e2e/` is a standalone package (not a root workspace) that starts the built MCP server in HTTP mode against a tiny fake PointUp API and drives the tools over HTTP with Playwright's request client. No browser, database or Clerk keys needed:
+
+```bash
+cd e2e && npm ci && npm test   # builds apps/mcp first (pretest)
+```
 
 ### Database workflow
 
@@ -232,6 +242,18 @@ After the first deploy:
    ```
 
 For production, add an ACM certificate and a Route 53 hosted zone to `ApplicationLoadBalancedFargateService` in `infra/lib/app-stack.ts` to enable HTTPS, and consider enabling `multiAz` on the database plus a second NAT gateway.
+
+### Optional MCP server on AWS
+
+The remote MCP server (`Dockerfile.mcp`, stateless, no secrets, forwards each caller's own `pu_` token to the web API) is an opt-in CDK service, mirroring the bot:
+
+```bash
+npx cdk deploy -c enableMcp=true \
+  -c mcpCertificateArn=arn:aws:acm:...:certificate/... -c mcpDomainName=mcp.example.com \
+  -c mcpPointupUrl=https://app.example.com
+```
+
+In CI set the repo variable `ENABLE_MCP=true` (plus optional `MCP_CERTIFICATE_ARN`, `MCP_DOMAIN_NAME`, `MCP_POINTUP_URL`) and the deploy workflow passes the same context. Use HTTPS in production: bearer tokens must not cross the network in clear text.
 
 ### Continuous deployment
 

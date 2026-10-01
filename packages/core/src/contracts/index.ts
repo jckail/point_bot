@@ -342,6 +342,7 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   SKILL_NOT_FOUND: 404,
   INVALID_OBSERVATION: 422,
   INTERNAL: 500,
+  RATE_LIMITED: 429,
 } as const satisfies Record<string, number>;
 
 export type ApiErrorCode = keyof typeof HTTP_STATUS_BY_ERROR_CODE;

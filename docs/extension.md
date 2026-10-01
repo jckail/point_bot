@@ -23,7 +23,7 @@ provider page ──content script──▶ background worker ──@pointup/api
 2. The **background service worker** stores the latest capture and, when you
    click **Record balance** in the popup, looks up your matching linked account
    and posts a manual balance via the API.
-3. The **popup** holds settings (API URL + session token) and shows the latest
+3. The **popup** holds settings (API URL + access token) and shows the latest
    capture.
 
 The extraction logic (`src/extraction.ts`) is **pure and unit-tested** — no DOM,
@@ -39,11 +39,22 @@ provider rules, so adding a provider can't silently miss the manifest.
 
 ## Auth
 
-The extension authenticates to the API with a **Clerk session token** as a
-bearer header (the same path mobile uses — see [multi-surface.md](./multi-surface.md)).
-Paste the token and your API URL into the popup's settings. A full
-`@clerk/chrome-extension` sign-in flow is the natural follow-up; the client and
-capture pipeline are already token-driven.
+Two token types are accepted in the popup, chosen by prefix:
+
+- **Personal access token (`pu_...`, preferred).** Create one at *Dashboard →
+  Agents* with the `observations:write` scope. Records go through
+  `POST /api/v1/agent/observations`: the program must have an **active
+  consent**, the source page must be on the skill's allowed hosts (the
+  extension sends origin + path only, never the query string), implausible
+  jumps are held as `needs_review`, and every write is audited. If consent is
+  missing the popup says so and points at *Dashboard → Agents*.
+- **Clerk session token (legacy).** Records a manual snapshot on an
+  already-linked account (same path mobile uses — see
+  [multi-surface.md](./multi-surface.md)).
+
+Tokens live in `chrome.storage.local`. A full `@clerk/chrome-extension`
+sign-in flow is still a follow-up. The branching logic is in `src/record.ts`
+and unit-tested with a fake fetch.
 
 ## Build & load
 

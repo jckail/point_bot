@@ -4,7 +4,7 @@ import type { ExtractedBalance } from "./extraction";
 export interface ExtensionConfig {
   /** PointUp API base URL, e.g. https://app.example.com */
   readonly baseUrl: string;
-  /** Clerk session token (bearer). See docs/multi-surface.md. */
+  /** PointUp personal access token (`pu_...`, preferred) or Clerk session token. See docs/multi-surface.md. */
   readonly token: string;
 }
 

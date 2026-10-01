@@ -18,7 +18,17 @@ export interface AgentSkill {
   readonly providerId: string;
   readonly title: string;
   readonly mode: SkillMode;
+  /** Bumped whenever the playbook (URL, hosts, steps) changes. */
   readonly version: number;
+  /**
+   * ISO date a human last confirmed the start URL and hint against the live
+   * site. `null` = never verified: URLs are best-effort and agents must say so.
+   */
+  readonly verifiedAt: string | null;
+  /** True exactly when `verifiedAt` is null. Surfaced so agents stay honest. */
+  readonly unverified: boolean;
+  /** Provider-specific caveats an agent should know before reading the page. */
+  readonly notes: readonly string[];
   /** Hosts (exact or `.suffix` match) the agent may read from for this skill. */
   readonly allowedHosts: readonly string[];
   /** Page to open first; the user must already be signed in. */
@@ -37,6 +47,11 @@ interface SkillSeed {
   readonly startUrl: string;
   readonly allowedHosts: readonly string[];
   readonly hint: string;
+  /** Bump when this seed changes; defaults to 1. */
+  readonly version?: number;
+  /** ISO date of the last human verification; omit while unverified. */
+  readonly verifiedAt?: string;
+  readonly notes?: readonly string[];
 }
 
 const SEEDS: readonly SkillSeed[] = [
@@ -117,6 +132,7 @@ const SEEDS: readonly SkillSeed[] = [
     startUrl: "https://www.rakuten.com/account/summary",
     allowedHosts: ["rakuten.com"],
     hint: "Rakuten Cash Back balance (dollars; report as whole cents)",
+    notes: ["Balance is in dollars: submit whole cents (e.g. $12.34 -> 1234)."],
   },
 ];
 
@@ -129,13 +145,20 @@ const COMMON_STEPS = [
   "Report the outcome to the user; if it says needs_review, show them the value and ask before confirming.",
 ] as const;
 
+const UNVERIFIED_NOTE = [
+  "Start URL is best-effort and has not been verified against the live site; if it 404s or redirects, navigate from the provider's home page (same allowed hosts) and tell the user.",
+] as const;
+
 function buildSkills(): AgentSkill[] {
   const known = new Set(PROVIDER_CATALOG.map((provider) => provider.id));
   return SEEDS.filter((seed) => known.has(seed.providerId)).flatMap((seed) => {
     const provider = PROVIDER_CATALOG.find((p) => p.id === seed.providerId)!;
     const base = {
       providerId: seed.providerId,
-      version: 1,
+      version: seed.version ?? 1,
+      verifiedAt: seed.verifiedAt ?? null,
+      unverified: seed.verifiedAt === undefined,
+      notes: [...UNVERIFIED_NOTE.filter(() => seed.verifiedAt === undefined), ...(seed.notes ?? [])],
       allowedHosts: seed.allowedHosts,
       startUrl: seed.startUrl,
       steps: COMMON_STEPS,

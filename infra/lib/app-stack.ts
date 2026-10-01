@@ -376,6 +376,81 @@ export class AppStack extends cdk.Stack {
       });
     }
 
+    // ─── MCP server (optional) ─────────────────────────────────────────────
+    // Remote, stateless streamable-HTTP MCP server for ChatGPT / claude.ai
+    // connectors. It holds no secrets and no DB access: it forwards each
+    // caller's own `Authorization: Bearer pu_...` token to the web API.
+    // Opt in with `-c enableMcp=true`; use an ACM cert + domain for HTTPS:
+    //   npx cdk deploy -c enableMcp=true \
+    //     -c mcpCertificateArn=arn:aws:acm:...:certificate/... \
+    //     -c mcpDomainName=mcp.example.com \
+    //     -c mcpPointupUrl=https://app.example.com   # public web URL
+    if (this.node.tryGetContext("enableMcp")) {
+      const mcpImage = new ecrAssets.DockerImageAsset(this, "McpImage", {
+        directory: path.join(__dirname, "..", ".."),
+        file: "Dockerfile.mcp",
+        platform: ecrAssets.Platform.LINUX_AMD64,
+        exclude: ["infra", "docs", ".git", "**/node_modules", "**/.next"],
+      });
+
+      const mcpCertificateArn = ctx("mcpCertificateArn");
+      const mcpDomainName = ctx("mcpDomainName");
+
+      const mcpService = new ecsPatterns.ApplicationLoadBalancedFargateService(
+        this,
+        "McpService",
+        {
+          cluster,
+          cpu: 256,
+          memoryLimitMiB: 512,
+          desiredCount: 1,
+          minHealthyPercent: 100,
+          publicLoadBalancer: true,
+          ...(mcpCertificateArn && mcpDomainName
+            ? {
+                certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+                  this,
+                  "McpCertificate",
+                  mcpCertificateArn,
+                ),
+                domainName: mcpDomainName,
+                redirectHTTP: true,
+              }
+            : {}),
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromDockerImageAsset(mcpImage),
+            containerPort: 8787,
+            environment: {
+              NODE_ENV: "production",
+              PORT: "8787",
+              MCP_TRANSPORT: "http",
+              // Defaults to the web ALB; set a public HTTPS URL when available.
+              POINTUP_URL:
+                ctx("mcpPointupUrl") ??
+                `http://${service.loadBalancer.loadBalancerDnsName}`,
+            },
+            logDriver: ecs.LogDrivers.awsLogs({
+              streamPrefix: "mcp",
+              logRetention: logs.RetentionDays.ONE_MONTH,
+            }),
+          },
+          circuitBreaker: { rollback: true },
+        },
+      );
+      mcpService.targetGroup.configureHealthCheck({
+        path: "/healthz",
+        healthyThresholdCount: 2,
+        interval: cdk.Duration.seconds(15),
+      });
+
+      new cdk.CfnOutput(this, "McpUrl", {
+        value: mcpDomainName
+          ? `https://${mcpDomainName}/mcp`
+          : `http://${mcpService.loadBalancer.loadBalancerDnsName}/mcp`,
+        description: "Remote MCP endpoint (Authorization: Bearer pu_... required)",
+      });
+    }
+
     // ─── Background worker (scheduled jobs) ────────────────────────────────
     // One image, two EventBridge schedules: balance syncs every 6 hours and a
     // weekly email digest via SES. The digest sender address must be a

@@ -38,6 +38,6 @@ export function POST(request: Request) {
       });
       return NextResponse.json(toObservationResultDto(result));
     },
-    { scope: "observations:write" },
+    { scope: "observations:write", rateLimit: "observations" },
   );
 }

@@ -37,7 +37,7 @@ flowchart LR
 | --- | --- | --- |
 | `AccessToken` | aggregate | SHA-256 hash stored only; plaintext shown once; scoped; expiring; revocable |
 | `ConsentGrant` | aggregate | Per provider, 1–90 days, revocable; **no consent → no write-back** |
-| `AgentSkill` | catalog (data) | Allowed hosts, start URL, steps; one browser + one computer-use skill per provider |
+| `AgentSkill` | catalog (data) | Allowed hosts, start URL, steps, `version`, `verifiedAt`, `notes`; one browser + one computer-use skill per provider |
 | `SubmitObservation` | use case | skill → https + host allow-list → consent → account ownership → plausibility → write → audit |
 | `AgentObservation` | audit log | Append-only; stores the host only, never the URL |
 
@@ -74,6 +74,7 @@ and tests run against in-memory fakes *and* a real Postgres
 | --- | --- | --- |
 | MCP (stdio) | `apps/mcp` (`POINTUP_TOKEN`) | PAT |
 | MCP (remote HTTP, stateless) | `node apps/mcp/dist/index.mjs --http` or `Dockerfile.mcp` | PAT per request, forwarded to the API |
+| Chrome extension | `apps/extension` (see [extension.md](./extension.md)) | PAT (`pu_`, consent-gated agent endpoint) or session token |
 | Claude Code plugin | `plugins/claude` + `.claude-plugin/marketplace.json` | PAT via `POINTUP_TOKEN` |
 | ChatGPT GPT Action | `plugins/chatgpt` (spec generated from the zod contracts) | PAT as API-key bearer |
 | ChatGPT / claude.ai connector | remote MCP URL | PAT header |
@@ -85,11 +86,33 @@ Read: `pointup_get_portfolio_summary`, `_list_accounts`, `_get_account`, `_list_
 Write: `pointup_link_account`, `_record_balance` (user-stated), `_create_goal`.
 Agent: `pointup_list_skills`, `_request_consent`, `_submit_balance`, `_list_observations`.
 Prompts: `capture-balance`, `portfolio-review`.
+Resources: `pointup://portfolio/summary` (JSON) and `pointup://skills/{skillId}` (markdown playbook per skill).
+
+The main read tools declare an `outputSchema` and return `structuredContent`
+(list results are wrapped as `{ "items": [...] }`, since MCP structured output
+must be an object); the JSON text content is kept for older clients. Inputs are
+validated before any API call (trimmed ids, points <= 2^31-1, https-only
+`sourceUrl`, `YYYY-MM-DD` goal dates).
+
+### Remote HTTP transport (`apps/mcp/src/http.ts`)
+
+- `POST /mcp` only (stateless; GET/DELETE return 405). Body limit 1 MB (413), bad JSON is 400.
+- `GET /healthz` returns `ok` without auth.
+- Missing/non-`pu_` token returns 401 with
+  `WWW-Authenticate: Bearer realm="pointup", resource_metadata="<public>/.well-known/oauth-protected-resource"`;
+  that document lists no authorization servers yet (PAT only, see below).
+- CORS for browser-based clients: `MCP_ALLOWED_ORIGINS` (comma list, default `*`; tokens are bearer headers, never cookies), preflight on OPTIONS. `MCP_PUBLIC_URL` sets the public URL used in the metadata hint.
+- SIGTERM/SIGINT drain the listener, then drop lingering connections after 10 s.
+- Covered by `apps/mcp/test/http.test.ts` (real HTTP server, fake upstream API, SDK `StreamableHTTPClientTransport`).
 
 ## Adding a program or skill
 
 Add the provider to `PROVIDER_CATALOG` and a seed in `domain/agent/skill.ts`
-(start URL, allowed hosts, hint). Browser and computer-use skills are generated
+(start URL, allowed hosts, hint). Skills are **unverified** (`verifiedAt: null`,
+`unverified: true` in the DTO, MCP output and playbooks) until a human checks the
+start URL against the live site and sets `verifiedAt` (ISO datetime) in the seed;
+bump `version` when URL, hosts or steps change. Agents are told start URLs are
+best-effort while unverified. Browser and computer-use skills are generated
 from the seed; the catalog test asserts the start URL sits on an allowed host.
 
 ## Not built yet (deliberately)
@@ -98,4 +121,17 @@ from the seed; the catalog test asserts the start URL sits on an allowed host.
   pasted PAT). The PAT path is the supported one today.
 - Deterministic scrapers (Playwright scripts) that run without an LLM; skills are
   playbooks for LLM agents.
-- Rate limiting on `/api/v1/agent/observations` (see the roadmap's cross-cutting track).
+
+## Rate limiting
+
+`withAuthenticatedUser` applies a sliding-window limit per principal (token id
+for PATs, user id for sessions): 120 req/min by default, 30/min for
+token-authenticated writes, 10/min for `POST /api/v1/agent/observations`.
+Exceeding it returns `429` with `Retry-After` and error code `RATE_LIMITED`.
+
+The shipped `InMemoryRateLimiter` is **per instance**: counters live in one
+process, so N instances allow up to N times the limit and a restart resets
+them. For a global limit, implement the `RateLimiter` port
+(`packages/core/src/application/rate-limit.ts`) over Redis (`INCR` + `PEXPIRE`)
+or Upstash (`@upstash/ratelimit`) and return it from `getRateLimiter()` in
+`apps/web/src/server/rate-limit.ts`; nothing else changes.

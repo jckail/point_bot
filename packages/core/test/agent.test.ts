@@ -181,6 +181,19 @@ describe("skill catalog", () => {
     }
   });
 
+  it("is honest about verification: unverified iff verifiedAt is null, with a caveat note", () => {
+    for (const skill of AGENT_SKILL_CATALOG) {
+      expect(skill.version).toBeGreaterThanOrEqual(1);
+      expect(skill.unverified).toBe(skill.verifiedAt === null);
+      if (skill.unverified) {
+        expect(skill.notes.join(" ")).toMatch(/best-effort/);
+      } else {
+        expect(Number.isNaN(Date.parse(skill.verifiedAt!))).toBe(false);
+      }
+    }
+    expect(AGENT_SKILL_CATALOG.find((k) => k.id === "rakuten.capture-balance")!.notes.join(" ")).toMatch(/cents/);
+  });
+
   it("annotates skills with link and consent state", async () => {
     const s = setup();
     await s.link.execute({ userId: "u1", providerId: "united", membershipNumber: "M1" });

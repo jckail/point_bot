@@ -1,0 +1,15 @@
+{
+  "name": "@pointup/e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright smoke tests: MCP HTTP server against a fake PointUp API (standalone package, not a root workspace)",
+  "scripts": {
+    "build:mcp": "npm run build --workspace @pointup/mcp --prefix ..",
+    "pretest": "npm run build:mcp",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

@@ -6,6 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A new push to a PR supersedes the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   app:
     name: Lint, typecheck, test & build
@@ -93,3 +101,113 @@ jobs:
 
       - name: Synth
         run: npx cdk synth --quiet
+
+  plugins:
+    name: Validate plugin manifests & ChatGPT spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate JSON manifests
+        run: |
+          for f in .claude-plugin/marketplace.json plugins/claude/.claude-plugin/plugin.json plugins/claude/.mcp.json; do
+            node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$f"
+            echo "ok  $f"
+          done
+          node -e '
+            const fs = require("fs");
+            const market = JSON.parse(fs.readFileSync(".claude-plugin/marketplace.json", "utf8"));
+            for (const p of market.plugins) {
+              if (!fs.existsSync(`${p.source}/.claude-plugin/plugin.json`)) {
+                throw new Error(`marketplace source ${p.source} has no plugin.json`);
+              }
+            }
+            const plugin = JSON.parse(fs.readFileSync("plugins/claude/.claude-plugin/plugin.json", "utf8"));
+            if (!plugin.name || !plugin.version) throw new Error("plugin.json needs name and version");
+          '
+
+      - name: Generate ChatGPT Action spec
+        run: npx tsx plugins/chatgpt/build.ts
+
+      - name: Validate generated spec
+        run: |
+          node -e '
+            const spec = JSON.parse(require("fs").readFileSync("plugins/chatgpt/dist/openapi.json", "utf8"));
+            if (!String(spec.openapi).startsWith("3.")) throw new Error("not an OpenAPI 3 document");
+            const METHODS = ["get", "post", "put", "patch", "delete"];
+            const ops = Object.values(spec.paths).flatMap((p) => METHODS.filter((m) => p[m]).map((m) => p[m]));
+            if (ops.length > 30) throw new Error(`ChatGPT Actions allow 30 operations, got ${ops.length}`);
+            for (const op of ops) {
+              if (!op.operationId) throw new Error("operation without operationId");
+              if ((op.description ?? op.summary ?? "").length > 300) {
+                throw new Error(`description > 300 chars: ${op.operationId}`);
+              }
+            }
+            if (spec.paths["/api/v1/tokens"] || spec.paths["/api/v1/consents"]?.post) {
+              throw new Error("session-only operations (token minting, consent granting) must not be exported to ChatGPT");
+            }
+            console.log(`ok  ${ops.length} operations`);
+          '
+
+  e2e:
+    name: E2E smoke (MCP over HTTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci
+
+      # The smoke test only uses Playwright's HTTP client; no browser download.
+      - name: Run smoke tests
+        working-directory: e2e
+        run: npm test
+
+  audit:
+    name: Dependency audit (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: npm audit (production deps)
+        run: npm audit --omit=dev --audit-level=high | tee audit.txt
+        continue-on-error: true
+
+      - name: npm audit (infra)
+        working-directory: infra
+        run: npm audit --omit=dev --audit-level=high | tee ../audit-infra.txt
+        continue-on-error: true
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## npm audit (non-blocking)"
+            echo '```'
+            tail -n 25 audit.txt || true
+            echo '--- infra ---'
+            tail -n 25 audit-infra.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

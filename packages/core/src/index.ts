@@ -81,3 +81,10 @@ export * from "./infrastructure/llm/openai-compatible-assistant";
 export * from "./infrastructure/llm/bedrock-assistant";
 export * from "./infrastructure/notify/webhook-notifiers";
 export * from "./infrastructure/scraper/firecrawl-page-scraper";
+export * from "./application/rate-limit";
+
+// Composition (per-context wiring shared by every host)
+export * from "./composition/repositories";
+export * from "./composition/loyalty-module";
+export * from "./composition/agent-module";
+export * from "./composition/adapters";

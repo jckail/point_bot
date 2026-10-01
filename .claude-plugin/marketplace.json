@@ -1,6 +1,7 @@
 {
   "name": "pointup",
   "owner": { "name": "PointUp" },
+  "description": "PointUp plugins for Claude: manage loyalty points and capture balances with explicit consent.",
   "plugins": [
     {
       "name": "pointup",

@@ -154,4 +154,70 @@ describe("pointup MCP server", () => {
     expect(body).toContain("united.capture-balance");
     expect(body).toContain("pointup_request_consent");
   });
+
+  const skill = {
+    id: "united.capture-balance",
+    providerId: "united",
+    mode: "browser",
+    title: "Read your United balance (browser)",
+    version: 1,
+    verifiedAt: null,
+    unverified: true,
+    notes: ["Start URL is best-effort"],
+    startUrl: "https://www.united.com/",
+    allowedHosts: ["united.com"],
+    accountLinked: true,
+    consentActive: true,
+    extraction: { field: "points", hint: "miles" },
+    steps: ["Open the page"],
+  };
+
+  it("serves skill playbooks and the portfolio summary as resources", async () => {
+    const { client } = await connect((call) =>
+      call.path.startsWith("/api/v1/summary") ? { json: { totalPoints: 5 } } : { json: [skill] },
+    );
+    const uris = (await client.listResources()).resources.map((r) => r.uri);
+    expect(uris).toContain("pointup://portfolio/summary");
+    const listed = (await client.listResourceTemplates()).resourceTemplates;
+    expect(listed.map((t) => t.uriTemplate)).toContain("pointup://skills/{skillId}");
+    const playbook = await client.readResource({ uri: "pointup://skills/united.capture-balance" });
+    const body = (playbook.contents[0] as { text: string }).text;
+    expect(body).toContain("UNVERIFIED");
+    expect(body).toContain("Start URL is best-effort");
+    const summary = await client.readResource({ uri: "pointup://portfolio/summary" });
+    expect(JSON.parse((summary.contents[0] as { text: string }).text)).toEqual({ totalPoints: 5 });
+    await expect(client.readResource({ uri: "pointup://skills/nope" })).rejects.toThrow();
+  });
+
+  it("returns structured content (arrays wrapped as items) alongside text", async () => {
+    const { client } = await connect(() => ({ json: [skill] }));
+    const tool = (await client.listTools()).tools.find((t) => t.name === "pointup_list_skills");
+    expect(tool?.outputSchema).toBeDefined();
+    const result = await client.callTool({ name: "pointup_list_skills", arguments: {} });
+    expect((result.structuredContent as { items: unknown[] }).items).toHaveLength(1);
+    expect(JSON.parse(text(result))).toHaveLength(1);
+  });
+
+  it("rejects malformed input before reaching the API", async () => {
+    const { client, calls } = await connect(() => ({ json: {} }));
+    for (const [name, args] of [
+      ["pointup_record_balance", { accountId: "a", points: -1 }],
+      ["pointup_record_balance", { accountId: "  ", points: 1 }],
+      ["pointup_record_balance", { accountId: "a", points: 1e12 }],
+      ["pointup_submit_balance", { skillId: "s", points: 1, sourceUrl: "http://www.united.com/" }],
+      ["pointup_create_goal", { title: "t", targetPoints: 10, targetDate: "next week" }],
+    ] as const) {
+      const res = await client
+        .callTool({ name, arguments: args })
+        .catch(() => ({ isError: true }));
+      expect(res.isError, name).toBe(true);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("warns agents that unverified skills are best-effort in the prompt", async () => {
+    const { client } = await connect(() => ({ json: [skill] }));
+    const prompt = await client.getPrompt({ name: "capture-balance", arguments: { providerId: "united" } });
+    expect((prompt.messages[0]?.content as { text: string }).text).toContain("UNVERIFIED");
+  });
 });

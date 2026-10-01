@@ -8,7 +8,9 @@ name: Deploy
 #   2. Repo secret  AWS_DEPLOY_ROLE_ARN  = the emitted role ARN
 #   3. Repo secret  CLERK_PUBLISHABLE_KEY = pk_live_... (inlined at build time)
 #   4. Optional repo variables: AWS_REGION (default us-east-1),
-#      DIGEST_FROM_EMAIL (verified SES sender for weekly digests)
+#      DIGEST_FROM_EMAIL (verified SES sender for weekly digests),
+#      ENABLE_MCP=true (also deploy the remote MCP server; optional
+#      MCP_CERTIFICATE_ARN, MCP_DOMAIN_NAME, MCP_POINTUP_URL)
 
 on:
   push:
@@ -73,6 +75,9 @@ jobs:
       - name: Build worker bundle
         run: npm run build --workspace @pointup/worker
 
+      - name: Build MCP server bundle
+        run: npm run build --workspace @pointup/mcp
+
   deploy:
     name: Deploy to AWS
     runs-on: ubuntu-latest
@@ -103,8 +108,19 @@ jobs:
         env:
           CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           DIGEST_FROM_EMAIL: ${{ vars.DIGEST_FROM_EMAIL }}
+          ENABLE_MCP: ${{ vars.ENABLE_MCP }}
+          MCP_CERTIFICATE_ARN: ${{ vars.MCP_CERTIFICATE_ARN }}
+          MCP_DOMAIN_NAME: ${{ vars.MCP_DOMAIN_NAME }}
+          MCP_POINTUP_URL: ${{ vars.MCP_POINTUP_URL }}
         run: |
-          npx cdk deploy TemplateApp \
+          CTX=()
+          if [ "$ENABLE_MCP" = "true" ]; then
+            CTX+=(-c enableMcp=true)
+            [ -n "$MCP_CERTIFICATE_ARN" ] && CTX+=(-c "mcpCertificateArn=$MCP_CERTIFICATE_ARN")
+            [ -n "$MCP_DOMAIN_NAME" ] && CTX+=(-c "mcpDomainName=$MCP_DOMAIN_NAME")
+            [ -n "$MCP_POINTUP_URL" ] && CTX+=(-c "mcpPointupUrl=$MCP_POINTUP_URL")
+          fi
+          npx cdk deploy TemplateApp "${CTX[@]}" \
             --require-approval never \
             --outputs-file cdk-outputs.json
 

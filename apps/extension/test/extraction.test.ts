@@ -43,7 +43,7 @@ describe("extractBalance", () => {
         url: "https://www.united.com/en/us/account",
         text: "MileagePlus\nAvailable balance\n124,300 miles",
       }),
-    ).toEqual({ providerId: "united", points: 124_300 });
+    ).toMatchObject({ providerId: "united", points: 124_300 });
   });
 
   it("pulls Bonvoy points from a hotel page", () => {
@@ -52,7 +52,7 @@ describe("extractBalance", () => {
         url: "https://www.marriott.com/loyalty/myAccount.mi",
         text: "Your Bonvoy points: 88,200 points available",
       }),
-    ).toEqual({ providerId: "marriott", points: 88_200 });
+    ).toMatchObject({ providerId: "marriott", points: 88_200 });
   });
 
   it("returns null on a provider page with no balance", () => {

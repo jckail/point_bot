@@ -58,6 +58,11 @@
         color: #34d399;
         min-height: 16px;
       }
+      .hint {
+        font-size: 11px;
+        color: #9aa5cb;
+        margin-top: 4px;
+      }
       .row {
         display: flex;
         gap: 8px;
@@ -79,8 +84,9 @@
     <label for="baseUrl">API URL</label>
     <input id="baseUrl" type="url" placeholder="https://app.example.com" />
 
-    <label for="token">Session token</label>
-    <input id="token" type="password" placeholder="Clerk session token" />
+    <label for="token">Access token</label>
+    <input id="token" type="password" placeholder="pu_… personal access token (or Clerk session token)" />
+    <div class="hint">A <code>pu_</code> token (Dashboard &gt; Agents, scope <code>observations:write</code>) writes back through the consent-gated agent endpoint and needs an active consent for the program.</div>
 
     <button id="save">Save settings</button>
 
