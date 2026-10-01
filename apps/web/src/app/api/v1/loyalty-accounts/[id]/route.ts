@@ -17,7 +17,7 @@ export function GET(_request: Request, context: Context) {
       id,
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
-  });
+  }, { scope: "portfolio:read" });
 }
 
 export function PATCH(request: Request, context: Context) {
@@ -46,7 +46,7 @@ export function PATCH(request: Request, context: Context) {
       id,
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
-  });
+  }, { scope: "portfolio:write" });
 }
 
 export function DELETE(_request: Request, context: Context) {
@@ -54,5 +54,5 @@ export function DELETE(_request: Request, context: Context) {
     const { id } = await context.params;
     await getContainer().useCases.unlinkLoyaltyAccount.execute(userId, id);
     return new NextResponse(null, { status: 204 });
-  });
+  }, { scope: "portfolio:write" });
 }

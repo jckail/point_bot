@@ -71,7 +71,7 @@ export const balanceSnapshots = pgTable(
       .references(() => loyaltyAccounts.id, { onDelete: "cascade" }),
     points: bigint("points", { mode: "number" }).notNull(),
     source: varchar("source", { length: 16 })
-      .$type<"sync" | "manual">()
+      .$type<"sync" | "manual" | "agent">()
       .notNull(),
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
   },
@@ -202,5 +202,66 @@ export const portfolioShares = pgTable(
   (share) => [
     index("portfolio_share_user_id_idx").on(share.userId),
     uniqueIndex("portfolio_share_token_unique").on(share.token),
+  ],
+);
+
+// ─── Agent bounded context ─────────────────────────────────────────────────
+// Personal access tokens (hashed), per-provider consent grants, and an
+// append-only audit trail of everything an agent wrote back.
+
+export const accessTokens = pgTable(
+  "access_token",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    displayPrefix: varchar("display_prefix", { length: 16 }).notNull(),
+    /** SHA-256 hex of the plaintext token; the plaintext is never stored. */
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    /** Space-separated scope names. */
+    scopes: varchar("scopes", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (token) => [
+    index("access_token_user_id_idx").on(token.userId),
+    uniqueIndex("access_token_hash_unique").on(token.tokenHash),
+  ],
+);
+
+export const consentGrants = pgTable(
+  "consent_grant",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    providerId: varchar("provider_id", { length: 64 }).notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (consent) => [index("consent_grant_user_id_idx").on(consent.userId)],
+);
+
+export const agentObservations = pgTable(
+  "agent_observation",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    accountId: varchar("account_id", { length: 255 }).notNull(),
+    providerId: varchar("provider_id", { length: 64 }).notNull(),
+    skillId: varchar("skill_id", { length: 96 }).notNull(),
+    agent: varchar("agent", { length: 64 }).notNull(),
+    sourceHost: varchar("source_host", { length: 255 }).notNull(),
+    points: bigint("points", { mode: "number" }).notNull(),
+    outcome: varchar("outcome", { length: 16 })
+      .$type<"recorded" | "unchanged" | "needs_review">()
+      .notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (row) => [
+    index("agent_observation_user_created_idx").on(row.userId, row.createdAt),
   ],
 );

@@ -1,0 +1,24 @@
+# Supabase local development (https://supabase.com/docs/guides/local-development).
+#   npx supabase start        # Postgres on :54322, Studio on :54323
+#   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run db:migrate
+#
+# PointUp uses Supabase purely as managed Postgres (+ optional Auth, see
+# docs/supabase.md). Schema is owned by Drizzle (packages/core/drizzle), so
+# there is deliberately no supabase/migrations directory: one migration
+# source of truth.
+project_id = "pointup"
+
+[api]
+enabled = true
+port = 54321
+# Tables have RLS enabled with no policies (migration 0009), so the REST API
+# exposes nothing; the server connects directly over Postgres.
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323

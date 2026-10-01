@@ -10,6 +10,7 @@ export const ACTIVITY_TYPES = [
   "account_restored",
   "balance_synced",
   "balance_manual",
+  "balance_agent",
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];

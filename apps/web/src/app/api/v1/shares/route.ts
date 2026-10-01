@@ -12,7 +12,7 @@ export function GET() {
     const shares =
       await getContainer().useCases.listPortfolioShares.execute(userId);
     return NextResponse.json(shares.map(toPortfolioShareDto));
-  });
+  }, { scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
@@ -24,5 +24,5 @@ export function POST(request: Request) {
       expiresInDays: body.expiresInDays,
     });
     return NextResponse.json(toPortfolioShareDto(share), { status: 201 });
-  });
+  }, { scope: "portfolio:write" });
 }

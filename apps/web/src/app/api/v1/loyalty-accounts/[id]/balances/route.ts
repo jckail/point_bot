@@ -24,7 +24,7 @@ export function GET(request: Request, context: Context) {
       limit,
     );
     return NextResponse.json(history.map(toBalanceDto));
-  });
+  }, { scope: "portfolio:read" });
 }
 
 /** Record a manually observed balance. */
@@ -40,5 +40,5 @@ export function POST(request: Request, context: Context) {
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
     });
     return NextResponse.json(toBalanceDto(balance), { status: 201 });
-  });
+  }, { scope: "portfolio:write" });
 }

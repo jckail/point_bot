@@ -42,6 +42,18 @@ services:
     ports:
       - "3000:3000"
 
+  # Remote MCP server (streamable HTTP): http://localhost:8787/mcp
+  # Clients send `Authorization: Bearer pu_...`; create a token on /dashboard/agents.
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    profiles: ["agents"]
+    environment:
+      POINTUP_URL: http://app:3000
+    ports:
+      - "8787:8787"
+
   # Open-source email testing UI: http://localhost:8025 (SMTP on 1025).
   # Digests sent by the worker land here instead of real inboxes.
   mailpit:

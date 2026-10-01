@@ -203,3 +203,79 @@ export class InvalidScrapeUrlError extends DomainError {
     super("Scrape URL must be an absolute http(s) URL");
   }
 }
+
+// ─── Agent bounded context ─────────────────────────────────────────────────
+
+export class AccessTokenInvalidError extends DomainError {
+  readonly code = "UNAUTHENTICATED";
+
+  constructor() {
+    super("Access token is invalid, expired, or revoked");
+  }
+}
+
+export class InsufficientScopeError extends DomainError {
+  readonly code = "INSUFFICIENT_SCOPE";
+
+  constructor(scope: string) {
+    super(`This credential lacks the "${scope}" scope`);
+  }
+}
+
+export class InvalidAccessTokenRequestError extends DomainError {
+  readonly code = "INVALID_ACCESS_TOKEN_REQUEST";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class AccessTokenNotFoundError extends DomainError {
+  readonly code = "ACCESS_TOKEN_NOT_FOUND";
+
+  constructor(tokenId: string) {
+    super(`Access token "${tokenId}" was not found`);
+  }
+}
+
+export class ConsentRequiredError extends DomainError {
+  readonly code = "CONSENT_REQUIRED";
+
+  constructor(providerId: string) {
+    super(
+      `No active consent for "${providerId}". Ask the user to grant agent access for this program first.`,
+    );
+  }
+}
+
+export class ConsentNotFoundError extends DomainError {
+  readonly code = "CONSENT_NOT_FOUND";
+
+  constructor(consentId: string) {
+    super(`Consent "${consentId}" was not found`);
+  }
+}
+
+export class InvalidConsentError extends DomainError {
+  readonly code = "INVALID_CONSENT";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class SkillNotFoundError extends DomainError {
+  readonly code = "SKILL_NOT_FOUND";
+
+  constructor(skillId: string) {
+    super(`Agent skill "${skillId}" was not found`);
+  }
+}
+
+export class InvalidObservationError extends DomainError {
+  readonly code = "INVALID_OBSERVATION";
+
+  constructor(message: string) {
+    super(`Observation rejected: ${message}`);
+  }
+}

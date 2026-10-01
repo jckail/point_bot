@@ -23,6 +23,8 @@ export interface RecordManualBalanceInput {
    * entries must not be in the future.
    */
   readonly capturedAt?: Date;
+  /** Provenance; agent write-back passes "agent". Defaults to "manual". */
+  readonly source?: "manual" | "agent";
 }
 
 /**
@@ -53,7 +55,7 @@ export class RecordManualBalance {
     const snapshot = createBalanceSnapshot({
       loyaltyAccountId: account.id,
       points: input.points,
-      source: "manual",
+      source: input.source ?? "manual",
       capturedAt,
     });
     await this.balances.insert(snapshot);
@@ -62,12 +64,13 @@ export class RecordManualBalance {
     await this.accounts.update(refreshExpiryFromActivity(account, capturedAt));
 
     const provider = getProviderOrThrow(account.providerId);
+    const viaAgent = input.source === "agent";
     await recordActivity(this.activity, {
       userId: input.userId,
-      type: "balance_manual",
+      type: viaAgent ? "balance_agent" : "balance_manual",
       accountId: account.id,
       providerId: account.providerId,
-      summary: `Recorded ${provider.displayName}: ${input.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
+      summary: `${viaAgent ? "Agent read" : "Recorded"} ${provider.displayName}: ${input.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
       occurredAt: capturedAt,
     });
 

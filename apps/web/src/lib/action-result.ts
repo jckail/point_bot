@@ -29,6 +29,11 @@ const DOMAIN_ERROR_MESSAGES: Record<string, string> = {
   ACCOUNT_NOT_RESTORABLE:
     "That program can't be restored — the undo window may have expired.",
   SHARE_LINK_NOT_FOUND: "That share link wasn't found.",
+  INVALID_ACCESS_TOKEN_REQUEST:
+    "Give the token a name, at least one scope, and a lifetime of 1-365 days.",
+  ACCESS_TOKEN_NOT_FOUND: "We couldn't find that token.",
+  INVALID_CONSENT: "Consent can last between 1 and 90 days.",
+  CONSENT_NOT_FOUND: "We couldn't find that consent.",
   CREDENTIAL_UNAVAILABLE:
     "No credentials available for this program - connect a vault or enter the balance manually.",
 };

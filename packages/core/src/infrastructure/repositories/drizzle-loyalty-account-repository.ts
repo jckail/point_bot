@@ -95,7 +95,7 @@ export class DrizzleLoyaltyAccountRepository
         isNull(loyaltyAccounts.deletedAt),
       ),
       // Pinned first (NULLS LAST), then oldest linked.
-      orderBy: (table, { asc: a, desc: d }) => [
+      orderBy: (table, { asc: a }) => [
         sql`${table.pinnedAt} DESC NULLS LAST`,
         a(table.createdAt),
       ],

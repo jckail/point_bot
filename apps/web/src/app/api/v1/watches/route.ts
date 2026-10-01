@@ -13,7 +13,7 @@ export function GET() {
     const watches =
       await getContainer().useCases.listAwardWatches.execute(userId);
     return NextResponse.json(watches.map(toAwardWatchDto));
-  });
+  }, { scope: "portfolio:read" });
 }
 
 /** Watch an award/deal page; the worker re-scrapes and notifies on improvement. */
@@ -27,5 +27,5 @@ export function POST(request: Request) {
       minCentsPerPoint: body.minCentsPerPoint,
     });
     return NextResponse.json(toAwardWatchDto(watch), { status: 201 });
-  });
+  }, { scope: "portfolio:write" });
 }

@@ -10,6 +10,18 @@ jobs:
   app:
     name: Lint, typecheck, test & build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:password@localhost:5432/app
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +39,16 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
+      - name: Apply migrations (incl. RLS)
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/app
+
+      - name: Unit + Postgres integration tests
         run: npm run test
+
+      - name: Generate ChatGPT Action spec
+        run: npx tsx plugins/chatgpt/build.ts
 
       - name: Build web app
         run: npm run build
@@ -43,6 +63,9 @@ jobs:
 
       - name: Build bot bundle
         run: npm run build --workspace @pointup/bot
+
+      - name: Build MCP server bundle
+        run: npm run build --workspace @pointup/mcp
 
       - name: Build extension
         run: npm run build --workspace @pointup/extension

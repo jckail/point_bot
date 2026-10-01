@@ -36,6 +36,17 @@ import {
   updateTripGoalRequestSchema,
   valueAdviceDtoSchema,
 } from "./index";
+import {
+  accessTokenDtoSchema,
+  agentObservationDtoSchema,
+  agentSkillDtoSchema,
+  consentDtoSchema,
+  createAccessTokenRequestSchema,
+  createdAccessTokenDtoSchema,
+  grantConsentRequestSchema,
+  observationResultDtoSchema,
+  submitObservationRequestSchema,
+} from "./agent";
 
 /**
  * OpenAPI 3.1 document generated from the zod wire contracts — the same schemas
@@ -84,6 +95,15 @@ const COMPONENT_SCHEMAS = {
   ChatAssistantRequest: chatAssistantRequestSchema,
   ScrapeDealRequest: scrapeDealRequestSchema,
   CreatePortfolioShareRequest: createPortfolioShareRequestSchema,
+  AccessTokenDto: accessTokenDtoSchema,
+  CreateAccessTokenRequest: createAccessTokenRequestSchema,
+  CreatedAccessTokenDto: createdAccessTokenDtoSchema,
+  ConsentDto: consentDtoSchema,
+  GrantConsentRequest: grantConsentRequestSchema,
+  AgentSkillDto: agentSkillDtoSchema,
+  SubmitObservationRequest: submitObservationRequestSchema,
+  ObservationResultDto: observationResultDtoSchema,
+  AgentObservationDto: agentObservationDtoSchema,
 } as const satisfies Record<string, z.ZodType>;
 
 type ComponentName = keyof typeof COMPONENT_SCHEMAS;
@@ -148,9 +168,16 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         "Versioned HTTP API for PointUp / PointBot. Generated from the zod wire contracts (@pointup/core/contracts).",
     },
     servers: [{ url: options.serverUrl ?? "/" }],
-    security: [{ clerkSession: [] }],
+    security: [{ clerkSession: [] }, { accessToken: [] }],
     components: {
       securitySchemes: {
+        accessToken: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "pu_...",
+          description:
+            "PointUp personal access token (create one in Settings or POST /api/v1/tokens). Used by the MCP server, ChatGPT Actions, and scripts. Scoped: portfolio:read, portfolio:write, observations:write, consents:manage.",
+        },
         clerkSession: {
           type: "http",
           scheme: "bearer",
@@ -249,11 +276,27 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
       },
       "/api/v1/loyalty-accounts/{id}/balances": {
         parameters: [ID_PARAM],
+        get: {
+          summary: "Balance history, newest first",
+          parameters: [
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 365 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Balance snapshots", arrayOf("BalanceDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
         post: {
           summary: "Record a manual balance",
           requestBody: body("RecordManualBalanceRequest"),
           responses: {
-            "201": jsonResponse("Updated account", ref("LoyaltyAccountDto")),
+            "201": jsonResponse("Recorded balance", ref("BalanceDto")),
             ...ERROR_RESPONSES,
             ...NOT_FOUND,
           },
@@ -541,6 +584,101 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           responses: {
             "200": jsonResponse("Deleted accounts", arrayOf("DeletedAccountDto")),
             ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/skills": {
+        get: {
+          operationId: "listAgentSkills",
+          summary: "List agent skills (browser/computer playbooks) with this user's link + consent state",
+          parameters: [
+            { name: "providerId", in: "query", required: false, schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse("Skills", arrayOf("AgentSkillDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/consents": {
+        get: {
+          operationId: "listConsents",
+          summary: "List agent consents",
+          responses: {
+            "200": jsonResponse("Consents", arrayOf("ConsentDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "grantConsent",
+          summary: "Grant time-boxed consent for agents to read one program and write balances back",
+          requestBody: body("GrantConsentRequest"),
+          responses: {
+            "201": jsonResponse("Granted consent", ref("ConsentDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/consents/{id}": {
+        parameters: [ID_PARAM],
+        delete: {
+          operationId: "revokeConsent",
+          summary: "Revoke a consent immediately",
+          responses: {
+            "204": { description: "Revoked" },
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
+      },
+      "/api/v1/agent/observations": {
+        get: {
+          operationId: "listObservations",
+          summary: "Audit trail of what agents wrote back",
+          responses: {
+            "200": jsonResponse("Observations", arrayOf("AgentObservationDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "submitObservation",
+          summary: "Write back a balance an agent read from the user's own browser (requires active consent)",
+          requestBody: body("SubmitObservationRequest"),
+          responses: {
+            "200": jsonResponse("Outcome (recorded, unchanged, or needs_review)", ref("ObservationResultDto")),
+            "403": jsonResponse("Missing scope or no active consent", ref("ApiError")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/tokens": {
+        get: {
+          operationId: "listAccessTokens",
+          summary: "List personal access tokens (never returns secrets)",
+          responses: {
+            "200": jsonResponse("Tokens", arrayOf("AccessTokenDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "createAccessToken",
+          summary: "Create a personal access token (session auth only; secret shown once)",
+          requestBody: body("CreateAccessTokenRequest"),
+          responses: {
+            "201": jsonResponse("Created token", ref("CreatedAccessTokenDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/tokens/{id}": {
+        parameters: [ID_PARAM],
+        delete: {
+          operationId: "revokeAccessToken",
+          summary: "Revoke a token",
+          responses: {
+            "204": { description: "Revoked" },
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
           },
         },
       },

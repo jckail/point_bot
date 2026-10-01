@@ -11,6 +11,17 @@ export * from "./domain/loyalty/award-watch";
 export * from "./domain/fx";
 export * from "./domain/loyalty/user-settings";
 
+// Agent bounded context
+export * from "./domain/agent/access-token";
+export * from "./domain/agent/consent";
+export * from "./domain/agent/observation";
+export * from "./domain/agent/skill";
+export * from "./application/agent/access-tokens";
+export * from "./application/agent/consents";
+export * from "./application/agent/list-skills";
+export * from "./application/agent/submit-observation";
+export * from "./infrastructure/repositories/drizzle-agent-repositories";
+
 // Application
 export * from "./application/ports";
 export * from "./application/loyalty/read-models";

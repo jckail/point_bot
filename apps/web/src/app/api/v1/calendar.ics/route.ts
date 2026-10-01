@@ -23,5 +23,5 @@ export function GET() {
         "Cache-Control": "private, max-age=300",
       },
     });
-  });
+  }, { scope: "portfolio:read" });
 }

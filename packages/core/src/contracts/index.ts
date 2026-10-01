@@ -26,6 +26,8 @@ import { PROVIDER_KINDS } from "../domain/loyalty/provider";
  *   (`z.iso.datetime()`); `Date` objects never cross the network.
  */
 
+export * from "./agent";
+
 /** Strict ISO-8601 UTC timestamp, e.g. "2026-07-08T14:03:00.000Z". */
 export const isoDateTimeSchema = z.iso.datetime();
 
@@ -46,7 +48,7 @@ export const providerDtoSchema = z.object({
 
 export const balanceDtoSchema = z.object({
   points: z.number().int().nonnegative(),
-  source: z.enum(["sync", "manual"]),
+  source: z.enum(["sync", "manual", "agent"]),
   capturedAt: isoDateTimeSchema,
 });
 
@@ -215,6 +217,7 @@ export const activityEventDtoSchema = z.object({
     "account_restored",
     "balance_synced",
     "balance_manual",
+    "balance_agent",
   ]),
   accountId: z.string().nullable(),
   providerId: z.string().nullable(),
@@ -330,6 +333,14 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   INVALID_SCRAPE_URL: 422,
   ASSISTANT_UNAVAILABLE: 503,
   SCRAPE_FAILED: 502,
+  INSUFFICIENT_SCOPE: 403,
+  INVALID_ACCESS_TOKEN_REQUEST: 422,
+  ACCESS_TOKEN_NOT_FOUND: 404,
+  CONSENT_REQUIRED: 403,
+  CONSENT_NOT_FOUND: 404,
+  INVALID_CONSENT: 422,
+  SKILL_NOT_FOUND: 404,
+  INVALID_OBSERVATION: 422,
   INTERNAL: 500,
 } as const satisfies Record<string, number>;
 

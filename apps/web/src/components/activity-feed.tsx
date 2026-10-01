@@ -9,6 +9,7 @@ const TYPE_LABELS: Record<ActivityEventReadModel["type"], string> = {
   account_restored: "Restored",
   balance_synced: "Synced",
   balance_manual: "Manual",
+  balance_agent: "Agent",
 };
 
 export function ActivityFeed({

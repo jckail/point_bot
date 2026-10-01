@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pointup": {
+      "type": "http",
+      "url": "${POINTUP_MCP_URL:-http://localhost:8787/mcp}",
+      "headers": {
+        "Authorization": "Bearer ${POINTUP_TOKEN}"
+      }
+    }
+  }
+}

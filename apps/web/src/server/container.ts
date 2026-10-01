@@ -1,4 +1,17 @@
 import {
+  AuthenticateAccessToken,
+  DrizzleAccessTokenRepository,
+  DrizzleAgentObservationRepository,
+  DrizzleConsentGrantRepository,
+  GrantConsent,
+  IssueAccessToken,
+  ListAccessTokens,
+  ListAgentObservations,
+  ListAgentSkills,
+  ListConsents,
+  RevokeAccessToken,
+  RevokeConsent,
+  SubmitObservation,
   ChatWithAssistant,
   buildTravelProviderGateway,
   createDb,
@@ -113,6 +126,16 @@ export interface Container {
     ingestDealPage: IngestDealPage;
     syncLoyaltyAccount: SyncLoyaltyAccount;
     syncAllLoyaltyAccounts: SyncAllLoyaltyAccounts;
+    issueAccessToken: IssueAccessToken;
+    listAccessTokens: ListAccessTokens;
+    revokeAccessToken: RevokeAccessToken;
+    authenticateAccessToken: AuthenticateAccessToken;
+    grantConsent: GrantConsent;
+    listConsents: ListConsents;
+    revokeConsent: RevokeConsent;
+    listAgentSkills: ListAgentSkills;
+    submitObservation: SubmitObservation;
+    listAgentObservations: ListAgentObservations;
   };
 }
 
@@ -167,6 +190,9 @@ function buildContainer(): Container {
   const customValuations = new DrizzleCustomValuationRepository(db);
   const awardWatches = new DrizzleAwardWatchRepository(db);
   const settings = new DrizzleUserSettingsRepository(db);
+  const accessTokens = new DrizzleAccessTokenRepository(db);
+  const consents = new DrizzleConsentGrantRepository(db);
+  const observations = new DrizzleAgentObservationRepository(db);
   const fx = env.FX_API_URL
     ? new HttpFxRateSource({ baseUrl: env.FX_API_URL })
     : new StaticFxRateSource();
@@ -207,6 +233,14 @@ function buildContainer(): Container {
     balanceSnapshots,
   );
   const listTripGoals = new ListTripGoals(tripGoals, balanceSnapshots);
+  const submitObservation = new SubmitObservation(
+    loyaltyAccounts,
+    balanceSnapshots,
+    consents,
+    observations,
+    recordManualBalance,
+    linkLoyaltyAccount,
+  );
   const llm = buildLlm();
   const scraper = buildScraper();
 
@@ -291,6 +325,16 @@ function buildContainer(): Container {
         loyaltyAccounts,
         syncLoyaltyAccount,
       ),
+      issueAccessToken: new IssueAccessToken(accessTokens),
+      listAccessTokens: new ListAccessTokens(accessTokens),
+      revokeAccessToken: new RevokeAccessToken(accessTokens),
+      authenticateAccessToken: new AuthenticateAccessToken(accessTokens),
+      grantConsent: new GrantConsent(consents),
+      listConsents: new ListConsents(consents),
+      revokeConsent: new RevokeConsent(consents),
+      listAgentSkills: new ListAgentSkills(loyaltyAccounts, consents),
+      submitObservation,
+      listAgentObservations: new ListAgentObservations(observations),
     },
   };
 }

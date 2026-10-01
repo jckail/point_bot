@@ -30,5 +30,5 @@ export function GET(request: Request) {
     }
 
     return NextResponse.json(toPortfolioExportDto(exported));
-  });
+  }, { scope: "portfolio:read" });
 }

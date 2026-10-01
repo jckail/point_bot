@@ -22,6 +22,9 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 
 ## Documentation
 
+- [docs/agents.md](./docs/agents.md) — MCP server, Claude plugin, ChatGPT Action, consented browser/computer-use write-back, security model
+- [docs/supabase.md](./docs/supabase.md) — run on Supabase (pooler, TLS, RLS)
+- [docs/review.md](./docs/review.md) — codebase review: findings and status
 - [docs/roadmap.md](./docs/roadmap.md) — feature roadmap: what's shipped, what's next, and how it's sequenced
 - [docs/api.md](./docs/api.md) — full API v1 reference with request/response examples
 - [docs/architecture.md](./docs/architecture.md) — DDD layering, SOLID mapping, workspace layout
@@ -41,6 +44,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 │   │   └── public/brand/     #   brand kit assets (SVG logomarks, lockup)
 │   ├── worker/               # Background jobs: scheduled syncs + email + chat digests
 │   ├── bot/                  # PointBot chat surface: Slack/Discord commands over the core
+│   ├── mcp/                  # MCP server (stdio + stateless HTTP) over the API
 │   └── extension/            # Chrome (MV3) extension: capture balances from provider pages
 ├── packages/
 │   ├── core/                 # Domain + application + infrastructure (framework-free)
@@ -50,6 +54,10 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 │   │   ├── src/infrastructure/  # Drizzle repos, provider gateways, vault adapters
 │   │   └── drizzle/          #   generated SQL migrations
 │   └── api-client/           # Typed HTTP client for mobile / extension surfaces
+├── plugins/
+│   ├── claude/               # Claude Code plugin: skills, agent, commands, MCP config
+│   └── chatgpt/              # ChatGPT Action spec generator + GPT config
+├── supabase/                 # Supabase local config (schema stays in Drizzle)
 ├── infra/                    # AWS CDK app (standalone package)
 └── docs/                     # Architecture and integration guides
 ```

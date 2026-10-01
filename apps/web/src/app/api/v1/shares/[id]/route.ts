@@ -10,5 +10,5 @@ export function DELETE(_request: Request, context: Context) {
     const { id } = await context.params;
     await getContainer().useCases.revokePortfolioShare.execute(userId, id);
     return new NextResponse(null, { status: 204 });
-  });
+  }, { scope: "portfolio:write" });
 }

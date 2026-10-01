@@ -11,8 +11,38 @@ export type Database = ReturnType<typeof createDb>;
  * migration task), keeping this package free of environment coupling.
  */
 export function createDb(connectionString: string) {
-  const client = postgres(connectionString);
-  return drizzle(client, { schema });
+  return drizzle(postgres(connectionString, postgresOptionsFor(connectionString)), {
+    schema,
+  });
+}
+
+/**
+ * Connection tuning derived from the URL, so the same code runs against local
+ * Docker Postgres, AWS RDS, and Supabase without per-host configuration.
+ *
+ * Supabase specifics:
+ * - Hosted databases require TLS.
+ * - The transaction-mode pooler (port 6543) does not support prepared
+ *   statements, which postgres.js uses by default.
+ */
+export function postgresOptionsFor(
+  connectionString: string,
+): postgres.Options<Record<string, never>> {
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return {};
+  }
+  const isSupabase =
+    url.hostname.endsWith(".supabase.co") ||
+    url.hostname.endsWith(".supabase.com");
+  const options: postgres.Options<Record<string, never>> = {};
+  if (isSupabase && !url.searchParams.has("sslmode")) options.ssl = "require";
+  if (url.port === "6543" || url.searchParams.get("pgbouncer") === "true") {
+    options.prepare = false;
+  }
+  return options;
 }
 
 export interface DatabaseUrlParts {

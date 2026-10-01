@@ -21,5 +21,5 @@ export function GET(request: Request) {
         withinDays,
       );
     return NextResponse.json(accounts.map(toLoyaltyAccountDto));
-  });
+  }, { scope: "portfolio:read" });
 }

@@ -1,4 +1,13 @@
 import type {
+  AccessTokenDto,
+  AgentObservationDto,
+  AgentSkillDto,
+  ConsentDto,
+  CreateAccessTokenRequest,
+  CreatedAccessTokenDto,
+  GrantConsentRequest,
+  ObservationResultDto,
+  SubmitObservationRequest,
   ActivityEventDto,
   AwardWatchDto,
   BulkUpdateMembershipRequest,
@@ -325,6 +334,59 @@ export class PointUpClient {
     return `/api/v1/loyalty-accounts/${encodeURIComponent(accountId)}`;
   }
 
+  // ─── Agent surface ───────────────────────────────────────────────────────
+
+  listAgentSkills(providerId?: string): Promise<AgentSkillDto[]> {
+    const query = providerId
+      ? `?providerId=${encodeURIComponent(providerId)}`
+      : "";
+    return this.request("GET", `/api/v1/skills${query}`);
+  }
+
+  listConsents(): Promise<ConsentDto[]> {
+    return this.request("GET", "/api/v1/consents");
+  }
+
+  grantConsent(body: GrantConsentRequest): Promise<ConsentDto> {
+    return this.request("POST", "/api/v1/consents", body);
+  }
+
+  revokeConsent(consentId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/consents/${encodeURIComponent(consentId)}`,
+    );
+  }
+
+  /** Write back a balance an agent read; needs a consent for the program. */
+  submitObservation(
+    body: SubmitObservationRequest,
+  ): Promise<ObservationResultDto> {
+    return this.request("POST", "/api/v1/agent/observations", body);
+  }
+
+  listObservations(): Promise<AgentObservationDto[]> {
+    return this.request("GET", "/api/v1/agent/observations");
+  }
+
+  /** Session-auth only: a token cannot mint tokens. */
+  listAccessTokens(): Promise<AccessTokenDto[]> {
+    return this.request("GET", "/api/v1/tokens");
+  }
+
+  createAccessToken(
+    body: CreateAccessTokenRequest,
+  ): Promise<CreatedAccessTokenDto> {
+    return this.request("POST", "/api/v1/tokens", body);
+  }
+
+  revokeAccessToken(tokenId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/tokens/${encodeURIComponent(tokenId)}`,
+    );
+  }
+
   private async requestText(
     method: string,
     path: string,
@@ -405,6 +467,15 @@ export function createPointUpClient(
 }
 
 export type {
+  AccessTokenDto,
+  AgentObservationDto,
+  AgentSkillDto,
+  ConsentDto,
+  CreateAccessTokenRequest,
+  CreatedAccessTokenDto,
+  GrantConsentRequest,
+  ObservationResultDto,
+  SubmitObservationRequest,
   ActivityEventDto,
   ApiError,
   BalanceDto,

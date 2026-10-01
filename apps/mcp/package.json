@@ -1,0 +1,27 @@
+{
+  "name": "@pointup/mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PointUp MCP server: manage loyalty points from any MCP client (Claude, ChatGPT, Cursor) and let consented agents write observed balances back",
+  "bin": { "pointup-mcp": "dist/index.mjs" },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@pointup/api-client": "*",
+    "@pointup/core": "*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.0.0"
+  }
+}

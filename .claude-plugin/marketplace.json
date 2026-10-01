@@ -1,0 +1,13 @@
+{
+  "name": "pointup",
+  "owner": { "name": "PointUp" },
+  "plugins": [
+    {
+      "name": "pointup",
+      "source": "./plugins/claude",
+      "description": "Manage your loyalty points: portfolio review, expiry alerts, redemption advice, and consented browser/computer-use balance capture that writes back to PointUp.",
+      "version": "1.0.0",
+      "category": "productivity"
+    }
+  ]
+}
