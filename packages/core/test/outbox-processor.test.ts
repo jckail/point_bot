@@ -18,7 +18,6 @@ import {
 import {
   createDomainEvent,
   type DomainEvent,
-  type EventType,
 } from "../src/domain/events";
 
 /** Single-process fake with the same claim/lease semantics as Postgres. */
@@ -92,14 +91,14 @@ class InMemoryOutboxStore implements OutboxStore {
 let t = new Date("2026-07-01T12:00:00Z");
 const clock = { now: () => t };
 
-function event(type: EventType = "account.linked", id?: string): DomainEvent {
+function event(id?: string): DomainEvent {
   return createDomainEvent("account.linked", {
     id,
     userId: "u1",
     aggregateId: "a1",
     occurredAt: new Date("2026-07-01T11:00:00Z"),
     payload: { providerId: "united" },
-  }) as DomainEvent & { type: typeof type };
+  });
 }
 
 describe("OutboxProcessor", () => {

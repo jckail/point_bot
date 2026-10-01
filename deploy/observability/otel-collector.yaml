@@ -1,0 +1,42 @@
+# OpenTelemetry Collector for the local `observability` compose profile.
+# Apps export OTLP/HTTP here (OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318).
+# Swap the exporters below for CloudWatch/Datadog/Grafana Cloud/etc. later:
+# the apps never change (see docs/observability.md).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  batch: {}
+
+exporters:
+  # Traces -> Jaeger (OTLP).
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Metrics -> scraped by Prometheus at otel-collector:8889.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
