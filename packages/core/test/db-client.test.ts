@@ -15,6 +15,12 @@ describe("postgresOptionsFor", () => {
     ).toEqual({ ssl: "require", prepare: false });
   });
 
+  it("disables prepared statements behind a local PgBouncer (port 6432)", () => {
+    expect(
+      postgresOptionsFor("postgresql://postgres:password@pgbouncer:6432/app"),
+    ).toEqual({ prepare: false });
+  });
+
   it("keeps prepared statements on the session pooler / direct connection", () => {
     expect(
       postgresOptionsFor("postgresql://postgres:pw@db.abc.supabase.co:5432/postgres"),

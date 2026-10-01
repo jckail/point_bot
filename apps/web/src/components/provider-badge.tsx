@@ -81,11 +81,29 @@ function BagIcon() {
   );
 }
 
+function CarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+      <path
+        d="M5 15v-3l1.6-4.2A2 2 0 0 1 8.5 6.5h7a2 2 0 0 1 1.9 1.3L19 12v3M5 15h14M5 15v2.5M19 15v2.5M8 12.5h.01M16 12.5h.01"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 const KIND_ICONS: Record<ProviderKind, () => React.ReactNode> = {
   airline: PlaneIcon,
   hotel: BuildingIcon,
   credit_card: CardIcon,
   rail: TrainIcon,
+  car_rental: CarIcon,
+  cruise: BuildingIcon,
+  rideshare: CarIcon,
+  dining: BagIcon,
   shopping: BagIcon,
 };
 

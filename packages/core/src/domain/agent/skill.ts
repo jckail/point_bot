@@ -45,102 +45,6 @@ export interface AgentSkill {
   };
 }
 
-interface SkillSeed {
-  readonly providerId: string;
-  readonly startUrl: string;
-  readonly allowedHosts: readonly string[];
-  readonly hint: string;
-  /** Bump when this seed changes; defaults to 1. */
-  readonly version?: number;
-  /** ISO date of the last human verification; omit while unverified. */
-  readonly verifiedAt?: string;
-  readonly notes?: readonly string[];
-  /** Sanity ceiling for one reading; defaults to DEFAULT_MAX_POINTS. */
-  readonly maxPoints?: number;
-}
-
-const SEEDS: readonly SkillSeed[] = [
-  {
-    providerId: "united",
-    startUrl: "https://www.united.com/en/us/myunited",
-    allowedHosts: ["united.com"],
-    hint: "MileagePlus miles shown in the account header or summary card",
-  },
-  {
-    providerId: "delta",
-    startUrl: "https://www.delta.com/myprofile/overview",
-    allowedHosts: ["delta.com"],
-    hint: "SkyMiles balance on the profile overview",
-  },
-  {
-    providerId: "american",
-    startUrl: "https://www.aa.com/aadvantage-program/profile/account-summary",
-    allowedHosts: ["aa.com"],
-    hint: "AAdvantage miles on the account summary",
-  },
-  {
-    providerId: "marriott",
-    startUrl: "https://www.marriott.com/loyalty/myAccount/default.mi",
-    allowedHosts: ["marriott.com"],
-    hint: "Bonvoy points balance on My Account",
-  },
-  {
-    providerId: "hilton",
-    startUrl: "https://www.hilton.com/en/hilton-honors/guest/my-account/",
-    allowedHosts: ["hilton.com"],
-    hint: "Hilton Honors points on My Account",
-  },
-  {
-    providerId: "hyatt",
-    startUrl: "https://www.hyatt.com/profile/en-US/account-overview",
-    allowedHosts: ["hyatt.com"],
-    hint: "World of Hyatt points on the account overview",
-  },
-  {
-    providerId: "chase-ultimate-rewards",
-    startUrl: "https://ultimaterewardspoints.chase.com/",
-    allowedHosts: ["chase.com"],
-    hint: "Ultimate Rewards points total (not a single card's cash back)",
-  },
-  {
-    providerId: "amex-membership-rewards",
-    startUrl: "https://global.americanexpress.com/rewards",
-    allowedHosts: ["americanexpress.com"],
-    hint: "Membership Rewards points total",
-  },
-  {
-    providerId: "capital-one-miles",
-    startUrl: "https://myrewards.capitalone.com/",
-    allowedHosts: ["capitalone.com"],
-    hint: "Capital One miles balance",
-  },
-  {
-    providerId: "citi-thankyou",
-    startUrl: "https://www.thankyou.com/",
-    allowedHosts: ["thankyou.com", "citi.com"],
-    hint: "ThankYou points balance",
-  },
-  {
-    providerId: "bilt",
-    startUrl: "https://www.bilt.com/rewards",
-    allowedHosts: ["bilt.com", "biltrewards.com"],
-    hint: "Bilt Rewards points balance",
-  },
-  {
-    providerId: "amtrak",
-    startUrl: "https://www.amtrak.com/guestrewards/account-overview",
-    allowedHosts: ["amtrak.com"],
-    hint: "Amtrak Guest Rewards points on the account overview",
-  },
-  {
-    providerId: "rakuten",
-    startUrl: "https://www.rakuten.com/account/summary",
-    allowedHosts: ["rakuten.com"],
-    hint: "Rakuten Cash Back balance (dollars; report as whole cents)",
-    notes: ["Balance is in dollars: submit whole cents (e.g. $12.34 -> 1234)."],
-  },
-];
-
 const COMMON_STEPS = [
   "Confirm the user has granted PointUp consent for this program (the tool will refuse otherwise).",
   "Open the start URL in the user's own browser session. Do NOT ask for, type, or store a password; if signed out, stop and ask the user to sign in themselves.",
@@ -156,15 +60,18 @@ const UNVERIFIED_NOTE = [
 ] as const;
 
 function buildSkills(): AgentSkill[] {
-  const known = new Set(PROVIDER_CATALOG.map((provider) => provider.id));
-  return SEEDS.filter((seed) => known.has(seed.providerId)).flatMap((seed) => {
-    const provider = PROVIDER_CATALOG.find((p) => p.id === seed.providerId)!;
+  return PROVIDER_CATALOG.flatMap((provider) => {
+    const seed = provider.agentSkill;
+    if (!seed) return [];
     const base = {
-      providerId: seed.providerId,
+      providerId: provider.id,
       version: seed.version ?? 1,
       verifiedAt: seed.verifiedAt ?? null,
       unverified: seed.verifiedAt === undefined,
-      notes: [...UNVERIFIED_NOTE.filter(() => seed.verifiedAt === undefined), ...(seed.notes ?? [])],
+      notes: [
+        ...UNVERIFIED_NOTE.filter(() => seed.verifiedAt === undefined),
+        ...(seed.notes ?? []),
+      ],
       maxPoints: seed.maxPoints ?? DEFAULT_MAX_POINTS,
       allowedHosts: seed.allowedHosts,
       startUrl: seed.startUrl,
@@ -174,13 +81,13 @@ function buildSkills(): AgentSkill[] {
     return [
       {
         ...base,
-        id: `${seed.providerId}.capture-balance`,
+        id: `${provider.id}.capture-balance`,
         title: `Read your ${provider.displayName} balance (browser)`,
         mode: "browser" as const,
       },
       {
         ...base,
-        id: `${seed.providerId}.capture-balance.computer`,
+        id: `${provider.id}.capture-balance.computer`,
         title: `Read your ${provider.displayName} balance (computer use)`,
         mode: "computer" as const,
       },

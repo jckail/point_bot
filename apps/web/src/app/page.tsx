@@ -1,9 +1,9 @@
-import { Show, SignUpButton } from "@clerk/nextjs";
 import { PROVIDER_CATALOG } from "@pointup/core";
 import Link from "next/link";
 
 import { ProviderBadge } from "@/components/provider-badge";
 import { Sparkline } from "@/components/sparkline";
+import { isDevAuth } from "@/server/auth";
 
 const PREVIEW_BALANCES = [
   38200, 38200, 41450, 41450, 45900, 52300, 52300, 54800, 61250, 61250, 68400,
@@ -81,7 +81,11 @@ function Step({
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const ClerkHeroCta = isDevAuth()
+    ? null
+    : (await import("@/components/clerk-hero-cta")).ClerkHeroCta;
+
   return (
     <main>
       {/* Hero */}
@@ -104,21 +108,16 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex items-center gap-4">
-            <Show when="signed-out">
-              <SignUpButton mode="modal">
-                <button className="cursor-pointer rounded-full bg-brand px-8 py-3 font-semibold text-white shadow-xl shadow-brand/30 transition hover:bg-brand-strong">
-                  Start tracking free
-                </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
+            {ClerkHeroCta ? (
+              <ClerkHeroCta />
+            ) : (
               <Link
                 href="/dashboard"
                 className="rounded-full bg-brand px-8 py-3 font-semibold text-white no-underline shadow-xl shadow-brand/30 transition hover:bg-brand-strong"
               >
-                Open your dashboard
+                Open the dev dashboard
               </Link>
-            </Show>
+            )}
             <a
               href="https://github.com/jckail/pointup"
               target="_blank"

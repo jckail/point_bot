@@ -20,12 +20,15 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY . .
 
 # The Clerk publishable key is public by design but inlined at build time.
-ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+# Only needed when running with AUTH_PROVIDER=clerk; the dev stack leaves it empty.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=""
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
 ENV NEXT_TELEMETRY_DISABLED=1
-# Server env vars are provided at runtime (ECS injects them from Secrets
-# Manager), so skip validation during the image build.
+# Server env vars (including AUTH_PROVIDER) are provided at runtime (ECS
+# injects them from Secrets Manager, compose from the environment), so skip
+# validation during the image build. Validation + the dev-auth production
+# guard run at server boot (src/instrumentation.ts).
 RUN SKIP_ENV_VALIDATION=1 npm run build --workspace @pointup/web
 
 ##### RUNNER #####

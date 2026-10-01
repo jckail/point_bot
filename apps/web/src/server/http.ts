@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { type AccessTokenScope } from "@pointup/core";
 import {
   httpStatusForErrorCode,
@@ -7,6 +6,7 @@ import {
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
 import {
   RATE_LIMIT_POLICIES,
@@ -39,7 +39,7 @@ function errorResponse(
 
 export interface AuthOptions {
   /**
-   * Scope a personal access token must hold. Browser/Clerk sessions are
+   * Scope a personal access token must hold. Browser sessions (Clerk, or the fixed dev user in dev mode) are
    * trusted for every scope (the user is present); tokens are least-privilege.
    */
   readonly scope: AccessTokenScope;
@@ -62,7 +62,7 @@ async function resolvePrincipal(): Promise<Principal | null> {
       tokenId: principal.tokenId,
     };
   }
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   return userId ? { userId, scopes: "session" } : null;
 }
 

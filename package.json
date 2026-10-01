@@ -17,7 +17,12 @@
     "db:generate": "npm run db:generate --workspace @pointup/core",
     "db:migrate": "npm run db:migrate --workspace @pointup/core",
     "db:push": "npm run db:push --workspace @pointup/core",
-    "db:studio": "npm run db:studio --workspace @pointup/core"
+    "db:studio": "npm run db:studio --workspace @pointup/core",
+    "docker:up": "docker compose up --build -d",
+    "docker:up:pgbouncer": "APP_DATABASE_URL=postgresql://postgres:password@pgbouncer:6432/app docker compose --profile pgbouncer up --build -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v --remove-orphans && docker compose up --build -d",
+    "docker:smoke": "node scripts/docker-smoke.mjs"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

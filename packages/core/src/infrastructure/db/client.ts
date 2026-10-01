@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { sql } from "drizzle-orm";
 import postgres from "postgres";
 
 import * as schema from "./schema";
@@ -20,6 +21,9 @@ export function createDb(connectionString: string) {
  * Connection tuning derived from the URL, so the same code runs against local
  * Docker Postgres, AWS RDS, and Supabase without per-host configuration.
  *
+ * Transaction pooling (PgBouncer on its default port 6432, the Supabase pooler
+ * on 6543, or `?pgbouncer=true`) disables prepared statements.
+ *
  * Supabase specifics:
  * - Hosted databases require TLS.
  * - The transaction-mode pooler (port 6543) does not support prepared
@@ -39,7 +43,11 @@ export function postgresOptionsFor(
     url.hostname.endsWith(".supabase.com");
   const options: postgres.Options<Record<string, never>> = {};
   if (isSupabase && !url.searchParams.has("sslmode")) options.ssl = "require";
-  if (url.port === "6543" || url.searchParams.get("pgbouncer") === "true") {
+  if (
+    url.port === "6543" ||
+    url.port === "6432" ||
+    url.searchParams.get("pgbouncer") === "true"
+  ) {
     options.prepare = false;
   }
   return options;
@@ -62,4 +70,9 @@ export function composeDatabaseUrl(parts: DatabaseUrlParts): string {
   const user = encodeURIComponent(parts.user);
   const password = encodeURIComponent(parts.password);
   return `postgresql://${user}:${password}@${parts.host}:${parts.port ?? 5432}/${parts.database}`;
+}
+
+/** Readiness probe: resolves when the database answers a trivial query. */
+export async function pingDb(db: Database): Promise<void> {
+  await db.execute(sql`select 1`);
 }

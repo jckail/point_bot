@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { getSessionUserId } from "@/server/auth";
 import {
   DomainError,
   isScope,
@@ -24,7 +24,7 @@ export async function createAccessTokenAction(
   _previous: CreateTokenResult,
   formData: FormData,
 ): Promise<CreateTokenResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
 
   const scopes = formData.getAll("scopes").map(String).filter(isScope) as AccessTokenScope[];
@@ -47,7 +47,7 @@ export async function createAccessTokenAction(
 }
 
 export async function revokeAccessTokenAction(formData: FormData): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
   await getContainer().useCases.revokeAccessToken.execute(
     userId,
@@ -60,7 +60,7 @@ export async function grantConsentAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
   try {
     await getContainer().useCases.grantConsent.execute({
@@ -79,7 +79,7 @@ export async function grantConsentAction(
 }
 
 export async function revokeConsentAction(formData: FormData): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
   await getContainer().useCases.revokeConsent.execute(
     userId,
@@ -93,7 +93,7 @@ export async function resolveReviewAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
   const reviewId = String(formData.get("reviewId") ?? "");
   const decision = String(formData.get("decision") ?? "");

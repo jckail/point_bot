@@ -7,6 +7,7 @@ import {
   selectLlm,
   selectScraper,
   selectVault,
+  type AccessTokenRepository,
   type LoyaltyAccountRepository,
   type LoyaltyModule,
 } from "@pointup/core";
@@ -15,9 +16,13 @@ import type { WorkerEnv } from "./env";
 
 export interface WorkerContainer {
   accounts: LoyaltyAccountRepository;
+  accessTokens: AccessTokenRepository;
   useCases: Pick<
     LoyaltyModule,
-    "syncAllLoyaltyAccounts" | "buildPortfolioDigest" | "checkAwardWatches"
+    | "syncAllLoyaltyAccounts"
+    | "buildPortfolioDigest"
+    | "checkAwardWatches"
+    | "seedDemoPortfolio"
   >;
 }
 
@@ -36,10 +41,12 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
 
   return {
     accounts: repos.loyaltyAccounts,
+    accessTokens: repos.accessTokens,
     useCases: {
       syncAllLoyaltyAccounts: loyalty.syncAllLoyaltyAccounts,
       buildPortfolioDigest: loyalty.buildPortfolioDigest,
       checkAwardWatches: loyalty.checkAwardWatches,
+      seedDemoPortfolio: loyalty.seedDemoPortfolio,
     },
   };
 }

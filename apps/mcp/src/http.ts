@@ -30,7 +30,7 @@ export interface HttpServerOptions {
   readonly allowedOrigins?: readonly string[];
   /**
    * Allowed Host header values (hostname, port ignored) - DNS-rebinding defence.
-   * Default: loopback names only. "*" disables the check. /healthz is exempt
+   * Default: loopback names only. "*" disables the check. /healthz and /readyz are exempt
    * (load balancers probe by IP).
    */
   readonly allowedHosts?: readonly string[];
@@ -139,6 +139,20 @@ export function createHttpServer(options: HttpServerOptions): Server {
 
     if (url.pathname === "/healthz") {
       response.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+      return;
+    }
+
+    if (url.pathname === "/readyz") {
+      // Ready when the upstream PointUp API (and through it the database) is.
+      try {
+        const upstream = await (options.fetch ?? fetch)(`${baseUrl}/api/readyz`, {
+          signal: AbortSignal.timeout(3_000),
+        });
+        if (!upstream.ok) throw new Error(`upstream ${upstream.status}`);
+        response.writeHead(200, { "Content-Type": "text/plain" }).end("ready");
+      } catch {
+        response.writeHead(503, { "Content-Type": "text/plain" }).end("unavailable");
+      }
       return;
     }
 

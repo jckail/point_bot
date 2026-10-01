@@ -108,7 +108,7 @@ describe("request schema strictness", () => {
     for (const kind of PROVIDER_KINDS) {
       expect(providerKindSchema.safeParse(kind).success).toBe(true);
     }
-    expect(providerKindSchema.safeParse("cruise").success).toBe(false);
+    expect(providerKindSchema.safeParse("spaceship").success).toBe(false);
   });
 });
 

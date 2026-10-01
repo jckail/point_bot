@@ -186,6 +186,43 @@ jobs:
         working-directory: e2e
         run: npm test
 
+  docker:
+    name: Docker compose stack + smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate compose files (default + all profiles)
+        run: docker compose --profile pgbouncer --profile tools --profile bot config -q
+
+      # No secrets and no external accounts: AUTH_PROVIDER=dev, dev token from
+      # the compose defaults.
+      - name: Start the stack
+        run: docker compose up --build -d --wait --wait-timeout 300
+
+      - name: Smoke test (API, MCP over HTTP, consented write-back)
+        run: node scripts/docker-smoke.mjs
+
+      - name: Stack through PgBouncer (transaction pooling, prepare:false)
+        run: |
+          docker compose down -v --remove-orphans
+          APP_DATABASE_URL=postgresql://postgres:password@pgbouncer:6432/app \
+            docker compose --profile pgbouncer up --build -d --wait --wait-timeout 300
+          node scripts/docker-smoke.mjs
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --profile pgbouncer logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile pgbouncer down -v --remove-orphans
+
   audit:
     name: Dependency audit (report only)
     runs-on: ubuntu-latest

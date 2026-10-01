@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getSessionUserId } from "@/server/auth";
 import { LoyaltyAccountNotFoundError } from "@pointup/core";
 import { type Metadata } from "next";
 import Link from "next/link";
@@ -28,7 +28,7 @@ export default async function AccountDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) redirect("/");
 
   const { id } = await params;

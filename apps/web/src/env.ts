@@ -1,4 +1,9 @@
-import { composeDatabaseUrl } from "@pointup/core";
+import {
+  assertDevAuthAllowed,
+  composeDatabaseUrl,
+  DEFAULT_DEV_USER_ID,
+  parseAuthProvider,
+} from "@pointup/core";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
@@ -30,8 +35,17 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     DATABASE_URL: z.url(),
-    // Clerk user management (https://clerk.com).
-    CLERK_SECRET_KEY: z.string().min(1),
+    // "clerk" (default, production) or "dev": no sign-in, one fixed seeded
+    // user. Dev mode is local-only; see assertDevAuthAllowed for the boot guard.
+    AUTH_PROVIDER: z.enum(["clerk", "dev"]).default("clerk"),
+    DEV_USER_ID: z.string().min(1).default(DEFAULT_DEV_USER_ID),
+    // Comma-separated Host names that may use the dev session.
+    DEV_AUTH_ALLOWED_HOSTS: z.string().min(1).optional(),
+    ALLOW_INSECURE_DEV_AUTH: z.string().optional(),
+    DEV_AUTH_HOST_IS_LOOPBACK_ONLY: z.string().optional(),
+    // Clerk user management (https://clerk.com). Required only when
+    // AUTH_PROVIDER=clerk (checked below).
+    CLERK_SECRET_KEY: z.string().min(1).optional(),
     // Optional server-side credential vault (1Password Connect).
     OP_CONNECT_HOST: z.url().optional(),
     OP_CONNECT_TOKEN: z.string().min(1).optional(),
@@ -58,11 +72,16 @@ export const env = createEnv({
     FX_API_URL: z.url().optional(),
   },
   client: {
-    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1).optional(),
   },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: getDatabaseUrl(),
+    AUTH_PROVIDER: process.env.AUTH_PROVIDER,
+    DEV_USER_ID: process.env.DEV_USER_ID,
+    DEV_AUTH_ALLOWED_HOSTS: process.env.DEV_AUTH_ALLOWED_HOSTS,
+    ALLOW_INSECURE_DEV_AUTH: process.env.ALLOW_INSECURE_DEV_AUTH,
+    DEV_AUTH_HOST_IS_LOOPBACK_ONLY: process.env.DEV_AUTH_HOST_IS_LOOPBACK_ONLY,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
@@ -83,3 +102,33 @@ export const env = createEnv({
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
 });
+
+/**
+ * Cross-field auth rules that a per-variable schema cannot express. Runs at
+ * boot (via instrumentation.ts and next.config.ts), so a misconfigured
+ * production deploy refuses to start instead of failing per request.
+ * Skipped with the rest of validation during image builds.
+ */
+if (!process.env.SKIP_ENV_VALIDATION) {
+  const provider = parseAuthProvider(process.env.AUTH_PROVIDER);
+  assertDevAuthAllowed({
+    provider,
+    nodeEnv: env.NODE_ENV,
+    allowInsecureDevAuth: env.ALLOW_INSECURE_DEV_AUTH,
+    bindHost: process.env.HOSTNAME,
+    loopbackOnlyAttested: env.DEV_AUTH_HOST_IS_LOOPBACK_ONLY,
+  });
+  if (provider === "clerk") {
+    const missing = [
+      ["CLERK_SECRET_KEY", env.CLERK_SECRET_KEY],
+      ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY],
+    ]
+      .filter(([, value]) => !value)
+      .map(([name]) => name);
+    if (missing.length > 0) {
+      throw new Error(
+        `AUTH_PROVIDER=clerk requires ${missing.join(", ")} (or set AUTH_PROVIDER=dev for local development)`,
+      );
+    }
+  }
+}

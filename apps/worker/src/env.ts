@@ -26,6 +26,26 @@ function getDatabaseUrl(): string | undefined {
 const envSchema = z.object({
   DATABASE_URL: z.url(),
 
+  NODE_ENV: z.string().optional(),
+
+  /**
+   * Bootstrap job (local stack only). AUTH_PROVIDER=dev enables demo seeding
+   * and dev-token minting; the same production guard as the web app applies.
+   */
+  AUTH_PROVIDER: z.enum(["clerk", "dev"]).default("clerk"),
+  DEV_USER_ID: z.string().min(1).default("dev-user"),
+  ALLOW_INSECURE_DEV_AUTH: z.string().optional(),
+  DEV_AUTH_HOST_IS_LOOPBACK_ONLY: z.string().optional(),
+  /** Deterministic personal access token to mint for the dev user (pu_...). */
+  POINTUP_DEV_TOKEN: z.string().min(1).optional(),
+  /** Public URLs printed in the connection snippets. */
+  PUBLIC_WEB_URL: z.url().default("http://localhost:3000"),
+  PUBLIC_MCP_URL: z.url().default("http://localhost:8787/mcp"),
+
+  /** `loop` job cadence (minutes between syncs / digests). */
+  WORKER_SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(360),
+  WORKER_DIGEST_INTERVAL_MINUTES: z.coerce.number().positive().default(10080),
+
   /**
    * Email delivery backend:
    * - "ses": AWS SES (task role must allow ses:SendEmail)

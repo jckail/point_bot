@@ -1,6 +1,8 @@
 import { createContainer } from "./container";
 import { loadEnv } from "./env";
 import { checkWatches } from "./jobs/check-watches";
+import { bootstrap } from "./jobs/bootstrap";
+import { minutes, runLoop } from "./jobs/loop";
 import { runMigrations } from "./jobs/migrate";
 import { sendAlerts } from "./jobs/send-alerts";
 import { sendDigests } from "./jobs/send-digests";
@@ -9,7 +11,15 @@ import { createMailer } from "./mailers";
 import { createNotifier } from "./notifiers";
 import { createUserDirectory } from "./user-directory";
 
-const JOBS = ["sync", "digest", "alerts", "watch", "migrate"] as const;
+const JOBS = [
+  "sync",
+  "digest",
+  "alerts",
+  "watch",
+  "migrate",
+  "bootstrap",
+  "loop",
+] as const;
 type Job = (typeof JOBS)[number];
 
 async function main(): Promise<void> {
@@ -27,7 +37,33 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (job === "bootstrap") {
+    await bootstrap(env, () => createContainer(env));
+    return;
+  }
+
   const container = createContainer(env);
+  if (job === "loop") {
+    await runLoop([
+      {
+        name: "sync",
+        everyMs: minutes(env, "WORKER_SYNC_INTERVAL_MINUTES"),
+        run: () => syncAllUsers(container),
+      },
+      {
+        name: "digest",
+        everyMs: minutes(env, "WORKER_DIGEST_INTERVAL_MINUTES"),
+        run: () =>
+          sendDigests(
+            container,
+            createUserDirectory(env),
+            createMailer(env),
+            createNotifier(env),
+          ),
+      },
+    ]);
+    return;
+  }
   if (job === "sync") {
     await syncAllUsers(container);
   } else if (job === "watch") {

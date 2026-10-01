@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { getSessionUserId } from "@/server/auth";
 import { DomainError } from "@pointup/core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -42,7 +42,7 @@ export async function linkLoyaltyAccountAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const result = await toActionResult(async () => {
@@ -60,7 +60,7 @@ export async function linkLoyaltyAccountAction(
 export async function syncLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -82,7 +82,7 @@ export async function syncLoyaltyAccountAction(
 }
 
 export async function syncAllLoyaltyAccountsAction(): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
@@ -93,7 +93,7 @@ export async function recordManualBalanceAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -126,7 +126,7 @@ export async function updateMembershipNumberAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -147,7 +147,7 @@ export async function updateMembershipNumberAction(
 export async function unlinkLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
@@ -171,7 +171,7 @@ export async function createTripGoalAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountIds = formData
@@ -198,7 +198,7 @@ export async function createTripGoalAction(
 export async function deleteTripGoalAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
@@ -221,7 +221,7 @@ export async function importPortfolioAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const result = await toActionResult(async () => {
@@ -236,7 +236,7 @@ export async function importPortfolioAction(
 }
 
 export async function seedDemoPortfolioAction(): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
@@ -255,7 +255,7 @@ export async function seedDemoPortfolioAction(): Promise<void> {
 export async function togglePinAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -283,7 +283,7 @@ export async function updateAccountNotesAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -313,7 +313,7 @@ export async function updateAccountNotesAction(
 export async function restoreLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
@@ -336,7 +336,7 @@ export async function createPortfolioShareAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const label = String(formData.get("label") ?? "").trim();
@@ -361,7 +361,7 @@ export async function createPortfolioShareAction(
 export async function revokePortfolioShareAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {

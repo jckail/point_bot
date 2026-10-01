@@ -26,12 +26,12 @@ describe("transfer partner graph", () => {
     expect(options.length).toBeGreaterThan(0);
 
     const hyatt = options.find((o) => o.to.id === "hyatt");
-    const hilton = options.find((o) => o.to.id === "hilton");
+    const marriott = options.find((o) => o.to.id === "marriott");
     expect(hyatt).toBeDefined();
-    expect(hilton).toBeDefined();
+    expect(marriott).toBeDefined();
     expect(hyatt!.bonusMultiplier).toBeGreaterThan(1);
     expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
-      hilton!.effectiveCentsPerPoint,
+      marriott!.effectiveCentsPerPoint,
     );
     // Highest editorial cpp partners should lead the list.
     expect(options[0]!.effectiveCentsPerPoint).toBeGreaterThanOrEqual(

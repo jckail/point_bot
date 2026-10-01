@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getSessionUserId } from "@/server/auth";
 import { PROVIDER_CATALOG, reviewExpiresAt } from "@pointup/core";
 import { type Metadata } from "next";
 import Link from "next/link";
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Agents" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentsPage() {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) redirect("/");
 
   const { listAccessTokens, listConsents, listAgentObservations } =

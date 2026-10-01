@@ -1,93 +1,200 @@
+# One-command local stack - no external accounts (no Clerk, no AWS):
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000/dashboard (no sign-in; fixed dev user).
+# The `bootstrap` job prints copy-paste MCP / Claude / ChatGPT snippets:
+#   docker compose logs bootstrap
+#
+# Everything is configured through environment variables with local defaults;
+# copy .env.docker.example to .env to override. Ports are published on
+# 127.0.0.1 only: AUTH_PROVIDER=dev has no sign-in and must never be reachable
+# from other machines.
+#
+# Profiles:  tools      Adminer DB UI            http://localhost:8081
+#            pgbouncer  transaction pooling in front of db; point the app at it:
+#                         npm run docker:up:pgbouncer
+#            bot        Slack/Discord chat surface (apps/bot)
+
+name: pointup
+
+x-dev-auth: &dev-auth
+  AUTH_PROVIDER: ${AUTH_PROVIDER:-dev}
+  DEV_USER_ID: ${DEV_USER_ID:-dev-user}
+  # Needed because the images run with NODE_ENV=production. The stack is safe
+  # only because every published port is bound to 127.0.0.1 (see `ports`).
+  ALLOW_INSECURE_DEV_AUTH: ${ALLOW_INSECURE_DEV_AUTH:-true}
+  DEV_AUTH_HOST_IS_LOOPBACK_ONLY: ${DEV_AUTH_HOST_IS_LOOPBACK_ONLY:-true}
+
+x-db-direct: &db-direct postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-app}
+
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17.6-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # Transaction-mode pooler (profile `pgbouncer`). With APP_DATABASE_URL pointed
+  # at it, web/worker exercise the prepare:false path of createDb(). Migrations
+  # always use the direct db URL (they need a session-level advisory lock).
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    profiles: ["pgbouncer"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      DB_NAME: ${POSTGRES_DB:-app}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: "200"
+      DEFAULT_POOL_SIZE: "10"
+      LISTEN_PORT: "6432"
+    ports:
+      - "127.0.0.1:${PGBOUNCER_PORT:-6432}:6432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U postgres"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  # Open-source database admin UI: http://localhost:8081
-  # (server: db, user: postgres, password: password, database: app)
-  adminer:
-    image: adminer:latest
-    profiles: ["tools"]
-    restart: unless-stopped
-    depends_on:
-      - db
-    ports:
-      - "8081:8080"
-
-  app:
+  # One-shot: migrate, seed the dev user's demo portfolio, mint the dev token
+  # and print connection snippets. Idempotent; exits 0.
+  bootstrap:
     build:
       context: .
-      args:
-        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?set your Clerk publishable key}
-    profiles: ["app"]
+      dockerfile: Dockerfile.worker
+    command: ["bootstrap"]
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/app
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set your Clerk secret key}
+      <<: *dev-auth
+      DATABASE_URL: *db-direct
+      POINTUP_DEV_TOKEN: ${POINTUP_DEV_TOKEN:-pu_dev_local_only_0123456789abcdef0123456789abcdef}
+      PUBLIC_WEB_URL: http://localhost:${WEB_PORT:-3000}
+      PUBLIC_MCP_URL: http://localhost:${MCP_PORT:-8787}/mcp
+
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    environment:
+      <<: *dev-auth
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-app}}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+      NEXT_PUBLIC_MCP_URL: http://localhost:${MCP_PORT:-8787}/mcp
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
 
   # Remote MCP server (streamable HTTP): http://localhost:8787/mcp
-  # Clients send `Authorization: Bearer pu_...`; create a token on /dashboard/agents.
+  # Clients send `Authorization: Bearer pu_...` (the dev token is in .env.docker.example).
   mcp:
     build:
       context: .
       dockerfile: Dockerfile.mcp
-    profiles: ["agents"]
-    environment:
-      POINTUP_URL: http://app:3000
-    ports:
-      - "8787:8787"
-
-  # Open-source email testing UI: http://localhost:8025 (SMTP on 1025).
-  # Digests sent by the worker land here instead of real inboxes.
-  mailpit:
-    image: axllent/mailpit:latest
-    profiles: ["tools"]
     restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      POINTUP_URL: http://web:3000
+      HOST: 0.0.0.0
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:${MCP_PORT:-8787}:8787"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8787/healthz >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  # Background jobs. Run on demand:
-  #   docker compose run --rm worker sync
-  #   docker compose run --rm worker digest
-  #   docker compose run --rm worker alerts
-  #   docker compose run --rm worker watch
+  # Background jobs. Runs the in-process scheduler (`loop`: balance sync every
+  # 6h, weekly digest). Run any job on demand instead:
+  #   docker compose run --rm worker sync | digest | alerts | watch
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    profiles: ["worker"]
+    command: ["loop"]
+    restart: unless-stopped
+    stop_grace_period: 30s
     depends_on:
-      db:
-        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/app
+      <<: *dev-auth
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-app}}
       MAILER: smtp
       SMTP_URL: smtp://mailpit:1025
       DIGEST_FROM_EMAIL: digest@pointup.local
-      # Without a Clerk key, digests go to this address via Mailpit.
+      # Without Clerk, digests go to this address, visible in Mailpit.
       DIGEST_RECIPIENT_OVERRIDE: dev@pointup.local
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
-      # Optional: also post the digest to chat.
+      WORKER_SYNC_INTERVAL_MINUTES: ${WORKER_SYNC_INTERVAL_MINUTES:-360}
+      WORKER_DIGEST_INTERVAL_MINUTES: ${WORKER_DIGEST_INTERVAL_MINUTES:-10080}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+
+  # Email testing UI: http://localhost:8025 (SMTP on 1025). Digests land here.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Open-source database admin UI: http://localhost:8081
+  # (server: db, user: postgres, password: password, database: app)
+  adminer:
+    image: adminer:5
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8080"
 
   # PointBot chat surface (Slack slash commands): http://localhost:8080
   #   docker compose --profile bot up bot
@@ -96,21 +203,22 @@ services:
       context: .
       dockerfile: Dockerfile.bot
     profiles: ["bot"]
+    restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://postgres:password@db:5432/app
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-app}}
       SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
       DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:-}
       DISCORD_APP_ID: ${DISCORD_APP_ID:-}
-      BOT_DEFAULT_USER_ID: ${BOT_DEFAULT_USER_ID:-}
+      BOT_DEFAULT_USER_ID: ${BOT_DEFAULT_USER_ID:-${DEV_USER_ID:-dev-user}}
       # Assistant provider (same vars as the web app); omit for heuristic replies.
       LLM_PROVIDER: ${LLM_PROVIDER:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
 volumes:
   db-data:

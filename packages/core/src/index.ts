@@ -11,6 +11,9 @@ export * from "./domain/loyalty/award-watch";
 export * from "./domain/fx";
 export * from "./domain/loyalty/user-settings";
 
+// Dev auth safety rules (shared by web + bootstrap)
+export * from "./dev-auth";
+
 // Agent bounded context
 export * from "./domain/agent/access-token";
 export * from "./domain/agent/consent";

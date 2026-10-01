@@ -220,14 +220,17 @@ describe("GrantConsent", () => {
 });
 
 describe("skill catalog", () => {
-  it("has a browser and computer skill per provider with https hosts", () => {
-    for (const provider of PROVIDER_CATALOG) {
+  it("has a browser and computer skill for every seeded provider, on https hosts", () => {
+    // Skills are optional per provider: a program without a confidently known
+    // login host gets none rather than a guessed URL.
+    expect(AGENT_SKILL_CATALOG.length).toBeGreaterThan(0);
+    for (const provider of PROVIDER_CATALOG.filter((p) => p.agentSkill)) {
       const skills = AGENT_SKILL_CATALOG.filter((s) => s.providerId === provider.id);
       expect(skills.map((s) => s.mode).sort()).toEqual(["browser", "computer"]);
       for (const skill of skills) {
         expect(skill.startUrl.startsWith("https://")).toBe(true);
         expect(new URL(skill.startUrl).hostname).toMatch(
-          new RegExp(`(^|\\.)(${skill.allowedHosts.map((h) => h.replace(".", "\\.")).join("|")})$`),
+          new RegExp(`(^|\\.)(${skill.allowedHosts.map((h) => h.replaceAll(".", "\\.")).join("|")})$`),
         );
       }
     }

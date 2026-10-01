@@ -22,6 +22,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 
 ## Documentation
 
+- [docs/local-development.md](./docs/local-development.md) — one-command Docker stack, dev auth mode, topology and how it scales later
 - [docs/agents.md](./docs/agents.md) — MCP server, Claude plugin, ChatGPT Action, consented browser/computer-use write-back, security model
 - [docs/supabase.md](./docs/supabase.md) — run on Supabase (pooler, TLS, RLS)
 - [docs/security-review.md](./docs/security-review.md) — adversarial security review of the agent surface (findings + proposed patches)
@@ -64,17 +65,39 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 └── docs/                     # Architecture and integration guides
 ```
 
-## Local development
+## Quick start (Docker, no accounts needed)
 
-Requirements: Node.js ≥ 20 and Docker (for the local database).
+Requirements: Docker with Compose v2. No Clerk keys, no AWS.
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:3000/dashboard> - there is no sign-in locally
+(`AUTH_PROVIDER=dev`: one fixed, seeded demo user). The stack runs Postgres,
+a one-shot migrate/seed job, the web app, the MCP server
+(<http://localhost:8787/mcp>), the worker and Mailpit (<http://localhost:8025>).
+`docker compose logs bootstrap` prints copy-paste MCP / Claude / ChatGPT
+connection snippets with a ready-made dev token. Verify everything end to end:
+
+```bash
+npm run docker:smoke
+```
+
+Other commands: `npm run docker:up | docker:down | docker:reset |
+docker:up:pgbouncer`. Topology, the dev-auth safety rules and how this scales
+later: [docs/local-development.md](./docs/local-development.md).
+
+## Native development
+
+Requirements: Node.js >= 20 and Postgres (Docker is the easy way).
 
 ```bash
 # 1. Install all workspaces
 npm install
 
-# 2. Configure environment
+# 2. Configure environment (.env-example sets AUTH_PROVIDER=dev: no Clerk keys needed)
 cp .env-example .env
-# Fill in your Clerk keys from https://dashboard.clerk.com (API keys)
 
 # 3. Start PostgreSQL
 docker compose up -d db
@@ -98,6 +121,7 @@ npm run dev
 | `npm run db:generate` | Generate a new SQL migration from schema changes         |
 | `npm run db:migrate`  | Apply pending migrations to `DATABASE_URL`               |
 | `npm run db:studio`   | Open Drizzle Studio to browse the database               |
+| `npm run docker:up` / `docker:down` / `docker:reset` / `docker:smoke` | Local Docker stack lifecycle and end-to-end smoke test |
 
 ### End-to-end smoke test
 

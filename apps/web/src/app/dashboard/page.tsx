@@ -1,4 +1,3 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
 import {
   computePortfolioSummary,
   PROVIDER_KINDS,
@@ -23,6 +22,7 @@ import { TripGoalsSection } from "@/components/trip-goals-section";
 import { ValueDealsSection } from "@/components/value-deals-section";
 import { Button } from "@/components/ui/button";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
+import { getSessionUser, getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
 import { toValueAdviceDto } from "@pointup/core/contracts";
 
@@ -34,14 +34,18 @@ const KIND_STAT_LABELS: Record<ProviderKind, string> = {
   hotel: "Hotel points",
   credit_card: "Credit card points",
   rail: "Rail points",
+  car_rental: "Car rental points",
+  cruise: "Cruise points",
+  rideshare: "Rideshare rewards",
+  dining: "Dining rewards",
   shopping: "Shopping rewards",
 };
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) redirect("/");
 
-  const user = await currentUser();
+  const user = await getSessionUser();
   const { useCases } = getContainer();
   const accounts = await useCases.listLoyaltyAccounts.execute(userId);
   const summary = computePortfolioSummary(accounts);
