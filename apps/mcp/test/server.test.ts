@@ -237,4 +237,86 @@ describe("pointup MCP server", () => {
     const prompt = await client.getPrompt({ name: "capture-balance", arguments: { providerId: "united" } });
     expect((prompt.messages[0]?.content as { text: string }).text).toContain("UNVERIFIED");
   });
+
+  describe("optimizer tools", () => {
+    const plan = {
+      goal: { kind: "hotel", targetProgramId: "hyatt", minValueCpp: null, quantity: null },
+      generatedAt: "2026-10-01T00:00:00.000Z",
+      activeBonusCount: 0,
+      plans: [],
+      expiringHoldings: [],
+      notes: ["No balances to optimize: link accounts and record balances first."],
+      availability: null,
+    };
+
+    it("registers the four tools with the right annotations and output schemas", async () => {
+      const { client } = await connect(() => ({ json: [] }));
+      const tools = (await client.listTools()).tools;
+      const by = (n: string) => tools.find((t) => t.name === n)!;
+      for (const n of ["pointup_plan_redemption", "pointup_list_sweet_spots", "pointup_list_transfer_bonuses"]) {
+        expect(by(n).annotations?.readOnlyHint, n).toBe(true);
+        expect(by(n).outputSchema, n).toBeDefined();
+      }
+      expect(by("pointup_record_transfer_bonus").annotations?.readOnlyHint).toBe(false);
+      expect(by("pointup_record_transfer_bonus").annotations?.destructiveHint).toBe(false);
+      expect(by("pointup_plan_redemption").description).toMatch(/NOT verified/);
+      const prompts = (await client.listPrompts()).prompts.map((p) => p.name);
+      expect(prompts).toContain("find-deals");
+    });
+
+    it("pointup_plan_redemption forwards the goal as a query and returns structured content", async () => {
+      const { client, calls } = await connect(() => ({ json: plan }));
+      const result = await client.callTool({
+        name: "pointup_plan_redemption",
+        arguments: { goalKind: "hotel", targetProgramId: "hyatt", quantity: 3 },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(calls[0]).toMatchObject({ method: "GET", auth: "Bearer pu_test" });
+      expect(calls[0]!.path).toBe("/api/v1/optimizer/plan?goalKind=hotel&targetProgramId=hyatt&quantity=3");
+      expect((result.structuredContent as { notes: string[] }).notes).toHaveLength(1);
+    });
+
+    it("lists sweet spots and bonuses (arrays wrapped as items)", async () => {
+      const spot = {
+        id: "s", programId: "hyatt", kind: "hotel", title: "t", description: "d", pointsCost: 8000,
+        pointsCostMin: 3500, pointsCostMax: 15000, unit: "night", cashValueCents: 17000,
+        estimatedCentsPerPoint: 2.13, cppBasis: "derived", constraints: ["c"], confidence: "medium",
+        lastReviewed: "2026-10-01", verified: false,
+      };
+      const a = await connect(() => ({ json: [spot] }));
+      const r1 = await a.client.callTool({ name: "pointup_list_sweet_spots", arguments: { kind: "hotel" } });
+      expect(a.calls[0]!.path).toBe("/api/v1/deals/sweet-spots?kind=hotel");
+      expect((r1.structuredContent as { items: unknown[] }).items).toHaveLength(1);
+      const b = await connect(() => ({ json: [] }));
+      const r2 = await b.client.callTool({ name: "pointup_list_transfer_bonuses", arguments: {} });
+      expect((r2.structuredContent as { items: unknown[] }).items).toEqual([]);
+    });
+
+    it("pointup_record_transfer_bonus posts the report and validates input first", async () => {
+      const bonus = {
+        id: "b", fromProviderId: "chase-ultimate-rewards", toProviderId: "hyatt", multiplierPermille: 1300,
+        bonusPercent: 30, startsAt: "2026-10-01T00:00:00.000Z", endsAt: "2026-10-31T00:00:00.000Z",
+        source: "user", sourceUrl: null, verifiedAt: null, createdAt: "2026-10-01T00:00:00.000Z",
+      };
+      const { client, calls } = await connect(() => ({ status: 201, json: bonus }));
+      const ok = await client.callTool({
+        name: "pointup_record_transfer_bonus",
+        arguments: {
+          fromProviderId: "chase-ultimate-rewards", toProviderId: "hyatt", bonusPercent: 30,
+          startsAt: "2026-10-01T00:00:00Z", endsAt: "2026-10-31T00:00:00Z",
+        },
+      });
+      expect(ok.isError).toBeFalsy();
+      expect(calls[0]).toMatchObject({ method: "POST", path: "/api/v1/transfer-bonuses" });
+      expect(calls[0]!.body).toMatchObject({ bonusPercent: 30 });
+      const bad = await client
+        .callTool({
+          name: "pointup_record_transfer_bonus",
+          arguments: { fromProviderId: "a", toProviderId: "b", bonusPercent: 500, startsAt: "x", endsAt: "y" },
+        })
+        .catch(() => ({ isError: true }));
+      expect(bad.isError).toBe(true);
+      expect(calls).toHaveLength(1);
+    });
+  });
 });

@@ -99,6 +99,13 @@
       "when": 1790891741406,
       "tag": "0013_domain_event_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790892735609,
+      "tag": "0014_transfer_bonus",
+      "breakpoints": true
     }
   ]
 }

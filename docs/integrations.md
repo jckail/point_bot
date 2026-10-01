@@ -154,4 +154,15 @@ interface PageScraper {
 
 ## Transfer graph & bang-for-buck
 
-Editorial transfer edges live in `packages/core/src/domain/loyalty/transfer-partners.ts` (Chase/Amex/Cap One/Citi/Bilt → airline/hotel partners, plus demo bonus windows). `GetValueAdvice` ranks transfers by effective cents-per-point and scores curated + scraped deals against what the user holds. Dashboard: **Value & deals** + floating **Ask PointUp** assistant.
+Editorial transfer edges live in `packages/core/src/domain/loyalty/transfer-partners.ts` (Chase/Amex/Cap One/Citi/Bilt → airline/hotel partners, plus real, time-boxed **transfer bonuses** stored in the `transfer_bonus` table - empty by default, see [optimizer.md](optimizer.md)). `GetValueAdvice` ranks transfers by effective cents-per-point and scores curated + scraped deals against what the user holds. Dashboard: **Value & deals** + floating **Ask PointUp** assistant.
+
+## Award availability (`AwardAvailabilitySource`)
+
+The redemption optimizer attaches real award space to flight plans only through this port (`searchAwards(origin, destination, dateFrom, dateTo, cabin)`):
+
+| Adapter | When |
+| --- | --- |
+| `HttpAwardAvailabilitySource` | `AWARD_SEARCH_API_URL` **and** `AWARD_SEARCH_API_KEY` set |
+| `StubAwardAvailabilitySource` | Otherwise - returns `status: "not_configured"` and no options |
+
+HTTP contract (our own; put a gateway in front of your data vendor): `GET {AWARD_SEARCH_API_URL}/awards?origin=&destination=&from=&to=&cabin=` with `Authorization: Bearer <key>`, returning `{ "options": [{ "program", "carrier?", "date", "cabin", "points", "taxes_cents?", "seats?" }] }`. Failures never throw; they surface as `status: "error"`. See [optimizer.md](optimizer.md).

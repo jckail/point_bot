@@ -197,6 +197,9 @@ All surfaces speak the same versioned API; shapes are defined in `@pointup/core/
 | `POST /api/v1/loyalty-accounts/{id}/restore` | session | Undo an unlink |
 | `POST /api/v1/assistant/chat` | session | Grounded AI portfolio assistant |
 | `GET /api/v1/value-advice` | session | Transfer rankings + bang-for-buck deals |
+| `GET /api/v1/optimizer/plan` | session | Ranked redemption plans for your points (see docs/optimizer.md) |
+| `GET /api/v1/deals/sweet-spots` | session | Curated, unverified award sweet-spot catalog |
+| `GET` / `POST /api/v1/transfer-bonuses` | session | Active transfer bonuses (crowd/manual data) / report one |
 | `POST /api/v1/deals/scrape` | session | Scrape a deal URL and re-rank advice |
 | `GET /api/v1/activity` | session | Chronological activity feed |
 | `GET /api/v1/expiring` | session | Accounts expiring within N days (default 90) |

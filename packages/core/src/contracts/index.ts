@@ -27,6 +27,7 @@ import { PROVIDER_KINDS } from "../domain/loyalty/provider";
  */
 
 export * from "./agent";
+export * from "./optimizer";
 
 /** Strict ISO-8601 UTC timestamp, e.g. "2026-07-08T14:03:00.000Z". */
 export const isoDateTimeSchema = z.iso.datetime();
@@ -316,6 +317,8 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   INVALID_VALUATION: 422,
   INVALID_DISPLAY_CURRENCY: 422,
   INVALID_AWARD_WATCH: 422,
+  INVALID_TRANSFER_BONUS: 422,
+  INVALID_REDEMPTION_GOAL: 422,
   AWARD_WATCH_NOT_FOUND: 404,
   INVALID_BALANCE: 422,
   INVALID_CAPTURE_TIME: 422,

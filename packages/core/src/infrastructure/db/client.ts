@@ -11,10 +11,42 @@ export type Database = ReturnType<typeof createDb>;
  * the composition root of whichever process hosts the core (web app, worker,
  * migration task), keeping this package free of environment coupling.
  */
-export function createDb(connectionString: string) {
-  return drizzle(postgres(connectionString, postgresOptionsFor(connectionString)), {
-    schema,
-  });
+export function createDb(connectionString: string, pool: DbPoolOptions = {}) {
+  return drizzle(
+    postgres(connectionString, {
+      ...postgresOptionsFor(connectionString),
+      ...poolOptionsFor(pool),
+    }),
+    { schema },
+  );
+}
+
+/** Connection pool sizing; see docs/performance.md for how to choose. */
+export interface DbPoolOptions {
+  /** Max connections this process opens. Default 10 (postgres.js default). */
+  readonly max?: number;
+  /** Seconds an idle connection is kept before closing. Default 30. */
+  readonly idleTimeoutSeconds?: number;
+  /** Seconds to wait for a new connection. Default 10 (postgres.js: 30). */
+  readonly connectTimeoutSeconds?: number;
+}
+
+/**
+ * Defaults differ from postgres.js in two deliberate ways: idle connections
+ * close after 30s (the library keeps them forever, which pins server slots on
+ * scaled-out-then-idle instances and fights PgBouncer/RDS Proxy), and a dead
+ * database fails a request after 10s instead of 30s.
+ */
+export function poolOptionsFor(
+  pool: DbPoolOptions,
+): postgres.Options<Record<string, never>> {
+  const positive = (n: number | undefined, fallback: number) =>
+    n !== undefined && Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  return {
+    max: positive(pool.max, 10),
+    idle_timeout: positive(pool.idleTimeoutSeconds, 30),
+    connect_timeout: positive(pool.connectTimeoutSeconds, 10),
+  };
 }
 
 /**

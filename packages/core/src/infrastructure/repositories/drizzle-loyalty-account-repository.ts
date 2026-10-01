@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
@@ -13,7 +13,6 @@ import type {
 } from "../../domain/loyalty/repositories";
 import type { ActivityEvent } from "../../domain/loyalty/activity";
 import type { PortfolioShare } from "../../domain/loyalty/portfolio-share";
-import { buildTrendContext } from "../../application/loyalty/balance-trend";
 import type { Database } from "../db/client";
 import {
   accountTags,
@@ -70,6 +69,45 @@ function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
     source: row.source,
     capturedAt: row.capturedAt,
   };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface LateralSnapshotRow extends Record<string, unknown> {
+  kind: string;
+  account_id: string;
+  id: string;
+  points: number | string;
+  source: BalanceSnapshot["source"];
+  /** ISO-8601 UTC with millisecond precision (see `snapshotColumns`). */
+  captured_at: string;
+}
+
+/**
+ * Selected columns for raw snapshot SQL. `captured_at` is rendered as an ISO
+ * string server-side so parsing never depends on the driver's date parsers
+ * (Drizzle swaps them for pass-through strings).
+ */
+const snapshotColumns = sql.raw(
+  `b.id, b.points, b.source, to_char(b.captured_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as captured_at`,
+);
+
+function fromLateralRow(row: LateralSnapshotRow): BalanceSnapshot {
+  return {
+    id: row.id,
+    loyaltyAccountId: row.account_id,
+    points: Number(row.points),
+    source: row.source,
+    capturedAt: new Date(row.captured_at),
+  };
+}
+
+/** `ARRAY['a','b']::text[]` with every id bound as a parameter. */
+function textArray(values: readonly string[]) {
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )}]::text[]`;
 }
 
 /** A Drizzle handle or an open transaction on it. */
@@ -221,22 +259,22 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   ): Promise<Map<string, BalanceSnapshot>> {
     if (accountIds.length === 0) return new Map();
 
-    // DISTINCT ON picks one row per account server-side (newest first via the
-    // order by), instead of shipping every snapshot to the app and reducing
-    // in JS. Served by the (loyalty_account_id, captured_at) index.
-    const rows = await this.db
-      .selectDistinctOn([balanceSnapshots.loyaltyAccountId])
-      .from(balanceSnapshots)
-      .where(inArray(balanceSnapshots.loyaltyAccountId, [...accountIds]))
-      .orderBy(
-        balanceSnapshots.loyaltyAccountId,
-        desc(balanceSnapshots.capturedAt),
-        // Tie-break equal timestamps deterministically.
-        sql`${balanceSnapshots.id} DESC`,
-      );
-
+    // One index probe per account (newest row of
+    // balance_snapshot_account_captured_idx) instead of DISTINCT ON over every
+    // snapshot of every requested account: cost is O(accounts), not
+    // O(snapshots). Ties on captured_at break on id, newest first.
+    const rows = await this.db.execute<LateralSnapshotRow>(sql`
+      select 'latest' as kind, a.id as account_id, s.*
+      from unnest(${textArray(accountIds)}) as a(id)
+      cross join lateral (
+        select ${snapshotColumns} from balance_snapshot b
+        where b.loyalty_account_id = a.id
+        order by b.captured_at desc, b.id desc
+        limit 1
+      ) s
+    `);
     return new Map(
-      rows.map((row) => [row.loyaltyAccountId, toBalanceSnapshot(row)]),
+      [...rows].map((row) => [row.account_id, fromLateralRow(row)]),
     );
   }
 
@@ -246,23 +284,45 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   ): Promise<Map<string, BalanceTrendContext>> {
     if (accountIds.length === 0) return new Map();
 
-    // Load history for the requested accounts (newest first) and reduce in
-    // the application layer. Typical portfolios are small; the
-    // (loyalty_account_id, captured_at) index keeps this cheap.
-    const rows = await this.db.query.balanceSnapshots.findMany({
-      where: inArray(balanceSnapshots.loyaltyAccountId, [...accountIds]),
-      orderBy: (table, { desc: d }) => [d(table.capturedAt)],
-    });
+    // Fetch only the four rows each trend needs (latest, previous, newest at
+    // or before 30 days ago, newest at or before 90 days ago) with index
+    // probes per account, rather than the full history (50-200+ rows per
+    // account) which was then reduced in JS. Result size is <= 4 rows per
+    // account regardless of history length.
+    const cutoff30 = new Date(now.getTime() - 30 * DAY_MS).toISOString();
+    const cutoff90 = new Date(now.getTime() - 90 * DAY_MS).toISOString();
+    const probe = (kind: string, where: ReturnType<typeof sql>, offset = 0) => sql`(
+      select ${sql.raw(`'${kind}'`)} as kind, ${snapshotColumns} from balance_snapshot b
+      where b.loyalty_account_id = a.id ${where}
+      order by b.captured_at desc, b.id desc
+      limit 1 offset ${sql.raw(String(offset))}
+    )`;
+    const rows = await this.db.execute<LateralSnapshotRow>(sql`
+      select s.kind, a.id as account_id, s.id, s.points, s.source, s.captured_at
+      from unnest(${textArray(accountIds)}) as a(id)
+      cross join lateral (
+        ${probe("latest", sql``)}
+        union all ${probe("previous", sql``, 1)}
+        union all ${probe("d30", sql`and b.captured_at <= ${cutoff30}::timestamptz`)}
+        union all ${probe("d90", sql`and b.captured_at <= ${cutoff90}::timestamptz`)}
+      ) s
+    `);
 
-    const byAccount = new Map<string, BalanceSnapshot[]>();
-    for (const id of accountIds) byAccount.set(id, []);
+    const slots = new Map<string, Record<string, BalanceSnapshot>>();
     for (const row of rows) {
-      byAccount.get(row.loyaltyAccountId)?.push(toBalanceSnapshot(row));
+      let slot = slots.get(row.account_id);
+      if (!slot) slots.set(row.account_id, (slot = {}));
+      slot[row.kind] = fromLateralRow(row);
     }
-
     const result = new Map<string, BalanceTrendContext>();
-    for (const [accountId, snapshots] of byAccount) {
-      result.set(accountId, buildTrendContext(snapshots, now));
+    for (const accountId of accountIds) {
+      const slot = slots.get(accountId) ?? {};
+      result.set(accountId, {
+        latest: slot.latest ?? null,
+        previous: slot.previous ?? null,
+        asOf30Days: slot.d30 ?? null,
+        asOf90Days: slot.d90 ?? null,
+      });
     }
     return result;
   }
@@ -273,7 +333,7 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   ): Promise<BalanceSnapshot[]> {
     const rows = await this.db.query.balanceSnapshots.findMany({
       where: eq(balanceSnapshots.loyaltyAccountId, accountId),
-      orderBy: (table, { desc }) => [desc(table.capturedAt)],
+      orderBy: (table, { desc: d }) => [d(table.capturedAt)],
       limit,
     });
     return rows.map(toBalanceSnapshot);

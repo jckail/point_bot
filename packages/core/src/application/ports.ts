@@ -1,3 +1,7 @@
+import type {
+  AwardSearchQuery,
+  AwardSearchResult,
+} from "../domain/loyalty/award-availability";
 import type { LoyaltyAccount } from "../domain/loyalty/loyalty-account";
 
 /**
@@ -136,4 +140,16 @@ export interface ScrapedPage {
  */
 export interface PageScraper {
   scrape(url: string): Promise<ScrapedPage>;
+}
+
+// ─── Award availability ────────────────────────────────────────────────────
+
+/**
+ * Searches live award space. Implementations never throw: a missing
+ * configuration yields `status: "not_configured"` and a failing backend
+ * yields `status: "error"`, both with no options, so callers can only ever
+ * show availability that a source really returned.
+ */
+export interface AwardAvailabilitySource {
+  searchAwards(query: AwardSearchQuery): Promise<AwardSearchResult>;
 }

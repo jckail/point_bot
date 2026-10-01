@@ -51,6 +51,7 @@ resolves it from your current directory, not the plugin's.)
 | `skills/portfolio-review` | Totals, trends, expiring points, goals, top actions |
 | `skills/capture-balance` | Consent-gated browser/computer-use capture + write-back |
 | `skills/expiry-rescue` | Keep expiring points alive cheaply |
-| `skills/plan-redemption` | Trip planning against balances and transfer partners |
+| `skills/plan-redemption` | Ranked redemption plans (`pointup_plan_redemption`): transfers, bonuses, sweet spots, shortfalls |
+| `skills/find-deals` | Transfer bonuses + sweet spots + best plans, with honest caveats |
 | `agents/balance-collector` | Sequential multi-program capture |
 | `/pointup:balances`, `/pointup:capture <provider\|all>` | Shortcuts (commands are namespaced by the plugin name) |

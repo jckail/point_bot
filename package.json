@@ -26,6 +26,7 @@
     "docker:smoke": "node scripts/docker-smoke.mjs"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.10",
     "typescript": "^5.9.0"

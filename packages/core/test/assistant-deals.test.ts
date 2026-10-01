@@ -11,6 +11,7 @@ import {
   rankTransferOptions,
 } from "../src/domain/loyalty/transfer-partners";
 import { rankDeals, CATALOG_DEALS } from "../src/domain/loyalty/deals";
+import { createTransferBonus } from "../src/domain/loyalty/transfer-bonus";
 import { createBalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import {
@@ -21,22 +22,57 @@ import {
 import type { LlmAssistant } from "../src/application/ports";
 
 describe("transfer partner graph", () => {
-  it("applies Hyatt bonus and ranks partners by effective cpp", () => {
+  const now = new Date("2026-10-15T00:00:00Z");
+  const hyattBonus = createTransferBonus({
+    id: "b1",
+    fromProviderId: "chase-ultimate-rewards",
+    toProviderId: "hyatt",
+    multiplierPermille: 1300,
+    startsAt: new Date("2026-10-01T00:00:00Z"),
+    endsAt: new Date("2026-10-31T00:00:00Z"),
+    source: "manual",
+    now,
+  });
+
+  it("shows no bonus by default (nothing is invented)", () => {
     const options = rankTransferOptions("chase-ultimate-rewards", 100_000);
     expect(options.length).toBeGreaterThan(0);
+    for (const option of options) {
+      expect(option.bonusMultiplier).toBe(1);
+      expect(option.bonusLabel).toBeNull();
+    }
+  });
 
+  it("applies an injected Hyatt bonus and ranks partners by effective cpp", () => {
+    const options = rankTransferOptions(
+      "chase-ultimate-rewards",
+      100_000,
+      [hyattBonus],
+      now,
+    );
     const hyatt = options.find((o) => o.to.id === "hyatt");
     const marriott = options.find((o) => o.to.id === "marriott");
     expect(hyatt).toBeDefined();
     expect(marriott).toBeDefined();
-    expect(hyatt!.bonusMultiplier).toBeGreaterThan(1);
+    expect(hyatt!.bonusMultiplier).toBe(1.3);
+    expect(hyatt!.destinationPoints).toBe(130_000);
+    expect(hyatt!.bonusLabel).toBe("+30% bonus until 2026-10-31");
     expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
       marriott!.effectiveCentsPerPoint,
     );
-    // Highest editorial cpp partners should lead the list.
     expect(options[0]!.effectiveCentsPerPoint).toBeGreaterThanOrEqual(
       options[options.length - 1]!.effectiveCentsPerPoint,
     );
+  });
+
+  it("ignores bonuses outside their window", () => {
+    const options = rankTransferOptions(
+      "chase-ultimate-rewards",
+      100_000,
+      [hyattBonus],
+      new Date("2026-11-15T00:00:00Z"),
+    );
+    expect(options.find((o) => o.to.id === "hyatt")!.bonusMultiplier).toBe(1);
   });
 });
 

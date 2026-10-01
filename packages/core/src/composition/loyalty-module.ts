@@ -30,6 +30,14 @@ import { IngestDealPage } from "../application/loyalty/ingest-deal-page";
 import { LinkLoyaltyAccount } from "../application/loyalty/link-loyalty-account";
 import { ListActivity } from "../application/loyalty/list-activity";
 import { ListExpiringAccounts } from "../application/loyalty/list-expiring-accounts";
+import {
+  ListBestRedemptions,
+  PlanRedemption,
+} from "../application/loyalty/plan-redemption";
+import {
+  ListActiveTransferBonuses,
+  RecordTransferBonus,
+} from "../application/loyalty/transfer-bonuses";
 import { ListLoyaltyAccounts } from "../application/loyalty/list-loyalty-accounts";
 import { ListProviders } from "../application/loyalty/list-providers";
 import { ListTripGoals } from "../application/loyalty/list-trip-goals";
@@ -56,12 +64,15 @@ import {
   DeleteTripGoal,
 } from "../application/loyalty/update-trip-goal";
 import type {
+  AwardAvailabilitySource,
   CredentialVault,
   LlmAssistant,
   PageScraper,
   TravelProviderGateway,
 } from "../application/ports";
+import type { Cache } from "../application/cache";
 import type { FxRateSource } from "../domain/fx";
+import { StubAwardAvailabilitySource } from "../infrastructure/award-search/award-availability-sources";
 import type { Repositories } from "./repositories";
 
 /** External ports the loyalty context needs beyond persistence. */
@@ -72,6 +83,16 @@ export interface LoyaltyModuleDeps {
   fx: FxRateSource;
   scraper: PageScraper;
   llm: LlmAssistant;
+  /** Optional: defaults to a stub that reports "not configured". */
+  awardAvailability?: AwardAvailabilitySource;
+  /**
+   * Optional read-through cache for the accounts read model (which summary,
+   * expiring, digest and advice all derive from). The host must invalidate
+   * `userCacheTag(userId)` after writes; see apps/web/src/server/read-cache.ts.
+   */
+  cache?: Cache;
+  /** Staleness bound for cross-process writes when `cache` is set (ms). */
+  cacheTtlMs?: number;
 }
 
 /**
@@ -80,7 +101,9 @@ export interface LoyaltyModuleDeps {
  * tests) supplies its own adapters and shares this graph.
  */
 export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
-  const { repos, gateway, vault, fx, scraper, llm } = deps;
+  const { repos, gateway, vault, fx, scraper, llm, cache, cacheTtlMs } = deps;
+  const awardAvailability =
+    deps.awardAvailability ?? new StubAwardAvailabilitySource();
   const eventing = repos.eventing;
   const {
     loyaltyAccounts,
@@ -90,6 +113,7 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     shares,
     customValuations,
     awardWatches,
+    transferBonuses,
     settings,
   } = repos;
 
@@ -107,6 +131,8 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     balanceSnapshots,
     undefined,
     customValuations,
+    cache,
+    cacheTtlMs,
   );
   const linkLoyaltyAccount = new LinkLoyaltyAccount(
     loyaltyAccounts,
@@ -136,6 +162,12 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
   );
   const listTripGoals = new ListTripGoals(tripGoals, balanceSnapshots);
   const ingestDealPage = new IngestDealPage(scraper);
+  const listActiveTransferBonuses = new ListActiveTransferBonuses(transferBonuses);
+  const planRedemption = new PlanRedemption(
+    listLoyaltyAccounts,
+    listActiveTransferBonuses,
+    awardAvailability,
+  );
 
   return {
     listProviders: new ListProviders(),
@@ -203,8 +235,20 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
       listLoyaltyAccounts,
       listTripGoals,
       llm,
+      listActiveTransferBonuses,
     ),
-    getValueAdvice: new GetValueAdvice(listLoyaltyAccounts),
+    getValueAdvice: new GetValueAdvice(
+      listLoyaltyAccounts,
+      listActiveTransferBonuses,
+    ),
+    listActiveTransferBonuses,
+    recordTransferBonus: new RecordTransferBonus(
+      transferBonuses,
+      undefined,
+      eventing,
+    ),
+    planRedemption,
+    listBestRedemptions: new ListBestRedemptions(planRedemption),
     listCustomValuations: new ListCustomValuations(customValuations),
     createAwardWatch: new CreateAwardWatch(awardWatches),
     listAwardWatches: new ListAwardWatches(awardWatches),

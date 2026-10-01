@@ -70,6 +70,10 @@ export const env = createEnv({
     // Optional FX API for display-currency conversion (frankfurter-style;
     // falls back to pinned static rates).
     FX_API_URL: z.url().optional(),
+    // Optional award-availability search (the optimizer attaches real award
+    // space to flight plans only when BOTH are set; otherwise it says so).
+    AWARD_SEARCH_API_URL: z.url().optional(),
+    AWARD_SEARCH_API_KEY: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1).optional(),
@@ -98,6 +102,8 @@ export const env = createEnv({
     AGGREGATOR_API_URL: process.env.AGGREGATOR_API_URL,
     AGGREGATOR_API_KEY: process.env.AGGREGATOR_API_KEY,
     FX_API_URL: process.env.FX_API_URL,
+    AWARD_SEARCH_API_URL: process.env.AWARD_SEARCH_API_URL,
+    AWARD_SEARCH_API_KEY: process.env.AWARD_SEARCH_API_KEY,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

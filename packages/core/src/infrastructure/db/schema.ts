@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
+  check,
   index,
   integer,
   jsonb,
@@ -362,5 +363,37 @@ export const domainEventOutbox = pgTable(
       .where(sql`${row.processedAt} is null and ${row.deadLetteredAt} is null`),
     index("domain_event_outbox_aggregate_idx").on(row.aggregateId),
     index("domain_event_outbox_user_idx").on(row.userId, row.occurredAt),
+  ],
+);
+
+// ─── Transfer bonuses ──────────────────────────────────────────────────────
+// Time-boxed bonus windows on a transfer-graph edge. Global (not per-user)
+// reference data: empty by default, filled by manual entry, scraping or
+// user reports. `multiplier_permille` is an integer (1300 = +30%).
+
+export const transferBonuses = pgTable(
+  "transfer_bonus",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    fromProviderId: varchar("from_provider_id", { length: 64 }).notNull(),
+    toProviderId: varchar("to_provider_id", { length: 64 }).notNull(),
+    multiplierPermille: integer("multiplier_permille").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** 'manual' | 'scraped' | 'user' (see TRANSFER_BONUS_SOURCES). */
+    source: varchar("source", { length: 16 }).notNull(),
+    sourceUrl: varchar("source_url", { length: 2048 }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdBy: varchar("created_by", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (bonus) => [
+    index("transfer_bonus_window_idx").on(bonus.endsAt, bonus.startsAt),
+    index("transfer_bonus_edge_idx").on(bonus.fromProviderId, bonus.toProviderId),
+    check(
+      "transfer_bonus_multiplier_range",
+      sql`${bonus.multiplierPermille} > 1000 and ${bonus.multiplierPermille} <= 3000`,
+    ),
+    check("transfer_bonus_window_order", sql`${bonus.endsAt} > ${bonus.startsAt}`),
   ],
 );

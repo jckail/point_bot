@@ -23,6 +23,7 @@ import {
   InMemoryLoyaltyAccountRepository,
   InMemoryPortfolioShareRepository,
   InMemoryTokens,
+  InMemoryTransferBonusRepository,
   InMemoryTripGoalRepository,
   InMemoryUserSettingsRepository,
   RecordingEventing,
@@ -38,6 +39,7 @@ function repos(): Repositories {
     shares: new InMemoryPortfolioShareRepository(),
     customValuations: new InMemoryCustomValuationRepository(),
     awardWatches: new InMemoryAwardWatchRepository(),
+    transferBonuses: new InMemoryTransferBonusRepository(),
     settings: new InMemoryUserSettingsRepository(),
     // Agent persistence is exercised in agent.test.ts; wiring only here.
     accessTokens: {} as Repositories["accessTokens"],

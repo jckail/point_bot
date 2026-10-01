@@ -97,8 +97,16 @@ function buildSkills(): AgentSkill[] {
 
 export const AGENT_SKILL_CATALOG: readonly AgentSkill[] = buildSkills();
 
+const SKILL_BY_ID: ReadonlyMap<string, AgentSkill> = (() => {
+  const index = new Map<string, AgentSkill>();
+  for (const skill of AGENT_SKILL_CATALOG) {
+    if (!index.has(skill.id)) index.set(skill.id, skill);
+  }
+  return index;
+})();
+
 export function findSkill(skillId: string): AgentSkill | undefined {
-  return AGENT_SKILL_CATALOG.find((skill) => skill.id === skillId);
+  return SKILL_BY_ID.get(skillId);
 }
 
 export function getSkillOrThrow(skillId: string): AgentSkill {

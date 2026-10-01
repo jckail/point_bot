@@ -11,6 +11,10 @@ import type {
   AwardWatchRepository,
 } from "../src/domain/loyalty/award-watch";
 import type {
+  TransferBonus,
+  TransferBonusRepository,
+} from "../src/domain/loyalty/transfer-bonus";
+import type {
   UserSettings,
   UserSettingsRepository,
 } from "../src/domain/loyalty/user-settings";
@@ -292,6 +296,24 @@ export class InMemoryAwardWatchRepository implements AwardWatchRepository {
 
   async delete(id: string): Promise<void> {
     this.rows.delete(id);
+  }
+}
+
+export class InMemoryTransferBonusRepository implements TransferBonusRepository {
+  readonly rows = new Map<string, TransferBonus>();
+
+  async insert(bonus: TransferBonus): Promise<void> {
+    this.rows.set(bonus.id, bonus);
+  }
+
+  async findActive(at: Date): Promise<TransferBonus[]> {
+    return [...this.rows.values()].filter(
+      (b) => b.startsAt.getTime() <= at.getTime() && b.endsAt.getTime() >= at.getTime(),
+    );
+  }
+
+  async findById(id: string): Promise<TransferBonus | null> {
+    return this.rows.get(id) ?? null;
   }
 }
 

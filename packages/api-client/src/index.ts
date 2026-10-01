@@ -40,6 +40,11 @@ import type {
   TripGoalDto,
   UpdateLoyaltyAccountRequest,
   UpdateTripGoalRequest,
+  PlanRedemptionQuery,
+  PlanRedemptionResultDto,
+  RecordTransferBonusRequest,
+  SweetSpotDto,
+  TransferBonusDto,
   ValueAdviceDto,
 } from "@pointup/core/contracts";
 
@@ -324,6 +329,35 @@ export class PointUpClient {
     return this.request("GET", "/api/v1/value-advice");
   }
 
+  /** Ranked redemption plans (optimizer). Estimates; see each plan's caveats. */
+  planRedemption(
+    query: Partial<Omit<PlanRedemptionQuery, never>> = {},
+  ): Promise<PlanRedemptionResultDto> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const qs = params.toString();
+    return this.request("GET", `/api/v1/optimizer/plan${qs ? `?${qs}` : ""}`);
+  }
+
+  listSweetSpots(filter: { kind?: string; programId?: string } = {}): Promise<SweetSpotDto[]> {
+    const params = new URLSearchParams();
+    if (filter.kind) params.set("kind", filter.kind);
+    if (filter.programId) params.set("programId", filter.programId);
+    const qs = params.toString();
+    return this.request("GET", `/api/v1/deals/sweet-spots${qs ? `?${qs}` : ""}`);
+  }
+
+  listTransferBonuses(): Promise<TransferBonusDto[]> {
+    return this.request("GET", "/api/v1/transfer-bonuses");
+  }
+
+  /** Report a transfer bonus (crowd data; stored unverified). Needs portfolio:write. */
+  recordTransferBonus(body: RecordTransferBonusRequest): Promise<TransferBonusDto> {
+    return this.request("POST", "/api/v1/transfer-bonuses", body);
+  }
+
   scrapeDeal(body: ScrapeDealRequest): Promise<{
     ingest: IngestDealPageResultDto;
     advice: ValueAdviceDto;
@@ -502,5 +536,10 @@ export type {
   TripGoalDto,
   UpdateLoyaltyAccountRequest,
   UpdateTripGoalRequest,
+  PlanRedemptionQuery,
+  PlanRedemptionResultDto,
+  RecordTransferBonusRequest,
+  SweetSpotDto,
+  TransferBonusDto,
   ValueAdviceDto,
 } from "@pointup/core/contracts";

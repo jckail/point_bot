@@ -3,6 +3,7 @@ import {
   buildDrizzleRepositories,
   buildLoyaltyModule,
   createDb,
+  selectAwardAvailability,
   selectFx,
   selectGateway,
   selectLlm,
@@ -15,6 +16,7 @@ import {
 } from "@pointup/core";
 
 import { env } from "@/env";
+import { getReadCache, invalidateOnWrite, readCacheTtlMs } from "@/server/read-cache";
 import { webObservability } from "@/server/observability";
 
 /**
@@ -30,7 +32,10 @@ export interface Container {
 
 function buildContainer(): Container {
   webObservability(); // configure telemetry before wrapping use cases
-  const db = createDb(env.DATABASE_URL);
+  const db = createDb(env.DATABASE_URL, {
+    max: Number(process.env.DB_POOL_MAX) || undefined,
+    idleTimeoutSeconds: Number(process.env.DB_IDLE_TIMEOUT_SECONDS) || undefined,
+  });
   const repos = buildDrizzleRepositories(db);
   const loyalty = buildLoyaltyModule({
     repos,
@@ -39,6 +44,9 @@ function buildContainer(): Container {
     fx: selectFx(env),
     scraper: selectScraper(env),
     llm: selectLlm(env),
+    cache: readCacheTtlMs() > 0 ? getReadCache() : undefined,
+    cacheTtlMs: readCacheTtlMs(),
+    awardAvailability: selectAwardAvailability(env),
   });
   const agent = buildAgentModule({
     repos,
@@ -46,7 +54,7 @@ function buildContainer(): Container {
     linkLoyaltyAccount: loyalty.linkLoyaltyAccount,
   });
 
-  return { db, useCases: tracedAll({ ...loyalty, ...agent }) };
+  return { db, useCases: tracedAll(invalidateOnWrite({ ...loyalty, ...agent }, getReadCache())) };
 }
 
 /** Cached across HMR reloads in development. */

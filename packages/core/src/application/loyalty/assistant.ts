@@ -3,6 +3,7 @@ import {
   InvalidAssistantMessageError,
 } from "../../domain/errors";
 import { rankTransferOptions } from "../../domain/loyalty/transfer-partners";
+import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
 import {
   CATALOG_DEALS,
   rankDeals,
@@ -17,6 +18,7 @@ import {
 } from "./get-portfolio-summary";
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { ListTripGoals } from "./list-trip-goals";
+import type { ListActiveTransferBonuses } from "./transfer-bonuses";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
 export interface AssistantPortfolioContext {
@@ -29,12 +31,13 @@ export interface AssistantPortfolioContext {
 
 function buildValueHints(
   accounts: readonly LoyaltyAccountReadModel[],
+  bonuses: readonly TransferBonus[],
 ): string[] {
   const hints: string[] = [];
   for (const account of accounts) {
     const points = account.latestBalance?.points ?? 0;
     if (points <= 0) continue;
-    const transfers = rankTransferOptions(account.provider.id, points).slice(
+    const transfers = rankTransferOptions(account.provider.id, points, bonuses).slice(
       0,
       2,
     );
@@ -50,12 +53,13 @@ function buildValueHints(
 export function assembleAssistantContext(
   accounts: readonly LoyaltyAccountReadModel[],
   goals: readonly TripGoalReadModel[],
+  bonuses: readonly TransferBonus[] = [],
 ): AssistantPortfolioContext {
   return {
     summary: computePortfolioSummary(accounts),
     accounts,
     goals: goals.filter((goal) => goal.status === "active"),
-    valueHints: buildValueHints(accounts),
+    valueHints: buildValueHints(accounts, bonuses),
   };
 }
 
@@ -115,6 +119,7 @@ export class ChatWithAssistant {
     private readonly listAccounts: ListLoyaltyAccounts,
     private readonly listGoals: ListTripGoals,
     private readonly llm: LlmAssistant,
+    private readonly bonuses?: ListActiveTransferBonuses,
   ) {}
 
   async execute(
@@ -125,11 +130,12 @@ export class ChatWithAssistant {
       throw new InvalidAssistantMessageError();
     }
 
-    const [accounts, goals] = await Promise.all([
+    const [accounts, goals, bonuses] = await Promise.all([
       this.listAccounts.execute(input.userId),
       this.listGoals.execute(input.userId),
+      this.bonuses?.execute(input.userId) ?? Promise.resolve([]),
     ]);
-    const context = assembleAssistantContext(accounts, goals);
+    const context = assembleAssistantContext(accounts, goals, bonuses);
     const history = (input.history ?? [])
       .filter((m) => m.role === "user" || m.role === "assistant")
       .slice(-8);
@@ -158,13 +164,19 @@ export interface ValueAdviceReadModel {
  * and scores curated (plus optional scraped) deals against what they hold.
  */
 export class GetValueAdvice {
-  constructor(private readonly listAccounts: ListLoyaltyAccounts) {}
+  constructor(
+    private readonly listAccounts: ListLoyaltyAccounts,
+    private readonly bonuses?: ListActiveTransferBonuses,
+  ) {}
 
   async execute(
     userId: string,
     extraDeals: readonly import("../../domain/loyalty/deals").DealCandidate[] = [],
   ): Promise<ValueAdviceReadModel> {
-    const accounts = await this.listAccounts.execute(userId);
+    const [accounts, bonuses] = await Promise.all([
+      this.listAccounts.execute(userId),
+      this.bonuses?.execute(userId) ?? Promise.resolve([]),
+    ]);
     const balances = new Map<string, number>();
     for (const account of accounts) {
       balances.set(account.provider.id, account.latestBalance?.points ?? 0);
@@ -175,6 +187,7 @@ export class GetValueAdvice {
         rankTransferOptions(
           account.provider.id,
           account.latestBalance?.points ?? 0,
+          bonuses,
         ).slice(0, 3),
       )
       .sort((a, b) => b.effectiveCentsPerPoint - a.effectiveCentsPerPoint)

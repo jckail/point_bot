@@ -1,0 +1,163 @@
+import type {
+  AwardSearchQuery,
+  AwardSearchResult,
+} from "../../domain/loyalty/award-availability";
+import {
+  assertValidGoal,
+  optimizeRedemptions,
+  type Holding,
+  type OptimizerResult,
+  type RedemptionGoal,
+  type RedemptionPlan,
+} from "../../domain/loyalty/optimizer";
+import type { SweetSpot } from "../../domain/loyalty/catalog/sweet-spots";
+import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
+import type { AwardAvailabilitySource, Clock } from "../ports";
+import { systemClock } from "../ports";
+import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
+import type { LoyaltyAccountReadModel } from "./read-models";
+import type { ListActiveTransferBonuses } from "./transfer-bonuses";
+
+export interface PlanRedemptionInput {
+  readonly userId: string;
+  readonly goal?: Partial<RedemptionGoal>;
+  /** When set (flight goals), real award space is searched and attached. */
+  readonly award?: AwardSearchQuery;
+  readonly maxPlans?: number;
+}
+
+export interface AvailabilityReport {
+  readonly status: AwardSearchResult["status"];
+  readonly checkedAt: string;
+  readonly message: string | null;
+}
+
+export interface PlanRedemptionResult extends OptimizerResult {
+  readonly goal: RedemptionGoal;
+  readonly generatedAt: string;
+  /** Bonuses that were active (and therefore considered) for this run. */
+  readonly activeBonusCount: number;
+  /** Null unless an award search was requested. */
+  readonly availability: AvailabilityReport | null;
+}
+
+/** Account read models -> optimizer holdings (custom valuation wins). */
+export function toHoldings(
+  accounts: readonly LoyaltyAccountReadModel[],
+): Holding[] {
+  return accounts.map((account) => ({
+    providerId: account.provider.id,
+    points: account.latestBalance?.points ?? 0,
+    centsPerPoint:
+      account.customCentsPerPoint ?? account.provider.estimatedCentsPerPoint,
+    daysUntilExpiry: account.daysUntilExpiry,
+  }));
+}
+
+/**
+ * "Find deals and optimally use my points": builds ranked redemption plans
+ * from the user's balances, active transfer bonuses and the sweet-spot
+ * catalog (see domain/loyalty/optimizer.ts). Real award availability is
+ * attached only when an award source is configured and returns data.
+ */
+export class PlanRedemption {
+  constructor(
+    private readonly listAccounts: ListLoyaltyAccounts,
+    private readonly bonuses: ListActiveTransferBonuses,
+    private readonly availability: AwardAvailabilitySource,
+    private readonly clock: Clock = systemClock,
+    private readonly sweetSpots?: readonly SweetSpot[],
+  ) {}
+
+  async execute(input: PlanRedemptionInput): Promise<PlanRedemptionResult> {
+    const goal: RedemptionGoal = { kind: "any", ...input.goal };
+    assertValidGoal(goal);
+    const [accounts, bonuses] = await Promise.all([
+      this.listAccounts.execute(input.userId),
+      this.bonuses.execute(input.userId),
+    ]);
+    const now = this.clock.now();
+    const result = optimizeRedemptions({
+      holdings: toHoldings(accounts),
+      goal,
+      bonuses: bonuses as readonly TransferBonus[],
+      now,
+      sweetSpots: this.sweetSpots,
+      maxPlans: input.maxPlans,
+    });
+
+    let plans = result.plans;
+    let report: AvailabilityReport | null = null;
+    if (input.award && goal.kind !== "hotel") {
+      const found = await this.availability.searchAwards(input.award);
+      report = {
+        status: found.status,
+        checkedAt: found.checkedAt.toISOString(),
+        message: found.message,
+      };
+      if (found.status === "ok") {
+        plans = plans.map((plan) => annotate(plan, found));
+      }
+    }
+
+    return {
+      ...result,
+      plans,
+      goal,
+      generatedAt: now.toISOString(),
+      activeBonusCount: bonuses.length,
+      availability: report,
+    };
+  }
+}
+
+function annotate(
+  plan: RedemptionPlan,
+  found: AwardSearchResult,
+): RedemptionPlan {
+  if (plan.kind !== "flight") return plan;
+  const options = found.options
+    .filter((o) => o.programId === plan.programId)
+    .slice(0, 5);
+  if (options.length === 0) return plan;
+  return {
+    ...plan,
+    availability: { checkedAt: found.checkedAt.toISOString(), options },
+    caveats: [
+      `Award space was reported by the configured search source at ${found.checkedAt.toISOString()}; seats can disappear, so re-check before transferring.`,
+      ...plan.caveats.filter((c) => !c.startsWith("Award availability is NOT verified")),
+    ],
+  };
+}
+
+export interface ListBestRedemptionsInput {
+  readonly userId: string;
+  readonly limit?: number;
+}
+
+/**
+ * Short, diversified list for dashboards and chat: the best plans overall with
+ * at most two per program so one program cannot crowd out the rest.
+ */
+export class ListBestRedemptions {
+  constructor(private readonly plan: PlanRedemption) {}
+
+  async execute(input: ListBestRedemptionsInput): Promise<PlanRedemptionResult> {
+    const limit = Math.min(Math.max(input.limit ?? 5, 1), 20);
+    const result = await this.plan.execute({
+      userId: input.userId,
+      goal: { kind: "any" },
+      maxPlans: 50,
+    });
+    const perProgram = new Map<string, number>();
+    const plans: RedemptionPlan[] = [];
+    for (const plan of result.plans) {
+      const count = perProgram.get(plan.programId) ?? 0;
+      if (count >= 2) continue;
+      perProgram.set(plan.programId, count + 1);
+      plans.push(plan);
+      if (plans.length >= limit) break;
+    }
+    return { ...result, plans };
+  }
+}

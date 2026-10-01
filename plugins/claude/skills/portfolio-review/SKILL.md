@@ -11,7 +11,7 @@ Use the PointUp MCP tools (all read-only):
 2. `pointup_list_accounts` - per-program balance, 30/90-day trend, expiry.
 3. `pointup_list_expiring` (withinDays: 180) - anything at risk.
 4. `pointup_list_goals` - progress toward trips.
-5. `pointup_get_value_advice` - ranked transfer/redemption ideas.
+5. `pointup_plan_redemption` - ranked, step-by-step redemption plans (relay its caveats; availability is not verified).
 
 Then answer in this shape, concise, no filler:
 

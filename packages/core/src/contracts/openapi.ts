@@ -37,6 +37,12 @@ import {
   valueAdviceDtoSchema,
 } from "./index";
 import {
+  planRedemptionResultDtoSchema,
+  recordTransferBonusRequestSchema,
+  sweetSpotDtoSchema,
+  transferBonusDtoSchema,
+} from "./optimizer";
+import {
   accessTokenDtoSchema,
   agentObservationDtoSchema,
   agentSkillDtoSchema,
@@ -70,6 +76,10 @@ const COMPONENT_SCHEMAS = {
   TripGoalDto: tripGoalDtoSchema,
   SyncOutcomeDto: syncOutcomeDtoSchema,
   ValueAdviceDto: valueAdviceDtoSchema,
+  PlanRedemptionResultDto: planRedemptionResultDtoSchema,
+  SweetSpotDto: sweetSpotDtoSchema,
+  TransferBonusDto: transferBonusDtoSchema,
+  RecordTransferBonusRequest: recordTransferBonusRequestSchema,
   DeletedAccountDto: deletedAccountDtoSchema,
   PortfolioShareDto: portfolioShareDtoSchema,
   PublicPortfolioSnapshotDto: publicPortfolioSnapshotDtoSchema,
@@ -449,6 +459,67 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           summary: "Transfer + deal value advice",
           responses: {
             "200": jsonResponse("Value advice", ref("ValueAdviceDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/optimizer/plan": {
+        get: {
+          summary: "Ranked redemption plans for the caller's points",
+          description:
+            "Deterministic optimizer over balances, active transfer bonuses and curated sweet spots. Estimates only: availability is NOT verified unless a plan has `availability` (award search must be configured). Every plan lists caveats and a confidence.",
+          parameters: [
+            { name: "goalKind", in: "query", schema: { type: "string", enum: ["flight", "hotel", "any"] } },
+            { name: "targetProgramId", in: "query", schema: { type: "string" } },
+            { name: "minValueCpp", in: "query", schema: { type: "number" } },
+            { name: "quantity", in: "query", schema: { type: "integer", minimum: 1, maximum: 30 } },
+            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50 } },
+            { name: "origin", in: "query", schema: { type: "string" }, description: "IATA code; with destination, dateFrom, dateTo, cabin runs a live award search (flight goals)." },
+            { name: "destination", in: "query", schema: { type: "string" } },
+            { name: "dateFrom", in: "query", schema: { type: "string" } },
+            { name: "dateTo", in: "query", schema: { type: "string" } },
+            { name: "cabin", in: "query", schema: { type: "string", enum: ["economy", "premium_economy", "business", "first"] } },
+          ],
+          responses: {
+            "200": jsonResponse("Redemption plans", ref("PlanRedemptionResultDto")),
+            "422": jsonResponse("Invalid goal", ref("ApiError")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/deals/sweet-spots": {
+        get: {
+          summary: "Curated award sweet-spot catalog",
+          description:
+            "Editorial, unverified redemption patterns with typical points ranges. Never live prices or availability.",
+          parameters: [
+            { name: "kind", in: "query", schema: { type: "string", enum: ["flight", "hotel", "other"] } },
+            { name: "programId", in: "query", schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse("Sweet spots", arrayOf("SweetSpotDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/transfer-bonuses": {
+        get: {
+          summary: "Active transfer bonuses",
+          description:
+            "Crowd/manual data, empty by default. Each bonus has a source (manual, scraped, user) and may be unverified.",
+          responses: {
+            "200": jsonResponse("Active bonuses", arrayOf("TransferBonusDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          summary: "Report a transfer bonus",
+          description:
+            "Needs portfolio:write. Stored as source=user, unverified, and used in every user's plans (flagged user-reported): only report bonuses you saw announced.",
+          requestBody: body("RecordTransferBonusRequest"),
+          responses: {
+            "201": jsonResponse("Recorded bonus", ref("TransferBonusDto")),
+            "422": jsonResponse("Invalid bonus", ref("ApiError")),
             ...ERROR_RESPONSES,
           },
         },

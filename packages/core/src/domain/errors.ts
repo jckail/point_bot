@@ -108,6 +108,22 @@ export class InvalidAwardWatchError extends DomainError {
   }
 }
 
+export class InvalidTransferBonusError extends DomainError {
+  readonly code = "INVALID_TRANSFER_BONUS";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class InvalidRedemptionGoalError extends DomainError {
+  readonly code = "INVALID_REDEMPTION_GOAL";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class InvalidGoalTitleError extends DomainError {
   readonly code = "INVALID_GOAL_TITLE";
 

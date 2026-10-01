@@ -46,21 +46,24 @@ export class ExportPortfolio {
       now,
     );
 
-    const exported: ExportedAccount[] = [];
-    for (const account of accounts) {
-      const history = await this.balances.findByAccountId(
-        account.id,
-        historyLimit,
-      );
-      exported.push({
-        account: toLoyaltyAccountReadModel(
-          account,
-          trends.get(account.id) ?? null,
-          now,
-        ),
-        history: history.map(toBalanceReadModel),
-      });
-    }
+    // Histories are independent reads: issue them together (the pool queues
+    // beyond its size) instead of one round trip per account in sequence.
+    const exported: ExportedAccount[] = await Promise.all(
+      accounts.map(async (account) => {
+        const history = await this.balances.findByAccountId(
+          account.id,
+          historyLimit,
+        );
+        return {
+          account: toLoyaltyAccountReadModel(
+            account,
+            trends.get(account.id) ?? null,
+            now,
+          ),
+          history: history.map(toBalanceReadModel),
+        };
+      }),
+    );
 
     return { exportedAt: now, accounts: exported };
   }

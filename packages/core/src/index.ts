@@ -32,6 +32,7 @@ export * from "./infrastructure/outbox/drizzle-outbox";
 
 // Application
 export * from "./application/ports";
+export * from "./application/cache";
 export * from "./application/loyalty/read-models";
 export * from "./application/loyalty/list-providers";
 export * from "./application/loyalty/link-loyalty-account";
@@ -61,6 +62,8 @@ export * from "./application/loyalty/seed-demo-portfolio";
 export * from "./application/loyalty/portfolio-share";
 export * from "./application/loyalty/assistant";
 export * from "./application/loyalty/ingest-deal-page";
+export * from "./application/loyalty/transfer-bonuses";
+export * from "./application/loyalty/plan-redemption";
 export * from "./application/loyalty/sync-loyalty-account";
 export * from "./application/loyalty/sync-all-loyalty-accounts";
 
@@ -68,6 +71,10 @@ export * from "./application/loyalty/sync-all-loyalty-accounts";
 export * from "./domain/loyalty/activity";
 export * from "./domain/loyalty/transfer-partners";
 export * from "./domain/loyalty/deals";
+export * from "./domain/loyalty/transfer-bonus";
+export * from "./domain/loyalty/catalog/sweet-spots";
+export * from "./domain/loyalty/award-availability";
+export * from "./domain/loyalty/optimizer";
 export { projectExpiryDate } from "./domain/loyalty/provider";
 export { refreshExpiryFromActivity } from "./domain/loyalty/loyalty-account";
 
@@ -77,6 +84,8 @@ export * as dbSchema from "./infrastructure/db/schema";
 export * from "./infrastructure/repositories/drizzle-loyalty-account-repository";
 export * from "./infrastructure/repositories/drizzle-custom-valuation-repository";
 export * from "./infrastructure/repositories/drizzle-award-watch-repository";
+export * from "./infrastructure/repositories/drizzle-transfer-bonus-repository";
+export * from "./infrastructure/award-search/award-availability-sources";
 export * from "./infrastructure/repositories/drizzle-user-settings-repository";
 export * from "./infrastructure/fx/fx-rate-sources";
 export * from "./infrastructure/providers/composite-travel-provider-gateway";

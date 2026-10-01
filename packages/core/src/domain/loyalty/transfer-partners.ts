@@ -1,9 +1,16 @@
 import { getProviderOrThrow, type ProviderDefinition } from "./provider";
+import {
+  applyBonusPermille,
+  describeBonus,
+  indexBestBonuses,
+  type TransferBonus,
+} from "./transfer-bonus";
 
 /**
  * Transfer partner graph: card currencies → airline/hotel programs.
- * Ratios are editorial (1 UR → 1 United mile). Bonus multipliers are
- * time-boxed overlays for transfer-bonus windows.
+ * Ratios are editorial (1 UR → 1 United mile). Time-boxed transfer bonuses
+ * are real data (see transfer-bonus.ts) passed in by the caller; this module
+ * never invents any.
  */
 
 export interface TransferEdge {
@@ -14,22 +21,40 @@ export interface TransferEdge {
   /** Destination points received per ratioFrom source points (usually 1). */
   readonly ratioTo: number;
   readonly notes?: string;
+  /** Minimum source points per transfer, when the program publishes one. */
+  readonly minimumSourcePoints?: number;
+  /** Source points must be a multiple of this, when published. */
+  readonly incrementSourcePoints?: number;
 }
 
-export interface TransferBonus {
-  readonly fromProviderId: string;
-  readonly toProviderId: string;
-  /** Multiplier on destination points, e.g. 1.3 for 30% bonus. */
-  readonly multiplier: number;
-  readonly startsAt: Date;
-  readonly endsAt: Date;
-  readonly label: string;
+/** Rational ratio (destination points per source point) in lowest terms. */
+export interface Ratio {
+  readonly num: number;
+  readonly den: number;
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) [x, y] = [y, x % y];
+  return x || 1;
+}
+
+/**
+ * Exact rational for an edge: destination = source * num / den. Decimal
+ * ratios (1:1.5) are scaled by 1000 and reduced, so all later math is integer.
+ */
+export function edgeRatio(edge: TransferEdge): Ratio {
+  const num = Math.round(edge.ratioTo * 1000);
+  const den = Math.round(edge.ratioFrom * 1000);
+  const g = gcd(num, den);
+  return { num: num / g, den: den / g };
 }
 
 /** Transfer edges for bank/card currencies (ratios per published programs, reviewed 2026-10). */
 export const TRANSFER_EDGES: readonly TransferEdge[] = [
   // chase-ultimate-rewards
-  { fromProviderId: "chase-ultimate-rewards", toProviderId: "united", ratioFrom: 1, ratioTo: 1, notes: "Minimum 1,000 points, in 1,000 increments." },
+  { fromProviderId: "chase-ultimate-rewards", toProviderId: "united", ratioFrom: 1, ratioTo: 1, notes: "Minimum 1,000 points, in 1,000 increments.", minimumSourcePoints: 1_000, incrementSourcePoints: 1_000 },
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "air-canada-aeroplan", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "aer-lingus-aerclub", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "flying-blue", ratioFrom: 1, ratioTo: 1 },
@@ -158,38 +183,8 @@ export const TRANSFER_EDGES: readonly TransferEdge[] = [
   // rbc-avion
   { fromProviderId: "rbc-avion", toProviderId: "british-airways-avios", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "rbc-avion", toProviderId: "cathay-asia-miles", ratioFrom: 1, ratioTo: 1 },
-  { fromProviderId: "rbc-avion", toProviderId: "american", ratioFrom: 10, ratioTo: 7, notes: "Minimum 5,000 points, in increments of 10." },
+  { fromProviderId: "rbc-avion", toProviderId: "american", ratioFrom: 10, ratioTo: 7, notes: "Minimum 5,000 points, in increments of 10.", minimumSourcePoints: 5_000, incrementSourcePoints: 10 },
 ];
-
-/**
- * Sample / evergreen bonus windows. Dates are illustrative so the ranking
- * engine always has something interesting to show in demos.
- */
-export function activeTransferBonuses(now: Date = new Date()): TransferBonus[] {
-  const year = now.getUTCFullYear();
-  return [
-    {
-      fromProviderId: "chase-ultimate-rewards",
-      toProviderId: "hyatt",
-      multiplier: 1.3,
-      startsAt: new Date(Date.UTC(year, 0, 1)),
-      endsAt: new Date(Date.UTC(year, 11, 31, 23, 59, 59)),
-      label: "Hyatt transfer bonus (demo)",
-    },
-    {
-      fromProviderId: "amex-membership-rewards",
-      toProviderId: "hilton",
-      multiplier: 1.25,
-      startsAt: new Date(Date.UTC(year, 0, 1)),
-      endsAt: new Date(Date.UTC(year, 11, 31, 23, 59, 59)),
-      label: "Hilton transfer bonus (demo)",
-    },
-  ].filter(
-    (bonus) =>
-      bonus.startsAt.getTime() <= now.getTime() &&
-      bonus.endsAt.getTime() >= now.getTime(),
-  );
-}
 
 export function listTransferTargets(fromProviderId: string): TransferEdge[] {
   return TRANSFER_EDGES.filter((edge) => edge.fromProviderId === fromProviderId);
@@ -208,22 +203,32 @@ export function findTransferEdge(
   );
 }
 
+/**
+ * Destination points for `sourcePoints` over `edge`, optionally with a bonus
+ * (integer permille, 1300 = +30%). Pure integer math: the base conversion is
+ * floored, then the bonus is applied and floored again (the optimizer uses
+ * this same function, so plans can never disagree with it).
+ */
 export function convertPoints(
   edge: TransferEdge,
   sourcePoints: number,
-  bonusMultiplier = 1,
+  bonusPermille = 1000,
 ): number {
-  if (edge.ratioFrom <= 0) return 0;
-  const base = Math.floor((sourcePoints / edge.ratioFrom) * edge.ratioTo);
-  return Math.floor(base * bonusMultiplier);
+  if (edge.ratioFrom <= 0 || sourcePoints <= 0) return 0;
+  const { num, den } = edgeRatio(edge);
+  const base = Math.floor((sourcePoints * num) / den);
+  return applyBonusPermille(base, bonusPermille);
 }
 
 export type TransferOption = {
   readonly from: ProviderDefinition;
   readonly to: ProviderDefinition;
   readonly edge: TransferEdge;
+  /** 1 when no bonus applies, else e.g. 1.3. */
   readonly bonusMultiplier: number;
+  readonly bonusPermille: number;
   readonly bonusLabel: string | null;
+  readonly bonusId: string | null;
   readonly sourcePoints: number;
   readonly destinationPoints: number;
   /** Effective cents-per-point of the *source* currency after transfer. */
@@ -238,12 +243,13 @@ export type TransferOption = {
 export function rankTransferOptions(
   fromProviderId: string,
   sourcePoints: number,
+  bonuses: readonly TransferBonus[] = [],
   now: Date = new Date(),
 ): TransferOption[] {
   if (sourcePoints <= 0) return [];
 
   const from = getProviderOrThrow(fromProviderId);
-  const bonuses = activeTransferBonuses(now);
+  const bestBonus = indexBestBonuses(bonuses, now);
   const options: TransferOption[] = [];
 
   for (const edge of listTransferTargets(fromProviderId)) {
@@ -255,13 +261,9 @@ export function rankTransferOptions(
       continue;
     }
 
-    const bonus = bonuses.find(
-      (b) =>
-        b.fromProviderId === edge.fromProviderId &&
-        b.toProviderId === edge.toProviderId,
-    );
-    const multiplier = bonus?.multiplier ?? 1;
-    const destinationPoints = convertPoints(edge, sourcePoints, multiplier);
+    const bonus = bestBonus.get(`${edge.fromProviderId}>${edge.toProviderId}`);
+    const permille = bonus?.multiplierPermille ?? 1000;
+    const destinationPoints = convertPoints(edge, sourcePoints, permille);
     const estimatedValueCents = Math.round(
       destinationPoints * to.estimatedCentsPerPoint,
     );
@@ -272,8 +274,10 @@ export function rankTransferOptions(
       from,
       to,
       edge,
-      bonusMultiplier: multiplier,
-      bonusLabel: bonus?.label ?? null,
+      bonusMultiplier: permille / 1000,
+      bonusPermille: permille,
+      bonusLabel: bonus ? describeBonus(bonus) : null,
+      bonusId: bonus?.id ?? null,
       sourcePoints,
       destinationPoints,
       effectiveCentsPerPoint:

@@ -87,6 +87,8 @@ export function describeEvent(event: DomainEvent): string {
       return "Goal deleted";
     case "watch.triggered":
       return "Award watch triggered";
+    case "transfer_bonus.recorded":
+      return "Transfer bonus recorded";
     default:
       return assertNever(event);
   }

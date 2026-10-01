@@ -73,6 +73,7 @@ Pure business knowledge with zero IO:
 - **Provider catalog** — the list of supported programs is domain knowledge (`provider.ts`). Providers are grouped into kinds (`airline`, `hotel`, `credit_card`, `rail`, `shopping`); adding a provider is a one-line catalog change, and adding a whole new kind is a one-line change to `PROVIDER_KINDS` that flows through contracts, summaries, and dashboards automatically.
 - **Strict dates** — balance snapshots validate their capture timestamps (no invalid or future-dated entries via `InvalidCaptureTimeError`), and the wire contracts only accept strict ISO-8601 UTC strings.
 - **Repository ports** — persistence interfaces (`LoyaltyAccountRepository`, `BalanceSnapshotRepository`) owned by the domain, implemented by infrastructure (dependency inversion).
+- **Optimizer and curated knowledge** — `domain/loyalty/optimizer.ts` (pure, deterministic redemption planning), `catalog/sweet-spots.ts` (editorial, unverified), `transfer-bonus.ts` (real bonus windows, none by default) and `transfer-partners.ts` (the graph, exact rational ratios). See [optimizer.md](./optimizer.md).
 - **Coded errors** — every `DomainError` subclass carries a stable `code` (`DUPLICATE_LOYALTY_ACCOUNT`, `PROVIDER_NOT_SUPPORTED`, ...) so all surfaces can map failures to UX without string parsing.
 
 ### Application layer (`packages/core/src/application`)
@@ -92,6 +93,8 @@ One class per use case (single responsibility), with dependencies injected throu
 | `GetPortfolioSummary` | Aggregate totals, per-kind breakdown, last sync across a user |
 | `SyncLoyaltyAccount` | Resolve credentials, fetch balance via gateway, append a snapshot |
 | `SyncAllLoyaltyAccounts` | Best-effort batch sync with per-account outcomes |
+| `PlanRedemption` / `ListBestRedemptions` | Ranked redemption plans from balances, active transfer bonuses and sweet spots; real award availability only via the `AwardAvailabilitySource` port |
+| `RecordTransferBonus` / `ListActiveTransferBonuses` | Validated, event-emitting transfer-bonus data (global, empty by default) |
 
 Cross-cutting ownership checks live in `application/loyalty/access.ts` (`requireOwnedAccount`): accounts belonging to other users always surface as not-found, never as forbidden, so their existence is not revealed.
 
@@ -100,6 +103,7 @@ The application layer also owns the **outbound ports**:
 - `TravelProviderGateway` — airline/hotel integrations
 - `CredentialVault` — resolving credential references (1Password, etc.)
 - `Clock` — deterministic time under test
+- `AwardAvailabilitySource` — award-space search (stub reports `not_configured`; HTTP adapter behind `AWARD_SEARCH_API_URL`/`KEY`)
 
 Use cases return **read models** (plain serializable shapes), not ORM rows and not wire DTOs.
 

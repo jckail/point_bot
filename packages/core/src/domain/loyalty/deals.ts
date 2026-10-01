@@ -159,7 +159,8 @@ export const CATALOG_DEALS: readonly DealCandidate[] = [
   },
   {
     id: "deal-bilt-hyatt",
-    kind: "transfer_bonus",
+    // Not a bonus window (those are real data in transfer_bonus); a pattern.
+    kind: "hotel_redemption",
     title: "Bilt → Hyatt for city stays",
     summary:
       "Rent-day points transferred to Hyatt frequently out-earn portal cash-out.",

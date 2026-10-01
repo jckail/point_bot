@@ -23,6 +23,8 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
 | `INVALID_AWARD_WATCH` | 422 | Watch label/threshold failed validation |
+| `INVALID_TRANSFER_BONUS` | 422 | Bonus failed validation (unknown program, no transfer path, multiplier outside (1.0, 3.0], ends before it starts) |
+| `INVALID_REDEMPTION_GOAL` | 422 | Optimizer goal failed validation (unknown target program, bad quantity or min value) |
 | `INVALID_DISPLAY_CURRENCY` | 422 | Display currency not in the supported set |
 | `AWARD_WATCH_NOT_FOUND` | 404 | Watch does not exist **or is not yours** |
 | `INVALID_BALANCE` | 422 | Points value is negative or fractional |
@@ -211,6 +213,18 @@ Grounded portfolio assistant. Body: `{ "message": "...", "history"?: [{ "role": 
 ### `GET /api/v1/value-advice`
 
 Bang-for-buck view: ranked transfer options from the user's balances plus curated (and previously scraped) deals with realized ¢/pt and affordability.
+
+### `GET /api/v1/optimizer/plan`
+
+Ranked redemption plans for the caller's balances (see [optimizer.md](./optimizer.md)). Query: `goalKind` (`flight|hotel|any`), `targetProgramId`, `minValueCpp`, `quantity`, `limit`, and optionally `origin`, `destination`, `dateFrom`, `dateTo`, `cabin` (all five together) to attach real award space when a search source is configured. Each plan has `steps`, `sources` (points used per program), `effectiveCentsPerPoint`, `shortfall`, `expiryUrgency`, `confidence`, `caveats[]` and `availability` (null unless real data was returned). Scope `portfolio:read`. Errors: `INVALID_REDEMPTION_GOAL`.
+
+### `GET /api/v1/deals/sweet-spots`
+
+The curated, **unverified** sweet-spot catalog (typical points ranges, estimated ¢/pt, constraints, confidence). Filters: `kind`, `programId`. Scope `portfolio:read`.
+
+### `GET /api/v1/transfer-bonuses` / `POST /api/v1/transfer-bonuses`
+
+Active transfer bonuses; **crowd/manual data, empty by default**. `POST` (scope `portfolio:write`) body `{ fromProviderId, toProviderId, bonusPercent, startsAt, endsAt, sourceUrl? }` records a bonus as `source: "user"`, unverified; it then feeds every user's plans (flagged user-reported). Emits `transfer_bonus.recorded`. Errors: `INVALID_TRANSFER_BONUS`.
 
 ### `POST /api/v1/deals/scrape`
 

@@ -1,4 +1,5 @@
 import type {
+  AwardAvailabilitySource,
   CredentialVault,
   LlmAssistant,
   PageScraper,
@@ -8,6 +9,10 @@ import {
   StaticFxRateSource,
   HttpFxRateSource,
 } from "../infrastructure/fx/fx-rate-sources";
+import {
+  HttpAwardAvailabilitySource,
+  StubAwardAvailabilitySource,
+} from "../infrastructure/award-search/award-availability-sources";
 import { BedrockAssistant } from "../infrastructure/llm/bedrock-assistant";
 import {
   HeuristicAssistant,
@@ -110,4 +115,21 @@ export function selectGateway(config: GatewayConfig) {
           }
         : undefined,
   });
+}
+
+export interface AwardSearchConfig {
+  AWARD_SEARCH_API_URL?: string;
+  AWARD_SEARCH_API_KEY?: string;
+}
+
+/** Real award search only when both URL and key are set; else the honest stub. */
+export function selectAwardAvailability(
+  config: AwardSearchConfig,
+): AwardAvailabilitySource {
+  return config.AWARD_SEARCH_API_URL && config.AWARD_SEARCH_API_KEY
+    ? new HttpAwardAvailabilitySource({
+        baseUrl: config.AWARD_SEARCH_API_URL,
+        apiKey: config.AWARD_SEARCH_API_KEY,
+      })
+    : new StubAwardAvailabilitySource();
 }

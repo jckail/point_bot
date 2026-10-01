@@ -56,10 +56,19 @@ export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
   ...OTHER_PROVIDERS,
 ];
 
+/** id -> provider, built once (first definition wins, like `Array.find`). */
+const PROVIDER_BY_ID: ReadonlyMap<string, ProviderDefinition> = (() => {
+  const index = new Map<string, ProviderDefinition>();
+  for (const provider of PROVIDER_CATALOG) {
+    if (!index.has(provider.id)) index.set(provider.id, provider);
+  }
+  return index;
+})();
+
 export function findProvider(
   providerId: string,
 ): ProviderDefinition | undefined {
-  return PROVIDER_CATALOG.find((provider) => provider.id === providerId);
+  return PROVIDER_BY_ID.get(providerId);
 }
 
 /**

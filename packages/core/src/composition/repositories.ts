@@ -10,6 +10,7 @@ import type {
   PortfolioShareRepository,
   TripGoalRepository,
 } from "../domain/loyalty/repositories";
+import type { TransferBonusRepository } from "../domain/loyalty/transfer-bonus";
 import type { UserSettingsRepository } from "../domain/loyalty/user-settings";
 import type { Eventing } from "../application/events/ports";
 import type { Database } from "../infrastructure/db/client";
@@ -31,6 +32,7 @@ import {
   DrizzleEventPublisher,
   DrizzleUnitOfWork,
 } from "../infrastructure/outbox/drizzle-outbox";
+import { DrizzleTransferBonusRepository } from "../infrastructure/repositories/drizzle-transfer-bonus-repository";
 import { DrizzleUserSettingsRepository } from "../infrastructure/repositories/drizzle-user-settings-repository";
 
 /** Every persistence port the composition modules consume. */
@@ -42,6 +44,7 @@ export interface Repositories {
   shares: PortfolioShareRepository;
   customValuations: CustomValuationRepository;
   awardWatches: AwardWatchRepository;
+  transferBonuses: TransferBonusRepository;
   settings: UserSettingsRepository;
   accessTokens: AccessTokenRepository;
   consents: ConsentGrantRepository;
@@ -82,6 +85,7 @@ export function buildDrizzleRepositories(
     shares: new DrizzlePortfolioShareRepository(db),
     customValuations: new DrizzleCustomValuationRepository(db),
     awardWatches: new DrizzleAwardWatchRepository(db),
+    transferBonuses: new DrizzleTransferBonusRepository(db),
     settings: new DrizzleUserSettingsRepository(db),
     accessTokens: new DrizzleAccessTokenRepository(db),
     consents: new DrizzleConsentGrantRepository(db),

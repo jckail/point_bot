@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { syncAllLoyaltyAccountsAction } from "@/app/actions";
 import { AccountGrid } from "@/components/account-grid";
 import { ActivityFeed } from "@/components/activity-feed";
+import { BestRedemptionsSection } from "@/components/best-redemptions-section";
 import { AssistantPanel } from "@/components/assistant-panel";
 import { DemoPortfolioCta } from "@/components/demo-portfolio-cta";
 import { ExpiryWarnings } from "@/components/expiry-warnings";
@@ -24,7 +25,10 @@ import { Button } from "@/components/ui/button";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getSessionUser, getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
-import { toValueAdviceDto } from "@pointup/core/contracts";
+import {
+  toPlanRedemptionResultDto,
+  toValueAdviceDto,
+} from "@pointup/core/contracts";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -49,7 +53,7 @@ export default async function DashboardPage() {
   const { useCases } = getContainer();
   const accounts = await useCases.listLoyaltyAccounts.execute(userId);
   const summary = computePortfolioSummary(accounts);
-  const [activity, expiring, goals, deleted, shares, valueAdvice] =
+  const [activity, expiring, goals, deleted, shares, valueAdvice, bestPlans] =
     await Promise.all([
       useCases.listActivity.execute(userId, 12),
       useCases.listExpiringAccounts.execute(userId, 90),
@@ -57,8 +61,9 @@ export default async function DashboardPage() {
       useCases.listDeletedLoyaltyAccounts.execute(userId),
       useCases.listPortfolioShares.execute(userId),
       useCases.getValueAdvice.execute(userId),
+      useCases.listBestRedemptions.execute({ userId, limit: 4 }),
     ]);
-  const providers = useCases.listProviders.execute();
+  const providers = await useCases.listProviders.execute();
   const adviceDto = toValueAdviceDto(valueAdvice);
 
   const headerStore = await headers();
@@ -166,6 +171,9 @@ export default async function DashboardPage() {
 
       <RecentlyUnlinked accounts={deleted} />
       <ExpiryWarnings accounts={expiring} />
+      {accounts.length > 0 && (
+        <BestRedemptionsSection result={toPlanRedemptionResultDto(bestPlans)} />
+      )}
       {accounts.length > 0 && <ValueDealsSection initialAdvice={adviceDto} />}
       <TripGoalsSection goals={goals} accounts={accounts} />
       <ActivityFeed events={activity} />

@@ -105,10 +105,13 @@ and tests run against in-memory fakes *and* a real Postgres
 ### MCP tools
 
 Read: `pointup_get_portfolio_summary`, `_list_accounts`, `_get_account`, `_list_providers`,
-`_get_balance_history`, `_list_expiring`, `_get_value_advice`, `_list_goals`, `_list_activity`.
-Write: `pointup_link_account`, `_record_balance` (user-stated), `_create_goal`.
+`_get_balance_history`, `_list_expiring`, `_get_value_advice`, `_list_goals`, `_list_activity`,
+`_plan_redemption` (optimizer), `_list_sweet_spots`, `_list_transfer_bonuses`.
+Write: `pointup_link_account`, `_record_balance` (user-stated), `_create_goal`, `_record_transfer_bonus` (user-reported, stored unverified).
 Agent: `pointup_list_skills`, `_request_consent`, `_submit_balance`, `_list_observations`.
-Prompts: `capture-balance`, `portfolio-review`.
+Prompts: `capture-balance`, `portfolio-review`, `find-deals`.
+
+`pointup_plan_redemption` is the entry point for "how should I use my points" ([optimizer.md](./optimizer.md)). Agents must relay each plan's `caveats`, never claim award availability unless a plan carries an `availability` object, and never transfer or book on the user's behalf. The Claude plugin ships the `plan-redemption` and `find-deals` skills; the ChatGPT spec exports `planRedemption`, `listSweetSpots`, `listTransferBonuses` and `recordTransferBonus`.
 Resources: `pointup://portfolio/summary` (JSON) and `pointup://skills/{skillId}` (markdown playbook per skill).
 
 The main read tools declare an `outputSchema` and return `structuredContent`

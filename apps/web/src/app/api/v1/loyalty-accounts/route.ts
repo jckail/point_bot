@@ -6,13 +6,14 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
+import { jsonWithEtag } from "@/server/conditional";
 import { withAuthenticatedUser } from "@/server/http";
 
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const accounts =
       await getContainer().useCases.listLoyaltyAccounts.execute(userId);
-    return NextResponse.json(accounts.map(toLoyaltyAccountDto));
+    return jsonWithEtag(request, accounts.map(toLoyaltyAccountDto));
   }, { method: "GET", scope: "portfolio:read" });
 }
 

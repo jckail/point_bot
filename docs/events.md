@@ -50,6 +50,7 @@ hashes, token/goal titles, notes, URLs, or emails. Updates list changed field
 | `goal.updated` | `UpdateTripGoal` | goal | `changed[]` |
 | `goal.deleted` | `DeleteTripGoal` | goal | (empty) |
 | `watch.triggered` | `CheckAwardWatches` (a watch fired) | watch | `bestRealizedCpp`, `minCentsPerPoint` |
+| `transfer_bonus.recorded` | `RecordTransferBonus` | transfer bonus | `fromProviderId`, `toProviderId`, `multiplierPermille`, `startsAt`, `endsAt`, `source` (no URL, no reporter id in the payload; `userId` is the reporter or `system`) |
 
 Notes: an agent reading that is recorded emits `balance.recorded` with
 `source: "agent"` (no separate "observation recorded" event); an `unchanged`
@@ -148,6 +149,8 @@ Add a handler: implement `EventHandler`, `registry.on("balance.recorded", h)`
 in `buildEventHandlers`.
 
 ## Schema
+
+Migration `0014_transfer_bonus` adds the `transfer_bonus` table (see [optimizer.md](./optimizer.md)); `transfer_bonus.recorded` events are written in the same transaction as the row.
 
 Migration `0013_domain_event_outbox`: `domain_event_outbox(id, type, version,
 user_id, aggregate_id, payload jsonb, occurred_at, correlation_id, attempts,

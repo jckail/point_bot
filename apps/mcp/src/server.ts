@@ -6,8 +6,11 @@ import {
   agentObservationDtoSchema,
   agentSkillDtoSchema,
   loyaltyAccountDtoSchema,
+  planRedemptionResultDtoSchema,
   portfolioSummaryDtoSchema,
   providerDtoSchema,
+  sweetSpotDtoSchema,
+  transferBonusDtoSchema,
   tripGoalDtoSchema,
   valueAdviceDtoSchema,
   type AgentSkillDto,
@@ -186,6 +189,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
         "PointUp tracks the user's loyalty points (airline, hotel, card, rail, shopping).",
         "Reading is always allowed with a portfolio:read token.",
         "To read a balance from a provider website with a browser/computer agent, follow the flow: pointup_list_skills → confirm consent is active (only the user can grant it, on the dashboard; pointup_request_consent just returns the link) → read the page in the user's own signed-in browser → pointup_submit_balance.",
+        "For 'how should I use my points?' call pointup_plan_redemption and always relay its caveats: plans are estimates and award availability is NOT verified unless a plan carries availability data.",
         "Never ask for, type, or store the user's loyalty passwords.",
       ].join(" "),
     },
@@ -301,6 +305,59 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
   );
 
   server.registerTool(
+    "pointup_plan_redemption",
+    {
+      title: "Plan the best use of my points",
+      description:
+        "Start here for 'how should I use my points?' / 'find me a deal'. Deterministic optimizer over the user's real balances, active transfer bonuses and a curated sweet-spot catalog: ranked plans with concrete steps (transfer X from A to B at ratio [+bonus], then book Y), points used per source program, effective cents per point, shortfall (and which program could cover it), expiry urgency, confidence and caveats. Estimates, not quotes: award availability is NOT verified unless a plan carries `availability` (only set when the user's deployment has award search configured and you pass origin/destination/dateFrom/dateTo/cabin together for a flight goal). ALWAYS relay the caveats, never promise availability or prices, and tell the user transfers are irreversible: confirm space on the provider's site first. Read-only.",
+      inputSchema: {
+        goalKind: z.enum(["flight", "hotel", "any"]).optional(),
+        targetProgramId: idSchema.optional().describe("Program where the trip is booked, e.g. 'hyatt' (ids from pointup_list_providers)"),
+        minValueCpp: z.number().min(0).max(100).optional().describe("Drop plans below this effective cents-per-point"),
+        quantity: z.number().int().min(1).max(30).optional().describe("Nights or tickets"),
+        limit: z.number().int().min(1).max(50).optional(),
+        origin: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
+        destination: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
+        dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        cabin: z.enum(["economy", "premium_economy", "business", "first"]).optional(),
+      },
+      outputSchema: planRedemptionResultDtoSchema.shape,
+      annotations: READ,
+    },
+    (input) => runStructured(() => client.planRedemption(input)),
+  );
+
+  server.registerTool(
+    "pointup_list_sweet_spots",
+    {
+      title: "Curated award sweet spots",
+      description:
+        "Editorial catalog of well-known redemption patterns with TYPICAL points ranges, estimated cents per point, constraints and confidence. Every entry is unverified (`verified: false`): never quote these as live prices or availability. Read-only.",
+      inputSchema: {
+        kind: z.enum(["flight", "hotel", "other"]).optional(),
+        programId: idSchema.optional(),
+      },
+      outputSchema: listOutput(sweetSpotDtoSchema),
+      annotations: READ,
+    },
+    (input) => runStructured(() => client.listSweetSpots(input), true),
+  );
+
+  server.registerTool(
+    "pointup_list_transfer_bonuses",
+    {
+      title: "Active transfer bonuses",
+      description:
+        "Currently active transfer-bonus windows (e.g. +30% Chase -> Hyatt). Crowd/manual data and EMPTY by default; each has a source (manual, scraped, user) and verifiedAt (null = unverified). Read-only.",
+      inputSchema: {},
+      outputSchema: listOutput(transferBonusDtoSchema),
+      annotations: READ,
+    },
+    () => runStructured(() => client.listTransferBonuses(), true),
+  );
+
+  server.registerTool(
     "pointup_list_goals",
     {
       title: "Trip goals and progress",
@@ -357,6 +414,26 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       annotations: WRITE,
     },
     ({ accountId, ...body }) => run(() => client.recordManualBalance(accountId, body)),
+  );
+
+  server.registerTool(
+    "pointup_record_transfer_bonus",
+    {
+      title: "Report a transfer bonus",
+      description:
+        "Record a transfer bonus the USER has seen announced by the issuer. It is stored as user-reported and unverified, and then affects every user's plans (flagged as unverified), so only record bonuses you have a source for and include sourceUrl. The edge must exist in the transfer graph and the bonus must be greater than 0% and at most 200%.",
+      inputSchema: {
+        fromProviderId: idSchema.describe("Source currency, e.g. chase-ultimate-rewards"),
+        toProviderId: idSchema.describe("Destination program, e.g. hyatt"),
+        bonusPercent: z.number().positive().max(200).describe("30 means +30%"),
+        startsAt: z.iso.datetime(),
+        endsAt: z.iso.datetime(),
+        sourceUrl: z.url().max(2048).optional(),
+      },
+      outputSchema: transferBonusDtoSchema.shape,
+      annotations: WRITE,
+    },
+    (input) => runStructured(() => client.recordTransferBonus(input)),
   );
 
   server.registerTool(
@@ -553,6 +630,26 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
           content: {
             type: "text" as const,
             text: "Review my loyalty portfolio. Call pointup_get_portfolio_summary, pointup_list_expiring, pointup_list_goals and pointup_get_value_advice, then give me: total value, anything expiring soon, progress on goals, and the top 3 actions.",
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    "find-deals",
+    {
+      title: "Find deals and optimally use my points",
+      description: "Plan the best redemptions for my balances, honestly.",
+      argsSchema: { goal: z.string().max(200).optional() },
+    },
+    ({ goal }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `Find deals and the best way to use my points${goal ? ` (${goal})` : ""}. Call pointup_plan_redemption (set goalKind/targetProgramId if I named a trip), also pointup_list_transfer_bonuses, and give me the top 3 plans with the exact transfer steps, the effective cents per point, anything expiring, and every caveat. Do not claim award availability unless a plan carries availability data.`,
           },
         },
       ],

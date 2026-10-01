@@ -28,6 +28,7 @@ export const EVENT_TYPES = [
   "goal.updated",
   "goal.deleted",
   "watch.triggered",
+  "transfer_bonus.recorded",
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -81,6 +82,15 @@ export interface EventPayloads {
   "goal.updated": { changed: string[] };
   "goal.deleted": Record<string, never>;
   "watch.triggered": { bestRealizedCpp: number; minCentsPerPoint: number };
+  /** Source URL and creator are deliberately omitted from the payload. */
+  "transfer_bonus.recorded": {
+    fromProviderId: string;
+    toProviderId: string;
+    multiplierPermille: number;
+    startsAt: string;
+    endsAt: string;
+    source: "manual" | "scraped" | "user";
+  };
 }
 
 /** Current schema version per type; bump when a payload changes shape. */
@@ -101,6 +111,7 @@ export const EVENT_SCHEMA_VERSIONS: Readonly<Record<EventType, number>> = {
   "goal.updated": 1,
   "goal.deleted": 1,
   "watch.triggered": 1,
+  "transfer_bonus.recorded": 1,
 };
 
 export interface DomainEventEnvelope<T extends EventType> {
