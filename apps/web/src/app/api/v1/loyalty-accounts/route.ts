@@ -13,7 +13,7 @@ export function GET() {
     const accounts =
       await getContainer().useCases.listLoyaltyAccounts.execute(userId);
     return NextResponse.json(accounts.map(toLoyaltyAccountDto));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
@@ -26,7 +26,7 @@ export function POST(request: Request) {
       credentialRef: body.credentialRef,
     });
     return NextResponse.json(result, { status: 201 });
-  }, { scope: "portfolio:write" });
+  }, { method: "POST", scope: "portfolio:write" });
 }
 
 /**
@@ -43,5 +43,5 @@ export function PATCH(request: Request) {
         updates: body.updates,
       });
     return NextResponse.json(result);
-  }, { scope: "portfolio:write" });
+  }, { method: "PATCH", scope: "portfolio:write" });
 }

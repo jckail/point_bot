@@ -3,6 +3,7 @@ import {
   bigint,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   timestamp,
@@ -327,4 +328,39 @@ export const tripGoalAccountsRelations = relations(
       references: [tripGoals.id],
     }),
   }),
+);
+
+/**
+ * Transactional outbox for domain events: rows are inserted in the same
+ * transaction as the state change and delivered at-least-once by the worker's
+ * `outbox` job (see docs/events.md).
+ */
+export const domainEventOutbox = pgTable(
+  "domain_event_outbox",
+  {
+    id: varchar("id", { length: 255 }).notNull().primaryKey(),
+    type: varchar("type", { length: 64 }).notNull(),
+    /** Payload schema version for this event type. */
+    version: integer("version").notNull().default(1),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    aggregateId: varchar("aggregate_id", { length: 255 }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    correlationId: varchar("correlation_id", { length: 255 }),
+    attempts: integer("attempts").notNull().default(0),
+    /** Not claimable before this time (retry backoff / claim lease). */
+    availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    /** Set when attempts were exhausted; the row is kept for inspection. */
+    deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
+    lastError: varchar("last_error", { length: 1000 }),
+  },
+  (row) => [
+    // Polling index: only rows still waiting for delivery.
+    index("domain_event_outbox_pending_idx")
+      .on(row.availableAt, row.occurredAt)
+      .where(sql`${row.processedAt} is null and ${row.deadLetteredAt} is null`),
+    index("domain_event_outbox_aggregate_idx").on(row.aggregateId),
+    index("domain_event_outbox_user_idx").on(row.userId, row.occurredAt),
+  ],
 );

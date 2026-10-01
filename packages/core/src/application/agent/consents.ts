@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import { ConsentNotFoundError } from "../../domain/errors";
 import {
   createConsentGrant,
@@ -26,6 +28,7 @@ export class GrantConsent {
   constructor(
     private readonly consents: ConsentGrantRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   /** Re-granting replaces any active consent for the provider (renewal). */
@@ -39,7 +42,20 @@ export class GrantConsent {
     const consent = createConsentGrant({ ...input, now });
     // Revoke-then-insert in one transaction (see the repository); a partial
     // unique index guarantees one active grant per (user, provider).
-    await this.consents.replaceActive(consent, now);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.consents.replaceActive(consent, now);
+      await this.eventing.publisher.publish([
+        createDomainEvent("consent.granted", {
+          userId: consent.userId,
+          aggregateId: consent.id,
+          occurredAt: now,
+          payload: {
+            providerId: consent.providerId,
+            expiresAt: consent.expiresAt.toISOString(),
+          },
+        }),
+      ]);
+    });
     return toReadModel(consent, now);
   }
 }
@@ -62,6 +78,7 @@ export class RevokeConsent {
   constructor(
     private readonly consents: ConsentGrantRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(userId: string, consentId: string): Promise<void> {
@@ -76,8 +93,20 @@ export class RevokeConsent {
     const open = (await this.consents.findByUserId(userId)).filter(
       (c) => c.providerId === consent.providerId && !c.revokedAt,
     );
-    for (const grant of open) {
-      await this.consents.update({ ...grant, revokedAt: now });
-    }
+    await this.eventing.unitOfWork.run(async () => {
+      for (const grant of open) {
+        await this.consents.update({ ...grant, revokedAt: now });
+      }
+      await this.eventing.publisher.publish(
+        open.map((grant) =>
+          createDomainEvent("consent.revoked", {
+            userId,
+            aggregateId: grant.id,
+            occurredAt: now,
+            payload: { providerId: grant.providerId },
+          }),
+        ),
+      );
+    });
   }
 }

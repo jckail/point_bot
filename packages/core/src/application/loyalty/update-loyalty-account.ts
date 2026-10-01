@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   applyLoyaltyAccountChanges,
   softDeleteLoyaltyAccount,
@@ -37,6 +39,7 @@ export class UpdateLoyaltyAccount {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: UpdateLoyaltyAccountInput): Promise<void> {
@@ -66,16 +69,37 @@ export class UpdateLoyaltyAccount {
       },
       now,
     );
-    await this.accounts.update(updated);
-
     const provider = getProviderOrThrow(account.providerId);
-    await recordActivity(this.activity, {
-      userId: input.userId,
-      type: "account_updated",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Updated ${provider.displayName}`,
-      occurredAt: updated.updatedAt,
+    // Field names only; values (membership number, credential ref) never
+    // leave the aggregate.
+    const changed = (
+      [
+        "membershipNumber",
+        "credentialRef",
+        "expiresAt",
+        "notes",
+        "tags",
+        "pinned",
+      ] as const
+    ).filter((field) => input[field] !== undefined);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.accounts.update(updated);
+      await recordActivity(this.activity, {
+        userId: input.userId,
+        type: "account_updated",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Updated ${provider.displayName}`,
+        occurredAt: updated.updatedAt,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("account.updated", {
+          userId: input.userId,
+          aggregateId: account.id,
+          occurredAt: updated.updatedAt,
+          payload: { providerId: account.providerId, changed },
+        }),
+      ]);
     });
   }
 }
@@ -89,21 +113,31 @@ export class UnlinkLoyaltyAccount {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(userId: string, accountId: string): Promise<void> {
     const account = await requireOwnedAccount(this.accounts, userId, accountId);
     const provider = getProviderOrThrow(account.providerId);
     const now = this.clock.now();
-    await this.accounts.update(softDeleteLoyaltyAccount(account, now));
-
-    await recordActivity(this.activity, {
-      userId,
-      type: "account_unlinked",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Unlinked ${provider.displayName}`,
-      occurredAt: now,
+    await this.eventing.unitOfWork.run(async () => {
+      await this.accounts.update(softDeleteLoyaltyAccount(account, now));
+      await recordActivity(this.activity, {
+        userId,
+        type: "account_unlinked",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Unlinked ${provider.displayName}`,
+        occurredAt: now,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("account.unlinked", {
+          userId,
+          aggregateId: account.id,
+          occurredAt: now,
+          payload: { providerId: account.providerId },
+        }),
+      ]);
     });
   }
 }

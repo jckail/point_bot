@@ -15,7 +15,7 @@ export function GET() {
       const rows = await getContainer().useCases.listAgentObservations.execute(userId);
       return NextResponse.json(rows.map(toAgentObservationDto));
     },
-    { scope: "portfolio:read" },
+    { method: "GET", scope: "portfolio:read" },
   );
 }
 
@@ -41,6 +41,6 @@ export function POST(request: Request) {
       });
       return NextResponse.json(toObservationResultDto(result));
     },
-    { scope: "observations:write", rateLimit: "observations" },
+    { method: "POST", scope: "observations:write", rateLimit: "observations" },
   );
 }

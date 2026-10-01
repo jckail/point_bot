@@ -24,7 +24,7 @@ export function PATCH(request: Request, context: Context) {
       notes: body.notes,
     });
     return NextResponse.json(toTripGoalDto(goal));
-  }, { scope: "portfolio:write" });
+  }, { method: "PATCH", scope: "portfolio:write" });
 }
 
 export function DELETE(_request: Request, context: Context) {
@@ -32,5 +32,5 @@ export function DELETE(_request: Request, context: Context) {
     const { id } = await context.params;
     await getContainer().useCases.deleteTripGoal.execute(userId, id);
     return new NextResponse(null, { status: 204 });
-  }, { scope: "portfolio:write" });
+  }, { method: "DELETE", scope: "portfolio:write" });
 }

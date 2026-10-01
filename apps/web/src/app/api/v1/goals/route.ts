@@ -11,7 +11,7 @@ export function GET() {
   return withAuthenticatedUser(async (userId) => {
     const goals = await getContainer().useCases.listTripGoals.execute(userId);
     return NextResponse.json(goals.map(toTripGoalDto));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
@@ -26,5 +26,5 @@ export function POST(request: Request) {
       notes: body.notes,
     });
     return NextResponse.json(toTripGoalDto(goal), { status: 201 });
-  }, { scope: "portfolio:write" });
+  }, { method: "POST", scope: "portfolio:write" });
 }

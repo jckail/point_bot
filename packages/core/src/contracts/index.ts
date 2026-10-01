@@ -298,6 +298,8 @@ export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
+    /** Correlation id (also the `x-request-id` response header). Quote it in bug reports. */
+    requestId: z.string().optional(),
   }),
 });
 

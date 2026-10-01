@@ -16,6 +16,6 @@ export function GET(request: Request) {
       );
       return NextResponse.json(skills.map(toAgentSkillDto));
     },
-    { scope: "portfolio:read" },
+    { method: "GET", scope: "portfolio:read" },
   );
 }

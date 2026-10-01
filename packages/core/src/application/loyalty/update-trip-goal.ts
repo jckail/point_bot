@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   LoyaltyAccountNotFoundError,
   TripGoalNotFoundError,
@@ -73,6 +75,7 @@ export class UpdateTripGoal {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly balances: BalanceSnapshotRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: UpdateTripGoalInput): Promise<TripGoalReadModel> {
@@ -101,16 +104,50 @@ export class UpdateTripGoal {
       now: this.clock.now(),
     });
 
-    await this.goals.update(updated);
+    const changed = (
+      [
+        "title",
+        "targetPoints",
+        "targetDate",
+        "accountIds",
+        "status",
+        "notes",
+      ] as const
+    ).filter((field) => input[field] !== undefined);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.update(updated);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.updated", {
+          userId: input.userId,
+          aggregateId: goal.id,
+          occurredAt: updated.updatedAt,
+          payload: { changed },
+        }),
+      ]);
+    });
     return toReadModel(updated, this.balances);
   }
 }
 
 export class DeleteTripGoal {
-  constructor(private readonly goals: TripGoalRepository) {}
+  constructor(
+    private readonly goals: TripGoalRepository,
+    private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
+  ) {}
 
   async execute(userId: string, goalId: string): Promise<void> {
     await requireOwnedGoal(this.goals, userId, goalId);
-    await this.goals.delete(goalId);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.delete(goalId);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.deleted", {
+          userId,
+          aggregateId: goalId,
+          occurredAt: this.clock.now(),
+          payload: {},
+        }),
+      ]);
+    });
   }
 }

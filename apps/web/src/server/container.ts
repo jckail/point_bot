@@ -8,12 +8,14 @@ import {
   selectLlm,
   selectScraper,
   selectVault,
+  tracedAll,
   type AgentModule,
   type Database,
   type LoyaltyModule,
 } from "@pointup/core";
 
 import { env } from "@/env";
+import { webObservability } from "@/server/observability";
 
 /**
  * Composition root for the web surface. This is the only place that knows
@@ -27,6 +29,7 @@ export interface Container {
 }
 
 function buildContainer(): Container {
+  webObservability(); // configure telemetry before wrapping use cases
   const db = createDb(env.DATABASE_URL);
   const repos = buildDrizzleRepositories(db);
   const loyalty = buildLoyaltyModule({
@@ -43,7 +46,7 @@ function buildContainer(): Container {
     linkLoyaltyAccount: loyalty.linkLoyaltyAccount,
   });
 
-  return { db, useCases: { ...loyalty, ...agent } };
+  return { db, useCases: tracedAll({ ...loyalty, ...agent }) };
 }
 
 /** Cached across HMR reloads in development. */

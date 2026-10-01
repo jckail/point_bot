@@ -4,6 +4,8 @@ export interface ScheduledTask {
   readonly name: string;
   readonly everyMs: number;
   readonly run: () => Promise<void>;
+  /** Skip the per-run log line (for high-frequency tasks). */
+  readonly quiet?: boolean;
 }
 
 /**
@@ -29,7 +31,7 @@ export function runLoop(
         if (!running.has(task.name)) {
           running.add(task.name);
           try {
-            console.info(`[loop] running ${task.name}`);
+            if (!task.quiet) console.info(`[loop] running ${task.name}`);
             await task.run();
           } catch (error) {
             console.error(`[loop] ${task.name} failed`, error);
@@ -67,7 +69,7 @@ export function runLoop(
       schedule(task, options.initialDelayMs ?? task.everyMs);
     }
     console.info(
-      `[loop] scheduled: ${tasks.map((t) => `${t.name} every ${Math.round(t.everyMs / 60_000)}m`).join(", ")}`,
+      `[loop] scheduled: ${tasks.map((t) => `${t.name} every ${t.everyMs < 60_000 ? `${Math.round(t.everyMs / 1000)}s` : `${Math.round(t.everyMs / 60_000)}m`}`).join(", ")}`,
     );
   });
 }

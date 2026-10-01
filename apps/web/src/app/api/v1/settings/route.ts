@@ -12,7 +12,7 @@ export function GET() {
   return withAuthenticatedUser(async (userId) => {
     const settings = await getContainer().useCases.getUserSettings.execute(userId);
     return NextResponse.json(toUserSettingsDto(settings));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 /** Set the display currency. Values remain USD-denominated internally. */
@@ -24,5 +24,5 @@ export function PUT(request: Request) {
       body.displayCurrency,
     );
     return NextResponse.json(toUserSettingsDto(settings));
-  }, { scope: "portfolio:write" });
+  }, { method: "PUT", scope: "portfolio:write" });
 }

@@ -10,5 +10,5 @@ export function GET() {
     const advice =
       await getContainer().useCases.getValueAdvice.execute(userId);
     return NextResponse.json(toValueAdviceDto(advice));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }

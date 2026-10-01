@@ -18,5 +18,5 @@ export function GET() {
       summary.totalValueCents,
     );
     return NextResponse.json(toPortfolioSummaryDto(summary, display));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }

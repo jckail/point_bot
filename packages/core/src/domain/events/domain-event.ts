@@ -1,3 +1,5 @@
+import type { BalanceSource } from "../loyalty/balance-snapshot";
+
 /**
  * Typed domain events. An event records a fact that already happened inside
  * the system; consumers react to it asynchronously via the transactional
@@ -36,7 +38,6 @@ export function isEventType(value: unknown): value is EventType {
   );
 }
 
-export type BalanceSource = "sync" | "manual" | "agent";
 
 /** Payload shape per event type. Adding a type here forces every switch to handle it. */
 export interface EventPayloads {
@@ -154,6 +155,6 @@ export function assertNever(value: never, message?: string): never {
 export function isEventOfType<T extends EventType>(
   event: DomainEvent,
   type: T,
-): event is DomainEventEnvelope<T> & DomainEvent {
+): event is Extract<DomainEvent, { type: T }> {
   return event.type === type;
 }

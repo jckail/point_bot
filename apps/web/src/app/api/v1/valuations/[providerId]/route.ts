@@ -20,7 +20,7 @@ export function PUT(request: Request, context: Context) {
       centsPerPoint: body.centsPerPoint,
     });
     return NextResponse.json(toCustomValuationDto(valuation));
-  }, { scope: "portfolio:write" });
+  }, { method: "PUT", scope: "portfolio:write" });
 }
 
 /** Clear the override, reverting the provider to its editorial valuation. */
@@ -32,5 +32,5 @@ export function DELETE(_request: Request, context: Context) {
       providerId,
     );
     return new NextResponse(null, { status: 204 });
-  }, { scope: "portfolio:write" });
+  }, { method: "DELETE", scope: "portfolio:write" });
 }

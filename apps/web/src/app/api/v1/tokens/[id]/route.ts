@@ -12,6 +12,6 @@ export function DELETE(_request: Request, context: Context) {
       await getContainer().useCases.revokeAccessToken.execute(userId, id);
       return new NextResponse(null, { status: 204 });
     },
-    { scope: "consents:manage", sessionOnly: true },
+    { method: "DELETE", scope: "consents:manage", sessionOnly: true },
   );
 }

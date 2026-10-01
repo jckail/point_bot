@@ -29,14 +29,15 @@ export interface AgentModuleDeps {
 /** Composes the agent bounded context (tokens, consent, observations). */
 export function buildAgentModule(deps: AgentModuleDeps) {
   const { repos } = deps;
+  const eventing = repos.eventing;
   return {
-    issueAccessToken: new IssueAccessToken(repos.accessTokens),
+    issueAccessToken: new IssueAccessToken(repos.accessTokens, undefined, eventing),
     listAccessTokens: new ListAccessTokens(repos.accessTokens),
-    revokeAccessToken: new RevokeAccessToken(repos.accessTokens),
+    revokeAccessToken: new RevokeAccessToken(repos.accessTokens, undefined, eventing),
     authenticateAccessToken: new AuthenticateAccessToken(repos.accessTokens),
-    grantConsent: new GrantConsent(repos.consents),
+    grantConsent: new GrantConsent(repos.consents, undefined, eventing),
     listConsents: new ListConsents(repos.consents),
-    revokeConsent: new RevokeConsent(repos.consents),
+    revokeConsent: new RevokeConsent(repos.consents, undefined, eventing),
     listAgentSkills: new ListAgentSkills(repos.loyaltyAccounts, repos.consents),
     submitObservation: new SubmitObservation(
       repos.loyaltyAccounts,
@@ -45,12 +46,16 @@ export function buildAgentModule(deps: AgentModuleDeps) {
       repos.observations,
       deps.recordManualBalance,
       deps.linkLoyaltyAccount,
+      undefined,
+      eventing,
     ),
     resolveObservationReview: new ResolveObservationReview(
       repos.loyaltyAccounts,
       repos.balanceSnapshots,
       repos.observations,
       deps.recordManualBalance,
+      undefined,
+      eventing,
     ),
     listAgentObservations: new ListAgentObservations(repos.observations),
   };

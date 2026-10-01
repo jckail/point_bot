@@ -46,6 +46,12 @@ const envSchema = z.object({
   WORKER_SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(360),
   WORKER_DIGEST_INTERVAL_MINUTES: z.coerce.number().positive().default(10080),
 
+  /** Domain-event outbox dispatcher (`outbox` job / loop task). */
+  WORKER_OUTBOX_INTERVAL_SECONDS: z.coerce.number().positive().default(10),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  /** Delivery attempts before an event is dead-lettered. */
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(8),
+
   /**
    * Email delivery backend:
    * - "ses": AWS SES (task role must allow ses:SendEmail)

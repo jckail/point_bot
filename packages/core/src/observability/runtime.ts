@@ -6,7 +6,7 @@ import {
   type Metrics,
 } from "./metrics";
 import { createOtelMetrics, createOtelTracer } from "./otel";
-import { noopTracer, type Tracer } from "./tracer";
+import { noopTracer, type SpanAttributes, type SpanCallback, type Tracer } from "./tracer";
 
 export interface Observability {
   readonly logger: Logger;
@@ -95,10 +95,8 @@ export function ensureObservability(
 /** Runs `fn` in a span using the configured tracer. */
 export function withSpan<T>(
   name: string,
-  attributes: Parameters<Tracer["withSpan"]>[1],
-  fn: Parameters<Tracer["withSpan"]>[2] extends (span: infer S) => infer R
-    ? (span: S) => R
-    : never,
+  attributes: SpanAttributes,
+  fn: SpanCallback<T>,
 ): Promise<T> {
-  return getObservability().tracer.withSpan(name, attributes, fn as never) as Promise<T>;
+  return getObservability().tracer.withSpan(name, attributes, fn);
 }

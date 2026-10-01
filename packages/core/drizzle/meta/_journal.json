@@ -92,6 +92,13 @@
       "when": 1790888794892,
       "tag": "0012_agent_review_and_consent_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790891741406,
+      "tag": "0013_domain_event_outbox",
+      "breakpoints": true
     }
   ]
 }

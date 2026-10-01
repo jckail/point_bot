@@ -13,94 +13,16 @@ import {
 } from "../src/application/agent/submit-observation";
 import { LinkLoyaltyAccount } from "../src/application/loyalty/link-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
-import type {
-  AccessToken,
-  AccessTokenRepository,
-} from "../src/domain/agent/access-token";
-import type {
-  ConsentGrant,
-  ConsentGrantRepository,
-} from "../src/domain/agent/consent";
-import type {
-  AgentObservation,
-  AgentObservationRepository,
-} from "../src/domain/agent/observation";
 import { AGENT_SKILL_CATALOG } from "../src/domain/agent/skill";
 import { PROVIDER_CATALOG } from "../src/domain/loyalty/provider";
 import {
   InMemoryActivityEventRepository,
   InMemoryBalanceSnapshotRepository,
+  InMemoryConsents,
   InMemoryLoyaltyAccountRepository,
+  InMemoryObservations,
+  InMemoryTokens,
 } from "./fakes";
-
-class InMemoryTokens implements AccessTokenRepository {
-  readonly rows = new Map<string, AccessToken>();
-  async findById(id: string) {
-    return this.rows.get(id) ?? null;
-  }
-  async findByHash(hash: string) {
-    return [...this.rows.values()].find((t) => t.tokenHash === hash) ?? null;
-  }
-  async findByUserId(userId: string) {
-    return [...this.rows.values()].filter((t) => t.userId === userId);
-  }
-  async insert(token: AccessToken) {
-    this.rows.set(token.id, token);
-  }
-  async update(token: AccessToken) {
-    this.rows.set(token.id, token);
-  }
-}
-
-class InMemoryConsents implements ConsentGrantRepository {
-  readonly rows = new Map<string, ConsentGrant>();
-  async findById(id: string) {
-    return this.rows.get(id) ?? null;
-  }
-  async findByUserId(userId: string) {
-    return [...this.rows.values()].filter((c) => c.userId === userId);
-  }
-  async insert(c: ConsentGrant) {
-    this.rows.set(c.id, c);
-  }
-  async update(c: ConsentGrant) {
-    this.rows.set(c.id, c);
-  }
-  async replaceActive(c: ConsentGrant, at: Date) {
-    for (const row of this.rows.values()) {
-      if (row.userId === c.userId && row.providerId === c.providerId && !row.revokedAt) {
-        this.rows.set(row.id, { ...row, revokedAt: at });
-      }
-    }
-    this.rows.set(c.id, c);
-  }
-}
-
-class InMemoryObservations implements AgentObservationRepository {
-  readonly rows: AgentObservation[] = [];
-  async insert(o: AgentObservation) {
-    this.rows.push(o);
-  }
-  async findById(id: string) {
-    return this.rows.find((o) => o.id === id) ?? null;
-  }
-  async findByUserId(userId: string) {
-    return this.rows.filter((o) => o.userId === userId);
-  }
-  async transition(
-    id: string,
-    userId: string,
-    from: AgentObservation["outcome"],
-    to: AgentObservation["outcome"],
-  ) {
-    const index = this.rows.findIndex(
-      (o) => o.id === id && o.userId === userId && o.outcome === from,
-    );
-    if (index < 0) return null;
-    this.rows[index] = { ...this.rows[index]!, outcome: to };
-    return this.rows[index]!;
-  }
-}
 
 let now = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => now };

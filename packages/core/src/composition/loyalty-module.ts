@@ -81,6 +81,7 @@ export interface LoyaltyModuleDeps {
  */
 export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
   const { repos, gateway, vault, fx, scraper, llm } = deps;
+  const eventing = repos.eventing;
   const {
     loyaltyAccounts,
     balanceSnapshots,
@@ -98,6 +99,8 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     gateway,
     vault,
     activity,
+    undefined,
+    eventing,
   );
   const listLoyaltyAccounts = new ListLoyaltyAccounts(
     loyaltyAccounts,
@@ -105,20 +108,31 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     undefined,
     customValuations,
   );
-  const linkLoyaltyAccount = new LinkLoyaltyAccount(loyaltyAccounts, activity);
+  const linkLoyaltyAccount = new LinkLoyaltyAccount(
+    loyaltyAccounts,
+    activity,
+    undefined,
+    eventing,
+  );
   const recordManualBalance = new RecordManualBalance(
     loyaltyAccounts,
     balanceSnapshots,
     activity,
+    undefined,
+    eventing,
   );
   const updateLoyaltyAccount = new UpdateLoyaltyAccount(
     loyaltyAccounts,
     activity,
+    undefined,
+    eventing,
   );
   const createTripGoal = new CreateTripGoal(
     tripGoals,
     loyaltyAccounts,
     balanceSnapshots,
+    undefined,
+    eventing,
   );
   const listTripGoals = new ListTripGoals(tripGoals, balanceSnapshots);
   const ingestDealPage = new IngestDealPage(scraper);
@@ -137,11 +151,18 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     bulkUpdateMembershipNumbers: new BulkUpdateMembershipNumbers(
       updateLoyaltyAccount,
     ),
-    unlinkLoyaltyAccount: new UnlinkLoyaltyAccount(loyaltyAccounts, activity),
+    unlinkLoyaltyAccount: new UnlinkLoyaltyAccount(
+      loyaltyAccounts,
+      activity,
+      undefined,
+      eventing,
+    ),
     restoreLoyaltyAccount: new RestoreLoyaltyAccount(
       loyaltyAccounts,
       balanceSnapshots,
       activity,
+      undefined,
+      eventing,
     ),
     listDeletedLoyaltyAccounts: new ListDeletedLoyaltyAccounts(loyaltyAccounts),
     getBalanceHistory: new GetBalanceHistory(loyaltyAccounts, balanceSnapshots),
@@ -167,8 +188,10 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
       tripGoals,
       loyaltyAccounts,
       balanceSnapshots,
+      undefined,
+      eventing,
     ),
-    deleteTripGoal: new DeleteTripGoal(tripGoals),
+    deleteTripGoal: new DeleteTripGoal(tripGoals, undefined, eventing),
     createPortfolioShare: new CreatePortfolioShare(shares),
     listPortfolioShares: new ListPortfolioShares(shares),
     revokePortfolioShare: new RevokePortfolioShare(shares),
@@ -186,7 +209,12 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     createAwardWatch: new CreateAwardWatch(awardWatches),
     listAwardWatches: new ListAwardWatches(awardWatches),
     deleteAwardWatch: new DeleteAwardWatch(awardWatches),
-    checkAwardWatches: new CheckAwardWatches(awardWatches, ingestDealPage),
+    checkAwardWatches: new CheckAwardWatches(
+      awardWatches,
+      ingestDealPage,
+      undefined,
+      eventing,
+    ),
     getUserSettings: new GetUserSettings(settings),
     setDisplayCurrency: new SetDisplayCurrency(settings),
     buildDisplayValue: new BuildDisplayValue(settings, fx),

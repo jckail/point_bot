@@ -4,11 +4,13 @@ import { checkWatches } from "./jobs/check-watches";
 import { bootstrap } from "./jobs/bootstrap";
 import { minutes, runLoop } from "./jobs/loop";
 import { runMigrations } from "./jobs/migrate";
+import { processOutbox } from "./jobs/outbox";
 import { sendAlerts } from "./jobs/send-alerts";
 import { sendDigests } from "./jobs/send-digests";
 import { syncAllUsers } from "./jobs/sync-all-users";
 import { createMailer } from "./mailers";
 import { createNotifier } from "./notifiers";
+import { outboxOptions } from "./jobs/outbox";
 import { createUserDirectory } from "./user-directory";
 
 const JOBS = [
@@ -16,6 +18,7 @@ const JOBS = [
   "digest",
   "alerts",
   "watch",
+  "outbox",
   "migrate",
   "bootstrap",
   "loop",
@@ -46,6 +49,14 @@ async function main(): Promise<void> {
   if (job === "loop") {
     await runLoop([
       {
+        name: "outbox",
+        everyMs: env.WORKER_OUTBOX_INTERVAL_SECONDS * 1000,
+        quiet: true,
+        run: async () => {
+          await processOutbox(container, createNotifier(env), outboxOptions(env));
+        },
+      },
+      {
         name: "sync",
         everyMs: minutes(env, "WORKER_SYNC_INTERVAL_MINUTES"),
         run: () => syncAllUsers(container),
@@ -64,7 +75,11 @@ async function main(): Promise<void> {
     ]);
     return;
   }
-  if (job === "sync") {
+  if (job === "outbox") {
+    await processOutbox(container, createNotifier(env), outboxOptions(env), {
+      drain: true,
+    });
+  } else if (job === "sync") {
     await syncAllUsers(container);
   } else if (job === "watch") {
     await checkWatches(

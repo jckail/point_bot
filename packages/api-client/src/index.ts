@@ -78,6 +78,8 @@ export class PointUpApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Server correlation id (`x-request-id`), when the API returned one. */
+    readonly requestId?: string,
   ) {
     super(message);
     this.name = "PointUpApiError";
@@ -413,6 +415,7 @@ export class PointUpClient {
         response.status,
         payload.error?.code ?? "UNKNOWN",
         payload.error?.message ?? response.statusText,
+        payload.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
       );
     }
     return response.text();
@@ -448,6 +451,7 @@ export class PointUpClient {
         response.status,
         payload.error?.code ?? "UNKNOWN",
         payload.error?.message ?? response.statusText,
+        payload.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
       );
     }
 

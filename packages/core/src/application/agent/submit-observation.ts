@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   ConsentRequiredError,
   InvalidObservationError,
@@ -12,6 +14,7 @@ import {
   exceedsSanityCap,
   isImplausibleJump,
   reviewExpiresAt,
+  REVIEW_TTL_MS,
   type AgentObservation,
   type AgentObservationRepository,
   type ObservationOutcome,
@@ -74,6 +77,7 @@ export class SubmitObservation {
     private readonly recordBalance: RecordManualBalance,
     private readonly linkAccount: LinkLoyaltyAccount,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(
@@ -104,86 +108,107 @@ export class SubmitObservation {
     );
     if (!consented) throw new ConsentRequiredError(skill.providerId);
 
-    let account = await this.accounts.findByUserAndProvider(
-      input.userId,
-      skill.providerId,
-    );
-    if (account?.deletedAt) {
-      // Unlinked recently: the user must restore it deliberately.
-      throw new LoyaltyAccountNotFoundError(skill.providerId);
-    }
-    if (!account) {
-      // Creating an account is a portfolio:write effect; observations:write
-      // alone must not be able to do it.
-      if (!input.membershipNumber || !input.canLinkAccount) {
+    // One transaction: link (if needed) + balance write + audit row + events.
+    return this.eventing.unitOfWork.run(async () => {
+      let account = await this.accounts.findByUserAndProvider(
+        input.userId,
+        skill.providerId,
+      );
+      if (account?.deletedAt) {
+        // Unlinked recently: the user must restore it deliberately.
         throw new LoyaltyAccountNotFoundError(skill.providerId);
       }
-      const linked = await this.linkAccount.execute({
-        userId: input.userId,
-        providerId: skill.providerId,
-        membershipNumber: input.membershipNumber,
-      });
-      account = await this.accounts.findById(linked.accountId);
-      if (!account) throw new LoyaltyAccountNotFoundError(skill.providerId);
-    }
+      if (!account) {
+        // Creating an account is a portfolio:write effect; observations:write
+        // alone must not be able to do it.
+        if (!input.membershipNumber || !input.canLinkAccount) {
+          throw new LoyaltyAccountNotFoundError(skill.providerId);
+        }
+        const linked = await this.linkAccount.execute({
+          userId: input.userId,
+          providerId: skill.providerId,
+          membershipNumber: input.membershipNumber,
+        });
+        account = await this.accounts.findById(linked.accountId);
+        if (!account) throw new LoyaltyAccountNotFoundError(skill.providerId);
+      }
 
-    const latest = (await this.balances.findLatestByAccountIds([account.id])).get(
-      account.id,
-    );
-    const previousPoints = latest?.points ?? null;
-    const observedAt = input.observedAt ?? now;
+      const latest = (await this.balances.findLatestByAccountIds([account.id])).get(
+        account.id,
+      );
+      const previousPoints = latest?.points ?? null;
+      const observedAt = input.observedAt ?? now;
 
-    const id = crypto.randomUUID();
-    let outcome: ObservationOutcome;
-    let message: string;
-    let reviewId: string | null = null;
-    if (previousPoints === input.points) {
-      outcome = "unchanged";
-      message = "Balance matches the latest reading; nothing written.";
-    } else if (
-      exceedsSanityCap(input.points, skill.maxPoints) ||
-      (previousPoints !== null && isImplausibleJump(previousPoints, input.points))
-    ) {
-      // Held, not written. Only the signed-in user can release it, via the
-      // server-issued review id: there is no agent-supplied override.
-      outcome = "needs_review";
-      reviewId = id;
-      message = `Reading ${input.points} looks implausible${previousPoints === null ? "" : ` (latest is ${previousPoints})`}, so it was NOT saved. Tell the user to open Dashboard > Agents and confirm or reject it. You cannot confirm it yourself.`;
-    } else {
-      await this.recordBalance.execute({
+      const id = crypto.randomUUID();
+      let outcome: ObservationOutcome;
+      let message: string;
+      let reviewId: string | null = null;
+      if (previousPoints === input.points) {
+        outcome = "unchanged";
+        message = "Balance matches the latest reading; nothing written.";
+      } else if (
+        exceedsSanityCap(input.points, skill.maxPoints) ||
+        (previousPoints !== null && isImplausibleJump(previousPoints, input.points))
+      ) {
+        // Held, not written. Only the signed-in user can release it, via the
+        // server-issued review id: there is no agent-supplied override.
+        outcome = "needs_review";
+        reviewId = id;
+        message = `Reading ${input.points} looks implausible${previousPoints === null ? "" : ` (latest is ${previousPoints})`}, so it was NOT saved. Tell the user to open Dashboard > Agents and confirm or reject it. You cannot confirm it yourself.`;
+      } else {
+        await this.recordBalance.execute({
+          userId: input.userId,
+          accountId: account.id,
+          points: input.points,
+          capturedAt: observedAt,
+          source: "agent",
+        });
+        outcome = "recorded";
+        message = "Balance recorded.";
+      }
+
+      await this.observations.insert({
+        id,
         userId: input.userId,
         accountId: account.id,
+        providerId: skill.providerId,
+        skillId: skill.id,
+        agent: input.agent.slice(0, 64),
+        sourceHost: url.hostname,
         points: input.points,
-        capturedAt: observedAt,
-        source: "agent",
+        previousPoints,
+        outcome,
+        observedAt,
+        createdAt: now,
       });
-      outcome = "recorded";
-      message = "Balance recorded.";
-    }
+      if (outcome === "needs_review") {
+        await this.eventing.publisher.publish([
+          createDomainEvent("observation.held", {
+            userId: input.userId,
+            aggregateId: id,
+            occurredAt: now,
+            payload: {
+              accountId: account.id,
+              providerId: skill.providerId,
+              points: input.points,
+              previousPoints,
+              reviewExpiresAt: new Date(
+                now.getTime() + REVIEW_TTL_MS,
+              ).toISOString(),
+            },
+          }),
+        ]);
+      }
 
-    await this.observations.insert({
-      id,
-      userId: input.userId,
-      accountId: account.id,
-      providerId: skill.providerId,
-      skillId: skill.id,
-      agent: input.agent.slice(0, 64),
-      sourceHost: url.hostname,
-      points: input.points,
-      previousPoints,
-      outcome,
-      observedAt,
-      createdAt: now,
+      return {
+        outcome,
+        accountId: account.id,
+        points: input.points,
+        previousPoints,
+        message,
+        reviewId,
+      };
     });
-
-    return {
-      outcome,
-      accountId: account.id,
-      points: input.points,
-      previousPoints,
-      message,
-      reviewId,
-    };
   }
 }
 
@@ -198,6 +223,7 @@ export class ResolveObservationReview {
     private readonly observations: AgentObservationRepository,
     private readonly recordBalance: RecordManualBalance,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   private async loadPending(
@@ -230,23 +256,50 @@ export class ResolveObservationReview {
     if ((latest?.points ?? null) !== held.previousPoints) {
       throw new ObservationReviewStaleError(reviewId);
     }
-    const claimed = await this.observations.transition(
-      reviewId,
-      userId,
-      "needs_review",
-      "recorded",
-    );
-    if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+    const eventing = this.eventing;
+    let claimedHere = false;
     try {
-      await this.recordBalance.execute({
-        userId,
-        accountId: account.id,
-        points: held.points,
-        capturedAt: held.observedAt,
-        source: "agent",
+      await eventing.unitOfWork.run(async () => {
+        const claimed = await this.observations.transition(
+          reviewId,
+          userId,
+          "needs_review",
+          "recorded",
+        );
+        if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+        claimedHere = true;
+        await this.recordBalance.execute({
+          userId,
+          accountId: account.id,
+          points: held.points,
+          capturedAt: held.observedAt,
+          source: "agent",
+        });
+        await eventing.publisher.publish([
+          createDomainEvent("observation.confirmed", {
+            userId,
+            aggregateId: held.id,
+            occurredAt: now,
+            payload: {
+              accountId: account.id,
+              providerId: held.providerId,
+              points: held.points,
+              previousPoints: held.previousPoints,
+            },
+          }),
+        ]);
       });
     } catch (error) {
-      await this.observations.transition(reviewId, userId, "recorded", "needs_review");
+      // Inside a real transaction the claim already rolled back; reverting
+      // would race a concurrent resolver. Only compensate without atomicity.
+      if (claimedHere && !eventing.unitOfWork.atomic) {
+        await this.observations.transition(
+          reviewId,
+          userId,
+          "recorded",
+          "needs_review",
+        );
+      }
       throw error;
     }
     return {
@@ -261,13 +314,29 @@ export class ResolveObservationReview {
 
   async reject(userId: string, reviewId: string): Promise<SubmitObservationResult> {
     const held = await this.loadPending(userId, reviewId);
-    const claimed = await this.observations.transition(
-      reviewId,
-      userId,
-      "needs_review",
-      "rejected",
-    );
-    if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+    const now = this.clock.now();
+    await this.eventing.unitOfWork.run(async () => {
+      const claimed = await this.observations.transition(
+        reviewId,
+        userId,
+        "needs_review",
+        "rejected",
+      );
+      if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+      await this.eventing.publisher.publish([
+        createDomainEvent("observation.rejected", {
+          userId,
+          aggregateId: held.id,
+          occurredAt: now,
+          payload: {
+            accountId: held.accountId,
+            providerId: held.providerId,
+            points: held.points,
+            previousPoints: held.previousPoints,
+          },
+        }),
+      ]);
+    });
     return {
       outcome: "rejected",
       accountId: held.accountId,

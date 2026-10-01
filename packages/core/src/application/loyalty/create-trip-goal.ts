@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import type {
   BalanceSnapshotRepository,
   LoyaltyAccountRepository,
@@ -84,6 +86,7 @@ export class CreateTripGoal {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly balances: BalanceSnapshotRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: CreateTripGoalInput): Promise<TripGoalReadModel> {
@@ -100,7 +103,17 @@ export class CreateTripGoal {
       now: this.clock.now(),
     });
 
-    await this.goals.insert(goal);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.insert(goal);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.created", {
+          userId: goal.userId,
+          aggregateId: goal.id,
+          occurredAt: goal.createdAt,
+          payload: { targetPoints: goal.targetPoints },
+        }),
+      ]);
+    });
     return toReadModel(goal, this.balances);
   }
 }

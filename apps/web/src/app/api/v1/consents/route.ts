@@ -13,7 +13,7 @@ export function GET() {
       const consents = await getContainer().useCases.listConsents.execute(userId);
       return NextResponse.json(consents.map(toConsentDto));
     },
-    { scope: "portfolio:read" },
+    { method: "GET", scope: "portfolio:read" },
   );
 }
 
@@ -28,6 +28,6 @@ export function POST(request: Request) {
       });
       return NextResponse.json(toConsentDto(consent), { status: 201 });
     },
-    { scope: "consents:manage", sessionOnly: true },
+    { method: "POST", scope: "consents:manage", sessionOnly: true },
   );
 }

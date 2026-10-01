@@ -21,6 +21,6 @@ export function POST(_request: Request, context: Context) {
       );
       return NextResponse.json(toObservationResultDto(result));
     },
-    { scope: "observations:write", sessionOnly: true },
+    { method: "POST", scope: "observations:write", sessionOnly: true },
   );
 }

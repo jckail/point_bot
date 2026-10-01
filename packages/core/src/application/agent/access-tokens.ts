@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   AccessTokenInvalidError,
   AccessTokenNotFoundError,
@@ -46,6 +48,7 @@ export class IssueAccessToken {
   constructor(
     private readonly tokens: AccessTokenRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   /** The plaintext is returned once and can never be recovered afterwards. */
@@ -59,7 +62,21 @@ export class IssueAccessToken {
       ...input,
       now: this.clock.now(),
     });
-    await this.tokens.insert(token);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.tokens.insert(token);
+      await this.eventing.publisher.publish([
+        createDomainEvent("token.issued", {
+          userId: token.userId,
+          aggregateId: token.id,
+          occurredAt: token.createdAt,
+          // Scope names and expiry only: never the name, prefix, or hash.
+          payload: {
+            scopes: [...token.scopes],
+            expiresAt: token.expiresAt?.toISOString() ?? null,
+          },
+        }),
+      ]);
+    });
     return { token: toAccessTokenReadModel(token), plaintext };
   }
 }
@@ -78,6 +95,7 @@ export class RevokeAccessToken {
   constructor(
     private readonly tokens: AccessTokenRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(userId: string, tokenId: string): Promise<void> {
@@ -86,7 +104,18 @@ export class RevokeAccessToken {
       throw new AccessTokenNotFoundError(tokenId);
     }
     if (token.revokedAt) return;
-    await this.tokens.update({ ...token, revokedAt: this.clock.now() });
+    const now = this.clock.now();
+    await this.eventing.unitOfWork.run(async () => {
+      await this.tokens.update({ ...token, revokedAt: now });
+      await this.eventing.publisher.publish([
+        createDomainEvent("token.revoked", {
+          userId,
+          aggregateId: token.id,
+          occurredAt: now,
+          payload: {},
+        }),
+      ]);
+    });
   }
 }
 

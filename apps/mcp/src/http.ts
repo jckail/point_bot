@@ -6,6 +6,15 @@ import {
 } from "node:http";
 
 import { createPointUpClient } from "@pointup/api-client";
+import {
+  METRIC_NAMES,
+  REQUEST_ID_HEADER,
+  getObservability,
+  resolveRequestId,
+  runWithRequestContext,
+  statusClass,
+  type Observability,
+} from "@pointup/core/observability";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 import { createPointUpMcpServer } from "./server";
@@ -41,6 +50,8 @@ export interface HttpServerOptions {
   readonly headersTimeoutMs?: number;
   readonly maxBodyBytes?: number;
   readonly fetch?: typeof fetch;
+  /** Telemetry sinks; defaults to the process-wide configuration. */
+  readonly observability?: Observability;
 }
 
 const DEFAULT_MAX_BODY = 1_000_000;
@@ -58,9 +69,11 @@ function hostName(value: string): string {
   return colons === 1 ? v.slice(0, v.indexOf(":")) : v;
 }
 
-/** Log name + message only: never the error object, headers or tokens. */
-function describeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : "non-error thrown";
+/** Bounded route label: unknown paths must not become metric labels. */
+function routeLabel(pathname: string): string {
+  return ["/mcp", "/healthz", "/readyz", "/.well-known/oauth-protected-resource"].includes(pathname)
+    ? pathname
+    : "other";
 }
 
 class HttpError extends Error {
@@ -129,12 +142,57 @@ export function createHttpServer(options: HttpServerOptions): Server {
     if (!any) response.setHeader("Vary", "Origin");
     response.setHeader(
       "Access-Control-Expose-Headers",
-      "WWW-Authenticate, Mcp-Session-Id, MCP-Protocol-Version",
+      "WWW-Authenticate, Mcp-Session-Id, MCP-Protocol-Version, X-Request-Id",
     );
     return true;
   }
 
-  const server = createServer(async (request, response) => {
+  const server = createServer((request, response) => {
+    const requestId = resolveRequestId(request.headers[REQUEST_ID_HEADER] as string | undefined);
+    response.setHeader("X-Request-Id", requestId);
+    const obs = options.observability ?? getObservability();
+    const started = performance.now();
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    const route = routeLabel(pathname);
+    response.once("finish", () => {
+      const status = response.statusCode;
+      obs.metrics.counter(METRIC_NAMES.http_requests_total, {
+        route,
+        method: request.method ?? "UNKNOWN",
+        status_class: statusClass(status),
+      });
+      obs.metrics.histogram(METRIC_NAMES.http_request_duration_ms, performance.now() - started, {
+        route,
+        method: request.method ?? "UNKNOWN",
+      });
+      const probe = route === "/healthz" || route === "/readyz";
+      obs.logger[status >= 500 ? "error" : probe ? "debug" : "info"]("http_request", {
+        requestId,
+        method: request.method,
+        route,
+        status,
+        durationMs: Math.round((performance.now() - started) * 100) / 100,
+      });
+    });
+    void runWithRequestContext({ requestId }, () =>
+      obs.tracer.withSpan(
+        `${request.method ?? "UNKNOWN"} ${route}`,
+        { "http.request.method": request.method ?? "UNKNOWN", "http.route": route, "request.id": requestId },
+        () => handle(request, response, requestId, obs),
+      ),
+    ).catch((error: unknown) => {
+      obs.logger.error("mcp_request_failed", { requestId, error });
+      if (!response.headersSent) json(response, 500, rpcError(-32603, "internal error"));
+      else response.end();
+    });
+  });
+
+  async function handle(
+    request: IncomingMessage,
+    response: ServerResponse,
+    requestId: string,
+    obs: Observability,
+  ): Promise<void> {
     const url = new URL(request.url ?? "/", "http://localhost");
 
     if (url.pathname === "/healthz") {
@@ -171,7 +229,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
       response.writeHead(204, {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers":
-          "Authorization, Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID",
+          "Authorization, Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID, X-Request-Id",
         "Access-Control-Max-Age": "600",
       });
       response.end();
@@ -228,11 +286,13 @@ export function createHttpServer(options: HttpServerOptions): Server {
       const server = createPointUpMcpServer({
         client: createPointUpClient({
           baseUrl,
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "X-Request-Id": requestId },
           ...(options.fetch ? { fetch: options.fetch } : {}),
         }),
         appUrl: baseUrl,
         agentName,
+        requestId,
+        observability: obs,
       });
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
@@ -250,12 +310,12 @@ export function createHttpServer(options: HttpServerOptions): Server {
         }
         return;
       }
-      console.error(`mcp request failed: ${describeError(error)}`);
+      obs.logger.error("mcp_request_failed", { requestId, error });
       if (!response.headersSent) json(response, 500, rpcError(-32603, "internal error"));
     } finally {
       inFlight--;
     }
-  });
+  }
   server.requestTimeout = options.requestTimeoutMs ?? 30_000;
   server.headersTimeout = options.headersTimeoutMs ?? 15_000;
   return server;

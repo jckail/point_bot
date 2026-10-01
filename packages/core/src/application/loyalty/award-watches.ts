@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import { AwardWatchNotFoundError } from "../../domain/errors";
 import {
   createAwardWatch,
@@ -79,6 +81,7 @@ export class CheckAwardWatches {
     private readonly watches: AwardWatchRepository,
     private readonly ingestDealPage: IngestDealPage,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(): Promise<CheckAwardWatchesResult> {
@@ -117,13 +120,28 @@ export class CheckAwardWatches {
           pageTitle,
         });
       }
-      await this.watches.update(
-        recordCheck(watch, {
-          bestRealizedCpp: best?.cpp ?? null,
-          notified,
-          now,
-        }),
-      );
+      await this.eventing.unitOfWork.run(async () => {
+        await this.watches.update(
+          recordCheck(watch, {
+            bestRealizedCpp: best?.cpp ?? null,
+            notified,
+            now,
+          }),
+        );
+        if (notified && best) {
+          await this.eventing.publisher.publish([
+            createDomainEvent("watch.triggered", {
+              userId: watch.userId,
+              aggregateId: watch.id,
+              occurredAt: now,
+              payload: {
+                bestRealizedCpp: best.cpp,
+                minCentsPerPoint: watch.minCentsPerPoint,
+              },
+            }),
+          ]);
+        }
+      });
     }
 
     return { checked: all.length, failed, hits };

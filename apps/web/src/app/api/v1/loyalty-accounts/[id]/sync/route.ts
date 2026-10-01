@@ -23,5 +23,5 @@ export function POST(
       transientCredential: body.transientCredential,
     });
     return NextResponse.json(toBalanceDto(balance));
-  }, { scope: "portfolio:write" });
+  }, { method: "POST", scope: "portfolio:write" });
 }

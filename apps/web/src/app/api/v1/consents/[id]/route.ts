@@ -13,6 +13,6 @@ export function DELETE(_request: Request, context: Context) {
       await getContainer().useCases.revokeConsent.execute(userId, id);
       return new NextResponse(null, { status: 204 });
     },
-    { scope: "consents:manage" },
+    { method: "DELETE", scope: "consents:manage" },
   );
 }

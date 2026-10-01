@@ -23,12 +23,12 @@ function codeOf(error: unknown): string {
  */
 export function traced<T extends Executable>(name: string, useCase: T): T {
   return new Proxy(useCase, {
-    get(target, prop, receiver) {
+    get(target, prop) {
       const value = Reflect.get(target, prop, target) as unknown;
       if (prop !== "execute" || typeof value !== "function") {
-        return typeof value === "function" && prop !== "constructor"
+        return typeof value === "function"
           ? (value as (...a: unknown[]) => unknown).bind(target)
-          : (receiver, value);
+          : value;
       }
       return async (...args: unknown[]) => {
         const { tracer, metrics } = getObservability();
@@ -40,10 +40,12 @@ export function traced<T extends Executable>(name: string, useCase: T): T {
             { "usecase.name": name },
             async (span) => {
               try {
-                return await (value as (...a: unknown[]) => unknown).apply(
+                const result = await (value as (...a: unknown[]) => unknown).apply(
                   target,
                   args,
                 );
+                span.setAttribute("usecase.outcome", "ok");
+                return result;
               } catch (error) {
                 outcome = "error";
                 span.setAttributes({
@@ -71,9 +73,24 @@ export function traced<T extends Executable>(name: string, useCase: T): T {
   });
 }
 
-/** Wraps every use case in a module record: `{ getX, createY }` -> traced. */
-export function tracedAll<T extends Record<string, Executable>>(useCases: T): T {
+function isExecutable(value: unknown): value is Executable {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { execute?: unknown }).execute === "function"
+  );
+}
+
+/**
+ * Wraps every use case in a module record (`{ getX, createY }`) with
+ * `traced`, keyed by property name. Entries without an `execute` method are
+ * passed through untouched, so a whole composed module can be wrapped cheaply.
+ */
+export function tracedAll<T extends object>(useCases: T): T {
   return Object.fromEntries(
-    Object.entries(useCases).map(([name, uc]) => [name, traced(name, uc)]),
+    Object.entries(useCases).map(([name, value]) => [
+      name,
+      isExecutable(value) ? traced(name, value) : value,
+    ]),
   ) as T;
 }

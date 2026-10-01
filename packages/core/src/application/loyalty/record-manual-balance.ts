@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import { InvalidCaptureTimeError } from "../../domain/errors";
 import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
 import { refreshExpiryFromActivity } from "../../domain/loyalty/loyalty-account";
@@ -37,6 +39,7 @@ export class RecordManualBalance {
     private readonly balances: BalanceSnapshotRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: RecordManualBalanceInput): Promise<BalanceReadModel> {
@@ -58,20 +61,41 @@ export class RecordManualBalance {
       source: input.source ?? "manual",
       capturedAt,
     });
-    await this.balances.insert(snapshot);
-
-    // Manual entries count as activity for inactivity-expiry programs.
-    await this.accounts.update(refreshExpiryFromActivity(account, capturedAt));
-
     const provider = getProviderOrThrow(account.providerId);
     const viaAgent = input.source === "agent";
-    await recordActivity(this.activity, {
-      userId: input.userId,
-      type: viaAgent ? "balance_agent" : "balance_manual",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `${viaAgent ? "Agent read" : "Recorded"} ${provider.displayName}: ${input.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
-      occurredAt: capturedAt,
+
+    await this.eventing.unitOfWork.run(async () => {
+      const previous = (await this.balances.findLatestByAccountIds([account.id])).get(
+        account.id,
+      );
+      await this.balances.insert(snapshot);
+
+      // Manual entries count as activity for inactivity-expiry programs.
+      await this.accounts.update(refreshExpiryFromActivity(account, capturedAt));
+
+      await recordActivity(this.activity, {
+        userId: input.userId,
+        type: viaAgent ? "balance_agent" : "balance_manual",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `${viaAgent ? "Agent read" : "Recorded"} ${provider.displayName}: ${input.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
+        occurredAt: capturedAt,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("balance.recorded", {
+          userId: input.userId,
+          aggregateId: account.id,
+          occurredAt: now,
+          payload: {
+            accountId: account.id,
+            providerId: account.providerId,
+            points: snapshot.points,
+            previousPoints: previous?.points ?? null,
+            source: snapshot.source,
+            capturedAt: capturedAt.toISOString(),
+          },
+        }),
+      ]);
     });
 
     return toBalanceReadModel(snapshot);

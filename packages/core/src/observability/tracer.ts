@@ -9,6 +9,8 @@ export interface SpanHandle {
   setAttributes(attributes: SpanAttributes): void;
 }
 
+export type SpanCallback<T> = (span: SpanHandle) => Promise<T> | T;
+
 /** Tracing port: vendor-neutral, async-context aware. */
 export interface Tracer {
   /**
@@ -18,7 +20,7 @@ export interface Tracer {
   withSpan<T>(
     name: string,
     attributes: SpanAttributes,
-    fn: (span: SpanHandle) => Promise<T> | T,
+    fn: SpanCallback<T>,
   ): Promise<T>;
 }
 

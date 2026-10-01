@@ -2,6 +2,7 @@ import {
   buildDrizzleRepositories,
   buildLoyaltyModule,
   createDb,
+  DrizzleOutboxStore,
   selectFx,
   selectGateway,
   selectLlm,
@@ -10,6 +11,7 @@ import {
   type AccessTokenRepository,
   type LoyaltyAccountRepository,
   type LoyaltyModule,
+  type OutboxStore,
 } from "@pointup/core";
 
 import type { WorkerEnv } from "./env";
@@ -17,6 +19,7 @@ import type { WorkerEnv } from "./env";
 export interface WorkerContainer {
   accounts: LoyaltyAccountRepository;
   accessTokens: AccessTokenRepository;
+  outbox: OutboxStore;
   useCases: Pick<
     LoyaltyModule,
     | "syncAllLoyaltyAccounts"
@@ -28,7 +31,8 @@ export interface WorkerContainer {
 
 /** The worker's composition root: env -> adapters, then the shared module. */
 export function createContainer(env: WorkerEnv): WorkerContainer {
-  const repos = buildDrizzleRepositories(createDb(env.DATABASE_URL));
+  const db = createDb(env.DATABASE_URL);
+  const repos = buildDrizzleRepositories(db);
   const loyalty = buildLoyaltyModule({
     repos,
     gateway: selectGateway(env),
@@ -42,6 +46,7 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
   return {
     accounts: repos.loyaltyAccounts,
     accessTokens: repos.accessTokens,
+    outbox: new DrizzleOutboxStore(db),
     useCases: {
       syncAllLoyaltyAccounts: loyalty.syncAllLoyaltyAccounts,
       buildPortfolioDigest: loyalty.buildPortfolioDigest,

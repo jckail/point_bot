@@ -9,5 +9,5 @@ export function POST() {
     const result =
       await getContainer().useCases.seedDemoPortfolio.execute(userId);
     return NextResponse.json(result, { status: 201 });
-  }, { scope: "portfolio:write" });
+  }, { method: "POST", scope: "portfolio:write" });
 }

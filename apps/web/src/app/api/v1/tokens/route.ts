@@ -17,7 +17,7 @@ export function GET() {
       const tokens = await getContainer().useCases.listAccessTokens.execute(userId);
       return NextResponse.json(tokens.map(toAccessTokenDto));
     },
-    { scope: "consents:manage", sessionOnly: true },
+    { method: "GET", scope: "consents:manage", sessionOnly: true },
   );
 }
 
@@ -35,6 +35,6 @@ export function POST(request: Request) {
         { status: 201, headers: { "Cache-Control": "no-store" } },
       );
     },
-    { scope: "consents:manage", sessionOnly: true },
+    { method: "POST", scope: "consents:manage", sessionOnly: true },
   );
 }

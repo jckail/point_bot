@@ -14,5 +14,5 @@ export function POST(request: Request) {
       history: body.history,
     });
     return NextResponse.json({ reply: result.reply });
-  }, { scope: "portfolio:write" });
+  }, { method: "POST", scope: "portfolio:write" });
 }

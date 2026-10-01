@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./contracts": "./src/contracts/index.ts",
     "./openapi": "./src/contracts/openapi.ts",
+    "./observability": "./src/observability/index.ts",
     "./providers": "./src/domain/loyalty/provider.ts",
     "./db/schema": "./src/infrastructure/db/schema.ts"
   },

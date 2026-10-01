@@ -12,6 +12,12 @@ import {
   valueAdviceDtoSchema,
   type AgentSkillDto,
 } from "@pointup/core/contracts";
+import {
+  METRIC_NAMES,
+  getObservability,
+  type Logger,
+  type Observability,
+} from "@pointup/core/observability";
 import { PROVIDER_CATALOG } from "@pointup/core/providers";
 import { z } from "zod";
 
@@ -28,6 +34,10 @@ export interface ServerOptions {
   /** Dashboard URL for deep links, e.g. https://app.pointup.example */
   readonly appUrl: string;
   readonly agentName: string;
+  /** Correlation id of the inbound HTTP request (logged with every tool call). */
+  readonly requestId?: string;
+  /** Telemetry sinks; defaults to the process-wide configuration. */
+  readonly observability?: Observability;
 }
 
 type ToolResult = {
@@ -115,11 +125,60 @@ export function renderSkillPlaybook(skill: AgentSkillDto): string {
     .join("\n");
 }
 
+/**
+ * Wraps a tool callback with a span, a log line and `mcp_tool_calls_total`.
+ * Tool arguments and results are never logged (they can hold user data).
+ * A result with `isError` (the `run()` convention) counts as an error outcome.
+ */
+export function instrumentTool<A extends unknown[]>(
+  tool: string,
+  callback: (...args: A) => unknown,
+  requestId?: string,
+  observability?: Observability,
+): (...args: A) => Promise<unknown> {
+  return async (...args: A) => {
+    const { tracer, metrics, logger } = observability ?? getObservability();
+    const log: Logger = requestId ? logger.child({ requestId }) : logger;
+    const started = performance.now();
+    let outcome: "ok" | "error" = "ok";
+    try {
+      return await tracer.withSpan(
+        `mcp.tool ${tool}`,
+        { "mcp.tool": tool, ...(requestId ? { "request.id": requestId } : {}) },
+        async (span) => {
+          try {
+            const result = await callback(...args);
+            if ((result as { isError?: boolean } | undefined)?.isError) {
+              outcome = "error";
+            }
+            span.setAttribute("mcp.outcome", outcome);
+            return result;
+          } catch (error) {
+            outcome = "error";
+            span.setAttribute("mcp.outcome", "error");
+            throw error;
+          }
+        },
+      );
+    } catch (error) {
+      outcome = "error";
+      throw error;
+    } finally {
+      metrics.counter(METRIC_NAMES.mcp_tool_calls_total, { tool, outcome });
+      log[outcome === "ok" ? "info" : "warn"]("mcp_tool_call", {
+        tool,
+        outcome,
+        durationMs: Math.round((performance.now() - started) * 100) / 100,
+      });
+    }
+  };
+}
+
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
 
 export function createPointUpMcpServer(options: ServerOptions): McpServer {
-  const { client, appUrl, agentName } = options;
+  const { client, appUrl, agentName, requestId, observability } = options;
   const server = new McpServer(
     { name: "pointup", version: "1.0.0" },
     {
@@ -131,6 +190,18 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       ].join(" "),
     },
   );
+
+  // Every tool gets a span, log line and metric without touching each handler.
+  const registerTool = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    callback: (...args: unknown[]) => unknown,
+  ) => unknown;
+  (server as { registerTool: unknown }).registerTool = (
+    name: string,
+    config: unknown,
+    callback: (...args: unknown[]) => unknown,
+  ) => registerTool(name, config, instrumentTool(name, callback, requestId, observability));
 
   // ─── Read tools ──────────────────────────────────────────────────────────
 

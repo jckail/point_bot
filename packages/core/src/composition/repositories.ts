@@ -11,6 +11,7 @@ import type {
   TripGoalRepository,
 } from "../domain/loyalty/repositories";
 import type { UserSettingsRepository } from "../domain/loyalty/user-settings";
+import type { Eventing } from "../application/events/ports";
 import type { Database } from "../infrastructure/db/client";
 import {
   DrizzleAccessTokenRepository,
@@ -26,6 +27,10 @@ import {
   DrizzlePortfolioShareRepository,
   DrizzleTripGoalRepository,
 } from "../infrastructure/repositories/drizzle-loyalty-account-repository";
+import {
+  DrizzleEventPublisher,
+  DrizzleUnitOfWork,
+} from "../infrastructure/outbox/drizzle-outbox";
 import { DrizzleUserSettingsRepository } from "../infrastructure/repositories/drizzle-user-settings-repository";
 
 /** Every persistence port the composition modules consume. */
@@ -41,11 +46,35 @@ export interface Repositories {
   accessTokens: AccessTokenRepository;
   consents: ConsentGrantRepository;
   observations: AgentObservationRepository;
+  /**
+   * Atomic state + domain-event recording (transactional outbox). Optional:
+   * omitted in unit tests, in which case use cases run without events.
+   */
+  eventing?: Eventing;
 }
 
-/** Postgres-backed repositories sharing one Drizzle handle. */
-export function buildDrizzleRepositories(db: Database): Repositories {
+export interface DrizzleRepositoryOptions {
+  /** Supplies the ambient correlation id stamped on recorded events. */
+  correlationId?: () => string | undefined;
+}
+
+/**
+ * Postgres-backed repositories sharing one Drizzle handle. Every repository
+ * is built on the unit of work's proxied handle, so use cases that run inside
+ * `eventing.unitOfWork.run` get state changes and outbox rows in one
+ * transaction without any repository knowing about it.
+ */
+export function buildDrizzleRepositories(
+  rootDb: Database,
+  options: DrizzleRepositoryOptions = {},
+): Repositories {
+  const unitOfWork = new DrizzleUnitOfWork(rootDb);
+  const db = unitOfWork.db;
   return {
+    eventing: {
+      unitOfWork,
+      publisher: new DrizzleEventPublisher(db, options.correlationId),
+    },
     loyaltyAccounts: new DrizzleLoyaltyAccountRepository(db),
     balanceSnapshots: new DrizzleBalanceSnapshotRepository(db),
     activity: new DrizzleActivityEventRepository(db),

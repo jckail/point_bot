@@ -10,5 +10,5 @@ export function GET() {
     const valuations =
       await getContainer().useCases.listCustomValuations.execute(userId);
     return NextResponse.json(valuations.map(toCustomValuationDto));
-  }, { scope: "portfolio:read" });
+  }, { method: "GET", scope: "portfolio:read" });
 }

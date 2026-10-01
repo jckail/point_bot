@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   AccountNotRestorableError,
 } from "../../domain/errors";
@@ -28,6 +30,7 @@ export class RestoreLoyaltyAccount {
     private readonly balances: BalanceSnapshotRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(
@@ -50,16 +53,25 @@ export class RestoreLoyaltyAccount {
     }
 
     const restored = restoreLoyaltyAccount(account, now);
-    await this.accounts.update(restored);
-
     const provider = getProviderOrThrow(account.providerId);
-    await recordActivity(this.activity, {
-      userId,
-      type: "account_restored",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Restored ${provider.displayName}`,
-      occurredAt: now,
+    await this.eventing.unitOfWork.run(async () => {
+      await this.accounts.update(restored);
+      await recordActivity(this.activity, {
+        userId,
+        type: "account_restored",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Restored ${provider.displayName}`,
+        occurredAt: now,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("account.restored", {
+          userId,
+          aggregateId: account.id,
+          occurredAt: now,
+          payload: { providerId: account.providerId },
+        }),
+      ]);
     });
 
     const trends = await this.balances.findTrendContextByAccountIds(

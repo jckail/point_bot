@@ -25,6 +25,11 @@ export * from "./application/agent/list-skills";
 export * from "./application/agent/submit-observation";
 export * from "./infrastructure/repositories/drizzle-agent-repositories";
 
+// Domain events + transactional outbox
+export * from "./domain/events";
+export * from "./application/events";
+export * from "./infrastructure/outbox/drizzle-outbox";
+
 // Application
 export * from "./application/ports";
 export * from "./application/loyalty/read-models";
@@ -91,3 +96,4 @@ export * from "./composition/repositories";
 export * from "./composition/loyalty-module";
 export * from "./composition/agent-module";
 export * from "./composition/adapters";
+export * from "./observability";

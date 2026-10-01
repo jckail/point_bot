@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   CredentialUnavailableError,
   ProviderNotSupportedError,
@@ -40,6 +42,7 @@ export class SyncLoyaltyAccount {
     private readonly vault: CredentialVault,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: SyncLoyaltyAccountInput): Promise<BalanceReadModel> {
@@ -63,19 +66,40 @@ export class SyncLoyaltyAccount {
       source: "sync",
       capturedAt: now,
     });
-    await this.balances.insert(snapshot);
-
-    // Activity resets the inactivity clock for programs that expire.
-    await this.accounts.update(refreshExpiryFromActivity(account, now));
-
     const provider = getProviderOrThrow(account.providerId);
-    await recordActivity(this.activity, {
-      userId: input.userId,
-      type: "balance_synced",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Synced ${provider.displayName}: ${balance.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
-      occurredAt: now,
+
+    await this.eventing.unitOfWork.run(async () => {
+      const previous = (await this.balances.findLatestByAccountIds([account.id])).get(
+        account.id,
+      );
+      await this.balances.insert(snapshot);
+
+      // Activity resets the inactivity clock for programs that expire.
+      await this.accounts.update(refreshExpiryFromActivity(account, now));
+
+      await recordActivity(this.activity, {
+        userId: input.userId,
+        type: "balance_synced",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Synced ${provider.displayName}: ${balance.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
+        occurredAt: now,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("balance.recorded", {
+          userId: input.userId,
+          aggregateId: account.id,
+          occurredAt: now,
+          payload: {
+            accountId: account.id,
+            providerId: account.providerId,
+            points: snapshot.points,
+            previousPoints: previous?.points ?? null,
+            source: "sync",
+            capturedAt: now.toISOString(),
+          },
+        }),
+      ]);
     });
 
     return {
