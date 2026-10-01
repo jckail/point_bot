@@ -132,8 +132,8 @@ async function main() {
   check("token cannot grant consent (session-only)", tokenGrant.status === 403, `status ${tokenGrant.status}`);
 
   // --- MCP over HTTP ----------------------------------------------------
-  const noAuth = await fetch(`${MCP}/mcp`, { method: "POST", headers: json, body: "{}" });
-  check("MCP /mcp without a token is 401", noAuth.status === 401, `status ${noAuth.status}`);
+  const anonymousResponse = await fetch(`${MCP}/mcp`, { method: "POST", headers: json, body: "{}" });
+  check("MCP /mcp without a token is 401", anonymousResponse.status === 401, `status ${anonymousResponse.status}`);
   const tools = await mcp("tools/list", {});
   must("MCP tools/list with dev token", tools.status === 200, `status ${tools.status}`);
   const names = (tools.body?.result?.tools ?? []).map((t) => t.name);
