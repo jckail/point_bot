@@ -1,5 +1,6 @@
 import type {
   AccessTokenDto,
+  ExportFormat,
   AgentObservationDto,
   AgentSkillDto,
   ConsentDto,
@@ -234,7 +235,7 @@ export class PointUpClient {
   }
 
   /** Portable dump of accounts + history. Defaults to JSON. */
-  exportPortfolio(format: "json" | "csv" = "json"): Promise<PortfolioExportDto | string> {
+  exportPortfolio(format: ExportFormat = "json"): Promise<PortfolioExportDto | string> {
     if (format === "csv") {
       return this.requestText("GET", "/api/v1/export?format=csv");
     }

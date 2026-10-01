@@ -1,5 +1,7 @@
 import {
   assertDevAuthAllowed,
+  AUTH_PROVIDERS,
+  LLM_PROVIDERS,
   composeDatabaseUrl,
   DEFAULT_DEV_USER_ID,
   parseAuthProvider,
@@ -37,7 +39,7 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     // "clerk" (default, production) or "dev": no sign-in, one fixed seeded
     // user. Dev mode is local-only; see assertDevAuthAllowed for the boot guard.
-    AUTH_PROVIDER: z.enum(["clerk", "dev"]).default("clerk"),
+    AUTH_PROVIDER: z.enum(AUTH_PROVIDERS).default("clerk"),
     DEV_USER_ID: z.string().min(1).default(DEFAULT_DEV_USER_ID),
     // Comma-separated Host names that may use the dev session.
     DEV_AUTH_ALLOWED_HOSTS: z.string().min(1).optional(),
@@ -52,7 +54,7 @@ export const env = createEnv({
     // PointUp Assistant provider selection. "bedrock" uses AWS Bedrock
     // (Claude via the Converse API, credentials from the task role); anything
     // else falls back to the OpenAI-compatible path, then the heuristic.
-    LLM_PROVIDER: z.enum(["bedrock", "openai"]).optional(),
+    LLM_PROVIDER: z.enum(LLM_PROVIDERS).optional(),
     // Optional OpenAI-compatible LLM for PointUp Assistant.
     LLM_API_KEY: z.string().min(1).optional(),
     LLM_MODEL: z.string().min(1).optional(),

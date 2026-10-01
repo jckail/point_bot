@@ -1,4 +1,5 @@
 import { InvalidTransferBonusError } from "../errors";
+import { isOneOf } from "../shared/enum";
 import { findProvider } from "./provider";
 import { applyBonusPermille } from "./bonus-math";
 import { findTransferEdge } from "./transfer-partners";
@@ -18,10 +19,7 @@ export type TransferBonusSource = (typeof TRANSFER_BONUS_SOURCES)[number];
 export function isTransferBonusSource(
   value: unknown,
 ): value is TransferBonusSource {
-  return (
-    typeof value === "string" &&
-    (TRANSFER_BONUS_SOURCES as readonly string[]).includes(value)
-  );
+  return isOneOf(TRANSFER_BONUS_SOURCES, value);
 }
 
 /** Multipliers are stored as integer permille: 1300 = 1.3x (a +30% bonus). */

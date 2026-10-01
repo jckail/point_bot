@@ -1,4 +1,5 @@
 import { applyBonusPermille } from "./bonus-math";
+import type { ProviderId } from "./provider";
 
 /**
  * Transfer partner graph: card currencies → airline/hotel programs.
@@ -8,8 +9,8 @@ import { applyBonusPermille } from "./bonus-math";
  */
 
 export interface TransferEdge {
-  readonly fromProviderId: string;
-  readonly toProviderId: string;
+  readonly fromProviderId: ProviderId;
+  readonly toProviderId: ProviderId;
   /** Source points required per destination point (usually 1). */
   readonly ratioFrom: number;
   /** Destination points received per ratioFrom source points (usually 1). */

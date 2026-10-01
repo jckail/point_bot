@@ -1,4 +1,7 @@
 import type { BalanceSource } from "../loyalty/balance-snapshot";
+import type { TransferBonusSource } from "../loyalty/transfer-bonus";
+import { isOneOf } from "../shared/enum";
+
 
 /**
  * Typed domain events. An event records a fact that already happened inside
@@ -34,9 +37,7 @@ export const EVENT_TYPES = [
 export type EventType = (typeof EVENT_TYPES)[number];
 
 export function isEventType(value: unknown): value is EventType {
-  return (
-    typeof value === "string" && (EVENT_TYPES as readonly string[]).includes(value)
-  );
+  return isOneOf(EVENT_TYPES, value);
 }
 
 
@@ -89,7 +90,7 @@ export interface EventPayloads {
     multiplierPermille: number;
     startsAt: string;
     endsAt: string;
-    source: "manual" | "scraped" | "user";
+    source: TransferBonusSource;
   };
 }
 
@@ -155,11 +156,6 @@ export function createDomainEvent<T extends EventType>(
     payload: input.payload,
     ...(input.correlationId ? { correlationId: input.correlationId } : {}),
   };
-}
-
-/** Compile-time exhaustiveness guard for switches over events/types. */
-export function assertNever(value: never, message?: string): never {
-  throw new Error(message ?? `Unhandled variant: ${JSON.stringify(value)}`);
 }
 
 /** Narrowing helper: `isEventOfType(event, "balance.recorded")`. */

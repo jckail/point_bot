@@ -1,6 +1,7 @@
 import {
   REQUEST_ID_HEADER,
   resolveRequestId,
+  type ErrorCode,
   runWithRequestContext,
   type AccessTokenScope,
 } from "@pointup/core";
@@ -41,7 +42,7 @@ import {
  */
 
 function errorResponse(
-  code: string,
+  code: ErrorCode,
   message: string,
   requestId: string,
   extraHeaders?: Record<string, string>,
@@ -52,9 +53,12 @@ function errorResponse(
   );
 }
 
+export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
 export interface AuthOptions {
   /** HTTP method of the exported handler; labels telemetry (route handlers do not expose it). */
-  readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  readonly method?: HttpMethod;
   /**
    * Scope a personal access token must hold. Browser sessions (Clerk, or the fixed dev user in dev mode) are
    * trusted for every scope (the user is present); tokens are least-privilege.
@@ -101,8 +105,8 @@ async function checkCsrf(principal: Principal): Promise<void> {
 interface RequestState {
   principal?: Principal;
   rateLimit: RateLimitOutcome;
-  rateLimitClass?: string;
-  errorCode?: string;
+  rateLimitClass?: RateLimitClass;
+  errorCode?: ErrorCode;
 }
 
 function principalKind(principal: Principal | undefined): PrincipalKind {

@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import type { ProviderId } from "../src/domain/loyalty/provider";
 import { sql } from "drizzle-orm";
 
 import { createDb } from "../src/infrastructure/db/client";
@@ -22,7 +23,7 @@ describe.skipIf(!url)("tags and goal accounts as join tables", () => {
 
   const account = (
     id: string,
-    providerId: string,
+    providerId: ProviderId,
     tags: string[],
   ): LoyaltyAccount => ({
     id: `${userId}-${id}`,

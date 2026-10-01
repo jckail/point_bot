@@ -3,6 +3,7 @@ import {
   buildLoyaltyModule,
   createDb,
   DrizzleOutboxStore,
+  DrizzleRetentionStore,
   selectFx,
   selectGateway,
   selectLlm,
@@ -12,6 +13,7 @@ import {
   type LoyaltyAccountRepository,
   type LoyaltyModule,
   type OutboxStore,
+  type RetentionStore,
 } from "@pointup/core";
 
 import type { WorkerEnv } from "./env";
@@ -20,6 +22,7 @@ export interface WorkerContainer {
   accounts: LoyaltyAccountRepository;
   accessTokens: AccessTokenRepository;
   outbox: OutboxStore;
+  retention: RetentionStore;
   useCases: Pick<
     LoyaltyModule,
     | "syncAllLoyaltyAccounts"
@@ -47,6 +50,7 @@ export function createContainer(env: WorkerEnv): WorkerContainer {
     accounts: repos.loyaltyAccounts,
     accessTokens: repos.accessTokens,
     outbox: new DrizzleOutboxStore(db),
+    retention: new DrizzleRetentionStore(db),
     useCases: {
       syncAllLoyaltyAccounts: loyalty.syncAllLoyaltyAccounts,
       buildPortfolioDigest: loyalty.buildPortfolioDigest,

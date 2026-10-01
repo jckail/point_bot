@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { describeEvent } from "../src/application/events/handlers";
 import {
-  assertNever,
   createDomainEvent,
   EVENT_SCHEMA_VERSIONS,
   EVENT_TYPES,
@@ -10,6 +9,7 @@ import {
   isEventType,
   type DomainEvent,
 } from "../src/domain/events";
+import { assertNever } from "../src/domain/shared/enum";
 
 const at = new Date("2026-07-01T00:00:00Z");
 

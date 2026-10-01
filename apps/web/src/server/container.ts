@@ -18,6 +18,7 @@ import {
 import { env } from "@/env";
 import {
   authCacheTtlMs,
+  authTouchIntervalMs,
   cacheAuthentication,
   getReadCache,
   invalidateOnWrite,
@@ -58,6 +59,11 @@ function buildContainer(): Container {
     repos,
     recordManualBalance: loyalty.recordManualBalance,
     linkLoyaltyAccount: loyalty.linkLoyaltyAccount,
+    authTouch: {
+      intervalMs: authTouchIntervalMs(),
+      onError: (error) =>
+        webObservability().logger.warn("token_touch_failed", { error }),
+    },
   });
 
   return { db, useCases: tracedAll(

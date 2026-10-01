@@ -1,4 +1,5 @@
 import { InvalidDisplayCurrencyError } from "./errors";
+import { isOneOf } from "./shared/enum";
 
 /**
  * Foreign-exchange support for displaying portfolio value in the user's
@@ -21,7 +22,7 @@ export type DisplayCurrency = (typeof SUPPORTED_DISPLAY_CURRENCIES)[number];
 export function isSupportedDisplayCurrency(
   value: string,
 ): value is DisplayCurrency {
-  return (SUPPORTED_DISPLAY_CURRENCIES as readonly string[]).includes(value);
+  return isOneOf(SUPPORTED_DISPLAY_CURRENCIES, value);
 }
 
 export function assertSupportedDisplayCurrency(

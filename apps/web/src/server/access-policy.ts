@@ -1,6 +1,7 @@
 import {
   CsrfRejectedError,
   DomainError,
+  type ErrorCode,
   InsufficientScopeError,
   requireScope,
   type AccessTokenScope,
@@ -22,7 +23,8 @@ export interface Principal {
   readonly tokenId?: string;
 }
 
-export type RateLimitClass = "default" | "write" | "observations";
+export const RATE_LIMIT_CLASSES = ["default", "write", "observations"] as const;
+export type RateLimitClass = (typeof RATE_LIMIT_CLASSES)[number];
 
 export interface AccessRequirement {
   readonly scope: AccessTokenScope;
@@ -31,11 +33,11 @@ export interface AccessRequirement {
   readonly rateLimit?: RateLimitClass;
 }
 
-export const RATE_LIMIT_POLICIES: Record<RateLimitClass, RateLimitPolicy> = {
+export const RATE_LIMIT_POLICIES = {
   default: { limit: 120, windowMs: 60_000 },
   write: { limit: 30, windowMs: 60_000 },
   observations: { limit: 10, windowMs: 60_000 },
-};
+} satisfies Record<RateLimitClass, RateLimitPolicy>;
 
 const WRITE_SCOPES: ReadonlySet<AccessTokenScope> = new Set([
   "portfolio:write",
@@ -131,7 +133,7 @@ export function rateLimitClassFor(
 }
 
 export interface MappedError {
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly message: string;
   /** True when the error is unexpected and should be logged. */
   readonly unexpected: boolean;

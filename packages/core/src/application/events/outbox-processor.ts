@@ -3,6 +3,10 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { ClaimedEvent, OutboxStore } from "./outbox";
 
+/** Result of delivering one claimed event. */
+export const DISPATCH_OUTCOMES = ["processed", "retried", "dead"] as const;
+export type DispatchOutcome = (typeof DISPATCH_OUTCOMES)[number];
+
 /**
  * A handler reacts to one delivered event. Delivery is at-least-once, so
  * handlers MUST be idempotent (dedupe on `event.id` or make the effect
@@ -140,7 +144,7 @@ export class OutboxProcessor {
 
   private async dispatch(
     item: ClaimedEvent,
-  ): Promise<"processed" | "retried" | "dead"> {
+  ): Promise<DispatchOutcome> {
     const { event, attempts } = item;
     try {
       for (const handler of this.registry.handlersFor(event.type)) {

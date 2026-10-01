@@ -1,4 +1,5 @@
 import { InvalidRedemptionGoalError } from "../errors";
+import { isOneOf } from "../shared/enum";
 import type { AwardOption } from "./award-availability";
 import {
   SWEET_SPOTS,
@@ -7,7 +8,7 @@ import {
   type SweetSpotKind,
   type SweetSpotUnit,
 } from "./catalog/sweet-spots";
-import { findProvider } from "./provider";
+import { findProvider, type ProviderId } from "./provider";
 import {
   indexBestBonuses,
   describeBonus,
@@ -70,7 +71,7 @@ export interface RedemptionGoal {
 }
 
 export interface Holding {
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   readonly points: number;
   /** The user's value of one point (custom override or editorial), in cents. */
   readonly centsPerPoint: number;
@@ -101,7 +102,7 @@ export interface PlanBonus {
 }
 
 export interface PlanSource {
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   readonly displayName: string;
   /** Source points spent (never above the balance). */
   readonly pointsUsed: number;
@@ -115,7 +116,7 @@ export interface PlanSource {
 }
 
 export interface CoverageHint {
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   /** Source points a transfer would need to cover the missing amount. */
   readonly sourcePointsNeeded: number;
   /** What the user still has of that currency after this plan. */
@@ -124,7 +125,7 @@ export interface CoverageHint {
 }
 
 export interface Shortfall {
-  readonly programId: string;
+  readonly programId: ProviderId;
   /** Destination points still missing. */
   readonly pointsNeeded: number;
   readonly coverage: readonly CoverageHint[];
@@ -133,7 +134,7 @@ export interface Shortfall {
 export interface RedemptionPlan {
   readonly id: string;
   readonly spotId: string;
-  readonly programId: string;
+  readonly programId: ProviderId;
   readonly kind: SweetSpotKind;
   readonly title: string;
   readonly units: number;
@@ -168,7 +169,7 @@ export interface PlanAvailability {
 }
 
 export interface ExpiringHolding {
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   readonly points: number;
   readonly daysUntilExpiry: number;
   readonly usedByPlan: boolean;
@@ -184,7 +185,7 @@ export interface OptimizerResult {
 // ─── Validation ────────────────────────────────────────────────────────────
 
 export function assertValidGoal(goal: RedemptionGoal): void {
-  if (!(REDEMPTION_GOAL_KINDS as readonly string[]).includes(goal.kind)) {
+  if (!isOneOf(REDEMPTION_GOAL_KINDS, goal.kind)) {
     throw new InvalidRedemptionGoalError(
       `goal kind must be one of ${REDEMPTION_GOAL_KINDS.join(", ")}`,
     );
@@ -297,7 +298,7 @@ function minAmountFor(source: Source, need: number): number | null {
 }
 
 function buildSources(
-  programId: string,
+  programId: ProviderId,
   holdings: readonly Holding[],
   bestBonuses: ReadonlyMap<string, TransferBonus>,
 ): Source[] {
@@ -469,7 +470,7 @@ function bonusInfo(bonus: TransferBonus): PlanBonus {
 }
 
 function coverageFor(
-  programId: string,
+  programId: ProviderId,
   missing: number,
   holdings: readonly Holding[],
   used: ReadonlyMap<string, number>,

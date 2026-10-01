@@ -3,12 +3,16 @@
  * Pure domain types — no IO.
  */
 
-export type DealKind =
-  | "transfer_bonus"
-  | "award_sweet_spot"
-  | "hotel_redemption"
-  | "portal_sale"
-  | "scraped";
+import type { ProviderId } from "./provider";
+
+export const DEAL_KINDS = [
+  "transfer_bonus",
+  "award_sweet_spot",
+  "hotel_redemption",
+  "portal_sale",
+  "scraped",
+] as const;
+export type DealKind = (typeof DEAL_KINDS)[number];
 
 export interface DealCandidate {
   readonly id: string;
@@ -16,14 +20,14 @@ export interface DealCandidate {
   readonly title: string;
   readonly summary: string;
   /** Program that spends the points, when known. */
-  readonly providerId: string | null;
+  readonly providerId: ProviderId | null;
   /** Points required for the redemption, when known. */
   readonly pointsCost: number | null;
   /** Cash price avoided / equivalent, in whole US cents. */
   readonly cashEquivalentCents: number | null;
   readonly sourceUrl: string | null;
   /** Optional transfer source (card currency) for transfer-bonus deals. */
-  readonly transferFromProviderId: string | null;
+  readonly transferFromProviderId: ProviderId | null;
 }
 
 export interface RankedDeal {

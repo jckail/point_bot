@@ -41,7 +41,19 @@ every value has a default, and `.env.docker.example` lists the overrides.
 | `npm run docker:smoke`       | end-to-end smoke test against the running stack                      |
 
 Run a job on demand: `docker compose run --rm worker sync` (also `digest`,
-`alerts`, `watch`).
+`alerts`, `watch`, `outbox`, `purge`).
+
+`purge` is the retention job (also a `loop` task, every
+`WORKER_PURGE_INTERVAL_SECONDS`, default 3600): it deletes processed outbox rows
+older than `OUTBOX_RETENTION_DAYS` (14), `activity_event` rows older than
+`ACTIVITY_RETENTION_DAYS` (365), and long-expired/revoked access tokens (90 d)
+and consents (365 d), in batches (`PURGE_BATCH_SIZE`, `PURGE_MAX_ROWS_PER_RUN`).
+Dead-lettered events, balance snapshots and agent observations are never
+purged. Try it: `docker compose run --rm worker purge` and read the
+`retention_purge` log line. Details: [events.md](./events.md#retention-purge-job).
+
+`AUTH_TOUCH_INTERVAL_SECONDS` (web, default 300) sets how often a token's
+`last_used_at` is refreshed; the write is fire-and-forget.
 
 ## Topology
 

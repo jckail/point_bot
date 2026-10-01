@@ -125,14 +125,32 @@ export interface AuthenticatedPrincipal {
   readonly tokenId: string;
 }
 
-/** Throttle `lastUsedAt` writes so hot tokens do not hammer the table. */
-const TOUCH_INTERVAL_MS = 60_000;
+/** Default throttle for `lastUsedAt` writes (`AUTH_TOUCH_INTERVAL_SECONDS`, 300 s). */
+export const DEFAULT_TOUCH_INTERVAL_MS = 300_000;
+
+export interface AuthenticateAccessTokenOptions {
+  /** Minimum gap between `lastUsedAt` writes for one token. */
+  readonly touchIntervalMs?: number;
+  /**
+   * Called when the background `lastUsedAt` write fails. The failure never
+   * affects the authentication result (it is bookkeeping); use this hook for a
+   * log line or a metric. Must not throw.
+   */
+  readonly onTouchError?: (error: unknown) => void;
+}
 
 export class AuthenticateAccessToken {
+  private readonly touchIntervalMs: number;
+  private readonly onTouchError: (error: unknown) => void;
+
   constructor(
     private readonly tokens: AccessTokenRepository,
     private readonly clock: Clock = systemClock,
-  ) {}
+    options: AuthenticateAccessTokenOptions = {},
+  ) {
+    this.touchIntervalMs = options.touchIntervalMs ?? DEFAULT_TOUCH_INTERVAL_MS;
+    this.onTouchError = options.onTouchError ?? (() => {});
+  }
 
   async execute(plaintext: string): Promise<AuthenticatedPrincipal> {
     if (!plaintext.startsWith(TOKEN_PREFIX)) throw new AccessTokenInvalidError();
@@ -143,11 +161,35 @@ export class AuthenticateAccessToken {
     }
     if (
       !token.lastUsedAt ||
-      now.getTime() - token.lastUsedAt.getTime() > TOUCH_INTERVAL_MS
+      now.getTime() - token.lastUsedAt.getTime() > this.touchIntervalMs
     ) {
-      await this.tokens.update({ ...token, lastUsedAt: now });
+      this.touch(token, now);
     }
     return { userId: token.userId, scopes: token.scopes, tokenId: token.id };
+  }
+
+  /**
+   * Fire-and-forget: the request must not wait for (or fail on) a bookkeeping
+   * write. Prefers the narrow `touchLastUsed` (one column, never resurrects a
+   * concurrently revoked token); falls back to a full-row update.
+   */
+  private touch(token: AccessToken, now: Date): void {
+    try {
+      const write = this.tokens.touchLastUsed
+        ? this.tokens.touchLastUsed(token.id, now)
+        : this.tokens.update({ ...token, lastUsedAt: now });
+      void Promise.resolve(write).catch((error: unknown) => this.safeReport(error));
+    } catch (error) {
+      this.safeReport(error);
+    }
+  }
+
+  private safeReport(error: unknown): void {
+    try {
+      this.onTouchError(error);
+    } catch {
+      /* a reporting hook must never break authentication */
+    }
   }
 }
 

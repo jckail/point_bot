@@ -1,6 +1,6 @@
-import type { ProviderDefinition } from "./types";
+import type { ProviderDefinitionShape } from "./types";
 
-export const HOTEL_PROVIDERS: readonly ProviderDefinition[] = [
+export const HOTEL_PROVIDERS = [
   {
     id: "marriott",
     kind: "hotel",
@@ -296,4 +296,4 @@ export const HOTEL_PROVIDERS: readonly ProviderDefinition[] = [
     lastReviewed: "2026-10-01",
     aliases: ["Genius", "Booking.com"],
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

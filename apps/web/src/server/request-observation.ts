@@ -1,26 +1,31 @@
 import {
   METRIC_NAMES,
+  type ErrorCode,
   statusClass,
   type Logger,
   type Metrics,
 } from "@pointup/core";
+import type { RateLimitClass } from "./access-policy";
 
 /**
  * Pure request-telemetry helpers used by `http.ts`: kept free of Next imports
  * so the log/metric shapes are unit-tested.
  */
 
-export type PrincipalKind = "session" | "token" | "anonymous";
-export type RateLimitOutcome = "allowed" | "limited" | "skipped";
+export const PRINCIPAL_KINDS = ["session", "token", "anonymous"] as const;
+export type PrincipalKind = (typeof PRINCIPAL_KINDS)[number];
+
+export const RATE_LIMIT_OUTCOMES = ["allowed", "limited", "skipped"] as const;
+export type RateLimitOutcome = (typeof RATE_LIMIT_OUTCOMES)[number];
 
 /** Error codes that count as authentication/authorization failures. */
-const AUTH_FAILURE_CODES: ReadonlySet<string> = new Set([
+const AUTH_FAILURE_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   "UNAUTHENTICATED",
   "INSUFFICIENT_SCOPE",
   "CSRF_REJECTED",
 ]);
 
-export function isAuthFailureCode(code: string | undefined): boolean {
+export function isAuthFailureCode(code: ErrorCode | undefined): boolean {
   return code !== undefined && AUTH_FAILURE_CODES.has(code);
 }
 
@@ -46,8 +51,8 @@ export interface RequestObservation {
   /** Access-token id (never the token itself). */
   readonly tokenId?: string | undefined;
   readonly rateLimit: RateLimitOutcome;
-  readonly rateLimitClass?: string | undefined;
-  readonly errorCode?: string | undefined;
+  readonly rateLimitClass?: RateLimitClass | undefined;
+  readonly errorCode?: ErrorCode | undefined;
 }
 
 /** Span attributes for an observed request (also unit-tested). */

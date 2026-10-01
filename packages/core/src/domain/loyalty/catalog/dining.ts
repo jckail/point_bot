@@ -1,4 +1,4 @@
-import type { ProviderDefinition } from "./types";
+import type { ProviderDefinitionShape } from "./types";
 
 const REVIEWED = "2026-10-01";
 
@@ -7,7 +7,7 @@ const REVIEWED = "2026-10-01";
  * estimates of the effective cents per point at typical redemption (usually a
  * free menu item); they vary with the item chosen and change often.
  */
-export const DINING_PROVIDERS: readonly ProviderDefinition[] = [
+export const DINING_PROVIDERS = [
   {
     id: "starbucks-rewards",
     kind: "dining",
@@ -258,4 +258,4 @@ export const DINING_PROVIDERS: readonly ProviderDefinition[] = [
     aliases: ["Pret A Manger"],
     region: "GB",
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

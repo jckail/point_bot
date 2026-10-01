@@ -1,7 +1,12 @@
 import { z } from "zod";
 
+import { AWARD_CABINS } from "../domain/loyalty/award-availability";
+import { SWEET_SPOT_KINDS } from "../domain/loyalty/catalog/sweet-spots";
+import { REDEMPTION_GOAL_KINDS } from "../domain/loyalty/optimizer";
+
 import {
   activityEventDtoSchema,
+  EXPORT_FORMATS,
   apiErrorSchema,
   balanceDtoSchema,
   bulkUpdateMembershipRequestSchema,
@@ -356,7 +361,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         get: {
           summary: "Export accounts + history (json or csv)",
           parameters: [
-            { name: "format", in: "query", schema: { type: "string", enum: ["json", "csv"] } },
+            { name: "format", in: "query", schema: { type: "string", enum: [...EXPORT_FORMATS] } },
           ],
           responses: {
             "200": {
@@ -469,7 +474,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           description:
             "Deterministic optimizer over balances, active transfer bonuses and curated sweet spots. Estimates only: availability is NOT verified unless a plan has `availability` (award search must be configured). Every plan lists caveats and a confidence.",
           parameters: [
-            { name: "goalKind", in: "query", schema: { type: "string", enum: ["flight", "hotel", "any"] } },
+            { name: "goalKind", in: "query", schema: { type: "string", enum: [...REDEMPTION_GOAL_KINDS] } },
             { name: "targetProgramId", in: "query", schema: { type: "string" } },
             { name: "minValueCpp", in: "query", schema: { type: "number" } },
             { name: "quantity", in: "query", schema: { type: "integer", minimum: 1, maximum: 30 } },
@@ -478,7 +483,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
             { name: "destination", in: "query", schema: { type: "string" } },
             { name: "dateFrom", in: "query", schema: { type: "string" } },
             { name: "dateTo", in: "query", schema: { type: "string" } },
-            { name: "cabin", in: "query", schema: { type: "string", enum: ["economy", "premium_economy", "business", "first"] } },
+            { name: "cabin", in: "query", schema: { type: "string", enum: [...AWARD_CABINS] } },
           ],
           responses: {
             "200": jsonResponse("Redemption plans", ref("PlanRedemptionResultDto")),
@@ -493,7 +498,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           description:
             "Editorial, unverified redemption patterns with typical points ranges. Never live prices or availability.",
           parameters: [
-            { name: "kind", in: "query", schema: { type: "string", enum: ["flight", "hotel", "other"] } },
+            { name: "kind", in: "query", schema: { type: "string", enum: [...SWEET_SPOT_KINDS] } },
             { name: "programId", in: "query", schema: { type: "string" } },
           ],
           responses: {

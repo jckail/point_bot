@@ -46,8 +46,11 @@ export function selectVault(config: VaultConfig): CredentialVault {
   return new NullCredentialVault();
 }
 
+export const LLM_PROVIDERS = ["bedrock", "openai"] as const;
+export type LlmProvider = (typeof LLM_PROVIDERS)[number];
+
 export interface LlmConfig {
-  LLM_PROVIDER?: string;
+  LLM_PROVIDER?: LlmProvider | undefined;
   BEDROCK_MODEL_ID?: string;
   AWS_REGION?: string;
   LLM_API_KEY?: string;

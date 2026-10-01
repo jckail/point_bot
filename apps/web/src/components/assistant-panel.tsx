@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 
-type ChatTurn = { role: "user" | "assistant"; content: string };
+import type { ChatAssistantRequest } from "@pointup/core/contracts";
+
+type ChatTurn = NonNullable<ChatAssistantRequest["history"]>[number];
 
 const SUGGESTIONS = [
   "What's my best transfer right now?",

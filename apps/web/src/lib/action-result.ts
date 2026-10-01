@@ -1,3 +1,5 @@
+import type { ErrorCode } from "@pointup/core";
+
 /**
  * Result shape returned by form server actions consumed via `useActionState`.
  * Domain error codes are translated to user-facing copy here, in one place.
@@ -10,7 +12,7 @@ export type ActionResult =
 
 export const idleActionResult: ActionResult = { status: "idle" };
 
-const DOMAIN_ERROR_MESSAGES: Record<string, string> = {
+const DOMAIN_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   PROVIDER_NOT_SUPPORTED: "That program isn't supported yet.",
   DUPLICATE_LOYALTY_ACCOUNT: "You've already linked this program.",
   LOYALTY_ACCOUNT_NOT_FOUND: "We couldn't find that account.",
@@ -44,6 +46,6 @@ const DOMAIN_ERROR_MESSAGES: Record<string, string> = {
     "No credentials available for this program - connect a vault or enter the balance manually.",
 };
 
-export function messageForDomainError(code: string): string {
+export function messageForDomainError(code: ErrorCode): string {
   return DOMAIN_ERROR_MESSAGES[code] ?? "Something went wrong. Please try again.";
 }

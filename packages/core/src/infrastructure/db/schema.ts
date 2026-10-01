@@ -43,7 +43,12 @@ export const loyaltyAccounts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (account) => [
-    index("loyalty_account_user_id_idx").on(account.userId),
+    // Active accounts per user (worker `listUserIds`, per-user reads). The
+    // plain (user_id) index was dropped: the (user_id, provider_id) unique
+    // index below serves every user_id-prefix lookup (docs/performance.md).
+    index("loyalty_account_active_user_idx")
+      .on(account.userId)
+      .where(sql`${account.deletedAt} is null`),
     index("loyalty_account_expires_at_idx").on(account.expiresAt),
     index("loyalty_account_deleted_at_idx").on(account.deletedAt),
     // One account per provider per user, enforced at the storage layer so
@@ -138,6 +143,8 @@ export const activityEvents = pgTable(
       event.userId,
       event.occurredAt,
     ),
+    // Retention purge by age across all users (a seq scan per batch without it).
+    index("activity_event_occurred_idx").on(event.occurredAt),
   ],
 );
 
@@ -357,10 +364,15 @@ export const domainEventOutbox = pgTable(
     lastError: varchar("last_error", { length: 1000 }),
   },
   (row) => [
-    // Polling index: only rows still waiting for delivery.
-    index("domain_event_outbox_pending_idx")
-      .on(row.availableAt, row.occurredAt)
+    // Claim index: matches the claim query's full ORDER BY so Postgres stops
+    // after `limit` rows; only rows still waiting for delivery.
+    index("domain_event_outbox_claim_idx")
+      .on(row.availableAt, row.occurredAt, row.id)
       .where(sql`${row.processedAt} is null and ${row.deadLetteredAt} is null`),
+    // Retention purge by age (processed rows are in no other index).
+    index("domain_event_outbox_processed_idx")
+      .on(row.processedAt)
+      .where(sql`${row.processedAt} is not null`),
     index("domain_event_outbox_aggregate_idx").on(row.aggregateId),
     index("domain_event_outbox_user_idx").on(row.userId, row.occurredAt),
   ],

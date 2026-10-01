@@ -1,4 +1,5 @@
 // Domain
+export * from "./domain/shared";
 export * from "./domain/errors";
 export * from "./domain/loyalty/provider";
 export * from "./domain/loyalty/loyalty-account";
@@ -29,6 +30,8 @@ export * from "./infrastructure/repositories/drizzle-agent-repositories";
 export * from "./domain/events";
 export * from "./application/events";
 export * from "./infrastructure/outbox/drizzle-outbox";
+export * from "./infrastructure/retention/retention";
+export * from "./infrastructure/retention/drizzle-retention-repository";
 
 // Application
 export * from "./application/ports";

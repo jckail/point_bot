@@ -1,3 +1,4 @@
+import { isOneOf } from "../domain/shared/enum";
 import { redact, redactString } from "./redact";
 import { getRequestContext } from "./context";
 import { activeTraceIds } from "./otel";
@@ -37,9 +38,7 @@ export interface ConsoleLoggerOptions {
 }
 
 export function parseLogLevel(value: string | undefined): LogLevel {
-  return (LOG_LEVELS as readonly string[]).includes(value ?? "")
-    ? (value as LogLevel)
-    : "info";
+  return isOneOf(LOG_LEVELS, value) ? value : "info";
 }
 
 function defaultWrite(line: string, level: LogLevel): void {

@@ -1,4 +1,5 @@
-import { assertNever, type DomainEvent } from "../../domain/events";
+import type { DomainEvent } from "../../domain/events";
+import { assertNever } from "../../domain/shared/enum";
 import { findProvider } from "../../domain/loyalty/provider";
 import type { Notifier } from "../ports";
 import type { EventHandler } from "./outbox-processor";

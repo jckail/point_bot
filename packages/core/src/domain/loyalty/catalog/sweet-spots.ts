@@ -11,6 +11,8 @@
  * Re-review the whole file before relying on it (`lastReviewed`).
  */
 
+import type { ProviderId } from "../provider";
+
 export const SWEET_SPOT_KINDS = ["flight", "hotel", "other"] as const;
 export type SweetSpotKind = (typeof SWEET_SPOT_KINDS)[number];
 
@@ -27,12 +29,16 @@ export type SweetSpotUnit = (typeof SWEET_SPOT_UNITS)[number];
 export const SWEET_SPOT_CONFIDENCE = ["high", "medium", "low"] as const;
 export type SweetSpotConfidence = (typeof SWEET_SPOT_CONFIDENCE)[number];
 
+/** How a sweet spot's cents-per-point was obtained. */
+export const SWEET_SPOT_CPP_BASES = ["derived", "editorial"] as const;
+export type SweetSpotCppBasis = (typeof SWEET_SPOT_CPP_BASES)[number];
+
 export const SWEET_SPOT_REVIEW_DATE = "2026-10-01";
 
 export interface SweetSpot {
   readonly id: string;
   /** Provider (catalog id) whose points are spent on this redemption. */
-  readonly programId: string;
+  readonly programId: ProviderId;
   readonly kind: SweetSpotKind;
   readonly title: string;
   readonly description: string;
@@ -47,7 +53,7 @@ export interface SweetSpot {
   /** Estimated value of one point on this redemption, in US cents. */
   readonly estimatedCentsPerPoint: number;
   /** How the cpp was obtained: derived from cash/points or purely editorial. */
-  readonly cppBasis: "derived" | "editorial";
+  readonly cppBasis: SweetSpotCppBasis;
   /** Upper bound on units a plan will suggest in one go. */
   readonly maxUnits: number;
   readonly constraints: readonly string[];
@@ -59,7 +65,7 @@ export interface SweetSpot {
 
 interface SpotSeed {
   readonly id: string;
-  readonly programId: string;
+  readonly programId: ProviderId;
   readonly kind: SweetSpotKind;
   readonly title: string;
   readonly description: string;
@@ -71,7 +77,7 @@ interface SpotSeed {
   readonly cpp?: number;
   readonly maxUnits?: number;
   readonly constraints: readonly string[];
-  readonly confidence: "medium" | "low";
+  readonly confidence: Exclude<SweetSpotConfidence, "high">;
 }
 
 function spot(seed: SpotSeed): SweetSpot {

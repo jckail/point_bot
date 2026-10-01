@@ -1,4 +1,5 @@
 import {
+  assertNever,
   computePortfolioSummary,
   type LoyaltyAccountReadModel,
   type ValueAdviceReadModel,
@@ -37,6 +38,33 @@ export interface CommandInput {
   readonly text: string;
 }
 
+export const BOT_COMMANDS = ["help", "portfolio", "expiring", "value", "ask"] as const;
+export type BotCommand = (typeof BOT_COMMANDS)[number];
+
+/** Typed keyword -> command table; every command must have its own name here. */
+const COMMAND_ALIASES = {
+  "": "help",
+  help: "help",
+  portfolio: "portfolio",
+  balances: "portfolio",
+  points: "portfolio",
+  expiring: "expiring",
+  expire: "expiring",
+  expirations: "expiring",
+  value: "value",
+  deals: "value",
+  advice: "value",
+  transfer: "value",
+  transfers: "value",
+  ask: "ask",
+} as const satisfies Record<string, BotCommand>;
+
+function commandFor(keyword: string): BotCommand | undefined {
+  return Object.hasOwn(COMMAND_ALIASES, keyword)
+    ? COMMAND_ALIASES[keyword as keyof typeof COMMAND_ALIASES]
+    : undefined;
+}
+
 const HELP = [
   "PointBot commands:",
   "• `portfolio` — your balances and total value",
@@ -58,30 +86,27 @@ export async function handleCommand(
   const [verb, ...rest] = text.split(/\s+/);
   const keyword = (verb ?? "").toLowerCase();
 
-  switch (keyword) {
-    case "":
+  const command = commandFor(keyword);
+  if (command === undefined) {
+    // Anything unrecognized is treated as a free-form assistant question.
+    return askAssistant(useCases, input.userId, text);
+  }
+
+  switch (command) {
     case "help":
       return HELP;
 
-    case "portfolio":
-    case "balances":
-    case "points": {
+    case "portfolio": {
       const accounts = await useCases.listAccounts.execute(input.userId);
       return formatPortfolio(computePortfolioSummary(accounts), accounts);
     }
 
-    case "expiring":
-    case "expire":
-    case "expirations": {
+    case "expiring": {
       const accounts = await useCases.listAccounts.execute(input.userId);
       return formatExpiring(accounts);
     }
 
-    case "value":
-    case "deals":
-    case "advice":
-    case "transfer":
-    case "transfers": {
+    case "value": {
       const advice = await useCases.getValueAdvice.execute(input.userId);
       return `${formatValueAdvice(advice)}\n\n_${TRANSFER_DISCLAIMER}_`;
     }
@@ -93,8 +118,7 @@ export async function handleCommand(
     }
 
     default:
-      // Anything unrecognized is treated as a free-form assistant question.
-      return askAssistant(useCases, input.userId, text);
+      return assertNever(command);
   }
 }
 

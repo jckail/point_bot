@@ -70,6 +70,13 @@ export class DrizzleAccessTokenRepository implements AccessTokenRepository {
       .set(tokenToRow(token))
       .where(eq(accessTokens.id, token.id));
   }
+
+  async touchLastUsed(id: string, at: Date) {
+    await this.db
+      .update(accessTokens)
+      .set({ lastUsedAt: at })
+      .where(and(eq(accessTokens.id, id), isNull(accessTokens.revokedAt)));
+  }
 }
 
 export class DrizzleConsentGrantRepository implements ConsentGrantRepository {

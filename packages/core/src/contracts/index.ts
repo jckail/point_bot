@@ -9,7 +9,14 @@ import type {
   ProviderReadModel,
 } from "../application/loyalty/read-models";
 import type { SyncOutcome } from "../application/loyalty/sync-all-loyalty-accounts";
+import type { ErrorCode } from "../domain/errors";
+import type { AssistantRole } from "../application/ports";
+import { SUPPORTED_DISPLAY_CURRENCIES } from "../domain/fx";
+import { ACTIVITY_TYPES } from "../domain/loyalty/activity";
+import { BALANCE_SOURCES } from "../domain/loyalty/balance-snapshot";
+import { DEAL_KINDS } from "../domain/loyalty/deals";
 import { PROVIDER_KINDS } from "../domain/loyalty/provider";
+import { TRIP_GOAL_STATUSES } from "../domain/loyalty/trip-goal";
 
 /**
  * Wire contracts for the PointUp HTTP API (v1).
@@ -49,7 +56,7 @@ export const providerDtoSchema = z.object({
 
 export const balanceDtoSchema = z.object({
   points: z.number().int().nonnegative(),
-  source: z.enum(["sync", "manual", "agent"]),
+  source: z.enum(BALANCE_SOURCES),
   capturedAt: isoDateTimeSchema,
 });
 
@@ -196,13 +203,16 @@ export const recordManualBalanceRequestSchema = z
   })
   .strict();
 
+export const EXPORT_FORMATS = ["json", "csv"] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
 export const balanceHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(365).optional(),
 });
 
 export const exportQuerySchema = z.object({
   /** Wire format; defaults to json. */
-  format: z.enum(["json", "csv"]).optional(),
+  format: z.enum(EXPORT_FORMATS).optional(),
 });
 
 export const activityQuerySchema = z.object({
@@ -211,15 +221,7 @@ export const activityQuerySchema = z.object({
 
 export const activityEventDtoSchema = z.object({
   id: z.string(),
-  type: z.enum([
-    "account_linked",
-    "account_unlinked",
-    "account_updated",
-    "account_restored",
-    "balance_synced",
-    "balance_manual",
-    "balance_agent",
-  ]),
+  type: z.enum(ACTIVITY_TYPES),
   accountId: z.string().nullable(),
   providerId: z.string().nullable(),
   summary: z.string(),
@@ -236,14 +238,7 @@ export const portfolioExportDtoSchema = z.object({
   ),
 });
 
-export const displayCurrencySchema = z.enum([
-  "USD",
-  "EUR",
-  "GBP",
-  "CAD",
-  "AUD",
-  "JPY",
-]);
+export const displayCurrencySchema = z.enum(SUPPORTED_DISPLAY_CURRENCIES);
 
 export const displayValueDtoSchema = z.object({
   currency: displayCurrencySchema,
@@ -312,6 +307,7 @@ export const apiErrorSchema = z.object({
 export const HTTP_STATUS_BY_ERROR_CODE = {
   UNAUTHENTICATED: 401,
   INVALID_REQUEST: 400,
+  INVALID_ID: 422,
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
   INVALID_VALUATION: 422,
@@ -353,9 +349,17 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   CSRF_REJECTED: 403,
   INTERNAL: 500,
   RATE_LIMITED: 429,
-} as const satisfies Record<string, number>;
+} as const satisfies Record<ErrorCode, number>;
 
 export type ApiErrorCode = keyof typeof HTTP_STATUS_BY_ERROR_CODE;
+
+/** Narrowing guard for untrusted code strings (wire, DB, logs). */
+export function isErrorCode(value: unknown): value is ErrorCode {
+  return (
+    typeof value === "string" &&
+    Object.hasOwn(HTTP_STATUS_BY_ERROR_CODE, value)
+  );
+}
 
 /** Unknown codes (future domain errors) default to 400. */
 export function httpStatusForErrorCode(code: string): number {
@@ -567,7 +571,7 @@ export function toSyncOutcomeDto(outcome: SyncOutcome): SyncOutcomeDto {
 
 // ─── Trip goals ────────────────────────────────────────────────────────────
 
-export const tripGoalStatusSchema = z.enum(["active", "achieved", "archived"]);
+export const tripGoalStatusSchema = z.enum(TRIP_GOAL_STATUSES);
 
 export const tripGoalDtoSchema = z.object({
   id: z.string(),
@@ -760,9 +764,12 @@ export function toDeletedAccountDto(account: {
 
 // ─── Assistant, deals, scraping ────────────────────────────────────────────
 
+/** Roles a caller may send; "system" is server-side only. */
+const WIRE_ASSISTANT_ROLES = ["user", "assistant"] as const satisfies readonly AssistantRole[];
+
 export const assistantMessageSchema = z
   .object({
-    role: z.enum(["user", "assistant"]),
+    role: z.enum(WIRE_ASSISTANT_ROLES),
     content: z.string().min(1).max(4000),
   })
   .strict();
@@ -787,13 +794,7 @@ export const scrapeDealRequestSchema = z
 
 export const dealCandidateDtoSchema = z.object({
   id: z.string(),
-  kind: z.enum([
-    "transfer_bonus",
-    "award_sweet_spot",
-    "hotel_redemption",
-    "portal_sale",
-    "scraped",
-  ]),
+  kind: z.enum(DEAL_KINDS),
   title: z.string(),
   summary: z.string(),
   providerId: z.string().nullable(),

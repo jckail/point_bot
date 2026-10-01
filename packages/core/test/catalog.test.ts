@@ -62,7 +62,7 @@ describe("provider catalog integrity", () => {
   });
 
   it("transfer edges reference cataloged providers and sane ratios", () => {
-    const ids = new Set(PROVIDER_CATALOG.map((p) => p.id));
+    const ids = new Set<string>(PROVIDER_CATALOG.map((p) => p.id));
     const seen = new Set<string>();
     for (const e of TRANSFER_EDGES) {
       expect(ids.has(e.fromProviderId), `unknown from ${e.fromProviderId}`).toBe(true);

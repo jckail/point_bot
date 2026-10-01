@@ -95,6 +95,16 @@ export function authCacheTtlMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+/**
+ * Minimum gap between `access_token.last_used_at` writes
+ * (`AUTH_TOUCH_INTERVAL_SECONDS`, default 300). The write is fire-and-forget.
+ */
+export function authTouchIntervalMs(): number {
+  const raw = process.env.AUTH_TOUCH_INTERVAL_SECONDS;
+  const parsed = raw === undefined || raw === "" ? NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1000 : 300_000;
+}
+
 interface Authenticator {
   execute: (plaintext: string) => Promise<{ userId: string }>;
 }

@@ -1,4 +1,5 @@
 import { InvalidAccessTokenRequestError } from "../errors";
+import { isOneOf } from "../shared/enum";
 
 /**
  * Personal access tokens let non-browser callers (the MCP server, ChatGPT
@@ -38,7 +39,7 @@ export interface AccessToken {
 }
 
 export function isScope(value: string): value is AccessTokenScope {
-  return (ACCESS_TOKEN_SCOPES as readonly string[]).includes(value);
+  return isOneOf(ACCESS_TOKEN_SCOPES, value);
 }
 
 export function hasScope(
@@ -133,4 +134,10 @@ export interface AccessTokenRepository {
   findByUserId(userId: string): Promise<AccessToken[]>;
   insert(token: AccessToken): Promise<void>;
   update(token: AccessToken): Promise<void>;
+  /**
+   * Sets only `lastUsedAt` (and only while the token is not revoked), so a
+   * background touch can never overwrite a concurrent revocation. Optional:
+   * authentication falls back to `update` when an implementation lacks it.
+   */
+  touchLastUsed?(id: string, at: Date): Promise<void>;
 }

@@ -1,4 +1,4 @@
-import type { AgentSkillSeed, ProviderDefinition } from "./types";
+import type { AgentSkillSeed, ProviderDefinitionShape } from "./types";
 
 const REVIEWED = "2026-10-01";
 const PRIVACY_NOTE =
@@ -13,7 +13,7 @@ function bankSeed(
   return { startUrl, allowedHosts, hint, notes: [PRIVACY_NOTE] };
 }
 
-export const CARD_PROVIDERS: readonly ProviderDefinition[] = [
+export const CARD_PROVIDERS = [
   {
     id: "chase-ultimate-rewards",
     kind: "credit_card",
@@ -407,4 +407,4 @@ export const CARD_PROVIDERS: readonly ProviderDefinition[] = [
     region: "AU",
     agentSkill: bankSeed("https://www.nab.com.au/", ["nab.com.au"], "NAB Rewards points total"),
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

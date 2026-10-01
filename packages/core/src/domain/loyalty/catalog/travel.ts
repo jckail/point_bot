@@ -1,6 +1,6 @@
-import type { ProviderDefinition } from "./types";
+import type { ProviderDefinitionShape } from "./types";
 
-export const TRAVEL_PROVIDERS: readonly ProviderDefinition[] = [
+export const TRAVEL_PROVIDERS = [
   {
     id: "hertz-gold-plus-rewards",
     kind: "car_rental",
@@ -278,4 +278,4 @@ export const TRAVEL_PROVIDERS: readonly ProviderDefinition[] = [
     lastReviewed: "2026-10-01",
     aliases: ["Gett"],
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

@@ -7,7 +7,7 @@ import {
   type RedemptionGoal,
   type RedemptionPlan,
 } from "../src/domain/loyalty/optimizer";
-import { PROVIDER_CATALOG, findProvider } from "../src/domain/loyalty/provider";
+import { PROVIDER_CATALOG, findProvider, type ProviderId } from "../src/domain/loyalty/provider";
 import {
   SWEET_SPOTS,
   findSweetSpot,
@@ -26,7 +26,7 @@ import {
 const now = new Date("2026-10-15T00:00:00Z");
 
 function holding(
-  providerId: string,
+  providerId: ProviderId,
   points: number,
   extra: Partial<Holding> = {},
 ): Holding {
@@ -167,7 +167,7 @@ const SOURCE_IDS = [
 function randomPortfolio(
   rand: () => number,
   size: number,
-  pool: readonly string[] = SOURCE_IDS,
+  pool: readonly ProviderId[] = SOURCE_IDS,
 ): Holding[] {
   const ids = [...pool];
   const out: Holding[] = [];

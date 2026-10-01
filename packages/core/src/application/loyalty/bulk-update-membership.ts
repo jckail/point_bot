@@ -1,4 +1,4 @@
-import { DomainError } from "../../domain/errors";
+import { DomainError, type ErrorCode } from "../../domain/errors";
 import type { UpdateLoyaltyAccount } from "./update-loyalty-account";
 
 export interface BulkMembershipUpdate {
@@ -8,7 +8,7 @@ export interface BulkMembershipUpdate {
 
 export interface BulkUpdateFailure {
   readonly accountId: string;
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly message: string;
 }
 

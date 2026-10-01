@@ -19,6 +19,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | --- | --- | --- |
 | `UNAUTHENTICATED` | 401 | No valid session |
 | `INVALID_REQUEST` | 400 | Request body/query failed schema validation |
+| `INVALID_ID` | 422 | An identifier (user, account, goal, ...) was empty or not a string |
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
@@ -45,6 +46,20 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `ASSISTANT_UNAVAILABLE` | 503 | LLM provider failed |
 | `SCRAPE_FAILED` | 502 | Page scraper failed |
 | `CREDENTIAL_UNAVAILABLE` | 409 | Sync needed credentials but none were resolvable |
+| `INSUFFICIENT_SCOPE` | 403 | Access token lacks the scope the route needs (or the route is session-only) |
+| `CSRF_REJECTED` | 403 | Cookie-authenticated state-changing request failed the origin/content-type checks |
+| `INVALID_ACCESS_TOKEN_REQUEST` | 422 | Token name, scopes or lifetime failed validation |
+| `ACCESS_TOKEN_NOT_FOUND` | 404 | Token does not exist **or is not yours** |
+| `CONSENT_REQUIRED` | 403 | Agent write-back refused: no active consent for that provider |
+| `CONSENT_NOT_FOUND` | 404 | Consent does not exist **or is not yours** |
+| `INVALID_CONSENT` | 422 | Consent lifetime outside 1-90 days |
+| `SKILL_NOT_FOUND` | 404 | No agent skill for that id |
+| `INVALID_OBSERVATION` | 422 | Agent observation rejected (bad value, non-https or off-allow-list source) |
+| `REVIEW_NOT_FOUND` | 404 | Held reading does not exist **or is not yours** |
+| `REVIEW_ALREADY_RESOLVED` | 409 | Held reading was already confirmed or rejected |
+| `REVIEW_EXPIRED` | 410 | Held reading passed its 24 hour review window |
+| `REVIEW_STALE` | 409 | The account's latest balance changed since the reading was held |
+| `RATE_LIMITED` | 429 | Per-principal rate limit exceeded (see `Retry-After`) |
 | `INTERNAL` | 500 | Unexpected server error |
 
 ## Endpoints

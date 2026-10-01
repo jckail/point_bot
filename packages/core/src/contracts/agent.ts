@@ -7,6 +7,7 @@ import type {
   SubmitObservationResult,
 } from "../application/agent/submit-observation";
 import { ACCESS_TOKEN_SCOPES } from "../domain/agent/access-token";
+import { SKILL_MODES } from "../domain/agent/skill";
 import {
   OBSERVATION_OUTCOMES,
   reviewExpiresAt,
@@ -70,7 +71,7 @@ export const agentSkillDtoSchema = z.object({
   id: z.string(),
   providerId: z.string(),
   title: z.string(),
-  mode: z.enum(["browser", "computer"]),
+  mode: z.enum(SKILL_MODES),
   version: z.number().int(),
   /** ISO timestamp of last human verification; null = unverified. */
   verifiedAt: isoDateTime.nullable(),

@@ -1,6 +1,6 @@
-import type { ProviderDefinition } from "./types";
+import type { ProviderDefinitionShape } from "./types";
 
-export const AIRLINE_PROVIDERS: readonly ProviderDefinition[] = [
+export const AIRLINE_PROVIDERS = [
   {
     id: "united",
     kind: "airline",
@@ -909,4 +909,4 @@ export const AIRLINE_PROVIDERS: readonly ProviderDefinition[] = [
     aliases: ["Smiles", "GOL"],
     region: "BR",
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

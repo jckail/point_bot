@@ -54,7 +54,13 @@ export interface AgentSkillSeed {
   readonly maxPoints?: number;
 }
 
-export interface ProviderDefinition {
+/**
+ * Authoring shape of a catalog entry. Catalog files declare their arrays
+ * `as const satisfies readonly ProviderDefinitionShape[]` so each `id` stays a
+ * string literal; `ProviderId` and `ProviderDefinition` (provider.ts) are
+ * derived from those literals.
+ */
+export interface ProviderDefinitionShape {
   readonly id: string;
   readonly kind: ProviderKind;
   readonly displayName: string;

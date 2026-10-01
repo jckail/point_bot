@@ -6,7 +6,11 @@ import {
   type DealCandidate,
   type DealKind,
 } from "../../domain/loyalty/deals";
-import { findProvider } from "../../domain/loyalty/provider";
+import {
+  findProvider,
+  parseProviderId,
+  type ProviderId,
+} from "../../domain/loyalty/provider";
 import type { Clock, PageScraper } from "../ports";
 import { systemClock } from "../ports";
 
@@ -58,7 +62,8 @@ export class IngestDealPage {
     }
 
     const deals = extractDealsFromMarkdown(page.markdown, page.url, {
-      providerId: input.providerId ?? null,
+      providerId:
+        input.providerId == null ? null : parseProviderId(input.providerId),
       now: this.clock.now(),
     });
 
@@ -73,7 +78,7 @@ export class IngestDealPage {
 function extractDealsFromMarkdown(
   markdown: string,
   sourceUrl: string,
-  opts: { providerId: string | null; now: Date },
+  opts: { providerId: ProviderId | null; now: Date },
 ): DealCandidate[] {
   const deals: DealCandidate[] = [];
   const lines = markdown.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -147,9 +152,9 @@ function parsePoints(raw: string): number {
   return Math.round(parseFloat(cleaned));
 }
 
-function detectProviderId(text: string): string | null {
+function detectProviderId(text: string): ProviderId | null {
   const lower = text.toLowerCase();
-  const needles: Array<[string, string]> = [
+  const needles: Array<[string, ProviderId]> = [
     ["hyatt", "hyatt"],
     ["hilton", "hilton"],
     ["marriott", "marriott"],

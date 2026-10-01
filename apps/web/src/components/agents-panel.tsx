@@ -1,5 +1,6 @@
 "use client";
 
+import type { AccessTokenScope } from "@pointup/core";
 import { useActionState } from "react";
 
 import {
@@ -49,12 +50,12 @@ export type PendingReviewRow = {
   expiresAt: Date;
 };
 
-const SCOPE_HELP: Record<string, string> = {
+const SCOPE_HELP = {
   "portfolio:read": "Read balances, goals, advice",
   "portfolio:write": "Link accounts, record balances, goals",
   "observations:write": "Agents may write balances read from provider sites (still needs consent)",
   "consents:manage": "Revoke consents only. Agents can never grant consent; only you can, here.",
-};
+} satisfies Record<AccessTokenScope, string>;
 function PendingReview({ review }: { review: PendingReviewRow }) {
   const [result, action] = useActionState(resolveReviewAction, idleActionResult);
   return (

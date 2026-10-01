@@ -2,12 +2,12 @@ import {
   InvalidMembershipNumberError,
   InvalidAccountNotesError,
   InvalidAccountTagError,
-  ProviderNotSupportedError,
 } from "../errors";
 import {
   getProviderOrThrow,
-  isSupportedProvider,
+  parseProviderId,
   projectExpiryDate,
+  type ProviderId,
 } from "./provider";
 
 /**
@@ -22,7 +22,7 @@ import {
 export interface LoyaltyAccount {
   readonly id: string;
   readonly userId: string;
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   readonly membershipNumber: string;
   readonly credentialRef: string | null;
   /**
@@ -107,12 +107,10 @@ export function normalizeAccountTags(
 
 /** Factory enforcing the entity's invariants. */
 export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
-  if (!isSupportedProvider(input.providerId)) {
-    throw new ProviderNotSupportedError(input.providerId);
-  }
+  const providerId = parseProviderId(input.providerId);
 
   const now = input.now ?? new Date();
-  const provider = getProviderOrThrow(input.providerId);
+  const provider = getProviderOrThrow(providerId);
   const expiresAt =
     input.expiresAt !== undefined
       ? input.expiresAt
@@ -121,7 +119,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
   return {
     id: input.id ?? crypto.randomUUID(),
     userId: input.userId,
-    providerId: input.providerId,
+    providerId,
     membershipNumber: normalizeMembershipNumber(input.membershipNumber),
     credentialRef: input.credentialRef ?? null,
     expiresAt,

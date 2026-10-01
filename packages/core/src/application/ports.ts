@@ -106,7 +106,8 @@ export interface Notifier {
 
 // ─── AI assistant ──────────────────────────────────────────────────────────
 
-export type AssistantRole = "system" | "user" | "assistant";
+export const ASSISTANT_ROLES = ["system", "user", "assistant"] as const;
+export type AssistantRole = (typeof ASSISTANT_ROLES)[number];
 
 export interface AssistantMessage {
   readonly role: AssistantRole;

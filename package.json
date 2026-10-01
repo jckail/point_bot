@@ -28,6 +28,7 @@
     "bench:queries": "tsx scripts/bench/queries.ts",
     "bench:web": "scripts/bench/web-bench.sh",
     "bench:mcp": "scripts/bench/mcp-bench.sh",
+    "bench:mcp-inproc": "tsx scripts/bench/mcp-inproc.ts",
     "bench:fanout": "tsx scripts/bench/sync-fanout.ts",
     "hygiene": "npm run hygiene:cycles && npm run hygiene:duplication",
     "hygiene:cycles": "npx --yes madge@8.0.0 --circular --extensions ts,tsx --ts-config tsconfig.base.json packages/core/src packages/api-client/src apps/web/src apps/mcp/src apps/worker/src apps/bot/src apps/extension/src",

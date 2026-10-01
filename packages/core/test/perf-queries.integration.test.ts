@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import type { ProviderId } from "../src/domain/loyalty/provider";
 import { sql } from "drizzle-orm";
 
 import { buildTrendContext } from "../src/application/loyalty/balance-trend";
@@ -23,7 +24,7 @@ describe.skipIf(!url)("batched snapshot reads match the full-history reduction",
   const accounts = new DrizzleLoyaltyAccountRepository(db);
   const balances = new DrizzleBalanceSnapshotRepository(db);
 
-  const account = (id: string, providerId: string): LoyaltyAccount => ({
+  const account = (id: string, providerId: ProviderId): LoyaltyAccount => ({
     id: `${userId}-${id}`,
     userId,
     providerId,

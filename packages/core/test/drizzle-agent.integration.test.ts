@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { AuthenticateAccessToken, IssueAccessToken } from "../src/application/agent/access-tokens";
 import { GrantConsent, RevokeConsent } from "../src/application/agent/consents";
@@ -52,7 +52,10 @@ describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
     });
     const principal = await new AuthenticateAccessToken(tokens).execute(issued.plaintext);
     expect(principal).toMatchObject({ userId, scopes: ["portfolio:read", "observations:write"] });
-    expect((await tokens.findByUserId(userId))[0]?.lastUsedAt).toBeInstanceOf(Date);
+    // The touch is fire-and-forget: wait for it instead of reading immediately.
+    await vi.waitFor(async () =>
+      expect((await tokens.findByUserId(userId))[0]?.lastUsedAt).toBeInstanceOf(Date),
+    );
 
     const accounts = new DrizzleLoyaltyAccountRepository(db);
     const balances = new DrizzleBalanceSnapshotRepository(db);

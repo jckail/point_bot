@@ -4,7 +4,8 @@ import { InvalidGoalTitleError, InvalidGoalTargetError } from "../errors";
  * A savings target toward a trip or redemption ("80k Hyatt for Kyoto").
  * Progress is computed against the latest balances of the linked accounts.
  */
-export type TripGoalStatus = "active" | "achieved" | "archived";
+export const TRIP_GOAL_STATUSES = ["active", "achieved", "archived"] as const;
+export type TripGoalStatus = (typeof TRIP_GOAL_STATUSES)[number];
 
 export interface TripGoal {
   readonly id: string;

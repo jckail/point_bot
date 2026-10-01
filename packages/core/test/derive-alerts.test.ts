@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { asProviderId } from "./ids";
 
 import { deriveAlerts } from "../src/application/loyalty/derive-alerts";
 import type { PortfolioDigestReadModel } from "../src/application/loyalty/build-portfolio-digest";
@@ -16,7 +17,7 @@ function account(
   return {
     id: over.id,
     provider: {
-      id: over.id,
+      id: asProviderId(over.id),
       kind: "airline",
       displayName: over.id.toUpperCase(),
       pointsCurrency: "miles",

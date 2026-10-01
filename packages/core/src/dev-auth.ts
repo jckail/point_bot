@@ -8,6 +8,8 @@
  * be reachable from the public internet.
  */
 
+import { isOneOf } from "./domain/shared/enum";
+
 export const AUTH_PROVIDERS = ["dev", "clerk"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 
@@ -29,9 +31,7 @@ export class InsecureDevAuthError extends Error {
 export function parseAuthProvider(raw: string | undefined | null): AuthProvider {
   const value = raw?.trim().toLowerCase();
   if (!value) return "clerk";
-  if ((AUTH_PROVIDERS as readonly string[]).includes(value)) {
-    return value as AuthProvider;
-  }
+  if (isOneOf(AUTH_PROVIDERS, value)) return value;
   throw new InsecureDevAuthError(
     `AUTH_PROVIDER must be one of ${AUTH_PROVIDERS.join(", ")} (got "${raw}")`,
   );

@@ -1,6 +1,6 @@
-import type { ProviderDefinition } from "./types";
+import type { ProviderDefinitionShape } from "./types";
 
-export const OTHER_PROVIDERS: readonly ProviderDefinition[] = [
+export const OTHER_PROVIDERS = [
   {
     id: "amtrak",
     kind: "rail",
@@ -448,4 +448,4 @@ export const OTHER_PROVIDERS: readonly ProviderDefinition[] = [
     aliases: ["Payback", "Payback Punkte"],
     region: "DE",
   },
-];
+] as const satisfies readonly ProviderDefinitionShape[];

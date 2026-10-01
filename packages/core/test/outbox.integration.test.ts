@@ -69,16 +69,17 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     );
   });
 
-  it("has RLS enabled and the partial polling index", async () => {
+  it("has RLS enabled and the partial claim index", async () => {
     const rls = await db.execute<{ relrowsecurity: boolean }>(
       sql`select relrowsecurity from pg_class where relname = 'domain_event_outbox'`,
     );
     expect(rls[0]?.relrowsecurity).toBe(true);
     const idx = await db.execute<{ indexdef: string }>(
-      sql`select indexdef from pg_indexes where indexname = 'domain_event_outbox_pending_idx'`,
+      sql`select indexdef from pg_indexes where indexname = 'domain_event_outbox_claim_idx'`,
     );
     expect(idx[0]?.indexdef).toMatch(/WHERE/i);
     expect(idx[0]?.indexdef).toMatch(/processed_at IS NULL/i);
+    expect(idx[0]?.indexdef).toMatch(/available_at, occurred_at, id/i);
   });
 
   it("round-trips an event through claim and markProcessed", async () => {

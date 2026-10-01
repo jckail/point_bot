@@ -1,4 +1,4 @@
-import { composeDatabaseUrl } from "@pointup/core";
+import { composeDatabaseUrl, LLM_PROVIDERS } from "@pointup/core";
 import { z } from "zod";
 
 /** Same DATABASE_URL resolution as the web app and worker. */
@@ -37,7 +37,7 @@ const envSchema = z.object({
   BOT_DEFAULT_USER_ID: z.string().min(1).optional(),
 
   // Assistant provider selection — same precedence as the web app.
-  LLM_PROVIDER: z.enum(["bedrock", "openai"]).optional(),
+  LLM_PROVIDER: z.enum(LLM_PROVIDERS).optional(),
   LLM_API_KEY: z.string().min(1).optional(),
   LLM_MODEL: z.string().min(1).optional(),
   LLM_BASE_URL: z.url().optional(),

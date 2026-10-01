@@ -1,4 +1,4 @@
-import { PROVIDER_CATALOG } from "../loyalty/provider";
+import { PROVIDER_CATALOG, type ProviderId } from "../loyalty/provider";
 import { SkillNotFoundError } from "../errors";
 import { DEFAULT_MAX_POINTS } from "./observation";
 
@@ -12,11 +12,12 @@ import { DEFAULT_MAX_POINTS } from "./observation";
  * closed) and the allow-list below is enforced server-side on write-back.
  */
 
-export type SkillMode = "browser" | "computer";
+export const SKILL_MODES = ["browser", "computer"] as const;
+export type SkillMode = (typeof SKILL_MODES)[number];
 
 export interface AgentSkill {
   readonly id: string;
-  readonly providerId: string;
+  readonly providerId: ProviderId;
   readonly title: string;
   readonly mode: SkillMode;
   /** Bumped whenever the playbook (URL, hosts, steps) changes. */

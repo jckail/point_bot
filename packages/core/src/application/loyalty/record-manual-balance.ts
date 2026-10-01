@@ -1,7 +1,7 @@
 import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
 import { InvalidCaptureTimeError } from "../../domain/errors";
-import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
+import { createBalanceSnapshot, type BalanceSource } from "../../domain/loyalty/balance-snapshot";
 import { refreshExpiryFromActivity } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type {
@@ -26,7 +26,7 @@ export interface RecordManualBalanceInput {
    */
   readonly capturedAt?: Date;
   /** Provenance; agent write-back passes "agent". Defaults to "manual". */
-  readonly source?: "manual" | "agent";
+  readonly source?: Extract<BalanceSource, "manual" | "agent">;
 }
 
 /**

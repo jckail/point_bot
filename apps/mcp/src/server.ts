@@ -1,6 +1,9 @@
 import type { PointUpClient } from "@pointup/api-client";
 import { PointUpApiError } from "@pointup/api-client";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   activityEventDtoSchema,
   agentObservationDtoSchema,
@@ -94,7 +97,10 @@ async function runStructured(
 ): Promise<ToolResult> {
   try {
     const value = await fn();
-    const structured = (wrap ? { items: value } : value) as Record<string, unknown>;
+    const structured = (wrap ? { items: value } : value) as Record<
+      string,
+      unknown
+    >;
     return { ...ok(value), structuredContent: structured };
   } catch (error) {
     return fail(error);
@@ -178,38 +184,28 @@ export function instrumentTool<A extends unknown[]>(
 }
 
 const READ = { readOnlyHint: true, openWorldHint: false } as const;
-const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
+const WRITE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  openWorldHint: false,
+} as const;
 
-export function createPointUpMcpServer(options: ServerOptions): McpServer {
-  const { client, appUrl, agentName, requestId, observability } = options;
-  const server = new McpServer(
-    { name: "pointup", version: "1.0.0" },
-    {
-      instructions: [
-        "PointUp tracks the user's loyalty points (airline, hotel, card, rail, shopping).",
-        "Reading is always allowed with a portfolio:read token.",
-        "To read a balance from a provider website with a browser/computer agent, follow the flow: pointup_list_skills → confirm consent is active (only the user can grant it, on the dashboard; pointup_request_consent just returns the link) → read the page in the user's own signed-in browser → pointup_submit_balance.",
-        "For 'how should I use my points?' call pointup_plan_redemption and always relay its caveats: plans are estimates and award availability is NOT verified unless a plan carries availability data.",
-        "Never ask for, type, or store the user's loyalty passwords.",
-      ].join(" "),
-    },
-  );
+/** Per-request state bound into the shared tool handlers (never stored globally). */
+interface ToolContext {
+  readonly client: PointUpClient;
+  readonly appUrl: string;
+  readonly agentName: string;
+}
 
-  // Every tool gets a span, log line and metric without touching each handler.
-  const registerTool = server.registerTool.bind(server) as (
-    name: string,
-    config: unknown,
-    callback: (...args: unknown[]) => unknown,
-  ) => unknown;
-  (server as { registerTool: unknown }).registerTool = (
-    name: string,
-    config: unknown,
-    callback: (...args: unknown[]) => unknown,
-  ) => registerTool(name, config, instrumentTool(name, callback, requestId, observability));
+type ToolDef = readonly [
+  name: string,
+  config: Record<string, unknown>,
+  bind: (ctx: ToolContext) => (...args: any[]) => unknown, // eslint-disable-line @typescript-eslint/no-explicit-any
+];
 
-  // ─── Read tools ──────────────────────────────────────────────────────────
-
-  server.registerTool(
+/** Tool table: schemas and descriptions are built once at module load and shared (immutable). */
+const RAW_TOOL_DEFS: readonly ToolDef[] = [
+  [
     "pointup_get_portfolio_summary",
     {
       title: "Portfolio summary",
@@ -219,10 +215,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: portfolioSummaryDtoSchema.shape,
       annotations: READ,
     },
-    () => runStructured(() => client.getPortfolioSummary()),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.getPortfolioSummary()),
+  ],
+  [
     "pointup_list_accounts",
     {
       title: "List loyalty accounts",
@@ -232,10 +227,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(loyaltyAccountDtoSchema),
       annotations: READ,
     },
-    () => runStructured(() => client.listLoyaltyAccounts(), true),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.listLoyaltyAccounts(), true),
+  ],
+  [
     "pointup_get_account",
     {
       title: "Get one account",
@@ -245,10 +239,11 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: loyaltyAccountDtoSchema.shape,
       annotations: READ,
     },
-    ({ accountId }) => runStructured(() => client.getLoyaltyAccount(accountId)),
-  );
-
-  server.registerTool(
+    (ctx) =>
+      ({ accountId }) =>
+        runStructured(() => ctx.client.getLoyaltyAccount(accountId)),
+  ],
+  [
     "pointup_list_providers",
     {
       title: "List supported programs",
@@ -258,10 +253,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(providerDtoSchema),
       annotations: READ,
     },
-    () => runStructured(() => client.listProviders(), true),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.listProviders(), true),
+  ],
+  [
     "pointup_get_balance_history",
     {
       title: "Balance history",
@@ -273,11 +267,11 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       },
       annotations: READ,
     },
-    ({ accountId, limit }) =>
-      run(() => client.getBalanceHistory(accountId, limit)),
-  );
-
-  server.registerTool(
+    (ctx) =>
+      ({ accountId, limit }) =>
+        run(() => ctx.client.getBalanceHistory(accountId, limit)),
+  ],
+  [
     "pointup_list_expiring",
     {
       title: "Points at risk of expiring",
@@ -287,11 +281,11 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(loyaltyAccountDtoSchema),
       annotations: READ,
     },
-    ({ withinDays }) =>
-      runStructured(() => client.listExpiringAccounts(withinDays), true),
-  );
-
-  server.registerTool(
+    (ctx) =>
+      ({ withinDays }) =>
+        runStructured(() => ctx.client.listExpiringAccounts(withinDays), true),
+  ],
+  [
     "pointup_get_value_advice",
     {
       title: "Bang-for-buck advice",
@@ -301,10 +295,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: valueAdviceDtoSchema.shape,
       annotations: READ,
     },
-    () => runStructured(() => client.getValueAdvice()),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.getValueAdvice()),
+  ],
+  [
     "pointup_plan_redemption",
     {
       title: "Plan the best use of my points",
@@ -312,23 +305,53 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
         "Start here for 'how should I use my points?' / 'find me a deal'. Deterministic optimizer over the user's real balances, active transfer bonuses and a curated sweet-spot catalog: ranked plans with concrete steps (transfer X from A to B at ratio [+bonus], then book Y), points used per source program, effective cents per point, shortfall (and which program could cover it), expiry urgency, confidence and caveats. Estimates, not quotes: award availability is NOT verified unless a plan carries `availability` (only set when the user's deployment has award search configured and you pass origin/destination/dateFrom/dateTo/cabin together for a flight goal). ALWAYS relay the caveats, never promise availability or prices, and tell the user transfers are irreversible: confirm space on the provider's site first. Read-only.",
       inputSchema: {
         goalKind: z.enum(["flight", "hotel", "any"]).optional(),
-        targetProgramId: idSchema.optional().describe("Program where the trip is booked, e.g. 'hyatt' (ids from pointup_list_providers)"),
-        minValueCpp: z.number().min(0).max(100).optional().describe("Drop plans below this effective cents-per-point"),
-        quantity: z.number().int().min(1).max(30).optional().describe("Nights or tickets"),
+        targetProgramId: idSchema
+          .optional()
+          .describe(
+            "Program where the trip is booked, e.g. 'hyatt' (ids from pointup_list_providers)",
+          ),
+        minValueCpp: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe("Drop plans below this effective cents-per-point"),
+        quantity: z
+          .number()
+          .int()
+          .min(1)
+          .max(30)
+          .optional()
+          .describe("Nights or tickets"),
         limit: z.number().int().min(1).max(50).optional(),
-        origin: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
-        destination: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
-        dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        cabin: z.enum(["economy", "premium_economy", "business", "first"]).optional(),
+        origin: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z]{3}$/)
+          .optional(),
+        destination: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z]{3}$/)
+          .optional(),
+        dateFrom: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        dateTo: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        cabin: z
+          .enum(["economy", "premium_economy", "business", "first"])
+          .optional(),
       },
       outputSchema: planRedemptionResultDtoSchema.shape,
       annotations: READ,
     },
-    (input) => runStructured(() => client.planRedemption(input)),
-  );
-
-  server.registerTool(
+    (ctx) => (input) => runStructured(() => ctx.client.planRedemption(input)),
+  ],
+  [
     "pointup_list_sweet_spots",
     {
       title: "Curated award sweet spots",
@@ -341,10 +364,10 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(sweetSpotDtoSchema),
       annotations: READ,
     },
-    (input) => runStructured(() => client.listSweetSpots(input), true),
-  );
-
-  server.registerTool(
+    (ctx) => (input) =>
+      runStructured(() => ctx.client.listSweetSpots(input), true),
+  ],
+  [
     "pointup_list_transfer_bonuses",
     {
       title: "Active transfer bonuses",
@@ -354,10 +377,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(transferBonusDtoSchema),
       annotations: READ,
     },
-    () => runStructured(() => client.listTransferBonuses(), true),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.listTransferBonuses(), true),
+  ],
+  [
     "pointup_list_goals",
     {
       title: "Trip goals and progress",
@@ -367,10 +389,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(tripGoalDtoSchema),
       annotations: READ,
     },
-    () => runStructured(() => client.listTripGoals(), true),
-  );
-
-  server.registerTool(
+    (ctx) => () => runStructured(() => ctx.client.listTripGoals(), true),
+  ],
+  [
     "pointup_list_activity",
     {
       title: "Recent activity",
@@ -380,12 +401,11 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(activityEventDtoSchema),
       annotations: READ,
     },
-    ({ limit }) => runStructured(() => client.listActivity(limit), true),
-  );
-
-  // ─── Write tools (portfolio:write) ───────────────────────────────────────
-
-  server.registerTool(
+    (ctx) =>
+      ({ limit }) =>
+        runStructured(() => ctx.client.listActivity(limit), true),
+  ],
+  [
     "pointup_link_account",
     {
       title: "Link a loyalty program",
@@ -397,10 +417,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       },
       annotations: WRITE,
     },
-    (input) => run(() => client.linkLoyaltyAccount(input)),
-  );
-
-  server.registerTool(
+    (ctx) => (input) => run(() => ctx.client.linkLoyaltyAccount(input)),
+  ],
+  [
     "pointup_record_balance",
     {
       title: "Record a balance the user told you",
@@ -413,17 +432,20 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       },
       annotations: WRITE,
     },
-    ({ accountId, ...body }) => run(() => client.recordManualBalance(accountId, body)),
-  );
-
-  server.registerTool(
+    (ctx) =>
+      ({ accountId, ...body }) =>
+        run(() => ctx.client.recordManualBalance(accountId, body)),
+  ],
+  [
     "pointup_record_transfer_bonus",
     {
       title: "Report a transfer bonus",
       description:
         "Record a transfer bonus the USER has seen announced by the issuer. It is stored as user-reported and unverified, and then affects every user's plans (flagged as unverified), so only record bonuses you have a source for and include sourceUrl. The edge must exist in the transfer graph and the bonus must be greater than 0% and at most 200%.",
       inputSchema: {
-        fromProviderId: idSchema.describe("Source currency, e.g. chase-ultimate-rewards"),
+        fromProviderId: idSchema.describe(
+          "Source currency, e.g. chase-ultimate-rewards",
+        ),
         toProviderId: idSchema.describe("Destination program, e.g. hyatt"),
         bonusPercent: z.number().positive().max(200).describe("30 means +30%"),
         startsAt: z.iso.datetime(),
@@ -433,10 +455,10 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: transferBonusDtoSchema.shape,
       annotations: WRITE,
     },
-    (input) => runStructured(() => client.recordTransferBonus(input)),
-  );
-
-  server.registerTool(
+    (ctx) => (input) =>
+      runStructured(() => ctx.client.recordTransferBonus(input)),
+  ],
+  [
     "pointup_create_goal",
     {
       title: "Create a trip goal",
@@ -451,12 +473,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       },
       annotations: WRITE,
     },
-    (input) => run(() => client.createTripGoal(input)),
-  );
-
-  // ─── Agent skills & write-back ───────────────────────────────────────────
-
-  server.registerTool(
+    (ctx) => (input) => run(() => ctx.client.createTripGoal(input)),
+  ],
+  [
     "pointup_list_skills",
     {
       title: "List browser/computer skills",
@@ -466,11 +485,11 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(agentSkillDtoSchema),
       annotations: READ,
     },
-    ({ providerId }) =>
-      runStructured(() => client.listAgentSkills(providerId), true),
-  );
-
-  server.registerTool(
+    (ctx) =>
+      ({ providerId }) =>
+        runStructured(() => ctx.client.listAgentSkills(providerId), true),
+  ],
+  [
     "pointup_request_consent",
     {
       title: "Point the user to the consent page for a program",
@@ -479,28 +498,28 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       inputSchema: { providerId: idSchema },
       annotations: READ,
     },
-    ({ providerId }) => {
-      // Validate before echoing anything, and show catalog data only.
-      const provider = PROVIDER_CATALOG.find((p) => p.id === providerId);
-      if (!provider) {
+    (ctx) =>
+      ({ providerId }) => {
+        // Validate before echoing anything, and show catalog data only.
+        const provider = PROVIDER_CATALOG.find((p) => p.id === providerId);
+        if (!provider) {
+          return ok({
+            granted: false,
+            reason: "unknown provider",
+            hint: "Use an id from pointup_list_providers.",
+          });
+        }
+        const link = `${ctx.appUrl}/dashboard/agents`;
         return ok({
           granted: false,
-          reason: "unknown provider",
-          hint: "Use an id from pointup_list_providers.",
+          providerId: provider.id,
+          provider: provider.displayName,
+          dashboardUrl: link,
+          action: `Ask the user to open ${link} and allow agents to read their ${provider.displayName} balance. Only the user can grant consent; do not try to do it for them.`,
         });
-      }
-      const link = `${appUrl}/dashboard/agents`;
-      return ok({
-        granted: false,
-        providerId: provider.id,
-        provider: provider.displayName,
-        dashboardUrl: link,
-        action: `Ask the user to open ${link} and allow agents to read their ${provider.displayName} balance. Only the user can grant consent; do not try to do it for them.`,
-      });
-    },
-  );
-
-  server.registerTool(
+      },
+  ],
+  [
     "pointup_submit_balance",
     {
       title: "Write back a balance read from a provider site",
@@ -524,11 +543,12 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       },
       annotations: WRITE,
     },
-    (input) =>
-      run(() => client.submitObservation({ ...input, agent: agentName })),
-  );
-
-  server.registerTool(
+    (ctx) => (input) =>
+      run(() =>
+        ctx.client.submitObservation({ ...input, agent: ctx.agentName }),
+      ),
+  ],
+  [
     "pointup_list_observations",
     {
       title: "Audit trail of agent write-backs",
@@ -538,8 +558,67 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       outputSchema: listOutput(agentObservationDtoSchema),
       annotations: READ,
     },
-    () => runStructured(() => client.listObservations(), true),
+    (ctx) => () => runStructured(() => ctx.client.listObservations(), true),
+  ],
+];
+
+/**
+ * Raw zod shapes are compiled to z.object() here, once. Handing the SDK a raw
+ * shape would make it rebuild the object schema on every registration, i.e.
+ * once per tool per request (the stateless server is created per request).
+ */
+function compileShape(shape: unknown): z.ZodObject | undefined {
+  return shape ? z.object(shape as z.ZodRawShape) : undefined;
+}
+
+const TOOL_DEFS: readonly ToolDef[] = RAW_TOOL_DEFS.map(
+  ([name, config, bind]) => {
+    const { inputSchema, outputSchema, ...rest } = config;
+    return [
+      name,
+      {
+        ...rest,
+        inputSchema: compileShape(inputSchema ?? {}),
+        ...(outputSchema ? { outputSchema: compileShape(outputSchema) } : {}),
+      },
+      bind,
+    ] as const;
+  },
+);
+
+const CAPTURE_BALANCE_ARGS = { providerId: idSchema };
+const FIND_DEALS_ARGS = { goal: z.string().max(200).optional() };
+
+export function createPointUpMcpServer(options: ServerOptions): McpServer {
+  const { client, appUrl, agentName, requestId, observability } = options;
+  const server = new McpServer(
+    { name: "pointup", version: "1.0.0" },
+    {
+      instructions: [
+        "PointUp tracks the user's loyalty points (airline, hotel, card, rail, shopping).",
+        "Reading is always allowed with a portfolio:read token.",
+        "To read a balance from a provider website with a browser/computer agent, follow the flow: pointup_list_skills → confirm consent is active (only the user can grant it, on the dashboard; pointup_request_consent just returns the link) → read the page in the user's own signed-in browser → pointup_submit_balance.",
+        "For 'how should I use my points?' call pointup_plan_redemption and always relay its caveats: plans are estimates and award availability is NOT verified unless a plan carries availability data.",
+        "Never ask for, type, or store the user's loyalty passwords.",
+      ].join(" "),
+    },
   );
+
+  // Every tool gets a span, log line and metric without touching each handler.
+  const registerTool = server.registerTool.bind(server) as (
+    name: string,
+    config: unknown,
+    callback: (...args: unknown[]) => unknown,
+  ) => unknown;
+  const ctx: ToolContext = { client, appUrl, agentName };
+
+  for (const [name, config, bind] of TOOL_DEFS) {
+    registerTool(
+      name,
+      config,
+      instrumentTool(name, bind(ctx), requestId, observability),
+    );
+  }
 
   // ─── Resources: read-only context an MCP client can attach ───────────────
 
@@ -585,11 +664,17 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
     },
     async (uri, variables) => {
       const skillId = decodeURIComponent(String(variables.skillId));
-      const skill = (await client.listAgentSkills()).find((s) => s.id === skillId);
+      const skill = (await client.listAgentSkills()).find(
+        (s) => s.id === skillId,
+      );
       if (!skill) throw new Error(`Unknown skill "${skillId}"`);
       return {
         contents: [
-          { uri: uri.href, mimeType: "text/markdown", text: renderSkillPlaybook(skill) },
+          {
+            uri: uri.href,
+            mimeType: "text/markdown",
+            text: renderSkillPlaybook(skill),
+          },
         ],
       };
     },
@@ -603,7 +688,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       title: "Capture a balance from a provider site",
       description:
         "Step-by-step playbook for a browser/computer agent to read one program's balance with the user's consent and write it back.",
-      argsSchema: { providerId: idSchema },
+      argsSchema: CAPTURE_BALANCE_ARGS,
     },
     async ({ providerId }) => {
       const skills = await client.listAgentSkills(providerId);
@@ -612,7 +697,9 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
         ? renderSkillPlaybook(skill)
         : `No skill exists for "${providerId}". Use pointup_list_providers to check the id.`;
       return {
-        messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
+        messages: [
+          { role: "user" as const, content: { type: "text" as const, text } },
+        ],
       };
     },
   );
@@ -621,7 +708,8 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
     "portfolio-review",
     {
       title: "Review my points portfolio",
-      description: "Summarize balances, expiring points, goals, and best redemptions.",
+      description:
+        "Summarize balances, expiring points, goals, and best redemptions.",
     },
     () => ({
       messages: [
@@ -641,7 +729,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
     {
       title: "Find deals and optimally use my points",
       description: "Plan the best redemptions for my balances, honestly.",
-      argsSchema: { goal: z.string().max(200).optional() },
+      argsSchema: FIND_DEALS_ARGS,
     },
     ({ goal }) => ({
       messages: [

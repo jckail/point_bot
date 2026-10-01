@@ -1,5 +1,5 @@
 import type { BalanceSource } from "../../domain/loyalty/balance-snapshot";
-import type { ProviderKind } from "../../domain/loyalty/provider";
+import type { ProviderId, ProviderKind } from "../../domain/loyalty/provider";
 import type { BalanceTrend } from "./balance-trend";
 
 /**
@@ -9,7 +9,7 @@ import type { BalanceTrend } from "./balance-trend";
  */
 
 export interface ProviderReadModel {
-  readonly id: string;
+  readonly id: ProviderId;
   readonly kind: ProviderKind;
   readonly displayName: string;
   readonly pointsCurrency: string;

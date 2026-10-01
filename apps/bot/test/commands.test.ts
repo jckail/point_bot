@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
   LoyaltyAccountReadModel,
+  ProviderId,
   ValueAdviceReadModel,
 } from "@pointup/core";
 
@@ -19,7 +20,8 @@ function account(
   return {
     id: displayName.toLowerCase(),
     provider: {
-      id: displayName.toLowerCase(),
+      // Fakes use arbitrary ids; the cast is confined to this test helper.
+      id: displayName.toLowerCase() as ProviderId,
       kind: kind ?? "airline",
       displayName,
       pointsCurrency: "points",

@@ -5,6 +5,7 @@ import { bootstrap } from "./jobs/bootstrap";
 import { minutes, runLoop } from "./jobs/loop";
 import { runMigrations } from "./jobs/migrate";
 import { processOutbox } from "./jobs/outbox";
+import { purge } from "./jobs/purge";
 import { sendAlerts } from "./jobs/send-alerts";
 import { sendDigests } from "./jobs/send-digests";
 import { syncAllUsers } from "./jobs/sync-all-users";
@@ -19,6 +20,7 @@ const JOBS = [
   "alerts",
   "watch",
   "outbox",
+  "purge",
   "migrate",
   "bootstrap",
   "loop",
@@ -57,6 +59,13 @@ async function main(): Promise<void> {
         },
       },
       {
+        name: "purge",
+        everyMs: env.WORKER_PURGE_INTERVAL_SECONDS * 1000,
+        run: async () => {
+          await purge(container, env);
+        },
+      },
+      {
         name: "sync",
         everyMs: minutes(env, "WORKER_SYNC_INTERVAL_MINUTES"),
         run: () => syncAllUsers(container),
@@ -75,7 +84,9 @@ async function main(): Promise<void> {
     ]);
     return;
   }
-  if (job === "outbox") {
+  if (job === "purge") {
+    await purge(container, env);
+  } else if (job === "outbox") {
     await processOutbox(container, createNotifier(env), outboxOptions(env), {
       drain: true,
     });

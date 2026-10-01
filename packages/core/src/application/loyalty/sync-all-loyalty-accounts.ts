@@ -1,11 +1,11 @@
-import { DomainError } from "../../domain/errors";
+import { DomainError, type ErrorCode } from "../../domain/errors";
 import type { LoyaltyAccountRepository } from "../../domain/loyalty/repositories";
 import type { BalanceReadModel } from "./read-models";
 import type { SyncLoyaltyAccount } from "./sync-loyalty-account";
 
 export type SyncOutcome =
   | { readonly accountId: string; readonly ok: true; readonly balance: BalanceReadModel }
-  | { readonly accountId: string; readonly ok: false; readonly errorCode: string };
+  | { readonly accountId: string; readonly ok: false; readonly errorCode: ErrorCode };
 
 export const DEFAULT_SYNC_CONCURRENCY = 4;
 

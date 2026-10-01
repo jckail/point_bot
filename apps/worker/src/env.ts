@@ -1,5 +1,8 @@
-import { composeDatabaseUrl } from "@pointup/core";
+import { AUTH_PROVIDERS, composeDatabaseUrl } from "@pointup/core";
 import { z } from "zod";
+
+export const MAILER_KINDS = ["ses", "smtp", "console"] as const;
+export type MailerKind = (typeof MAILER_KINDS)[number];
 
 /**
  * Prefer an explicit DATABASE_URL (local dev, docker-compose). On AWS, ECS
@@ -32,7 +35,7 @@ const envSchema = z.object({
    * Bootstrap job (local stack only). AUTH_PROVIDER=dev enables demo seeding
    * and dev-token minting; the same production guard as the web app applies.
    */
-  AUTH_PROVIDER: z.enum(["clerk", "dev"]).default("clerk"),
+  AUTH_PROVIDER: z.enum(AUTH_PROVIDERS).default("clerk"),
   DEV_USER_ID: z.string().min(1).default("dev-user"),
   ALLOW_INSECURE_DEV_AUTH: z.string().optional(),
   DEV_AUTH_HOST_IS_LOOPBACK_ONLY: z.string().optional(),
@@ -53,12 +56,24 @@ const envSchema = z.object({
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(8),
 
   /**
+   * Retention (`purge` job / loop task). Processed outbox rows and activity
+   * events older than these are deleted in bounded batches; dead-lettered
+   * outbox rows, balance snapshots and agent observations are never purged.
+   */
+  WORKER_PURGE_INTERVAL_SECONDS: z.coerce.number().positive().default(3600),
+  OUTBOX_RETENTION_DAYS: z.coerce.number().positive().default(14),
+  ACTIVITY_RETENTION_DAYS: z.coerce.number().positive().default(365),
+  /** Rows per DELETE statement and per-target cap per run. */
+  PURGE_BATCH_SIZE: z.coerce.number().int().positive().default(1000),
+  PURGE_MAX_ROWS_PER_RUN: z.coerce.number().int().positive().default(50000),
+
+  /**
    * Email delivery backend:
    * - "ses": AWS SES (task role must allow ses:SendEmail)
    * - "smtp": any SMTP endpoint - Mailpit in local development
    * - "console": log emails instead of sending (default)
    */
-  MAILER: z.enum(["ses", "smtp", "console"]).default("console"),
+  MAILER: z.enum(MAILER_KINDS).default("console"),
   /** SMTP endpoint for MAILER=smtp, e.g. smtp://mailpit:1025 */
   SMTP_URL: z.url().optional(),
   /** Verified sender address for digests (required for ses/smtp). */

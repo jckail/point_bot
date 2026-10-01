@@ -1,6 +1,7 @@
 export type MetricLabels = Readonly<Record<string, string>>;
 
-export type MetricType = "counter" | "histogram" | "gauge";
+export const METRIC_TYPES = ["counter", "histogram", "gauge"] as const;
+export type MetricType = (typeof METRIC_TYPES)[number];
 
 /** Every metric the platform emits. Add new ones here so docs stay honest. */
 export const METRIC_DEFS = {

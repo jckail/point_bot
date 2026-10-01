@@ -148,13 +148,56 @@ Handlers shipped (`packages/core/src/application/events/handlers.ts`, wired in
 Add a handler: implement `EventHandler`, `registry.on("balance.recorded", h)`
 in `buildEventHandlers`.
 
+## Retention (`purge` job)
+
+Nothing else deletes outbox rows, so the worker `purge` job (one-shot, and a
+`purge` task in `loop` every `WORKER_PURGE_INTERVAL_SECONDS`, default 3600)
+removes data that is only useful for a limited time, in bounded batches:
+
+| Table | Deleted when | Env |
+| --- | --- | --- |
+| `domain_event_outbox` | `processed_at` older than `OUTBOX_RETENTION_DAYS` (default 14) | |
+| `activity_event` | `occurred_at` older than `ACTIVITY_RETENTION_DAYS` (default 365) | |
+| `access_token` | revoked, or expired, more than 90 days ago | fixed |
+| `consent_grant` | revoked, or expired, more than 365 days ago | fixed |
+
+**Kept on purpose:** dead-lettered outbox rows (kept for inspection and replay;
+they never have `processed_at` set), `balance_snapshot` (the history is the
+product; see [performance.md](./performance.md) for the partitioning plan) and
+`agent_observation` (the audit trail of agent write-backs). The purge code has
+no statement that touches those tables.
+
+Each batch is `DELETE ... WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP
+LOCKED)`: bounded work per statement, and several workers can purge at once
+without deleting a row twice or waiting on each other. `PURGE_BATCH_SIZE`
+(1000) is the rows per statement; `PURGE_MAX_ROWS_PER_RUN` (50000) caps one
+run per table (the rest waits for the next run, and the log line says
+`capped: true`). One failing table does not stop the others; the job exits
+non-zero afterwards.
+
+Each run logs one JSON line:
+
+```json
+{"level":"info","msg":"retention_purge","deleted":1234,"durationMs":182.4,
+ "targets":{"outbox":{"deleted":1000,"batches":2,"capped":false,"cutoff":"..."},
+            "activity":{...},"access_tokens":{...},"consents":{...}}}
+```
+
+The age scans are index-served by `domain_event_outbox_processed_idx` and
+`activity_event_occurred_idx` (migration `0015_perf_indexes`).
+
 ## Schema
+
+Migration `0015_perf_indexes` replaces the outbox polling index with
+`domain_event_outbox_claim_idx` on `(available_at, occurred_at, id)` (same
+partial predicate, matches the claim query's full `ORDER BY`) and adds the
+partial `domain_event_outbox_processed_idx` (retention).
 
 Migration `0014_transfer_bonus` adds the `transfer_bonus` table (see [optimizer.md](./optimizer.md)); `transfer_bonus.recorded` events are written in the same transaction as the row.
 
 Migration `0013_domain_event_outbox`: `domain_event_outbox(id, type, version,
 user_id, aggregate_id, payload jsonb, occurred_at, correlation_id, attempts,
 available_at, processed_at, dead_lettered_at, last_error)`, a partial polling
-index on `(available_at, occurred_at) WHERE processed_at IS NULL AND
+index (since 0015: `(available_at, occurred_at, id)`) `WHERE processed_at IS NULL AND
 dead_lettered_at IS NULL`, and RLS enabled with no policies (same posture as
 0009/0011).

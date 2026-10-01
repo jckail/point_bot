@@ -1,7 +1,9 @@
--- Proposed index changes, validated ONLY against the scratch benchmark database
--- (app_bench). They are NOT migrations: the migration history is owned by the
--- schema/migrations workstream. See docs/performance.md for the measured effect
--- and the rationale for each statement.
+-- Index proposals validated against the scratch benchmark database (app_bench).
+-- #1-#3 now ship as migration 0015_perf_indexes (plus activity_event_occurred_idx
+-- for the retention purge, and the drops of domain_event_outbox_pending_idx and
+-- loyalty_account_user_id_idx); this file stays as the standalone way to apply
+-- them to a bench database that predates the migration. See docs/performance.md
+-- (section 5 and 10.3) for the measured effect and the rationale.
 --
 --   psql postgresql://postgres:password@localhost:5432/app_bench -f scripts/bench/proposed-indexes.sql
 --

@@ -24,6 +24,8 @@ export interface AgentModuleDeps {
   repos: Repositories;
   recordManualBalance: RecordManualBalance;
   linkLoyaltyAccount: LinkLoyaltyAccount;
+  /** `lastUsedAt` bookkeeping (see `AuthenticateAccessTokenOptions`). */
+  authTouch?: { intervalMs?: number; onError?: (error: unknown) => void };
 }
 
 /** Composes the agent bounded context (tokens, consent, observations). */
@@ -31,10 +33,31 @@ export function buildAgentModule(deps: AgentModuleDeps) {
   const { repos } = deps;
   const eventing = repos.eventing;
   return {
-    issueAccessToken: new IssueAccessToken(repos.accessTokens, undefined, eventing),
+    issueAccessToken: new IssueAccessToken(
+      repos.accessTokens,
+      undefined,
+      eventing,
+    ),
     listAccessTokens: new ListAccessTokens(repos.accessTokens),
-    revokeAccessToken: new RevokeAccessToken(repos.accessTokens, undefined, eventing),
-    authenticateAccessToken: new AuthenticateAccessToken(repos.accessTokens),
+    revokeAccessToken: new RevokeAccessToken(
+      repos.accessTokens,
+      undefined,
+      eventing,
+    ),
+    authenticateAccessToken: new AuthenticateAccessToken(
+      repos.accessTokens,
+      undefined,
+      deps.authTouch
+        ? {
+            ...(deps.authTouch.intervalMs !== undefined
+              ? { touchIntervalMs: deps.authTouch.intervalMs }
+              : {}),
+            ...(deps.authTouch.onError
+              ? { onTouchError: deps.authTouch.onError }
+              : {}),
+          }
+        : {},
+    ),
     grantConsent: new GrantConsent(repos.consents, undefined, eventing),
     listConsents: new ListConsents(repos.consents),
     revokeConsent: new RevokeConsent(repos.consents, undefined, eventing),

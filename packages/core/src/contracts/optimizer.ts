@@ -4,6 +4,7 @@ import type { PlanRedemptionResult } from "../application/loyalty/plan-redemptio
 import { AWARD_CABINS, AWARD_SEARCH_STATUSES } from "../domain/loyalty/award-availability";
 import {
   SWEET_SPOT_CONFIDENCE,
+  SWEET_SPOT_CPP_BASES,
   SWEET_SPOT_KINDS,
   SWEET_SPOT_UNITS,
   type SweetSpot,
@@ -76,7 +77,7 @@ export const sweetSpotDtoSchema = z.object({
   unit: z.enum(SWEET_SPOT_UNITS),
   cashValueCents: z.number().int().nullable(),
   estimatedCentsPerPoint: z.number(),
-  cppBasis: z.enum(["derived", "editorial"]),
+  cppBasis: z.enum(SWEET_SPOT_CPP_BASES),
   constraints: z.array(z.string()),
   confidence: z.enum(SWEET_SPOT_CONFIDENCE),
   lastReviewed: z.string(),

@@ -5,7 +5,8 @@ import { timingSafeEqual } from "node:crypto";
  * METRICS_ENABLED=true AND a METRICS_TOKEN is set; scrapers send
  * `Authorization: Bearer <METRICS_TOKEN>`.
  */
-export type MetricsAccess = "disabled" | "unauthorized" | "ok";
+export const METRICS_ACCESS_RESULTS = ["disabled", "unauthorized", "ok"] as const;
+export type MetricsAccess = (typeof METRICS_ACCESS_RESULTS)[number];
 
 export function constantTimeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);

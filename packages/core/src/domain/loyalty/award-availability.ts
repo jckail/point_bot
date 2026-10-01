@@ -4,6 +4,8 @@
  * source actually returned it.
  */
 
+import { isOneOf } from "../shared/enum";
+
 export const AWARD_CABINS = [
   "economy",
   "premium_economy",
@@ -59,7 +61,7 @@ export function normalizeAwardQuery(
   if (!DATE.test(raw.dateFrom) || !DATE.test(raw.dateTo) || raw.dateTo < raw.dateFrom) {
     return { ok: false, reason: "dateFrom/dateTo must be YYYY-MM-DD with dateTo >= dateFrom" };
   }
-  if (!(AWARD_CABINS as readonly string[]).includes(raw.cabin)) {
+  if (!isOneOf(AWARD_CABINS, raw.cabin)) {
     return { ok: false, reason: "unknown cabin" };
   }
   return { ok: true, query: { ...raw, origin, destination } };

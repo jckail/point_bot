@@ -1,7 +1,8 @@
 import { InvalidBalanceError, InvalidCaptureTimeError } from "../errors";
 
 /** How a balance value entered the system. */
-export type BalanceSource = "sync" | "manual" | "agent";
+export const BALANCE_SOURCES = ["sync", "manual", "agent"] as const;
+export type BalanceSource = (typeof BALANCE_SOURCES)[number];
 
 /**
  * A point-in-time reading of a loyalty account's balance. Snapshots are

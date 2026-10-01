@@ -2,6 +2,7 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
+import { parseProviderId } from "../../domain/loyalty/provider";
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
 import type {
   ActivityEventRepository,
@@ -48,7 +49,7 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
   return {
     id: row.id,
     userId: row.userId,
-    providerId: row.providerId,
+    providerId: parseProviderId(row.providerId),
     membershipNumber: row.membershipNumber,
     credentialRef: row.credentialRef,
     expiresAt: row.expiresAt,

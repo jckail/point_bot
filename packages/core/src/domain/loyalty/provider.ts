@@ -5,7 +5,7 @@ import { DINING_PROVIDERS } from "./catalog/dining";
 import { HOTEL_PROVIDERS } from "./catalog/hotels";
 import { OTHER_PROVIDERS } from "./catalog/other";
 import { TRAVEL_PROVIDERS } from "./catalog/travel";
-import type { ProviderDefinition } from "./catalog/types";
+import type { ProviderDefinitionShape } from "./catalog/types";
 
 /**
  * The catalog of loyalty providers PointUp understands. This is domain
@@ -23,7 +23,7 @@ export {
   type Alliance,
   type AgentSkillSeed,
   type CatalogConfidence,
-  type ProviderDefinition,
+  type ProviderDefinitionShape,
   type ProviderKind,
 } from "./catalog/types";
 
@@ -46,6 +46,25 @@ export function projectExpiryDate(
   return expires;
 }
 
+/**
+ * Every catalog id as a string-literal union, derived from the literal-typed
+ * catalog arrays: a typo'd id in the transfer graph, sweet spots, deals or
+ * seeds is a compile error, and adding a catalog entry extends the union.
+ * Untrusted strings (HTTP, MCP, CSV, DB) go through `parseProviderId`.
+ */
+export type ProviderId =
+  | (typeof AIRLINE_PROVIDERS)[number]["id"]
+  | (typeof HOTEL_PROVIDERS)[number]["id"]
+  | (typeof CARD_PROVIDERS)[number]["id"]
+  | (typeof TRAVEL_PROVIDERS)[number]["id"]
+  | (typeof DINING_PROVIDERS)[number]["id"]
+  | (typeof OTHER_PROVIDERS)[number]["id"];
+
+/** A catalog entry whose `id` is the derived `ProviderId` union. */
+export interface ProviderDefinition extends Omit<ProviderDefinitionShape, "id"> {
+  readonly id: ProviderId;
+}
+
 /** The full catalog, assembled from per-kind files (extend those, not this). */
 export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
   ...AIRLINE_PROVIDERS,
@@ -65,6 +84,20 @@ const PROVIDER_BY_ID: ReadonlyMap<string, ProviderDefinition> = (() => {
   return index;
 })();
 
+/** Type guard: is this string the id of a cataloged provider? */
+export function isProviderId(value: string): value is ProviderId {
+  return PROVIDER_BY_ID.has(value);
+}
+
+/**
+ * Parse an untrusted string (HTTP body, MCP argument, CSV cell, DB row) into
+ * a `ProviderId`. Throws the coded `ProviderNotSupportedError`.
+ */
+export function parseProviderId(value: string): ProviderId {
+  if (!isProviderId(value)) throw new ProviderNotSupportedError(value);
+  return value;
+}
+
 export function findProvider(
   providerId: string,
 ): ProviderDefinition | undefined {
@@ -83,6 +116,6 @@ export function getProviderOrThrow(providerId: string): ProviderDefinition {
   return provider;
 }
 
-export function isSupportedProvider(providerId: string): boolean {
-  return findProvider(providerId) !== undefined;
+export function isSupportedProvider(providerId: string): providerId is ProviderId {
+  return isProviderId(providerId);
 }
