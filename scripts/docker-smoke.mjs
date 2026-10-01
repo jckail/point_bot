@@ -25,9 +25,22 @@ const WAIT_MS = Number(process.env.SMOKE_WAIT_SECONDS ?? 120) * 1000;
 const bearer = { Authorization: `Bearer ${TOKEN}` };
 const json = { "Content-Type": "application/json" };
 
+/**
+ * Everything printed goes through here: PointUp tokens (and any Bearer value)
+ * are masked and long text is cut, so CI logs never carry credentials even if
+ * a response body or error message happens to echo one.
+ */
+function safe(value) {
+  return String(value)
+    .replaceAll(TOKEN, "pu_***")
+    .replace(/pu_[A-Za-z0-9_-]{8,}/g, "pu_***")
+    .replace(/Bearer\s+\S+/gi, "Bearer ***")
+    .slice(0, 300);
+}
+
 let failures = 0;
 function check(name, ok, detail = "") {
-  console.log(`${ok ? "ok  " : "FAIL"} ${name}${!ok && detail ? ` - ${detail}` : ""}`);
+  console.log(`${ok ? "ok  " : "FAIL"} ${safe(name)}${!ok && detail ? ` - ${safe(detail)}` : ""}`);
   if (!ok) failures++;
 }
 function must(name, ok, detail) {
@@ -201,7 +214,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    console.error(safe(error instanceof Error ? error.message : error));
     failures++;
   })
   .finally(() => {
