@@ -16,7 +16,6 @@ import { ListExpiringAccounts } from "../../packages/core/src/application/loyalt
 import { ListLoyaltyAccounts } from "../../packages/core/src/application/loyalty/list-loyalty-accounts";
 import { GetPortfolioSummary } from "../../packages/core/src/application/loyalty/get-portfolio-summary";
 import { AuthenticateAccessToken } from "../../packages/core/src/application/agent/access-tokens";
-import { hashToken } from "../../packages/core/src/domain/agent/access-token";
 import * as schema from "../../packages/core/src/infrastructure/db/schema";
 import { buildDrizzleRepositories } from "../../packages/core/src/composition/repositories";
 import { DrizzleOutboxStore } from "../../packages/core/src/infrastructure/outbox/drizzle-outbox";
@@ -36,7 +35,6 @@ const repos = buildDrizzleRepositories(db as never);
 const listAccounts = new ListLoyaltyAccounts(
   repos.loyaltyAccounts, repos.balanceSnapshots, undefined, repos.customValuations,
 );
-const outbox = new DrizzleOutboxStore(db as never);
 
 const [heavy] = await client<{ user_id: string; i: number }[]>`
   select user_id, substr(user_id, 12)::int as i from loyalty_account
@@ -59,6 +57,10 @@ const scenarios = (userId: string, tokenIdx: number): Scenario[] => [
     run: () => new AuthenticateAccessToken(repos.accessTokens).execute(benchToken(tokenIdx)),
   },
   { name: "consent lookup (by user)", run: () => repos.consents.findByUserId(userId) },
+  {
+    name: "worker listUserIds (distinct active users)",
+    run: () => repos.loyaltyAccounts.listUserIds(),
+  },
   {
     name: "outbox claim (poll, limit 50)",
     run: async () => {
@@ -125,7 +127,6 @@ async function measure(label: string, userId: string, tokenIdx: number) {
 const idx = (u: string) => Number(u.slice("bench_user_".length));
 await measure(`heavy (${heavy!.user_id}, ${heavySnaps} snapshots)`, heavy!.user_id, idx(heavy!.user_id));
 await measure(`median (${median!.user_id})`, median!.user_id, idx(median!.user_id));
-void hashToken;
 
 console.log(`\nQuery-level timings (end-to-end use case, ${iterations} iterations, ms)\n`);
 console.log("user".padEnd(40), "scenario".padEnd(56), "stmts", "p50".padStart(8), "p95".padStart(8));

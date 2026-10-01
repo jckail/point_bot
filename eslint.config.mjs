@@ -21,4 +21,19 @@ export default defineConfig([
       },
     },
   },
+  {
+    // A leading underscore marks an intentionally unused parameter or
+    // variable (route handlers' `_request`, fakes that mirror a signature).
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);

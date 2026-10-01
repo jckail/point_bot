@@ -5,7 +5,7 @@
 #
 # Env: SERVER_DIR (copy of .next/standalone), ROUTES (default summary,accounts,
 # expiring,activity,providers,health), DURATION (8), CONNECTIONS (32), OUT_DIR
-# (default /tmp/pointup-bench). Writes <OUT_DIR>/<label>.txt and, with
+# (default /tmp/pointup-bench), USERS (rotating bearer tokens, default 1500). Writes <OUT_DIR>/<label>.txt and, with
 # PROFILE=1, <OUT_DIR>/prof-<label>/ plus a summary in <label>.prof.txt.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -25,7 +25,7 @@ for _ in $(seq 1 40); do curl -sf "http://127.0.0.1:${PORT:-3100}/api/health" >/
 
 (cd "$root" && npx tsx scripts/bench/http.ts --target=web \
   --routes="${ROUTES:-summary,accounts,expiring,activity,providers,health}" \
-  --duration="${DURATION:-8}" --connections="${CONNECTIONS:-32}") | tee "$out/$label.txt"
+  --duration="${DURATION:-8}" --connections="${CONNECTIONS:-32}" --users="${USERS:-1500}") | tee "$out/$label.txt"
 
 if [ "${PROFILE:-0}" = "1" ]; then
   kill -INT $pid; wait $pid 2>/dev/null || true; trap - EXIT

@@ -261,7 +261,7 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     ),
     getUserSettings: new GetUserSettings(settings),
     setDisplayCurrency: new SetDisplayCurrency(settings),
-    buildDisplayValue: new BuildDisplayValue(settings, fx),
+    buildDisplayValue: new BuildDisplayValue(settings, fx, cache, cacheTtlMs),
     setCustomValuation: new SetCustomValuation(customValuations),
     deleteCustomValuation: new DeleteCustomValuation(customValuations),
     ingestDealPage,

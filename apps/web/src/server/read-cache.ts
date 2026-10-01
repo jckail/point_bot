@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { InMemoryCache, userCacheTag, type Cache } from "@pointup/core";
 
 /**
@@ -85,4 +87,44 @@ export function invalidateOnWrite<T extends object>(useCases: T, cache: Cache): 
       ];
     }),
   ) as T;
+}
+
+/** Opt-in token-authentication cache TTL (`AUTH_CACHE_TTL_MS`, default 0 = off). */
+export function authCacheTtlMs(): number {
+  const parsed = Number(process.env.AUTH_CACHE_TTL_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+interface Authenticator {
+  execute: (plaintext: string) => Promise<{ userId: string }>;
+}
+
+/**
+ * Remembers successful bearer-token authentications for `ttlMs`, skipping the
+ * token lookup (and its occasional `last_used_at` write) on the hot path.
+ *
+ * Trade-off, which is why it is opt-in: a token revoked through this process
+ * stops working immediately (revoking is a write use case, so it drops the
+ * user's entries), but a revocation made on another instance is honoured only
+ * after the TTL. Failures are never cached. Entries are keyed by the SHA-256
+ * of the token, so plaintext tokens are not retained in memory.
+ */
+export function cacheAuthentication<T extends { authenticateAccessToken: Authenticator }>(
+  useCases: T,
+  cache: Cache,
+  ttlMs: number,
+): T {
+  if (ttlMs <= 0) return useCases;
+  const inner = useCases.authenticateAccessToken;
+  const wrapped: Authenticator = {
+    execute: async (plaintext) => {
+      const key = `auth:${createHash("sha256").update(plaintext).digest("hex")}`;
+      const hit = await cache.get<{ userId: string }>(key);
+      if (hit) return hit;
+      const principal = await inner.execute(plaintext);
+      await cache.set(key, principal, { ttlMs, tags: [userCacheTag(principal.userId)] });
+      return principal;
+    },
+  };
+  return { ...useCases, authenticateAccessToken: wrapped };
 }

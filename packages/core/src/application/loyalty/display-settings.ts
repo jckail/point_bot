@@ -9,6 +9,7 @@ import {
   type UserSettings,
   type UserSettingsRepository,
 } from "../../domain/loyalty/user-settings";
+import { userCacheTag, type Cache } from "../cache";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
@@ -60,13 +61,23 @@ export class BuildDisplayValue {
   constructor(
     private readonly settings: UserSettingsRepository,
     private readonly fx: FxRateSource,
+    /** Optional: caches the per-user settings row (see `ListLoyaltyAccounts`). */
+    private readonly cache?: Cache,
+    private readonly cacheTtlMs = 10_000,
   ) {}
 
   async execute(
     userId: string,
     usdCents: number,
   ): Promise<DisplayValue | null> {
-    const settings = await this.settings.get(userId);
+    const settings =
+      this.cache && this.cacheTtlMs > 0
+        ? await this.cache.remember(
+            `settings:${userId}`,
+            { ttlMs: this.cacheTtlMs, tags: [userCacheTag(userId)] },
+            () => this.settings.get(userId),
+          )
+        : await this.settings.get(userId);
     const currency = settings?.displayCurrency ?? DEFAULT_DISPLAY_CURRENCY;
     if (currency === "USD") return null;
 

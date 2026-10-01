@@ -7,11 +7,14 @@ describe("invalidateOnWrite", () => {
   const build = () => {
     const cache = new InMemoryCache();
     const calls: string[] = [];
+    // Fakes take arguments like real use cases (`execute(userId | { userId })`).
     const useCases = {
-      listLoyaltyAccounts: { execute: async (_userId: string) => calls.push("list") },
-      linkLoyaltyAccount: { execute: async (_input: { userId: string }) => "linked" },
+      listLoyaltyAccounts: {
+        execute: async (_input: unknown) => calls.push("list"),
+      },
+      linkLoyaltyAccount: { execute: async (_input: unknown) => "linked" },
       setCustomValuation: {
-        execute: async (_input: { userId: string }) => {
+        execute: async (_input: unknown) => {
           throw new Error("partial failure");
         },
       },

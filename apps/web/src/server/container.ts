@@ -16,7 +16,13 @@ import {
 } from "@pointup/core";
 
 import { env } from "@/env";
-import { getReadCache, invalidateOnWrite, readCacheTtlMs } from "@/server/read-cache";
+import {
+  authCacheTtlMs,
+  cacheAuthentication,
+  getReadCache,
+  invalidateOnWrite,
+  readCacheTtlMs,
+} from "@/server/read-cache";
 import { webObservability } from "@/server/observability";
 
 /**
@@ -54,7 +60,13 @@ function buildContainer(): Container {
     linkLoyaltyAccount: loyalty.linkLoyaltyAccount,
   });
 
-  return { db, useCases: tracedAll(invalidateOnWrite({ ...loyalty, ...agent }, getReadCache())) };
+  return { db, useCases: tracedAll(
+      cacheAuthentication(
+        invalidateOnWrite({ ...loyalty, ...agent }, getReadCache()),
+        getReadCache(),
+        authCacheTtlMs(),
+      ),
+    ) };
 }
 
 /** Cached across HMR reloads in development. */
