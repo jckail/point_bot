@@ -1,5 +1,6 @@
 import { InvalidAwardWatchError, InvalidScrapeUrlError } from "../errors";
 
+import { AwardWatchId, type UserId } from "../shared/ids";
 /**
  * A watched award/deal page. The worker re-scrapes it on a schedule and
  * notifies the user when a redemption at or above their cents-per-point
@@ -7,8 +8,8 @@ import { InvalidAwardWatchError, InvalidScrapeUrlError } from "../errors";
  * a standing good deal doesn't ping every day.
  */
 export interface AwardWatch {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: AwardWatchId;
+  readonly userId: UserId;
   /** The award-chart / deal page to re-scrape. */
   readonly url: string;
   readonly label: string;
@@ -23,11 +24,11 @@ export interface AwardWatch {
 }
 
 export interface NewAwardWatch {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly url: string;
   readonly label: string;
   readonly minCentsPerPoint: number;
-  readonly id?: string;
+  readonly id?: AwardWatchId;
   readonly now?: Date;
 }
 
@@ -67,7 +68,7 @@ export function createAwardWatch(input: NewAwardWatch): AwardWatch {
 
   const now = input.now ?? new Date();
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? AwardWatchId.generate(),
     userId: input.userId,
     url: assertHttpUrl(input.url.trim()),
     label,
@@ -117,11 +118,11 @@ export function recordCheck(
 }
 
 export interface AwardWatchRepository {
-  findById(id: string): Promise<AwardWatch | null>;
-  findByUserId(userId: string): Promise<AwardWatch[]>;
+  findById(id: AwardWatchId): Promise<AwardWatch | null>;
+  findByUserId(userId: UserId): Promise<AwardWatch[]>;
   /** Every watch across all users — the worker's check loop. */
   findAll(): Promise<AwardWatch[]>;
   insert(watch: AwardWatch): Promise<void>;
   update(watch: AwardWatch): Promise<void>;
-  delete(id: string): Promise<void>;
+  delete(id: AwardWatchId): Promise<void>;
 }

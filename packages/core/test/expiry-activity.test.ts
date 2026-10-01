@@ -14,6 +14,7 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 const NOW = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => NOW };
 
@@ -26,7 +27,7 @@ describe("expiration tracking", () => {
       activity,
       clock,
     ).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP1",
     });
@@ -39,7 +40,7 @@ describe("expiration tracking", () => {
 
   it("leaves expiry null for programs that never expire", () => {
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "delta",
       membershipNumber: "SK1",
       now: NOW,
@@ -52,21 +53,21 @@ describe("expiration tracking", () => {
     const balances = new InMemoryBalanceSnapshotRepository();
 
     const soon = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP1",
       expiresAt: new Date("2026-08-01T00:00:00.000Z"),
       now: NOW,
     });
     const later = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "american",
       membershipNumber: "AA1",
       expiresAt: new Date("2027-01-01T00:00:00.000Z"),
       now: NOW,
     });
     const never = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "bilt",
       membershipNumber: "BL1",
       now: NOW,
@@ -77,7 +78,7 @@ describe("expiration tracking", () => {
 
     const expiring = await new ListExpiringAccounts(
       new ListLoyaltyAccounts(accounts, balances, clock),
-    ).execute("user-1", 90);
+    ).execute(asUserId("user-1"), 90);
 
     expect(expiring.map((a) => a.provider.id)).toEqual(["united"]);
     expect(expiring[0]?.daysUntilExpiry).toBeGreaterThan(0);
@@ -88,7 +89,7 @@ describe("expiration tracking", () => {
     const balances = new InMemoryBalanceSnapshotRepository();
     const activity = new InMemoryActivityEventRepository();
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hyatt",
       membershipNumber: "WH1",
       expiresAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -102,7 +103,7 @@ describe("expiration tracking", () => {
       activity,
       clock,
     ).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       points: 10_000,
     });
@@ -118,12 +119,12 @@ describe("activity feed", () => {
   it("returns newest events first", async () => {
     const activity = new InMemoryActivityEventRepository();
     await new LinkLoyaltyAccount(new InMemoryLoyaltyAccountRepository(), activity, clock).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hilton",
       membershipNumber: "HH1",
     });
 
-    const feed = await new ListActivity(activity).execute("user-1");
+    const feed = await new ListActivity(activity).execute(asUserId("user-1"));
     expect(feed).toHaveLength(1);
     expect(feed[0]?.type).toBe("account_linked");
     expect(feed[0]?.summary).toContain("Hilton");

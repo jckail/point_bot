@@ -82,3 +82,9 @@ export const TransferBonusId: GeneratedIdKind<"TransferBonusId"> =
 
 export type EventId = Brand<string, "EventId">;
 export const EventId: GeneratedIdKind<"EventId"> = uuidIdKind("EventId");
+
+/**
+ * Actor recorded on events the system itself emits (e.g. an operator-recorded
+ * transfer bonus has no end user). Not a real identity-provider user.
+ */
+export const SYSTEM_USER_ID: UserId = UserId.parse("system");

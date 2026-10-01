@@ -20,6 +20,7 @@ import {
   type DomainEvent,
 } from "../src/domain/events";
 
+import { asAccountId, asEventId, asObservationId, asUserId } from "./ids";
 /** Single-process fake with the same claim/lease semantics as Postgres. */
 class InMemoryOutboxStore implements OutboxStore {
   readonly rows = new Map<
@@ -93,9 +94,9 @@ const clock = { now: () => t };
 
 function event(id?: string): DomainEvent {
   return createDomainEvent("account.linked", {
-    id,
-    userId: "u1",
-    aggregateId: "a1",
+    id: id === undefined ? undefined : asEventId(id),
+    userId: asUserId("u1"),
+    aggregateId: asAccountId("a1"),
     occurredAt: new Date("2026-07-01T11:00:00Z"),
     payload: { providerId: "united" },
   });
@@ -217,12 +218,12 @@ describe("handlers", () => {
   it("log handler emits one JSON line with ids only (no payload)", async () => {
     const lines: string[] = [];
     const e = createDomainEvent("balance.recorded", {
-      userId: "u1",
-      aggregateId: "a1",
+      userId: asUserId("u1"),
+      aggregateId: asAccountId("a1"),
       occurredAt: new Date("2026-07-01T00:00:00Z"),
       correlationId: "req-9",
       payload: {
-        accountId: "a1",
+        accountId: asAccountId("a1"),
         providerId: "united",
         points: 12345,
         previousPoints: null,
@@ -253,11 +254,11 @@ describe("handlers", () => {
     expect(sent).toEqual([]);
     await handler.handle(
       createDomainEvent("observation.held", {
-        userId: "u1",
-        aggregateId: "o1",
+        userId: asUserId("u1"),
+        aggregateId: asObservationId("o1"),
         occurredAt: new Date(),
         payload: {
-          accountId: "a1",
+          accountId: asAccountId("a1"),
           providerId: "united",
           points: 900000,
           previousPoints: 1000,

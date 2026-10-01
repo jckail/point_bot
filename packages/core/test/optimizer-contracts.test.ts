@@ -30,6 +30,7 @@ import {
   InMemoryTransferBonusRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 const now = new Date("2026-10-15T00:00:00Z");
 
 describe("optimizer wire contracts", () => {
@@ -85,7 +86,7 @@ describe("optimizer wire contracts", () => {
       ["chase-ultimate-rewards", 120_000],
       ["amex-membership-rewards", 4_000],
     ] as const) {
-      const a = createLoyaltyAccount({ userId: "u1", providerId, membershipNumber: "x" });
+      const a = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "x" });
       await accounts.insert(a);
       await balances.insert(
         createBalanceSnapshot({ loyaltyAccountId: a.id, points, source: "manual", capturedAt: now }),
@@ -100,7 +101,7 @@ describe("optimizer wire contracts", () => {
       startsAt: new Date("2026-10-01T00:00:00Z"),
       endsAt: new Date("2026-10-31T00:00:00Z"),
       source: "user",
-      createdBy: "u1",
+      createdBy: asUserId("u1"),
     });
     const result = await new PlanRedemption(
       new ListLoyaltyAccounts(accounts, balances, clock),
@@ -108,7 +109,7 @@ describe("optimizer wire contracts", () => {
       new StubAwardAvailabilitySource(() => now),
       clock,
     ).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       goal: { kind: "any" },
       award: { origin: "SFO", destination: "NRT", dateFrom: "2026-12-01", dateTo: "2026-12-05", cabin: "business" },
       maxPlans: 50,

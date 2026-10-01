@@ -25,6 +25,7 @@ import {
   tripGoals,
 } from "../db/schema";
 import type { TripGoal } from "../../domain/loyalty/trip-goal";
+import { LoyaltyAccountId, ShareId, TripGoalId, UserId } from "../../domain/shared/ids";
 
 const PG_UNIQUE_VIOLATION = "23505";
 
@@ -47,8 +48,8 @@ type BalanceSnapshotRow = typeof balanceSnapshots.$inferSelect;
 
 function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
   return {
-    id: row.id,
-    userId: row.userId,
+    id: LoyaltyAccountId.parse(row.id),
+    userId: UserId.parse(row.userId),
     providerId: parseProviderId(row.providerId),
     membershipNumber: row.membershipNumber,
     credentialRef: row.credentialRef,
@@ -65,7 +66,7 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
 function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
   return {
     id: row.id,
-    loyaltyAccountId: row.loyaltyAccountId,
+    loyaltyAccountId: LoyaltyAccountId.parse(row.loyaltyAccountId),
     points: row.points,
     source: row.source,
     capturedAt: row.capturedAt,
@@ -96,7 +97,7 @@ const snapshotColumns = sql.raw(
 function fromLateralRow(row: LateralSnapshotRow): BalanceSnapshot {
   return {
     id: row.id,
-    loyaltyAccountId: row.account_id,
+    loyaltyAccountId: LoyaltyAccountId.parse(row.account_id),
     points: Number(row.points),
     source: row.source,
     capturedAt: new Date(row.captured_at),
@@ -116,7 +117,7 @@ type Executor = Pick<Database, "insert" | "delete">;
 
 async function replaceTags(
   db: Executor,
-  accountId: string,
+  accountId: LoyaltyAccountId,
   tags: readonly string[],
 ): Promise<void> {
   await db.delete(accountTags).where(eq(accountTags.accountId, accountId));
@@ -130,7 +131,7 @@ async function replaceTags(
 export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<LoyaltyAccount | null> {
+  async findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
     const row = await this.db.query.loyaltyAccounts.findFirst({
       where: eq(loyaltyAccounts.id, id),
       with: withTags,
@@ -138,7 +139,7 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     return row ? toLoyaltyAccount(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     const rows = await this.db.query.loyaltyAccounts.findMany({
       where: and(
         eq(loyaltyAccounts.userId, userId),
@@ -154,7 +155,7 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     return rows.map(toLoyaltyAccount);
   }
 
-  async findDeletedByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findDeletedByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     const rows = await this.db.query.loyaltyAccounts.findMany({
       where: and(
         eq(loyaltyAccounts.userId, userId),
@@ -167,7 +168,7 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
   }
 
   async findByUserAndProvider(
-    userId: string,
+    userId: UserId,
     providerId: string,
   ): Promise<LoyaltyAccount | null> {
     // Include soft-deleted rows so re-linking the same provider is blocked
@@ -182,12 +183,12 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     return row ? toLoyaltyAccount(row) : null;
   }
 
-  async listUserIds(): Promise<string[]> {
+  async listUserIds(): Promise<UserId[]> {
     const rows = await this.db
       .selectDistinct({ userId: loyaltyAccounts.userId })
       .from(loyaltyAccounts)
       .where(isNull(loyaltyAccounts.deletedAt));
-    return rows.map((row) => row.userId);
+    return rows.map((row) => UserId.parse(row.userId));
   }
 
   async insert(account: LoyaltyAccount): Promise<void> {
@@ -237,7 +238,7 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: LoyaltyAccountId): Promise<void> {
     await this.db.delete(loyaltyAccounts).where(eq(loyaltyAccounts.id, id));
   }
 }
@@ -256,8 +257,8 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   }
 
   async findLatestByAccountIds(
-    accountIds: readonly string[],
-  ): Promise<Map<string, BalanceSnapshot>> {
+    accountIds: readonly LoyaltyAccountId[],
+  ): Promise<Map<LoyaltyAccountId, BalanceSnapshot>> {
     if (accountIds.length === 0) return new Map();
 
     // One index probe per account (newest row of
@@ -275,14 +276,17 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
       ) s
     `);
     return new Map(
-      [...rows].map((row) => [row.account_id, fromLateralRow(row)]),
+      [...rows].map((row) => {
+        const snapshot = fromLateralRow(row);
+        return [snapshot.loyaltyAccountId, snapshot] as const;
+      }),
     );
   }
 
   async findTrendContextByAccountIds(
-    accountIds: readonly string[],
+    accountIds: readonly LoyaltyAccountId[],
     now: Date,
-  ): Promise<Map<string, BalanceTrendContext>> {
+  ): Promise<Map<LoyaltyAccountId, BalanceTrendContext>> {
     if (accountIds.length === 0) return new Map();
 
     // Fetch only the four rows each trend needs (latest, previous, newest at
@@ -315,7 +319,7 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
       if (!slot) slots.set(row.account_id, (slot = {}));
       slot[row.kind] = fromLateralRow(row);
     }
-    const result = new Map<string, BalanceTrendContext>();
+    const result = new Map<LoyaltyAccountId, BalanceTrendContext>();
     for (const accountId of accountIds) {
       const slot = slots.get(accountId) ?? {};
       result.set(accountId, {
@@ -329,7 +333,7 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   }
 
   async findByAccountId(
-    accountId: string,
+    accountId: LoyaltyAccountId,
     limit: number,
   ): Promise<BalanceSnapshot[]> {
     const rows = await this.db.query.balanceSnapshots.findMany({
@@ -356,7 +360,7 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
     });
   }
 
-  async findByUserId(userId: string, limit: number): Promise<ActivityEvent[]> {
+  async findByUserId(userId: UserId, limit: number): Promise<ActivityEvent[]> {
     const rows = await this.db.query.activityEvents.findMany({
       where: eq(activityEvents.userId, userId),
       orderBy: (table, { desc: d }) => [d(table.occurredAt)],
@@ -364,9 +368,9 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
     });
     return rows.map((row) => ({
       id: row.id,
-      userId: row.userId,
+      userId: UserId.parse(row.userId),
       type: row.type as ActivityEvent["type"],
-      accountId: row.accountId,
+      accountId: row.accountId === null ? null : LoyaltyAccountId.parse(row.accountId),
       providerId: row.providerId,
       summary: row.summary,
       occurredAt: row.occurredAt,
@@ -384,8 +388,8 @@ const withGoalAccounts = {
 
 async function replaceGoalAccounts(
   db: Executor,
-  goalId: string,
-  accountIds: readonly string[],
+  goalId: TripGoalId,
+  accountIds: readonly LoyaltyAccountId[],
 ): Promise<void> {
   await db.delete(tripGoalAccounts).where(eq(tripGoalAccounts.goalId, goalId));
   const unique = [...new Set(accountIds)];
@@ -399,12 +403,12 @@ async function replaceGoalAccounts(
 
 function toTripGoal(row: TripGoalRow): TripGoal {
   return {
-    id: row.id,
-    userId: row.userId,
+    id: TripGoalId.parse(row.id),
+    userId: UserId.parse(row.userId),
     title: row.title,
     targetPoints: row.targetPoints,
     targetDate: row.targetDate,
-    accountIds: row.accounts.map((a) => a.accountId),
+    accountIds: row.accounts.map((a) => LoyaltyAccountId.parse(a.accountId)),
     status: row.status,
     notes: row.notes,
     createdAt: row.createdAt,
@@ -415,7 +419,7 @@ function toTripGoal(row: TripGoalRow): TripGoal {
 export class DrizzleTripGoalRepository implements TripGoalRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<TripGoal | null> {
+  async findById(id: TripGoalId): Promise<TripGoal | null> {
     const row = await this.db.query.tripGoals.findFirst({
       where: eq(tripGoals.id, id),
       with: withGoalAccounts,
@@ -423,7 +427,7 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
     return row ? toTripGoal(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<TripGoal[]> {
+  async findByUserId(userId: UserId): Promise<TripGoal[]> {
     const rows = await this.db.query.tripGoals.findMany({
       where: eq(tripGoals.userId, userId),
       with: withGoalAccounts,
@@ -466,7 +470,7 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
     });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: TripGoalId): Promise<void> {
     await this.db.delete(tripGoals).where(eq(tripGoals.id, id));
   }
 }
@@ -475,8 +479,8 @@ type PortfolioShareRow = typeof portfolioShares.$inferSelect;
 
 function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
   return {
-    id: row.id,
-    userId: row.userId,
+    id: ShareId.parse(row.id),
+    userId: UserId.parse(row.userId),
     token: row.token,
     label: row.label,
     createdAt: row.createdAt,
@@ -488,7 +492,7 @@ function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
 export class DrizzlePortfolioShareRepository implements PortfolioShareRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<PortfolioShare | null> {
+  async findById(id: ShareId): Promise<PortfolioShare | null> {
     const row = await this.db.query.portfolioShares.findFirst({
       where: eq(portfolioShares.id, id),
     });
@@ -502,7 +506,7 @@ export class DrizzlePortfolioShareRepository implements PortfolioShareRepository
     return row ? toPortfolioShare(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<PortfolioShare[]> {
+  async findByUserId(userId: UserId): Promise<PortfolioShare[]> {
     const rows = await this.db.query.portfolioShares.findMany({
       where: eq(portfolioShares.userId, userId),
       orderBy: (table, { desc: d }) => [d(table.createdAt)],
@@ -533,7 +537,7 @@ export class DrizzlePortfolioShareRepository implements PortfolioShareRepository
       .where(eq(portfolioShares.id, share.id));
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: ShareId): Promise<void> {
     await this.db.delete(portfolioShares).where(eq(portfolioShares.id, id));
   }
 }

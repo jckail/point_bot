@@ -11,8 +11,9 @@ import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { ConsentId, UserId } from "../../domain/shared/ids";
 export interface ConsentReadModel {
-  readonly id: string;
+  readonly id: ConsentId;
   readonly providerId: string;
   readonly grantedAt: Date;
   readonly expiresAt: Date;
@@ -33,7 +34,7 @@ export class GrantConsent {
 
   /** Re-granting replaces any active consent for the provider (renewal). */
   async execute(input: {
-    userId: string;
+    userId: UserId;
     providerId: string;
     days?: number;
   }): Promise<ConsentReadModel> {
@@ -66,7 +67,7 @@ export class ListConsents {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string): Promise<ConsentReadModel[]> {
+  async execute(userId: UserId): Promise<ConsentReadModel[]> {
     const now = this.clock.now();
     return (await this.consents.findByUserId(userId)).map((consent) =>
       toReadModel(consent, now),
@@ -81,7 +82,7 @@ export class RevokeConsent {
     private readonly eventing: Eventing = noopEventing,
   ) {}
 
-  async execute(userId: string, consentId: string): Promise<void> {
+  async execute(userId: UserId, consentId: ConsentId): Promise<void> {
     const consent = await this.consents.findById(consentId);
     if (!consent || consent.userId !== userId) {
       throw new ConsentNotFoundError(consentId);

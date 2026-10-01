@@ -1,5 +1,7 @@
 import { InvalidGoalTitleError, InvalidGoalTargetError } from "../errors";
 
+import { type LoyaltyAccountId, TripGoalId, type UserId } from "../shared/ids";
+
 /**
  * A savings target toward a trip or redemption ("80k Hyatt for Kyoto").
  * Progress is computed against the latest balances of the linked accounts.
@@ -8,14 +10,14 @@ export const TRIP_GOAL_STATUSES = ["active", "achieved", "archived"] as const;
 export type TripGoalStatus = (typeof TRIP_GOAL_STATUSES)[number];
 
 export interface TripGoal {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: TripGoalId;
+  readonly userId: UserId;
   readonly title: string;
   readonly targetPoints: number;
   /** Optional ISO date (YYYY-MM-DD) the user hopes to redeem by. */
   readonly targetDate: string | null;
   /** Loyalty account ids whose balances count toward this goal. */
-  readonly accountIds: readonly string[];
+  readonly accountIds: readonly LoyaltyAccountId[];
   readonly status: TripGoalStatus;
   readonly notes: string | null;
   readonly createdAt: Date;
@@ -23,13 +25,13 @@ export interface TripGoal {
 }
 
 export interface NewTripGoal {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly title: string;
   readonly targetPoints: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly notes?: string | null;
-  readonly id?: string;
+  readonly id?: TripGoalId;
   readonly now?: Date;
 }
 
@@ -37,7 +39,7 @@ export interface TripGoalChanges {
   readonly title?: string;
   readonly targetPoints?: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly status?: TripGoalStatus;
   readonly notes?: string | null;
   readonly now?: Date;
@@ -72,7 +74,7 @@ export function createTripGoal(input: NewTripGoal): TripGoal {
   const now = input.now ?? new Date();
 
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? TripGoalId.generate(),
     userId: input.userId,
     title: normalizeTitle(input.title),
     targetPoints: input.targetPoints,

@@ -19,21 +19,22 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { TripGoalReadModel } from "./create-trip-goal";
 
+import type { LoyaltyAccountId, TripGoalId, UserId } from "../../domain/shared/ids";
 export interface UpdateTripGoalInput {
-  readonly userId: string;
-  readonly goalId: string;
+  readonly userId: UserId;
+  readonly goalId: TripGoalId;
   readonly title?: string;
   readonly targetPoints?: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly status?: TripGoalStatus;
   readonly notes?: string | null;
 }
 
 async function requireOwnedGoal(
   goals: TripGoalRepository,
-  userId: string,
-  goalId: string,
+  userId: UserId,
+  goalId: TripGoalId,
 ): Promise<TripGoal> {
   const goal = await goals.findById(goalId);
   if (!goal || goal.userId !== userId) {
@@ -136,7 +137,7 @@ export class DeleteTripGoal {
     private readonly eventing: Eventing = noopEventing,
   ) {}
 
-  async execute(userId: string, goalId: string): Promise<void> {
+  async execute(userId: UserId, goalId: TripGoalId): Promise<void> {
     await requireOwnedGoal(this.goals, userId, goalId);
     await this.eventing.unitOfWork.run(async () => {
       await this.goals.delete(goalId);

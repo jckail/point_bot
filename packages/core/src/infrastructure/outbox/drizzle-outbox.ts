@@ -15,6 +15,7 @@ import {
   isEventType,
   type DomainEvent,
 } from "../../domain/events";
+import { EventId, UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { domainEventOutbox } from "../db/schema";
 
@@ -75,7 +76,7 @@ export class DrizzleEventPublisher implements EventPublisher {
         version: event.version,
         userId: event.userId,
         aggregateId: event.aggregateId,
-        payload: event.payload as Record<string, unknown>,
+        payload: event.payload,
         occurredAt: event.occurredAt,
         correlationId: event.correlationId ?? ambient ?? null,
         availableAt: event.occurredAt,
@@ -91,10 +92,10 @@ function toClaimed(row: OutboxRow): ClaimedEvent {
     throw new Error(`Unknown outbox event type "${row.type}" (row ${row.id})`);
   }
   const event = {
-    id: row.id,
+    id: EventId.parse(row.id),
     type: row.type,
     occurredAt: row.occurredAt,
-    userId: row.userId,
+    userId: UserId.parse(row.userId),
     aggregateId: row.aggregateId,
     version: row.version,
     payload: row.payload,
@@ -153,7 +154,7 @@ export class DrizzleOutboxStore implements OutboxStore {
       );
   }
 
-  async markProcessed(id: string, now: Date): Promise<void> {
+  async markProcessed(id: EventId, now: Date): Promise<void> {
     await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET processed_at = ${iso(now)}::timestamptz, last_error = NULL
@@ -161,7 +162,7 @@ export class DrizzleOutboxStore implements OutboxStore {
     `);
   }
 
-  async scheduleRetry(id: string, retryAt: Date, error: string): Promise<void> {
+  async scheduleRetry(id: EventId, retryAt: Date, error: string): Promise<void> {
     await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET available_at = ${iso(retryAt)}::timestamptz, last_error = ${error}
@@ -169,7 +170,7 @@ export class DrizzleOutboxStore implements OutboxStore {
     `);
   }
 
-  async deadLetter(id: string, now: Date, error: string): Promise<void> {
+  async deadLetter(id: EventId, now: Date, error: string): Promise<void> {
     await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET dead_lettered_at = ${iso(now)}::timestamptz, last_error = ${error}

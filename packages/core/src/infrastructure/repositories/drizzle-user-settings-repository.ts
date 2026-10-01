@@ -5,13 +5,14 @@ import type {
   UserSettings,
   UserSettingsRepository,
 } from "../../domain/loyalty/user-settings";
+import { UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { userSettings } from "../db/schema";
 
 export class DrizzleUserSettingsRepository implements UserSettingsRepository {
   constructor(private readonly db: Database) {}
 
-  async get(userId: string): Promise<UserSettings | null> {
+  async get(userId: UserId): Promise<UserSettings | null> {
     const rows = await this.db
       .select()
       .from(userSettings)
@@ -20,7 +21,7 @@ export class DrizzleUserSettingsRepository implements UserSettingsRepository {
     const row = rows[0];
     if (!row) return null;
     return {
-      userId: row.userId,
+      userId: UserId.parse(row.userId),
       // Validate on read so a bad row degrades loudly, not silently.
       displayCurrency: assertSupportedDisplayCurrency(row.displayCurrency),
       updatedAt: row.updatedAt,

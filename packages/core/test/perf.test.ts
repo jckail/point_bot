@@ -12,6 +12,7 @@ import { toLoyaltyAccountReadModel } from "../src/application/loyalty/mappers";
 import { InMemoryCache } from "../src/application/cache";
 import type { BalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
 import type { LoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
+import { asAccountId, asUserId } from "./ids";
 
 /**
  * Lightweight performance regression guards. No DB, no HTTP. They assert
@@ -38,8 +39,8 @@ const DAY = 24 * 60 * 60 * 1000;
 function portfolio(size: number) {
   const providers = PROVIDER_CATALOG.slice(0, size);
   const accounts: LoyaltyAccount[] = providers.map((p, i) => ({
-    id: `acc-${i}`,
-    userId: "u",
+    id: asAccountId(`acc-${i}`),
+    userId: asUserId("u"),
     providerId: p.id,
     membershipNumber: `M${i}`,
     credentialRef: null,
@@ -54,7 +55,7 @@ function portfolio(size: number) {
   const history = (i: number): BalanceSnapshot[] =>
     Array.from({ length: 200 }, (_, k) => ({
       id: `s-${i}-${k}`,
-      loyaltyAccountId: `acc-${i}`,
+      loyaltyAccountId: asAccountId(`acc-${i}`),
       points: 1000 + k * 10,
       source: "sync" as const,
       capturedAt: new Date(now.getTime() - k * 2 * DAY),

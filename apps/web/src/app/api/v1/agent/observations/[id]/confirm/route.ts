@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
+import { ObservationId } from "@pointup/core";
 type Context = { params: Promise<{ id: string }> };
 
 /**
@@ -17,7 +18,7 @@ export function POST(_request: Request, context: Context) {
       const { id } = await context.params;
       const result = await getContainer().useCases.resolveObservationReview.confirm(
         userId,
-        id,
+        ObservationId.parse(id),
       );
       return NextResponse.json(toObservationResultDto(result));
     },

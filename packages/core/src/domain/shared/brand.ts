@@ -10,4 +10,8 @@
 export type Brand<T, B extends string> = T & { readonly __brand: B };
 
 /** The primitive a branded type wraps (`Unbrand<UserId>` = `string`). */
-export type Unbrand<T> = T extends Brand<infer U, string> ? U : T;
+export type Unbrand<T> = T extends string & { readonly __brand: string }
+  ? string
+  : T extends number & { readonly __brand: string }
+    ? number
+    : T;

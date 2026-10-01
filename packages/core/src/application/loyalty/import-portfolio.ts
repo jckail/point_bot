@@ -6,8 +6,9 @@ import type { LinkLoyaltyAccount } from "./link-loyalty-account";
 import type { RecordManualBalance } from "./record-manual-balance";
 import type { LoyaltyAccountRepository } from "../../domain/loyalty/repositories";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface ImportPortfolioInput {
-  readonly userId: string;
+  readonly userId: UserId;
   /** Raw CSV text matching the export format from `toPortfolioExportCsv`. */
   readonly csv: string;
 }

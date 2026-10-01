@@ -1,13 +1,14 @@
 import { DomainError, type ErrorCode } from "../../domain/errors";
 import type { UpdateLoyaltyAccount } from "./update-loyalty-account";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface BulkMembershipUpdate {
-  readonly accountId: string;
+  readonly accountId: LoyaltyAccountId;
   readonly membershipNumber: string;
 }
 
 export interface BulkUpdateFailure {
-  readonly accountId: string;
+  readonly accountId: LoyaltyAccountId;
   readonly code: ErrorCode;
   readonly message: string;
 }
@@ -28,7 +29,7 @@ export class BulkUpdateMembershipNumbers {
   constructor(private readonly updateAccount: UpdateLoyaltyAccount) {}
 
   async execute(input: {
-    readonly userId: string;
+    readonly userId: UserId;
     readonly updates: readonly BulkMembershipUpdate[];
   }): Promise<BulkUpdateMembershipResult> {
     let updated = 0;

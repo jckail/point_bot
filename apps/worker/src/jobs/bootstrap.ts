@@ -1,11 +1,4 @@
-import {
-  assertDevAuthAllowed,
-  assertValidDevToken,
-  hashToken,
-  TOKEN_PREFIX,
-  type AccessToken,
-  type AccessTokenScope,
-} from "@pointup/core";
+import { type AccessToken, AccessTokenId, type AccessTokenScope, assertDevAuthAllowed, assertValidDevToken, hashToken, TOKEN_PREFIX, UserId } from "@pointup/core";
 
 import type { WorkerContainer } from "../container";
 import type { WorkerEnv } from "../env";
@@ -18,7 +11,7 @@ export const DEV_TOKEN_SCOPES: readonly AccessTokenScope[] = [
   "observations:write",
 ];
 export const DEV_TOKEN_NAME = "Dev bootstrap token";
-const DEV_TOKEN_ID = "dev-bootstrap-token";
+const DEV_TOKEN_ID = AccessTokenId.parse("dev-bootstrap-token");
 
 export interface BootstrapOutcome {
   readonly seeded: boolean;
@@ -56,7 +49,7 @@ export async function bootstrap(
   });
 
   const container = makeContainer();
-  const userId = env.DEV_USER_ID;
+  const userId = UserId.parse(env.DEV_USER_ID);
 
   let seeded = false;
   if ((await container.accounts.findByUserId(userId)).length === 0) {
@@ -87,7 +80,7 @@ export async function bootstrap(
 /** Upserts the dev token by hash; revokes older bootstrap tokens with other values. */
 async function ensureDevToken(
   container: WorkerContainer,
-  userId: string,
+  userId: UserId,
   plaintext: string,
 ): Promise<boolean> {
   const tokenHash = await hashToken(plaintext);

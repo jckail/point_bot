@@ -14,6 +14,7 @@ import {
 } from "../src/infrastructure/fx/fx-rate-sources";
 import { InMemoryUserSettingsRepository } from "./fakes";
 
+import { asUserId } from "./ids";
 const clock = { now: () => new Date("2026-07-09T12:00:00Z") };
 
 describe("convertUsdCents", () => {
@@ -26,12 +27,12 @@ describe("convertUsdCents", () => {
 describe("settings use cases", () => {
   it("defaults to USD when never saved, and round-trips a change", async () => {
     const repo = new InMemoryUserSettingsRepository();
-    expect((await new GetUserSettings(repo).execute("u")).displayCurrency).toBe(
+    expect((await new GetUserSettings(repo).execute(asUserId("u"))).displayCurrency).toBe(
       "USD",
     );
 
-    await new SetDisplayCurrency(repo, clock).execute("u", "EUR");
-    expect((await new GetUserSettings(repo).execute("u")).displayCurrency).toBe(
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "EUR");
+    expect((await new GetUserSettings(repo).execute(asUserId("u"))).displayCurrency).toBe(
       "EUR",
     );
   });
@@ -39,7 +40,7 @@ describe("settings use cases", () => {
   it("rejects unsupported currencies", async () => {
     const repo = new InMemoryUserSettingsRepository();
     await expect(
-      new SetDisplayCurrency(repo, clock).execute("u", "XYZ"),
+      new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "XYZ"),
     ).rejects.toBeInstanceOf(InvalidDisplayCurrencyError);
   });
 });
@@ -49,22 +50,22 @@ describe("BuildDisplayValue", () => {
     const repo = new InMemoryUserSettingsRepository();
     const build = new BuildDisplayValue(repo, new StaticFxRateSource());
 
-    expect(await build.execute("u", 100_000)).toBeNull(); // default USD
+    expect(await build.execute(asUserId("u"), 100_000)).toBeNull(); // default USD
 
-    await new SetDisplayCurrency(repo, clock).execute("u", "GBP");
-    const display = await build.execute("u", 100_000);
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "GBP");
+    const display = await build.execute(asUserId("u"), 100_000);
     expect(display).toEqual({ currency: "GBP", amount: 790, ratePerUsd: 0.79 });
   });
 
   it("degrades to null when the rate source fails", async () => {
     const repo = new InMemoryUserSettingsRepository();
-    await new SetDisplayCurrency(repo, clock).execute("u", "EUR");
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "EUR");
     const build = new BuildDisplayValue(repo, {
       getUsdRate: async () => {
         throw new Error("fx down");
       },
     });
-    expect(await build.execute("u", 100_000)).toBeNull();
+    expect(await build.execute(asUserId("u"), 100_000)).toBeNull();
   });
 });
 

@@ -1,10 +1,4 @@
-import {
-  REQUEST_ID_HEADER,
-  resolveRequestId,
-  type ErrorCode,
-  runWithRequestContext,
-  type AccessTokenScope,
-} from "@pointup/core";
+import { type AccessTokenScope, type ErrorCode, REQUEST_ID_HEADER, resolveRequestId, runWithRequestContext, type UserId } from "@pointup/core";
 import {
   httpStatusForErrorCode,
   type ApiError,
@@ -124,7 +118,7 @@ function currentRoute(): string {
 }
 
 async function authenticatedResponse(
-  handler: (userId: string, principal: Principal) => Promise<NextResponse>,
+  handler: (userId: UserId, principal: Principal) => Promise<NextResponse>,
   options: AuthOptions,
   requestId: string,
   state: RequestState,
@@ -171,7 +165,7 @@ async function authenticatedResponse(
  * log line and the HTTP metrics per request.
  */
 export async function withAuthenticatedUser(
-  handler: (userId: string, principal: Principal) => Promise<NextResponse>,
+  handler: (userId: UserId, principal: Principal) => Promise<NextResponse>,
   options: AuthOptions,
 ): Promise<NextResponse> {
   const obs = webObservability();

@@ -19,15 +19,16 @@ import {
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { ProviderKind } from "../../domain/loyalty/provider";
 
+import type { ShareId, UserId } from "../../domain/shared/ids";
 export interface CreatePortfolioShareInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly label?: string | null;
   /** Days until expiry; omit for no expiry. */
   readonly expiresInDays?: number | null;
 }
 
 export interface PortfolioShareReadModel {
-  readonly id: string;
+  readonly id: ShareId;
   readonly token: string;
   readonly label: string | null;
   readonly createdAt: Date;
@@ -99,7 +100,7 @@ export class ListPortfolioShares {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string): Promise<PortfolioShareReadModel[]> {
+  async execute(userId: UserId): Promise<PortfolioShareReadModel[]> {
     const shares = await this.shares.findByUserId(userId);
     const now = this.clock.now();
     return shares.map((share) => toShareReadModel(share, now));
@@ -112,7 +113,7 @@ export class RevokePortfolioShare {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string, shareId: string): Promise<void> {
+  async execute(userId: UserId, shareId: ShareId): Promise<void> {
     const share = await this.shares.findById(shareId);
     if (!share || share.userId !== userId) {
       throw new ShareLinkNotFoundError();

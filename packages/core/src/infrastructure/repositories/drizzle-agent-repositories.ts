@@ -14,6 +14,7 @@ import type {
   AgentObservationRepository,
   ObservationOutcome,
 } from "../../domain/agent/observation";
+import { AccessTokenId, ConsentId, LoyaltyAccountId, ObservationId, UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { accessTokens, agentObservations, consentGrants } from "../db/schema";
 
@@ -22,6 +23,8 @@ type TokenRow = typeof accessTokens.$inferSelect;
 function tokenToDomain(row: TokenRow): AccessToken {
   return {
     ...row,
+    id: AccessTokenId.parse(row.id),
+    userId: UserId.parse(row.userId),
     scopes: row.scopes.split(" ").filter(isScope),
   };
 }
@@ -30,10 +33,31 @@ function tokenToRow(token: AccessToken): TokenRow {
   return { ...token, scopes: token.scopes.join(" ") };
 }
 
+type ConsentRow = typeof consentGrants.$inferSelect;
+
+function consentToDomain(row: ConsentRow): ConsentGrant {
+  return {
+    ...row,
+    id: ConsentId.parse(row.id),
+    userId: UserId.parse(row.userId),
+  };
+}
+
+type ObservationRow = typeof agentObservations.$inferSelect;
+
+function observationToDomain(row: ObservationRow): AgentObservation {
+  return {
+    ...row,
+    id: ObservationId.parse(row.id),
+    userId: UserId.parse(row.userId),
+    accountId: LoyaltyAccountId.parse(row.accountId),
+  };
+}
+
 export class DrizzleAccessTokenRepository implements AccessTokenRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string) {
+  async findById(id: AccessTokenId) {
     const rows = await this.db
       .select()
       .from(accessTokens)
@@ -51,7 +75,7 @@ export class DrizzleAccessTokenRepository implements AccessTokenRepository {
     return rows[0] ? tokenToDomain(rows[0]) : null;
   }
 
-  async findByUserId(userId: string) {
+  async findByUserId(userId: UserId) {
     const rows = await this.db
       .select()
       .from(accessTokens)
@@ -71,7 +95,7 @@ export class DrizzleAccessTokenRepository implements AccessTokenRepository {
       .where(eq(accessTokens.id, token.id));
   }
 
-  async touchLastUsed(id: string, at: Date) {
+  async touchLastUsed(id: AccessTokenId, at: Date) {
     await this.db
       .update(accessTokens)
       .set({ lastUsedAt: at })
@@ -82,21 +106,22 @@ export class DrizzleAccessTokenRepository implements AccessTokenRepository {
 export class DrizzleConsentGrantRepository implements ConsentGrantRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<ConsentGrant | null> {
+  async findById(id: ConsentId): Promise<ConsentGrant | null> {
     const rows = await this.db
       .select()
       .from(consentGrants)
       .where(eq(consentGrants.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows[0] ? consentToDomain(rows[0]) : null;
   }
 
-  findByUserId(userId: string): Promise<ConsentGrant[]> {
-    return this.db
+  async findByUserId(userId: UserId): Promise<ConsentGrant[]> {
+    const rows = await this.db
       .select()
       .from(consentGrants)
       .where(eq(consentGrants.userId, userId))
       .orderBy(desc(consentGrants.grantedAt));
+    return rows.map(consentToDomain);
   }
 
   async insert(consent: ConsentGrant) {
@@ -159,18 +184,18 @@ export class DrizzleAgentObservationRepository
     await this.db.insert(agentObservations).values(observation);
   }
 
-  async findById(id: string): Promise<AgentObservation | null> {
+  async findById(id: ObservationId): Promise<AgentObservation | null> {
     const rows = await this.db
       .select()
       .from(agentObservations)
       .where(eq(agentObservations.id, id))
       .limit(1);
-    return rows[0] ?? null;
+    return rows[0] ? observationToDomain(rows[0]) : null;
   }
 
   async transition(
-    id: string,
-    userId: string,
+    id: ObservationId,
+    userId: UserId,
     from: ObservationOutcome,
     to: ObservationOutcome,
   ): Promise<AgentObservation | null> {
@@ -185,15 +210,19 @@ export class DrizzleAgentObservationRepository
         ),
       )
       .returning();
-    return rows[0] ?? null;
+    return rows[0] ? observationToDomain(rows[0]) : null;
   }
 
-  findByUserId(userId: string, limit: number): Promise<AgentObservation[]> {
-    return this.db
+  async findByUserId(
+    userId: UserId,
+    limit: number,
+  ): Promise<AgentObservation[]> {
+    const rows = await this.db
       .select()
       .from(agentObservations)
       .where(eq(agentObservations.userId, userId))
       .orderBy(desc(agentObservations.createdAt))
       .limit(limit);
+    return rows.map(observationToDomain);
   }
 }

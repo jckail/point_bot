@@ -11,12 +11,14 @@ import {
 import type { LoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import type { TripGoal } from "../src/domain/loyalty/trip-goal";
 
+import { asAccountId, asTripGoalId, asUserId } from "./ids";
+import type { LoyaltyAccountId } from "../src/domain/shared/ids";
 /** Join tables + FKs on a real Postgres (opt in with TEST_DATABASE_URL). */
 const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)("tags and goal accounts as join tables", () => {
   const db = createDb(url ?? "postgresql://unused");
-  const userId = `jt-${crypto.randomUUID()}`;
+  const userId = asUserId(`jt-${crypto.randomUUID()}`);
   const now = new Date();
   const accounts = new DrizzleLoyaltyAccountRepository(db);
   const goals = new DrizzleTripGoalRepository(db);
@@ -26,7 +28,7 @@ describe.skipIf(!url)("tags and goal accounts as join tables", () => {
     providerId: ProviderId,
     tags: string[],
   ): LoyaltyAccount => ({
-    id: `${userId}-${id}`,
+    id: asAccountId(`${userId}-${id}`),
     userId,
     providerId,
     membershipNumber: "1",
@@ -39,8 +41,8 @@ describe.skipIf(!url)("tags and goal accounts as join tables", () => {
     createdAt: now,
     updatedAt: now,
   });
-  const goal = (accountIds: string[]): TripGoal => ({
-    id: `${userId}-g`,
+  const goal = (accountIds: LoyaltyAccountId[]): TripGoal => ({
+    id: asTripGoalId(`${userId}-g`),
     userId,
     title: "Trip",
     targetPoints: 1000,
@@ -99,7 +101,7 @@ describe.skipIf(!url)("tags and goal accounts as join tables", () => {
   });
 
   it("rejects goal links to unknown accounts and nulls activity account refs", async () => {
-    await expect(goals.insert(goal(["nope"]))).rejects.toThrow();
+    await expect(goals.insert(goal([asAccountId("nope")]))).rejects.toThrow();
 
     const a = account("c", "hyatt", []);
     await accounts.insert(a);

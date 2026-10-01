@@ -8,11 +8,30 @@ export interface Executable {
 
 function codeOf(error: unknown): string {
   if (typeof error === "object" && error !== null && "code" in error) {
-    const code = (error as { code: unknown }).code;
+    const code = (error).code;
     if (typeof code === "string") return code;
   }
   return error instanceof Error ? error.name : "error";
 }
+
+/**
+ * The type a traced use case really has: `execute` is always async at runtime
+ * (the span wrapper awaits it), even for use cases whose class declares a
+ * synchronous `execute`. Declaring that here makes a forgotten `await` a
+ * `no-floating-promises` / `await-thenable` finding instead of a silent bug.
+ */
+export type Traced<T extends Executable> = {
+  [K in keyof T]: K extends "execute"
+    ? T[K] extends (...args: infer A) => infer R
+      ? (...args: A) => Promise<Awaited<R>>
+      : T[K]
+    : T[K];
+};
+
+/** `tracedAll` result: every executable member becomes `Traced`. */
+export type TracedAll<T extends object> = {
+  [K in keyof T]: T[K] extends Executable ? Traced<T[K]> : T[K];
+};
 
 /**
  * Decorates a use case so each `execute` runs in a `usecase.<name>` span and
@@ -21,7 +40,11 @@ function codeOf(error: unknown): string {
  * unchanged. The observability backend is resolved per call, so wrapping at
  * composition time works even if telemetry is configured later.
  */
-export function traced<T extends Executable>(name: string, useCase: T): T {
+export function traced<T extends Executable>(
+  name: string,
+  useCase: T,
+): Traced<T> {
+  // The proxy's `execute` is the async wrapper below; the cast states that.
   return new Proxy(useCase, {
     get(target, prop) {
       const value = Reflect.get(target, prop, target) as unknown;
@@ -70,7 +93,7 @@ export function traced<T extends Executable>(name: string, useCase: T): T {
         }
       };
     },
-  });
+  }) as unknown as Traced<T>;
 }
 
 function isExecutable(value: unknown): value is Executable {
@@ -86,11 +109,11 @@ function isExecutable(value: unknown): value is Executable {
  * `traced`, keyed by property name. Entries without an `execute` method are
  * passed through untouched, so a whole composed module can be wrapped cheaply.
  */
-export function tracedAll<T extends object>(useCases: T): T {
+export function tracedAll<T extends object>(useCases: T): TracedAll<T> {
   return Object.fromEntries(
     Object.entries(useCases).map(([name, value]) => [
       name,
       isExecutable(value) ? traced(name, value) : value,
     ]),
-  ) as T;
+  ) as TracedAll<T>;
 }

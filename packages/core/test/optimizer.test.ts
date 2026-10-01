@@ -23,6 +23,7 @@ import {
   findTransferEdge,
 } from "../src/domain/loyalty/transfer-partners";
 
+import { asTransferBonusId } from "./ids";
 const now = new Date("2026-10-15T00:00:00Z");
 
 function holding(
@@ -47,7 +48,7 @@ function bonus(
   extra: Partial<Parameters<typeof createTransferBonus>[0]> = {},
 ): TransferBonus {
   return createTransferBonus({
-    id: `${from}>${to}`,
+    id: asTransferBonusId(`${from}>${to}`),
     fromProviderId: from,
     toProviderId: to,
     multiplierPermille: permille,

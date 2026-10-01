@@ -1,5 +1,6 @@
 import { InvalidConsentError } from "../errors";
 
+import { ConsentId, type UserId } from "../shared/ids";
 /**
  * A ConsentGrant is the user's explicit, time-boxed permission for agents to
  * read one loyalty program's data from the user's own browser/computer and
@@ -11,8 +12,8 @@ export const DEFAULT_CONSENT_DAYS = 30;
 export const MAX_CONSENT_DAYS = 90;
 
 export interface ConsentGrant {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: ConsentId;
+  readonly userId: UserId;
   readonly providerId: string;
   readonly grantedAt: Date;
   readonly expiresAt: Date;
@@ -24,7 +25,7 @@ export function isConsentActive(consent: ConsentGrant, now: Date): boolean {
 }
 
 export function createConsentGrant(input: {
-  userId: string;
+  userId: UserId;
   providerId: string;
   days?: number;
   now: Date;
@@ -36,7 +37,7 @@ export function createConsentGrant(input: {
     );
   }
   return {
-    id: crypto.randomUUID(),
+    id: ConsentId.generate(),
     userId: input.userId,
     providerId: input.providerId,
     grantedAt: input.now,
@@ -46,8 +47,8 @@ export function createConsentGrant(input: {
 }
 
 export interface ConsentGrantRepository {
-  findById(id: string): Promise<ConsentGrant | null>;
-  findByUserId(userId: string): Promise<ConsentGrant[]>;
+  findById(id: ConsentId): Promise<ConsentGrant | null>;
+  findByUserId(userId: UserId): Promise<ConsentGrant[]>;
   insert(consent: ConsentGrant): Promise<void>;
   update(consent: ConsentGrant): Promise<void>;
   /**

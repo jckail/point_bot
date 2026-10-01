@@ -41,6 +41,11 @@ export class DuplicateLoyaltyAccountError extends DomainError {
 export class LoyaltyAccountNotFoundError extends DomainError {
   readonly code = "LOYALTY_ACCOUNT_NOT_FOUND" as const;
 
+  /**
+   * Normally an account id; flows that have no account yet (an agent
+   * write-back for an unlinked program) pass the provider id, so this stays a
+   * plain string rather than a `LoyaltyAccountId`.
+   */
   constructor(accountId: string) {
     super(`Loyalty account "${accountId}" was not found`);
   }

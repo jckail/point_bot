@@ -5,9 +5,10 @@ import { UpdateLoyaltyAccount } from "../src/application/loyalty/update-loyalty-
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import { InMemoryLoyaltyAccountRepository } from "./fakes";
 
+import { asAccountId, asUserId } from "./ids";
 function seed(accounts: InMemoryLoyaltyAccountRepository, providerId: string) {
   const account = createLoyaltyAccount({
-    userId: "user-1",
+    userId: asUserId("user-1"),
     providerId,
     membershipNumber: "OLD",
   });
@@ -25,7 +26,7 @@ describe("BulkUpdateMembershipNumbers", () => {
     );
 
     const result = await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       updates: [
         { accountId: a.id, membershipNumber: "MP-NEW" },
         { accountId: b.id, membershipNumber: "DL-NEW" },
@@ -46,9 +47,9 @@ describe("BulkUpdateMembershipNumbers", () => {
     );
 
     const result = await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       updates: [
-        { accountId: "does-not-exist", membershipNumber: "X" },
+        { accountId: asAccountId("does-not-exist"), membershipNumber: "X" },
         { accountId: a.id, membershipNumber: "MP-NEW" },
       ],
     });
@@ -66,7 +67,7 @@ describe("BulkUpdateMembershipNumbers", () => {
   it("does not let one user edit another user's account", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const other = createLoyaltyAccount({
-      userId: "user-2",
+      userId: asUserId("user-2"),
       providerId: "hyatt",
       membershipNumber: "OWNED-BY-2",
     });
@@ -76,7 +77,7 @@ describe("BulkUpdateMembershipNumbers", () => {
     );
 
     const result = await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       updates: [{ accountId: other.id, membershipNumber: "HACK" }],
     });
 

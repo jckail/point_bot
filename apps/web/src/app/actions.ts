@@ -1,7 +1,7 @@
 "use server";
 
 import { getSessionUserId } from "@/server/auth";
-import { DomainError } from "@pointup/core";
+import { DomainError, LoyaltyAccountId, ShareId, TripGoalId } from "@pointup/core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -67,7 +67,7 @@ export async function syncLoyaltyAccountAction(
   try {
     await getContainer().useCases.syncLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
     });
   } catch (error) {
     if (error instanceof DomainError) {
@@ -109,7 +109,7 @@ export async function recordManualBalanceAction(
   const result = await toActionResult(async () => {
     await getContainer().useCases.recordManualBalance.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       points,
       capturedAt,
     });
@@ -133,7 +133,7 @@ export async function updateMembershipNumberAction(
   const result = await toActionResult(async () => {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       membershipNumber: String(formData.get("membershipNumber") ?? ""),
     });
   });
@@ -153,7 +153,7 @@ export async function unlinkLoyaltyAccountAction(
   try {
     await getContainer().useCases.unlinkLoyaltyAccount.execute(
       userId,
-      String(formData.get("accountId") ?? ""),
+      LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -177,7 +177,8 @@ export async function createTripGoalAction(
   const accountIds = formData
     .getAll("accountIds")
     .map((value) => String(value))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((value) => LoyaltyAccountId.parse(value));
   const targetDateRaw = String(formData.get("targetDate") ?? "").trim();
   const targetPoints = Number(formData.get("targetPoints") ?? Number.NaN);
 
@@ -204,7 +205,7 @@ export async function deleteTripGoalAction(
   try {
     await getContainer().useCases.deleteTripGoal.execute(
       userId,
-      String(formData.get("goalId") ?? ""),
+      TripGoalId.parse(String(formData.get("goalId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -264,7 +265,7 @@ export async function togglePinAccountAction(
   try {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       pinned,
     });
   } catch (error) {
@@ -297,7 +298,7 @@ export async function updateAccountNotesAction(
   const result = await toActionResult(async () => {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       notes: notesRaw.trim().length > 0 ? notesRaw : null,
       tags,
     });
@@ -319,7 +320,7 @@ export async function restoreLoyaltyAccountAction(
   try {
     await getContainer().useCases.restoreLoyaltyAccount.execute(
       userId,
-      String(formData.get("accountId") ?? ""),
+      LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -367,7 +368,7 @@ export async function revokePortfolioShareAction(
   try {
     await getContainer().useCases.revokePortfolioShare.execute(
       userId,
-      String(formData.get("shareId") ?? ""),
+      ShareId.parse(String(formData.get("shareId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {

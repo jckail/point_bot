@@ -1,3 +1,4 @@
+import type { UserId } from "../domain/shared/ids";
 /**
  * Read-through cache port for derived read models (portfolio views).
  *
@@ -33,7 +34,7 @@ export interface Cache {
 }
 
 /** Tag used for everything cached on behalf of one user. */
-export const userCacheTag = (userId: string): string => `user:${userId}`;
+export const userCacheTag = (userId: UserId): string => `user:${userId}`;
 
 export interface InMemoryCacheOptions {
   /** Maximum entries; least recently used are evicted first. Default 5,000. */

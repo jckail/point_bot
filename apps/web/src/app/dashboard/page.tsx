@@ -33,7 +33,7 @@ import {
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-const KIND_STAT_LABELS: Record<ProviderKind, string> = {
+const KIND_STAT_LABELS = {
   airline: "Airline miles",
   hotel: "Hotel points",
   credit_card: "Credit card points",
@@ -43,7 +43,7 @@ const KIND_STAT_LABELS: Record<ProviderKind, string> = {
   rideshare: "Rideshare rewards",
   dining: "Dining rewards",
   shopping: "Shopping rewards",
-};
+} satisfies Record<ProviderKind, string>;
 
 export default async function DashboardPage() {
   const userId = await getSessionUserId();

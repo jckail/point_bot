@@ -228,11 +228,11 @@ const EDGES_BY_DESTINATION: ReadonlyMap<string, readonly TransferEdge[]> =
     return map;
   })();
 
-const CONFIDENCE_RANK: Record<SweetSpotConfidence, number> = {
+const CONFIDENCE_RANK = {
   low: 0,
   medium: 1,
   high: 2,
-};
+} satisfies Record<SweetSpotConfidence, number>;
 
 function minConfidence(
   a: SweetSpotConfidence,
@@ -255,11 +255,11 @@ function urgencyOf(days: number | null): ExpiryUrgency {
   return "none";
 }
 
-const URGENCY_RANK: Record<ExpiryUrgency, number> = {
+const URGENCY_RANK = {
   none: 0,
   soon: 1,
   urgent: 2,
-};
+} satisfies Record<ExpiryUrgency, number>;
 
 interface Source {
   readonly holding: Holding;
@@ -449,13 +449,13 @@ function fmt(n: number): string {
 }
 
 function pluralUnit(unit: SweetSpotUnit, n: number): string {
-  const base: Record<SweetSpotUnit, string> = {
+  const base = {
     night: "night",
     one_way: "one-way award",
     round_trip: "round-trip award",
     stay: "stay",
     redemption: "redemption",
-  };
+  } satisfies Record<SweetSpotUnit, string>;
   return n === 1 ? base[unit] : `${base[unit]}s`;
 }
 

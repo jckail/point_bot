@@ -3,6 +3,17 @@ import type { TransferBonusSource } from "../loyalty/transfer-bonus";
 import { isOneOf } from "../shared/enum";
 
 
+import {
+  EventId,
+  type AccessTokenId,
+  type AwardWatchId,
+  type ConsentId,
+  type LoyaltyAccountId,
+  type ObservationId,
+  type TransferBonusId,
+  type TripGoalId,
+  type UserId,
+} from "../shared/ids";
 /**
  * Typed domain events. An event records a fact that already happened inside
  * the system; consumers react to it asynchronously via the transactional
@@ -49,7 +60,7 @@ export interface EventPayloads {
   "account.unlinked": { providerId: string };
   "account.restored": { providerId: string };
   "balance.recorded": {
-    accountId: string;
+    accountId: LoyaltyAccountId;
     providerId: string;
     points: number;
     previousPoints: number | null;
@@ -59,20 +70,20 @@ export interface EventPayloads {
   "consent.granted": { providerId: string; expiresAt: string };
   "consent.revoked": { providerId: string };
   "observation.held": {
-    accountId: string;
+    accountId: LoyaltyAccountId;
     providerId: string;
     points: number;
     previousPoints: number | null;
     reviewExpiresAt: string;
   };
   "observation.confirmed": {
-    accountId: string;
+    accountId: LoyaltyAccountId;
     providerId: string;
     points: number;
     previousPoints: number | null;
   };
   "observation.rejected": {
-    accountId: string;
+    accountId: LoyaltyAccountId;
     providerId: string;
     points: number;
     previousPoints: number | null;
@@ -95,7 +106,7 @@ export interface EventPayloads {
 }
 
 /** Current schema version per type; bump when a payload changes shape. */
-export const EVENT_SCHEMA_VERSIONS: Readonly<Record<EventType, number>> = {
+export const EVENT_SCHEMA_VERSIONS = {
   "account.linked": 1,
   "account.updated": 1,
   "account.unlinked": 1,
@@ -113,15 +124,41 @@ export const EVENT_SCHEMA_VERSIONS: Readonly<Record<EventType, number>> = {
   "goal.deleted": 1,
   "watch.triggered": 1,
   "transfer_bonus.recorded": 1,
-};
+} satisfies Readonly<Record<EventType, number>>;
+
+/**
+ * Id kind of the aggregate each event type is about. Keyed by `EventType`, so
+ * a new event type must say which aggregate it belongs to, and a producer
+ * cannot publish `consent.granted` with an account id as its `aggregateId`.
+ * (The outbox column stays a plain string.)
+ */
+export interface EventAggregateIds {
+  "account.linked": LoyaltyAccountId;
+  "account.updated": LoyaltyAccountId;
+  "account.unlinked": LoyaltyAccountId;
+  "account.restored": LoyaltyAccountId;
+  "balance.recorded": LoyaltyAccountId;
+  "consent.granted": ConsentId;
+  "consent.revoked": ConsentId;
+  "observation.held": ObservationId;
+  "observation.confirmed": ObservationId;
+  "observation.rejected": ObservationId;
+  "token.issued": AccessTokenId;
+  "token.revoked": AccessTokenId;
+  "goal.created": TripGoalId;
+  "goal.updated": TripGoalId;
+  "goal.deleted": TripGoalId;
+  "watch.triggered": AwardWatchId;
+  "transfer_bonus.recorded": TransferBonusId;
+}
 
 export interface DomainEventEnvelope<T extends EventType> {
-  readonly id: string;
+  readonly id: EventId;
   readonly type: T;
   readonly occurredAt: Date;
-  readonly userId: string;
+  readonly userId: UserId;
   /** Id of the entity the event is about (account, consent, token, ...). */
-  readonly aggregateId: string;
+  readonly aggregateId: EventAggregateIds[T];
   /** Payload schema version. */
   readonly version: number;
   readonly payload: EventPayloads[T];
@@ -134,12 +171,12 @@ export type DomainEventOf<T extends EventType> = DomainEventEnvelope<T>;
 export type DomainEvent = { [T in EventType]: DomainEventEnvelope<T> }[EventType];
 
 export interface NewEventInput<T extends EventType> {
-  readonly userId: string;
-  readonly aggregateId: string;
+  readonly userId: UserId;
+  readonly aggregateId: EventAggregateIds[T];
   readonly occurredAt: Date;
   readonly payload: EventPayloads[T];
   readonly correlationId?: string;
-  readonly id?: string;
+  readonly id?: EventId;
 }
 
 export function createDomainEvent<T extends EventType>(
@@ -147,7 +184,7 @@ export function createDomainEvent<T extends EventType>(
   input: NewEventInput<T>,
 ): DomainEventEnvelope<T> {
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? EventId.generate(),
     type,
     occurredAt: input.occurredAt,
     userId: input.userId,

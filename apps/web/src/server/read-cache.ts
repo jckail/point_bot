@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { InMemoryCache, userCacheTag, type Cache } from "@pointup/core";
+import { type Cache, InMemoryCache, userCacheTag, UserId } from "@pointup/core";
 
 /**
  * Read-model cache for the web process.
@@ -38,12 +38,12 @@ export function getReadCache(): Cache {
 /** Use cases that never change cached data. Everything else invalidates. */
 const READ_ONLY_USE_CASE = /^(list|get|build|plan|authenticate|chat|ingest)/;
 
-function userIdOf(args: readonly unknown[]): string | undefined {
+function userIdOf(args: readonly unknown[]): UserId | undefined {
   const first = args[0];
-  if (typeof first === "string") return first;
+  if (UserId.is(first)) return first;
   if (typeof first === "object" && first !== null) {
     const userId = (first as { userId?: unknown }).userId;
-    if (typeof userId === "string") return userId;
+    if (UserId.is(userId)) return userId;
   }
   return undefined;
 }
@@ -106,7 +106,7 @@ export function authTouchIntervalMs(): number {
 }
 
 interface Authenticator {
-  execute: (plaintext: string) => Promise<{ userId: string }>;
+  execute: (plaintext: string) => Promise<{ userId: UserId }>;
 }
 
 /**
@@ -129,7 +129,7 @@ export function cacheAuthentication<T extends { authenticateAccessToken: Authent
   const wrapped: Authenticator = {
     execute: async (plaintext) => {
       const key = `auth:${createHash("sha256").update(plaintext).digest("hex")}`;
-      const hit = await cache.get<{ userId: string }>(key);
+      const hit = await cache.get<{ userId: UserId }>(key);
       if (hit) return hit;
       const principal = await inner.execute(plaintext);
       await cache.set(key, principal, { ttlMs, tags: [userCacheTag(principal.userId)] });

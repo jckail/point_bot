@@ -29,8 +29,9 @@ import { systemClock } from "../ports";
 import type { LinkLoyaltyAccount } from "../loyalty/link-loyalty-account";
 import type { RecordManualBalance } from "../loyalty/record-manual-balance";
 
+import { type LoyaltyAccountId, ObservationId, type UserId } from "../../domain/shared/ids";
 export interface SubmitObservationInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly skillId: string;
   readonly points: number;
   /** Exact page the value was read from; only its host is persisted. */
@@ -52,7 +53,7 @@ export interface SubmitObservationInput {
 
 export interface SubmitObservationResult {
   readonly outcome: ObservationOutcome;
-  readonly accountId: string;
+  readonly accountId: LoyaltyAccountId;
   readonly points: number;
   readonly previousPoints: number | null;
   readonly message: string;
@@ -60,7 +61,7 @@ export interface SubmitObservationResult {
    * Server-issued, single-use id of a held reading (only for needs_review).
    * Only the signed-in user can confirm or reject it; agents cannot.
    */
-  readonly reviewId: string | null;
+  readonly reviewId: ObservationId | null;
 }
 
 /**
@@ -139,10 +140,10 @@ export class SubmitObservation {
       const previousPoints = latest?.points ?? null;
       const observedAt = input.observedAt ?? now;
 
-      const id = crypto.randomUUID();
+      const id = ObservationId.generate();
       let outcome: ObservationOutcome;
       let message: string;
-      let reviewId: string | null = null;
+      let reviewId: ObservationId | null = null;
       if (previousPoints === input.points) {
         outcome = "unchanged";
         message = "Balance matches the latest reading; nothing written.";
@@ -227,8 +228,8 @@ export class ResolveObservationReview {
   ) {}
 
   private async loadPending(
-    userId: string,
-    reviewId: string,
+    userId: UserId,
+    reviewId: ObservationId,
   ): Promise<AgentObservation> {
     const observation = await this.observations.findById(reviewId);
     if (!observation || observation.userId !== userId) {
@@ -240,7 +241,7 @@ export class ResolveObservationReview {
     return observation;
   }
 
-  async confirm(userId: string, reviewId: string): Promise<SubmitObservationResult> {
+  async confirm(userId: UserId, reviewId: ObservationId): Promise<SubmitObservationResult> {
     const held = await this.loadPending(userId, reviewId);
     const now = this.clock.now();
     if (now.getTime() >= reviewExpiresAt(held).getTime()) {
@@ -312,7 +313,7 @@ export class ResolveObservationReview {
     };
   }
 
-  async reject(userId: string, reviewId: string): Promise<SubmitObservationResult> {
+  async reject(userId: UserId, reviewId: ObservationId): Promise<SubmitObservationResult> {
     const held = await this.loadPending(userId, reviewId);
     const now = this.clock.now();
     await this.eventing.unitOfWork.run(async () => {
@@ -351,7 +352,7 @@ export class ResolveObservationReview {
 export class ListAgentObservations {
   constructor(private readonly observations: AgentObservationRepository) {}
 
-  execute(userId: string, limit = 50) {
+  execute(userId: UserId, limit = 50) {
     return this.observations.findByUserId(userId, Math.min(limit, 200));
   }
 }

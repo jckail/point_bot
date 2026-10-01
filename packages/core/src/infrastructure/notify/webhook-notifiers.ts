@@ -11,7 +11,7 @@ export type FetchLike = (
   },
 ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
 
-const defaultFetch: FetchLike = (url, init) => fetch(url, init as RequestInit);
+const defaultFetch: FetchLike = (url, init) => fetch(url, init);
 
 async function postJson(
   fetchImpl: FetchLike,

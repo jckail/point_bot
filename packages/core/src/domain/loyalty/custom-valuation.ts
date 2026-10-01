@@ -1,12 +1,13 @@
 import { InvalidValuationError } from "../errors";
 
+import type { UserId } from "../shared/ids";
 /**
  * A per-user override of a program's editorial cents-per-point valuation.
  * When present, portfolio value for that provider is computed from this rate
  * instead of the catalog default.
  */
 export interface CustomValuation {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly providerId: string;
   /** Override redemption value of one point, in US cents (e.g. 1.8). */
   readonly centsPerPoint: number;
@@ -23,9 +24,9 @@ export function assertValidCentsPerPoint(value: number): void {
 }
 
 export interface CustomValuationRepository {
-  listForUser(userId: string): Promise<CustomValuation[]>;
+  listForUser(userId: UserId): Promise<CustomValuation[]>;
   upsert(valuation: CustomValuation): Promise<void>;
-  delete(userId: string, providerId: string): Promise<void>;
+  delete(userId: UserId, providerId: string): Promise<void>;
 }
 
 /**

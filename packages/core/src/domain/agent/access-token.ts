@@ -1,6 +1,7 @@
 import { InvalidAccessTokenRequestError } from "../errors";
 import { isOneOf } from "../shared/enum";
 
+import { AccessTokenId, type UserId } from "../shared/ids";
 /**
  * Personal access tokens let non-browser callers (the MCP server, ChatGPT
  * Actions, scripts, browser agents) act on a user's behalf without sharing
@@ -25,8 +26,8 @@ export const TOKEN_PREFIX = "pu_";
 const MAX_TTL_DAYS = 365;
 
 export interface AccessToken {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: AccessTokenId;
+  readonly userId: UserId;
   readonly name: string;
   /** Leading characters of the plaintext, for display ("pu_Ab12…"). */
   readonly displayPrefix: string;
@@ -73,7 +74,7 @@ export function generateTokenPlaintext(): string {
 }
 
 export interface NewAccessToken {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly name: string;
   readonly scopes: readonly AccessTokenScope[];
   readonly ttlDays?: number;
@@ -114,7 +115,7 @@ export async function createAccessToken(
   return {
     plaintext,
     token: {
-      id: crypto.randomUUID(),
+      id: AccessTokenId.generate(),
       userId: input.userId,
       name,
       displayPrefix: plaintext.slice(0, TOKEN_PREFIX.length + 4),
@@ -129,9 +130,9 @@ export async function createAccessToken(
 }
 
 export interface AccessTokenRepository {
-  findById(id: string): Promise<AccessToken | null>;
+  findById(id: AccessTokenId): Promise<AccessToken | null>;
   findByHash(tokenHash: string): Promise<AccessToken | null>;
-  findByUserId(userId: string): Promise<AccessToken[]>;
+  findByUserId(userId: UserId): Promise<AccessToken[]>;
   insert(token: AccessToken): Promise<void>;
   update(token: AccessToken): Promise<void>;
   /**
@@ -139,5 +140,5 @@ export interface AccessTokenRepository {
    * background touch can never overwrite a concurrent revocation. Optional:
    * authentication falls back to `update` when an implementation lacks it.
    */
-  touchLastUsed?(id: string, at: Date): Promise<void>;
+  touchLastUsed?(id: AccessTokenId, at: Date): Promise<void>;
 }

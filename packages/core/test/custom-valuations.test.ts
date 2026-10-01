@@ -18,6 +18,7 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 function fixedClock(iso: string) {
   return { now: () => new Date(iso) };
 }
@@ -27,7 +28,7 @@ describe("SetCustomValuation", () => {
     const repo = new InMemoryCustomValuationRepository();
     await expect(
       new SetCustomValuation(repo).execute({
-        userId: "u",
+        userId: asUserId("u"),
         providerId: "not-a-real-provider",
         centsPerPoint: 2,
       }),
@@ -39,7 +40,7 @@ describe("SetCustomValuation", () => {
     for (const bad of [0, -1, 101, Number.NaN]) {
       await expect(
         new SetCustomValuation(repo).execute({
-          userId: "u",
+          userId: asUserId("u"),
           providerId: "united",
           centsPerPoint: bad,
         }),
@@ -50,10 +51,10 @@ describe("SetCustomValuation", () => {
   it("upserts a valuation with the clock's timestamp", async () => {
     const repo = new InMemoryCustomValuationRepository();
     const set = new SetCustomValuation(repo, fixedClock("2026-02-01T00:00:00Z"));
-    await set.execute({ userId: "u", providerId: "united", centsPerPoint: 2.1 });
-    await set.execute({ userId: "u", providerId: "united", centsPerPoint: 2.5 });
+    await set.execute({ userId: asUserId("u"), providerId: "united", centsPerPoint: 2.1 });
+    await set.execute({ userId: asUserId("u"), providerId: "united", centsPerPoint: 2.5 });
 
-    const all = await new ListCustomValuations(repo).execute("u");
+    const all = await new ListCustomValuations(repo).execute(asUserId("u"));
     expect(all).toHaveLength(1); // upsert, not duplicate
     expect(all[0]).toMatchObject({ providerId: "united", centsPerPoint: 2.5 });
   });
@@ -66,7 +67,7 @@ describe("custom valuations affect portfolio value", () => {
     const valuations = new InMemoryCustomValuationRepository();
 
     const account = createLoyaltyAccount({
-      userId: "u",
+      userId: asUserId("u"),
       providerId: "united", // editorial 1.2¢/pt
       membershipNumber: "MP1",
     });
@@ -89,7 +90,7 @@ describe("custom valuations affect portfolio value", () => {
       balances,
       undefined,
       valuations,
-    ).execute("u");
+    ).execute(asUserId("u"));
     expect(read!.estimatedValueCents).toBe(120_000); // 100k * 1.2
     expect(read!.customCentsPerPoint).toBeNull();
   });
@@ -97,18 +98,18 @@ describe("custom valuations affect portfolio value", () => {
   it("uses the override when set, and reverts after delete", async () => {
     const { accounts, balances, valuations } = await setup();
     await new SetCustomValuation(valuations).execute({
-      userId: "u",
+      userId: asUserId("u"),
       providerId: "united",
       centsPerPoint: 2,
     });
 
     const list = new ListLoyaltyAccounts(accounts, balances, undefined, valuations);
-    let [read] = await list.execute("u");
+    let [read] = await list.execute(asUserId("u"));
     expect(read!.estimatedValueCents).toBe(200_000); // 100k * 2.0 override
     expect(read!.customCentsPerPoint).toBe(2);
 
-    await new DeleteCustomValuation(valuations).execute("u", "united");
-    [read] = await list.execute("u");
+    await new DeleteCustomValuation(valuations).execute(asUserId("u"), "united");
+    [read] = await list.execute(asUserId("u"));
     expect(read!.estimatedValueCents).toBe(120_000); // back to editorial
     expect(read!.customCentsPerPoint).toBeNull();
   });

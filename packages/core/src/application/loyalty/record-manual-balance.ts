@@ -16,9 +16,10 @@ import { recordActivity } from "./list-activity";
 import { toBalanceReadModel } from "./mappers";
 import type { BalanceReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface RecordManualBalanceInput {
-  readonly userId: string;
-  readonly accountId: string;
+  readonly userId: UserId;
+  readonly accountId: LoyaltyAccountId;
   readonly points: number;
   /**
    * When the user actually observed this balance; omit for "now". Backfilled

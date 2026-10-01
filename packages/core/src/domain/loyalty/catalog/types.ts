@@ -21,7 +21,7 @@ export const PROVIDER_KINDS = [
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 
-export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
+export const PROVIDER_KIND_LABELS = {
   airline: "Airline",
   hotel: "Hotel",
   credit_card: "Credit card",
@@ -31,7 +31,7 @@ export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
   rideshare: "Rideshare",
   dining: "Dining",
   shopping: "Shopping",
-};
+} satisfies Record<ProviderKind, string>;
 
 /** How much to trust an entry's editorial numbers (value, expiry policy). */
 export const CATALOG_CONFIDENCE = ["high", "medium", "low"] as const;

@@ -42,6 +42,7 @@ import {
   RecordingEventing,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 let now = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => now };
 
@@ -60,7 +61,7 @@ function setup() {
 
 async function linked(s: ReturnType<typeof setup>) {
   const { accountId } = await s.link.execute({
-    userId: "u1",
+    userId: asUserId("u1"),
     providerId: "united",
     membershipNumber: "SECRET-123",
   });
@@ -72,13 +73,13 @@ describe("event emission", () => {
     const s = setup();
     const accountId = await linked(s);
     await new UpdateLoyaltyAccount(s.accounts, s.activity, clock, s.eventing).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       accountId,
       membershipNumber: "NEW-SECRET",
       pinned: true,
     });
     await new UnlinkLoyaltyAccount(s.accounts, s.activity, clock, s.eventing).execute(
-      "u1",
+      asUserId("u1"),
       accountId,
     );
     await new RestoreLoyaltyAccount(
@@ -87,7 +88,7 @@ describe("event emission", () => {
       s.activity,
       clock,
       s.eventing,
-    ).execute("u1", accountId);
+    ).execute(asUserId("u1"), accountId);
 
     expect(s.eventing.types()).toEqual([
       "account.linked",
@@ -112,9 +113,9 @@ describe("event emission", () => {
   it("manual record carries previous points and source", async () => {
     const s = setup();
     const accountId = await linked(s);
-    await s.record.execute({ userId: "u1", accountId, points: 100 });
+    await s.record.execute({ userId: asUserId("u1"), accountId, points: 100 });
     now = new Date(now.getTime() + 1000);
-    await s.record.execute({ userId: "u1", accountId, points: 150, source: "agent" });
+    await s.record.execute({ userId: asUserId("u1"), accountId, points: 150, source: "agent" });
     const [, first, second] = s.eventing.events;
     expect(first).toMatchObject({
       type: "balance.recorded",
@@ -131,7 +132,7 @@ describe("event emission", () => {
     const accountId = await linked(s);
     await expect(
       s.record.execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         accountId,
         points: 5,
         capturedAt: new Date(now.getTime() + 86_400_000),
@@ -152,7 +153,7 @@ describe("event emission", () => {
       clock,
       s.eventing,
     );
-    const result = await sync.execute({ userId: "u1", accountId });
+    const result = await sync.execute({ userId: asUserId("u1"), accountId });
     expect(s.eventing.events.at(-1)).toMatchObject({
       type: "balance.recorded",
       payload: { source: "sync", points: result.points, previousPoints: null },
@@ -162,10 +163,10 @@ describe("event emission", () => {
   it("consent grant and revoke emit one event per grant", async () => {
     const s = setup();
     const grant = new GrantConsent(s.consents, clock, s.eventing);
-    const consent = await grant.execute({ userId: "u1", providerId: "united" });
-    await new RevokeConsent(s.consents, clock, s.eventing).execute("u1", consent.id);
+    const consent = await grant.execute({ userId: asUserId("u1"), providerId: "united" });
+    await new RevokeConsent(s.consents, clock, s.eventing).execute(asUserId("u1"), consent.id);
     // Revoking twice is a no-op and emits nothing.
-    await new RevokeConsent(s.consents, clock, s.eventing).execute("u1", consent.id);
+    await new RevokeConsent(s.consents, clock, s.eventing).execute(asUserId("u1"), consent.id);
     expect(s.eventing.types()).toEqual(["consent.granted", "consent.revoked"]);
     expect(s.eventing.events[0]).toMatchObject({
       aggregateId: consent.id,
@@ -177,12 +178,12 @@ describe("event emission", () => {
     const eventing = new RecordingEventing();
     const tokens = new InMemoryTokens();
     const issued = await new IssueAccessToken(tokens, clock, eventing).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       name: "claude",
       scopes: ["portfolio:read"],
       ttlDays: 7,
     });
-    await new RevokeAccessToken(tokens, clock, eventing).execute("u1", issued.token.id);
+    await new RevokeAccessToken(tokens, clock, eventing).execute(asUserId("u1"), issued.token.id);
     expect(eventing.types()).toEqual(["token.issued", "token.revoked"]);
     expect(eventing.events[0]).toMatchObject({
       aggregateId: issued.token.id,
@@ -195,7 +196,7 @@ describe("event emission", () => {
 
   describe("observations", () => {
     const base = {
-      userId: "u1",
+      userId: asUserId("u1"),
       skillId: "united.capture-balance",
       sourceUrl: "https://www.united.com/en/us/myunited?token=secret",
       agent: "test-agent",
@@ -229,7 +230,7 @@ describe("event emission", () => {
     it("recorded reading emits link + balance events; unchanged emits none", async () => {
       const s = agentSetup();
       await new GrantConsent(s.consents, clock, s.eventing).execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         providerId: "united",
       });
       await s.submit.execute({ ...base, points: 1000 });
@@ -245,7 +246,7 @@ describe("event emission", () => {
     it("held reading emits observation.held; confirm records and emits", async () => {
       const s = agentSetup();
       await new GrantConsent(s.consents, clock, s.eventing).execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         providerId: "united",
       });
       await s.submit.execute({ ...base, points: 1000 });
@@ -258,7 +259,7 @@ describe("event emission", () => {
       });
 
       // Confirming needs the latest balance to still equal previousPoints.
-      await s.review.confirm("u1", held.reviewId!);
+      await s.review.confirm(asUserId("u1"), held.reviewId!);
       expect(s.eventing.types().slice(-2)).toEqual([
         "balance.recorded",
         "observation.confirmed",
@@ -270,15 +271,15 @@ describe("event emission", () => {
     it("reject emits observation.rejected and a second resolve emits nothing", async () => {
       const s = agentSetup();
       await new GrantConsent(s.consents, clock, s.eventing).execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         providerId: "united",
       });
       await s.submit.execute({ ...base, points: 1000 });
       const held = await s.submit.execute({ ...base, points: 900_000 });
-      await s.review.reject("u1", held.reviewId!);
+      await s.review.reject(asUserId("u1"), held.reviewId!);
       const count = s.eventing.events.length;
       expect(s.eventing.types().at(-1)).toBe("observation.rejected");
-      await expect(s.review.reject("u1", held.reviewId!)).rejects.toMatchObject({
+      await expect(s.review.reject(asUserId("u1"), held.reviewId!)).rejects.toMatchObject({
         code: "REVIEW_ALREADY_RESOLVED",
       });
       expect(s.eventing.events).toHaveLength(count);
@@ -291,17 +292,17 @@ describe("event emission", () => {
     const balances = new InMemoryBalanceSnapshotRepository();
     const goals = new InMemoryTripGoalRepository();
     const created = await new CreateTripGoal(goals, accounts, balances, clock, eventing).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       title: "Private title",
       targetPoints: 50_000,
     });
     await new UpdateTripGoal(goals, accounts, balances, clock, eventing).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       goalId: created.id,
       targetPoints: 60_000,
       notes: "private",
     });
-    await new DeleteTripGoal(goals, clock, eventing).execute("u1", created.id);
+    await new DeleteTripGoal(goals, clock, eventing).execute(asUserId("u1"), created.id);
     expect(eventing.types()).toEqual(["goal.created", "goal.updated", "goal.deleted"]);
     expect(eventing.events[1]).toMatchObject({
       aggregateId: created.id,
@@ -314,7 +315,7 @@ describe("event emission", () => {
     const eventing = new RecordingEventing();
     const watches = new InMemoryAwardWatchRepository();
     const watch = createAwardWatch({
-      userId: "u1",
+      userId: asUserId("u1"),
       url: "https://blog.example/hyatt",
       label: "Hyatt",
       minCentsPerPoint: 2,

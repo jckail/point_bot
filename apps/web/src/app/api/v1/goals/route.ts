@@ -2,6 +2,7 @@ import {
   createTripGoalRequestSchema,
   toTripGoalDto,
 } from "@pointup/core/contracts";
+import { LoyaltyAccountId } from "@pointup/core";
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
@@ -22,7 +23,9 @@ export function POST(request: Request) {
       title: body.title,
       targetPoints: body.targetPoints,
       targetDate: body.targetDate,
-      accountIds: body.accountIds,
+      accountIds: body.accountIds?.map((accountId) =>
+        LoyaltyAccountId.parse(accountId),
+      ),
       notes: body.notes,
     });
     return NextResponse.json(toTripGoalDto(goal), { status: 201 });

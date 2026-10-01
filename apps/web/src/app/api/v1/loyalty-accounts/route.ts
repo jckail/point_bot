@@ -3,6 +3,7 @@ import {
   linkLoyaltyAccountRequestSchema,
   toLoyaltyAccountDto,
 } from "@pointup/core/contracts";
+import { LoyaltyAccountId } from "@pointup/core";
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
@@ -41,7 +42,10 @@ export function PATCH(request: Request) {
     const result =
       await getContainer().useCases.bulkUpdateMembershipNumbers.execute({
         userId,
-        updates: body.updates,
+        updates: body.updates.map((update) => ({
+          ...update,
+          accountId: LoyaltyAccountId.parse(update.accountId),
+        })),
       });
     return NextResponse.json(result);
   }, { method: "PATCH", scope: "portfolio:write" });

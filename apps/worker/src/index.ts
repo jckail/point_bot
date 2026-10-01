@@ -1,3 +1,5 @@
+import { assertNever, isOneOf } from "@pointup/core";
+
 import { createContainer } from "./container";
 import { loadEnv } from "./env";
 import { checkWatches } from "./jobs/check-watches";
@@ -25,11 +27,10 @@ const JOBS = [
   "bootstrap",
   "loop",
 ] as const;
-type Job = (typeof JOBS)[number];
 
 async function main(): Promise<void> {
-  const job = process.argv[2] as Job | undefined;
-  if (!job || !JOBS.includes(job)) {
+  const job = process.argv[2];
+  if (!isOneOf(JOBS, job)) {
     console.error(`Usage: worker <${JOBS.join("|")}>`);
     process.exitCode = 2;
     return;
@@ -84,43 +85,52 @@ async function main(): Promise<void> {
     ]);
     return;
   }
-  if (job === "purge") {
-    await purge(container, env);
-  } else if (job === "outbox") {
-    await processOutbox(container, createNotifier(env), outboxOptions(env), {
-      drain: true,
-    });
-  } else if (job === "sync") {
-    await syncAllUsers(container);
-  } else if (job === "watch") {
-    await checkWatches(
-      container,
-      createUserDirectory(env),
-      createMailer(env),
-      createNotifier(env),
-    );
-  } else if (job === "alerts") {
-    await sendAlerts(
-      container,
-      createUserDirectory(env),
-      createMailer(env),
-      createNotifier(env),
-      {
-        ...(env.ALERT_EXPIRY_WARNING_DAYS !== undefined
-          ? { expiryWarningDays: env.ALERT_EXPIRY_WARNING_DAYS }
-          : {}),
-        ...(env.ALERT_BIG_CHANGE_PERCENT !== undefined
-          ? { bigChangePercent: env.ALERT_BIG_CHANGE_PERCENT }
-          : {}),
-      },
-    );
-  } else {
-    await sendDigests(
-      container,
-      createUserDirectory(env),
-      createMailer(env),
-      createNotifier(env),
-    );
+  switch (job) {
+    case "purge":
+      await purge(container, env);
+      return;
+    case "outbox":
+      await processOutbox(container, createNotifier(env), outboxOptions(env), {
+        drain: true,
+      });
+      return;
+    case "sync":
+      await syncAllUsers(container);
+      return;
+    case "watch":
+      await checkWatches(
+        container,
+        createUserDirectory(env),
+        createMailer(env),
+        createNotifier(env),
+      );
+      return;
+    case "alerts":
+      await sendAlerts(
+        container,
+        createUserDirectory(env),
+        createMailer(env),
+        createNotifier(env),
+        {
+          ...(env.ALERT_EXPIRY_WARNING_DAYS !== undefined
+            ? { expiryWarningDays: env.ALERT_EXPIRY_WARNING_DAYS }
+            : {}),
+          ...(env.ALERT_BIG_CHANGE_PERCENT !== undefined
+            ? { bigChangePercent: env.ALERT_BIG_CHANGE_PERCENT }
+            : {}),
+        },
+      );
+      return;
+    case "digest":
+      await sendDigests(
+        container,
+        createUserDirectory(env),
+        createMailer(env),
+        createNotifier(env),
+      );
+      return;
+    default:
+      return assertNever(job);
   }
 }
 

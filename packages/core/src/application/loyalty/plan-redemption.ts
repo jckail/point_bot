@@ -11,15 +11,15 @@ import {
   type RedemptionPlan,
 } from "../../domain/loyalty/optimizer";
 import type { SweetSpot } from "../../domain/loyalty/catalog/sweet-spots";
-import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
 import type { AwardAvailabilitySource, Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { LoyaltyAccountReadModel } from "./read-models";
 import type { ListActiveTransferBonuses } from "./transfer-bonuses";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface PlanRedemptionInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly goal?: Partial<RedemptionGoal>;
   /** When set (flight goals), real award space is searched and attached. */
   readonly award?: AwardSearchQuery;
@@ -80,7 +80,7 @@ export class PlanRedemption {
     const result = optimizeRedemptions({
       holdings: toHoldings(accounts),
       goal,
-      bonuses: bonuses as readonly TransferBonus[],
+      bonuses,
       now,
       sweetSpots: this.sweetSpots,
       maxPlans: input.maxPlans,
@@ -131,7 +131,7 @@ function annotate(
 }
 
 export interface ListBestRedemptionsInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly limit?: number;
 }
 

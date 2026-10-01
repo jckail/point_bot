@@ -8,13 +8,14 @@ import {
 import type { AccessToken } from "../src/domain/agent/access-token";
 import { InMemoryTokens } from "./fakes";
 
+import { asUserId } from "./ids";
 let now = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => now };
 
 async function issued(tokens: InMemoryTokens) {
   now = new Date("2026-07-08T12:00:00.000Z");
   return new IssueAccessToken(tokens, clock).execute({
-    userId: "u1",
+    userId: asUserId("u1"),
     name: "t",
     scopes: ["portfolio:read"],
   });

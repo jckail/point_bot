@@ -18,8 +18,9 @@ import {
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { AccessTokenId, UserId } from "../../domain/shared/ids";
 export interface AccessTokenReadModel {
-  readonly id: string;
+  readonly id: AccessTokenId;
   readonly name: string;
   readonly displayPrefix: string;
   readonly scopes: readonly AccessTokenScope[];
@@ -53,7 +54,7 @@ export class IssueAccessToken {
 
   /** The plaintext is returned once and can never be recovered afterwards. */
   async execute(input: {
-    userId: string;
+    userId: UserId;
     name: string;
     scopes: readonly AccessTokenScope[];
     ttlDays?: number;
@@ -84,7 +85,7 @@ export class IssueAccessToken {
 export class ListAccessTokens {
   constructor(private readonly tokens: AccessTokenRepository) {}
 
-  async execute(userId: string): Promise<AccessTokenReadModel[]> {
+  async execute(userId: UserId): Promise<AccessTokenReadModel[]> {
     return (await this.tokens.findByUserId(userId)).map(
       toAccessTokenReadModel,
     );
@@ -98,7 +99,7 @@ export class RevokeAccessToken {
     private readonly eventing: Eventing = noopEventing,
   ) {}
 
-  async execute(userId: string, tokenId: string): Promise<void> {
+  async execute(userId: UserId, tokenId: AccessTokenId): Promise<void> {
     const token = await this.tokens.findById(tokenId);
     if (!token || token.userId !== userId) {
       throw new AccessTokenNotFoundError(tokenId);
@@ -120,9 +121,9 @@ export class RevokeAccessToken {
 }
 
 export interface AuthenticatedPrincipal {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly scopes: readonly AccessTokenScope[];
-  readonly tokenId: string;
+  readonly tokenId: AccessTokenId;
 }
 
 /** Default throttle for `lastUsedAt` writes (`AUTH_TOUCH_INTERVAL_SECONDS`, 300 s). */

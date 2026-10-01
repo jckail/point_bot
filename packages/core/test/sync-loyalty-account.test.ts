@@ -13,6 +13,7 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 function makeSut(vault = new FakeCredentialVault()) {
   const accounts = new InMemoryLoyaltyAccountRepository();
   const balances = new InMemoryBalanceSnapshotRepository();
@@ -29,14 +30,14 @@ describe("SyncLoyaltyAccount", () => {
   it("records a balance snapshot for the owner", async () => {
     const { accounts, balances, useCase } = makeSut();
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP123456",
     });
     await accounts.insert(account);
 
     const result = await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
     });
 
@@ -48,21 +49,21 @@ describe("SyncLoyaltyAccount", () => {
   it("hides other users' accounts behind not-found", async () => {
     const { accounts, useCase } = makeSut();
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "marriott",
       membershipNumber: "MB1",
     });
     await accounts.insert(account);
 
     await expect(
-      useCase.execute({ userId: "user-2", accountId: account.id }),
+      useCase.execute({ userId: asUserId("user-2"), accountId: account.id }),
     ).rejects.toBeInstanceOf(LoyaltyAccountNotFoundError);
   });
 
   it("fails when a stored credential ref cannot be resolved", async () => {
     const { accounts, useCase } = makeSut(new FakeCredentialVault({}));
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "delta",
       membershipNumber: "SK1",
       credentialRef: "op://vault/missing-item",
@@ -70,7 +71,7 @@ describe("SyncLoyaltyAccount", () => {
     await accounts.insert(account);
 
     await expect(
-      useCase.execute({ userId: "user-1", accountId: account.id }),
+      useCase.execute({ userId: asUserId("user-1"), accountId: account.id }),
     ).rejects.toBeInstanceOf(CredentialUnavailableError);
   });
 
@@ -79,7 +80,7 @@ describe("SyncLoyaltyAccount", () => {
       new FakeCredentialVault({}),
     );
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "delta",
       membershipNumber: "SK1",
       credentialRef: "op://vault/missing-item",
@@ -87,7 +88,7 @@ describe("SyncLoyaltyAccount", () => {
     await accounts.insert(account);
 
     await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       transientCredential: { username: "u", secret: "s" },
     });

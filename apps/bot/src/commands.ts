@@ -1,9 +1,4 @@
-import {
-  assertNever,
-  computePortfolioSummary,
-  type LoyaltyAccountReadModel,
-  type ValueAdviceReadModel,
-} from "@pointup/core";
+import { assertNever, computePortfolioSummary, type LoyaltyAccountReadModel, type UserId, type ValueAdviceReadModel } from "@pointup/core";
 
 import {
   formatExpiring,
@@ -18,14 +13,14 @@ import {
  */
 export interface BotUseCases {
   listAccounts: {
-    execute(userId: string): Promise<LoyaltyAccountReadModel[]>;
+    execute(userId: UserId): Promise<LoyaltyAccountReadModel[]>;
   };
   getValueAdvice: {
-    execute(userId: string): Promise<ValueAdviceReadModel>;
+    execute(userId: UserId): Promise<ValueAdviceReadModel>;
   };
   chatWithAssistant: {
     execute(input: {
-      userId: string;
+      userId: UserId;
       message: string;
     }): Promise<{ reply: string }>;
   };
@@ -33,7 +28,7 @@ export interface BotUseCases {
 
 export interface CommandInput {
   /** The application user id the chat identity maps to. */
-  readonly userId: string;
+  readonly userId: UserId;
   /** Everything the user typed after the slash command / bot mention. */
   readonly text: string;
 }
@@ -124,7 +119,7 @@ export async function handleCommand(
 
 async function askAssistant(
   useCases: BotUseCases,
-  userId: string,
+  userId: UserId,
   message: string,
 ): Promise<string> {
   const { reply } = await useCases.chatWithAssistant.execute({ userId, message });

@@ -19,6 +19,7 @@ import { AuthenticateAccessToken } from "../../packages/core/src/application/age
 import * as schema from "../../packages/core/src/infrastructure/db/schema";
 import { buildDrizzleRepositories } from "../../packages/core/src/composition/repositories";
 import { DrizzleOutboxStore } from "../../packages/core/src/infrastructure/outbox/drizzle-outbox";
+import { UserId } from "../../packages/core/src/domain/shared/ids";
 import { arg, benchToken, benchUrl, percentile } from "./common";
 
 const iterations = Number(arg("iterations", "50"));
@@ -47,7 +48,7 @@ const [{ n: heavySnaps }] = await client<{ n: number }[]>`
   where a.user_id = ${heavy!.user_id}`;
 
 interface Scenario { name: string; run: () => Promise<unknown> }
-const scenarios = (userId: string, tokenIdx: number): Scenario[] => [
+const scenarios = (userId: UserId, tokenIdx: number): Scenario[] => [
   { name: "accounts list (accounts+tags+latest+trend+valuations)", run: () => listAccounts.execute(userId) },
   { name: "portfolio summary", run: () => new GetPortfolioSummary(listAccounts).execute(userId) },
   { name: "expiring accounts", run: () => new ListExpiringAccounts(listAccounts).execute(userId) },
@@ -81,7 +82,8 @@ interface Result {
 }
 const results: Result[] = [];
 
-async function measure(label: string, userId: string, tokenIdx: number) {
+async function measure(label: string, rawUserId: string, tokenIdx: number) {
+  const userId = UserId.parse(rawUserId); // bench edge: ids come from raw SQL
   for (const sc of scenarios(userId, tokenIdx)) {
     await sc.run(); // warm caches + prepared statements
     captured = [];

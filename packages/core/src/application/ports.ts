@@ -4,6 +4,7 @@ import type {
 } from "../domain/loyalty/award-availability";
 import type { LoyaltyAccount } from "../domain/loyalty/loyalty-account";
 
+import type { UserId } from "../domain/shared/ids";
 /**
  * Outbound ports (hexagonal architecture). The application layer owns these
  * interfaces; infrastructure adapters implement them. Ports are intentionally
@@ -83,7 +84,7 @@ export interface Mailer {
  */
 export interface UserDirectory {
   /** Returns null when the user has no usable email address. */
-  getEmail(userId: string): Promise<string | null>;
+  getEmail(userId: UserId): Promise<string | null>;
 }
 
 /** A short chat/notification message ready to deliver to a channel. */

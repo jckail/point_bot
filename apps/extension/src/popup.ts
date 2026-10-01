@@ -9,9 +9,10 @@ function $(id: string): HTMLElement {
 }
 
 async function refreshLatest(): Promise<void> {
-  const capture = (await chrome.runtime.sendMessage({
+  // The background worker answers `getLatest` with the last capture or null.
+  const capture: ExtractedBalance | null = await chrome.runtime.sendMessage({
     type: "getLatest",
-  })) as ExtractedBalance | null;
+  });
   const box = $("latest");
   const recordBtn = $("record") as HTMLButtonElement;
   if (capture) {

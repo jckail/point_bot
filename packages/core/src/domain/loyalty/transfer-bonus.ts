@@ -4,6 +4,7 @@ import { findProvider } from "./provider";
 import { applyBonusPermille } from "./bonus-math";
 import { findTransferEdge } from "./transfer-partners";
 
+import { TransferBonusId, type UserId } from "../shared/ids";
 export { applyBonusPermille };
 
 /**
@@ -27,7 +28,7 @@ export const MIN_BONUS_PERMILLE_EXCLUSIVE = 1000;
 export const MAX_BONUS_PERMILLE = 3000;
 
 export interface TransferBonus {
-  readonly id: string;
+  readonly id: TransferBonusId;
   readonly fromProviderId: string;
   readonly toProviderId: string;
   readonly multiplierPermille: number;
@@ -37,7 +38,7 @@ export interface TransferBonus {
   readonly sourceUrl: string | null;
   /** Set when a human confirmed the bonus against the issuer's announcement. */
   readonly verifiedAt: Date | null;
-  readonly createdBy: string | null;
+  readonly createdBy: UserId | null;
   readonly createdAt: Date;
 }
 
@@ -50,8 +51,8 @@ export interface NewTransferBonus {
   readonly source: TransferBonusSource;
   readonly sourceUrl?: string | null;
   readonly verifiedAt?: Date | null;
-  readonly createdBy?: string | null;
-  readonly id?: string;
+  readonly createdBy?: UserId | null;
+  readonly id?: TransferBonusId;
   readonly now?: Date;
 }
 
@@ -59,7 +60,7 @@ export interface TransferBonusRepository {
   insert(bonus: TransferBonus): Promise<void>;
   /** Bonuses whose window contains `at` (starts <= at <= ends), newest first. */
   findActive(at: Date): Promise<TransferBonus[]>;
-  findById(id: string): Promise<TransferBonus | null>;
+  findById(id: TransferBonusId): Promise<TransferBonus | null>;
 }
 
 function assertValidDate(value: Date, label: string): void {
@@ -115,7 +116,7 @@ export function createTransferBonus(input: NewTransferBonus): TransferBonus {
     }
   }
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? TransferBonusId.generate(),
     fromProviderId: input.fromProviderId,
     toProviderId: input.toProviderId,
     multiplierPermille: input.multiplierPermille,

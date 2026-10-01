@@ -1,12 +1,4 @@
-import {
-  CsrfRejectedError,
-  DomainError,
-  type ErrorCode,
-  InsufficientScopeError,
-  requireScope,
-  type AccessTokenScope,
-  type RateLimitPolicy,
-} from "@pointup/core";
+import { type AccessTokenId, type AccessTokenScope, CsrfRejectedError, DomainError, type ErrorCode, InsufficientScopeError, type RateLimitPolicy, requireScope, type UserId } from "@pointup/core";
 import { z, ZodError } from "zod";
 
 /**
@@ -17,10 +9,10 @@ import { z, ZodError } from "zod";
 export type Scopes = readonly AccessTokenScope[] | "session";
 
 export interface Principal {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly scopes: Scopes;
   /** Present for personal access tokens; absent for browser sessions. */
-  readonly tokenId?: string;
+  readonly tokenId?: AccessTokenId;
 }
 
 export const RATE_LIMIT_CLASSES = ["default", "write", "observations"] as const;

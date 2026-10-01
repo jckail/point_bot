@@ -9,6 +9,7 @@ import { noopEventing, type Eventing } from "../events/ports";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import { SYSTEM_USER_ID, type UserId } from "../../domain/shared/ids";
 export interface RecordTransferBonusInput {
   readonly fromProviderId: string;
   readonly toProviderId: string;
@@ -20,7 +21,7 @@ export interface RecordTransferBonusInput {
   readonly sourceUrl?: string | null;
   readonly verifiedAt?: Date | null;
   /** User id of the reporter; null for system / curator entries. */
-  readonly createdBy?: string | null;
+  readonly createdBy?: UserId | null;
 }
 
 /**
@@ -42,7 +43,7 @@ export class RecordTransferBonus {
       await this.bonuses.insert(bonus);
       await this.eventing.publisher.publish([
         createDomainEvent("transfer_bonus.recorded", {
-          userId: bonus.createdBy ?? "system",
+          userId: bonus.createdBy ?? SYSTEM_USER_ID,
           aggregateId: bonus.id,
           occurredAt: now,
           payload: {
@@ -68,7 +69,7 @@ export class RecordTransferBonus {
  */
 export function isBonusVisibleTo(
   bonus: TransferBonus,
-  viewerId: string | undefined,
+  viewerId: UserId | undefined,
 ): boolean {
   if (bonus.source !== "user") return true;
   if (bonus.verifiedAt !== null) return true;
@@ -86,7 +87,7 @@ export class ListActiveTransferBonuses {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(viewerId?: string): Promise<TransferBonus[]> {
+  async execute(viewerId?: UserId): Promise<TransferBonus[]> {
     const active = await this.bonuses.findActive(this.clock.now());
     return active.filter((bonus) => isBonusVisibleTo(bonus, viewerId));
   }

@@ -7,6 +7,7 @@ import type { LoyaltyAccountRepository } from "../../domain/loyalty/repositories
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface AgentSkillReadModel extends AgentSkill {
   /** The user has linked this program. */
   readonly accountLinked: boolean;
@@ -23,7 +24,7 @@ export class ListAgentSkills {
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     filter?: { providerId?: string },
   ): Promise<AgentSkillReadModel[]> {
     const now = this.clock.now();

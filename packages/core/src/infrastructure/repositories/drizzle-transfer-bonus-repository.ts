@@ -5,6 +5,7 @@ import {
   type TransferBonus,
   type TransferBonusRepository,
 } from "../../domain/loyalty/transfer-bonus";
+import { TransferBonusId, UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { transferBonuses } from "../db/schema";
 
@@ -12,7 +13,7 @@ type Row = typeof transferBonuses.$inferSelect;
 
 function toDomain(row: Row): TransferBonus {
   return {
-    id: row.id,
+    id: TransferBonusId.parse(row.id),
     fromProviderId: row.fromProviderId,
     toProviderId: row.toProviderId,
     multiplierPermille: row.multiplierPermille,
@@ -21,7 +22,7 @@ function toDomain(row: Row): TransferBonus {
     source: isTransferBonusSource(row.source) ? row.source : "user",
     sourceUrl: row.sourceUrl,
     verifiedAt: row.verifiedAt,
-    createdBy: row.createdBy,
+    createdBy: row.createdBy === null ? null : UserId.parse(row.createdBy),
     createdAt: row.createdAt,
   };
 }
@@ -42,7 +43,7 @@ export class DrizzleTransferBonusRepository implements TransferBonusRepository {
     return rows.map(toDomain);
   }
 
-  async findById(id: string): Promise<TransferBonus | null> {
+  async findById(id: TransferBonusId): Promise<TransferBonus | null> {
     const rows = await this.db
       .select()
       .from(transferBonuses)

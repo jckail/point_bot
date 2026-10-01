@@ -11,6 +11,7 @@ import {
 } from "../src/domain/events";
 import { assertNever } from "../src/domain/shared/enum";
 
+import { asAccessTokenId, asAccountId, asUserId } from "./ids";
 const at = new Date("2026-07-01T00:00:00Z");
 
 describe("domain events", () => {
@@ -25,8 +26,8 @@ describe("domain events", () => {
 
   it("creates events with id, version and optional correlation id", () => {
     const event = createDomainEvent("account.linked", {
-      userId: "u1",
-      aggregateId: "a1",
+      userId: asUserId("u1"),
+      aggregateId: asAccountId("a1"),
       occurredAt: at,
       payload: { providerId: "united" },
       correlationId: "req-1",
@@ -43,8 +44,8 @@ describe("domain events", () => {
     expect(
       "correlationId" in
         createDomainEvent("token.revoked", {
-          userId: "u",
-          aggregateId: "t",
+          userId: asUserId("u"),
+          aggregateId: asAccessTokenId("t"),
           occurredAt: at,
           payload: {},
         }),
@@ -53,11 +54,11 @@ describe("domain events", () => {
 
   it("narrows by type and describes every type exhaustively", () => {
     const event: DomainEvent = createDomainEvent("balance.recorded", {
-      userId: "u1",
-      aggregateId: "a1",
+      userId: asUserId("u1"),
+      aggregateId: asAccountId("a1"),
       occurredAt: at,
       payload: {
-        accountId: "a1",
+        accountId: asAccountId("a1"),
         providerId: "united",
         points: 10,
         previousPoints: null,

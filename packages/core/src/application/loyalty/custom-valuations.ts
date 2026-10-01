@@ -7,10 +7,11 @@ import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { UserId } from "../../domain/shared/ids";
 export class ListCustomValuations {
   constructor(private readonly valuations: CustomValuationRepository) {}
 
-  execute(userId: string): Promise<CustomValuation[]> {
+  execute(userId: UserId): Promise<CustomValuation[]> {
     return this.valuations.listForUser(userId);
   }
 }
@@ -26,7 +27,7 @@ export class SetCustomValuation {
   ) {}
 
   async execute(input: {
-    readonly userId: string;
+    readonly userId: UserId;
     readonly providerId: string;
     readonly centsPerPoint: number;
   }): Promise<CustomValuation> {
@@ -47,7 +48,7 @@ export class SetCustomValuation {
 export class DeleteCustomValuation {
   constructor(private readonly valuations: CustomValuationRepository) {}
 
-  execute(userId: string, providerId: string): Promise<void> {
+  execute(userId: UserId, providerId: string): Promise<void> {
     return this.valuations.delete(userId, providerId);
   }
 }

@@ -24,13 +24,14 @@ import {
   InMemoryTripGoalRepository,
 } from "./fakes";
 
+import { asAccountId, asUserId } from "./ids";
 describe("computeGoalProgress", () => {
   it("sums linked balances against the target", () => {
     const goal = createTripGoal({
-      userId: "u1",
+      userId: asUserId("u1"),
       title: "Kyoto",
       targetPoints: 80_000,
-      accountIds: ["a1", "a2"],
+      accountIds: [asAccountId("a1"), asAccountId("a2")],
     });
     const progress = computeGoalProgress(
       goal,
@@ -47,10 +48,10 @@ describe("computeGoalProgress", () => {
 
   it("marks achieved when balances meet the target", () => {
     const goal = createTripGoal({
-      userId: "u1",
+      userId: asUserId("u1"),
       title: "Done",
       targetPoints: 10_000,
-      accountIds: ["a1"],
+      accountIds: [asAccountId("a1")],
     });
     const progress = computeGoalProgress(goal, new Map([["a1", 10_000]]));
     expect(progress.achieved).toBe(true);
@@ -66,15 +67,15 @@ describe("CreateTripGoal / ListTripGoals", () => {
     const goals = new InMemoryTripGoalRepository();
 
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hilton",
       membershipNumber: "HH1",
-      id: "acct-1",
+      id: asAccountId("acct-1"),
     });
     await accounts.insert(account);
     await balances.insert(
       createBalanceSnapshot({
-        loyaltyAccountId: "acct-1",
+        loyaltyAccountId: asAccountId("acct-1"),
         points: 40_000,
         source: "manual",
         capturedAt: new Date("2026-07-01T00:00:00.000Z"),
@@ -82,17 +83,17 @@ describe("CreateTripGoal / ListTripGoals", () => {
     );
 
     const created = await new CreateTripGoal(goals, accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       title: "Weekend getaway",
       targetPoints: 50_000,
-      accountIds: ["acct-1"],
+      accountIds: [asAccountId("acct-1")],
       targetDate: "2026-12-01",
     });
 
     expect(created.currentPoints).toBe(40_000);
     expect(created.percentComplete).toBe(80);
 
-    const listed = await new ListTripGoals(goals, balances).execute("user-1");
+    const listed = await new ListTripGoals(goals, balances).execute(asUserId("user-1"));
     expect(listed).toHaveLength(1);
     expect(listed[0]?.title).toBe("Weekend getaway");
   });
@@ -106,7 +107,7 @@ describe("CreateTripGoal / ListTripGoals", () => {
 
     await expect(
       useCase.execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         title: "  ",
         targetPoints: 1000,
       }),
@@ -114,7 +115,7 @@ describe("CreateTripGoal / ListTripGoals", () => {
 
     await expect(
       useCase.execute({
-        userId: "u1",
+        userId: asUserId("u1"),
         title: "Trip",
         targetPoints: 0,
       }),
@@ -130,13 +131,13 @@ describe("CreateTripGoal / ListTripGoals", () => {
     const remove = new DeleteTripGoal(goals);
 
     const goal = await create.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       title: "Original",
       targetPoints: 10_000,
     });
 
     const updated = await update.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       goalId: goal.id,
       title: "Renamed",
       status: "archived",
@@ -144,10 +145,10 @@ describe("CreateTripGoal / ListTripGoals", () => {
     expect(updated.title).toBe("Renamed");
     expect(updated.status).toBe("archived");
 
-    await remove.execute("user-1", goal.id);
+    await remove.execute(asUserId("user-1"), goal.id);
     expect(await goals.findById(goal.id)).toBeNull();
 
-    await expect(remove.execute("user-1", goal.id)).rejects.toBeInstanceOf(
+    await expect(remove.execute(asUserId("user-1"), goal.id)).rejects.toBeInstanceOf(
       TripGoalNotFoundError,
     );
   });
@@ -167,11 +168,11 @@ describe("ImportPortfolio", () => {
       "old-id,united,airline,United Airlines,MP123,50000,sync,2026-07-01T12:00:00.000Z,60000",
     ].join("\n");
 
-    const result = await importer.execute({ userId: "user-1", csv });
+    const result = await importer.execute({ userId: asUserId("user-1"), csv });
     expect(result.accountsLinked).toBe(1);
     expect(result.balancesRecorded).toBe(2);
 
-    const linked = await accounts.findByUserAndProvider("user-1", "united");
+    const linked = await accounts.findByUserAndProvider(asUserId("user-1"), "united");
     expect(linked?.membershipNumber).toBe("MP123");
     const history = await balances.findByAccountId(linked!.id, 10);
     expect(history).toHaveLength(2);
@@ -187,7 +188,7 @@ describe("ImportPortfolio", () => {
 
     await expect(
       importer.execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         csv: "foo,bar\n1,2\n",
       }),
     ).rejects.toBeInstanceOf(InvalidImportError);
@@ -200,13 +201,13 @@ describe("ImportPortfolio", () => {
     const record = new RecordManualBalance(accounts, balances);
 
     await link.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "delta",
       membershipNumber: "DL9",
     });
-    const account = (await accounts.findByUserId("user-1"))[0]!;
+    const account = (await accounts.findByUserId(asUserId("user-1")))[0]!;
     await record.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       points: 12_000,
       capturedAt: new Date("2026-05-01T00:00:00.000Z"),
@@ -265,7 +266,7 @@ describe("ImportPortfolio", () => {
       accounts2,
       new LinkLoyaltyAccount(accounts2),
       new RecordManualBalance(accounts2, balances2),
-    ).execute({ userId: "user-2", csv });
+    ).execute({ userId: asUserId("user-2"), csv });
 
     expect(result.accountsLinked).toBe(1);
     expect(result.balancesRecorded).toBe(1);
@@ -276,7 +277,7 @@ describe("buildExpirationCalendar", () => {
   it("emits VEVENT rows for accounts with expiry dates", () => {
     const accounts: LoyaltyAccountReadModel[] = [
       {
-        id: "acct-1",
+        id: asAccountId("acct-1"),
         provider: {
           id: "united",
           kind: "airline",

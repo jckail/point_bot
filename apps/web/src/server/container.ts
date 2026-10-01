@@ -13,6 +13,7 @@ import {
   type AgentModule,
   type Database,
   type LoyaltyModule,
+  type TracedAll,
 } from "@pointup/core";
 
 import { env } from "@/env";
@@ -34,7 +35,8 @@ import { webObservability } from "@/server/observability";
  */
 export interface Container {
   db: Database;
-  useCases: LoyaltyModule & AgentModule;
+  /** `execute` is async on every entry (traced), whatever its class declares. */
+  useCases: TracedAll<LoyaltyModule & AgentModule>;
 }
 
 function buildContainer(): Container {

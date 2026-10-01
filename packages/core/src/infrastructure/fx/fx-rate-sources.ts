@@ -6,7 +6,7 @@ export type FxFetch = (
   init: { method: string; signal?: AbortSignal },
 ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
 
-const defaultFetch: FxFetch = (url, init) => fetch(url, init as RequestInit);
+const defaultFetch: FxFetch = (url, init) => fetch(url, init);
 
 export interface HttpFxRateSourceConfig {
   /** e.g. https://api.frankfurter.dev/v1 — no API key required. */

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  LOG_LEVELS,
+  type LOG_LEVELS,
   METRIC_NAMES,
   PrometheusMetrics,
   REDACTED,

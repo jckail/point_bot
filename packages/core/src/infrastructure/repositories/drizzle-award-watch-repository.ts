@@ -4,6 +4,7 @@ import type {
   AwardWatch,
   AwardWatchRepository,
 } from "../../domain/loyalty/award-watch";
+import { AwardWatchId, UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { awardWatches } from "../db/schema";
 
@@ -14,8 +15,8 @@ type Row = typeof awardWatches.$inferSelect;
 
 function toDomain(row: Row): AwardWatch {
   return {
-    id: row.id,
-    userId: row.userId,
+    id: AwardWatchId.parse(row.id),
+    userId: UserId.parse(row.userId),
     url: row.url,
     label: row.label,
     minCentsPerPoint: row.minCentsPerPointMilli / MILLI,
@@ -51,7 +52,7 @@ function toRow(watch: AwardWatch): Row {
 export class DrizzleAwardWatchRepository implements AwardWatchRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<AwardWatch | null> {
+  async findById(id: AwardWatchId): Promise<AwardWatch | null> {
     const rows = await this.db
       .select()
       .from(awardWatches)
@@ -60,7 +61,7 @@ export class DrizzleAwardWatchRepository implements AwardWatchRepository {
     return rows[0] ? toDomain(rows[0]) : null;
   }
 
-  async findByUserId(userId: string): Promise<AwardWatch[]> {
+  async findByUserId(userId: UserId): Promise<AwardWatch[]> {
     const rows = await this.db
       .select()
       .from(awardWatches)
@@ -86,7 +87,7 @@ export class DrizzleAwardWatchRepository implements AwardWatchRepository {
       .where(eq(awardWatches.id, id));
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: AwardWatchId): Promise<void> {
     await this.db.delete(awardWatches).where(eq(awardWatches.id, id));
   }
 }

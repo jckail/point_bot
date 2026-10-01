@@ -14,9 +14,10 @@ import { systemClock } from "../ports";
 import { requireOwnedAccount } from "./access";
 import { recordActivity } from "./list-activity";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface UpdateLoyaltyAccountInput {
-  readonly userId: string;
-  readonly accountId: string;
+  readonly userId: UserId;
+  readonly accountId: LoyaltyAccountId;
   /** New membership number; omit to leave unchanged. */
   readonly membershipNumber?: string;
   /** New credential ref; `null` clears it, omit to leave unchanged. */
@@ -116,7 +117,7 @@ export class UnlinkLoyaltyAccount {
     private readonly eventing: Eventing = noopEventing,
   ) {}
 
-  async execute(userId: string, accountId: string): Promise<void> {
+  async execute(userId: UserId, accountId: LoyaltyAccountId): Promise<void> {
     const account = await requireOwnedAccount(this.accounts, userId, accountId);
     const provider = getProviderOrThrow(account.providerId);
     const now = this.clock.now();

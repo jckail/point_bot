@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  LoyaltyAccountReadModel,
-  ProviderId,
-  ValueAdviceReadModel,
-} from "@pointup/core";
+import { LoyaltyAccountId, type LoyaltyAccountReadModel, type ProviderId, UserId, type ValueAdviceReadModel } from "@pointup/core";
 
 import { handleCommand, type BotUseCases } from "../src/commands";
 
@@ -18,7 +14,7 @@ function account(
 ): LoyaltyAccountReadModel {
   const { displayName, kind, points, valueCents, daysUntilExpiry, ...rest } = over;
   return {
-    id: displayName.toLowerCase(),
+    id: LoyaltyAccountId.parse(displayName.toLowerCase()),
     provider: {
       // Fakes use arbitrary ids; the cast is confined to this test helper.
       id: displayName.toLowerCase() as ProviderId,
@@ -62,10 +58,10 @@ function useCases(over: Partial<BotUseCases> = {}): BotUseCases {
 
 describe("handleCommand", () => {
   it("help (and empty input) lists commands", async () => {
-    expect(await handleCommand({ userId: "u", text: "" }, useCases())).toContain(
+    expect(await handleCommand({ userId: UserId.parse("u"), text: "" }, useCases())).toContain(
       "PointBot commands",
     );
-    expect(await handleCommand({ userId: "u", text: "help" }, useCases())).toContain(
+    expect(await handleCommand({ userId: UserId.parse("u"), text: "help" }, useCases())).toContain(
       "`ask <question>`",
     );
   });
@@ -79,7 +75,7 @@ describe("handleCommand", () => {
         ]),
       },
     });
-    const out = await handleCommand({ userId: "u", text: "portfolio" }, uc);
+    const out = await handleCommand({ userId: UserId.parse("u"), text: "portfolio" }, uc);
     expect(out).toContain("2 programs");
     expect(out).toContain("Hyatt");
     // Most valuable first.
@@ -96,7 +92,7 @@ describe("handleCommand", () => {
         ]),
       },
     });
-    const out = await handleCommand({ userId: "u", text: "expiring" }, uc);
+    const out = await handleCommand({ userId: UserId.parse("u"), text: "expiring" }, uc);
     expect(out).toContain("Marriott");
     expect(out.indexOf("Marriott")).toBeLessThan(out.indexOf("Delta"));
     expect(out).not.toContain("Amex"); // no expiry -> not at risk
@@ -122,7 +118,7 @@ describe("handleCommand", () => {
         ),
       },
     });
-    const out = await handleCommand({ userId: "u", text: "value" }, uc);
+    const out = await handleCommand({ userId: UserId.parse("u"), text: "value" }, uc);
     expect(out).toContain("Chase UR");
     expect(out).toContain("irreversible");
   });
@@ -131,7 +127,7 @@ describe("handleCommand", () => {
     const execute = vi.fn(async () => ({ reply: "Transfer to Hyatt." }));
     const uc = useCases({ chatWithAssistant: { execute } });
     const out = await handleCommand(
-      { userId: "u", text: "ask should I move UR to Hyatt?" },
+      { userId: UserId.parse("u"), text: "ask should I move UR to Hyatt?" },
       uc,
     );
     expect(out).toBe("Transfer to Hyatt.");
@@ -144,7 +140,7 @@ describe("handleCommand", () => {
   it("unrecognized text is treated as a free-form assistant question", async () => {
     const execute = vi.fn(async () => ({ reply: "answer" }));
     const uc = useCases({ chatWithAssistant: { execute } });
-    await handleCommand({ userId: "u", text: "what's my best redemption" }, uc);
+    await handleCommand({ userId: UserId.parse("u"), text: "what's my best redemption" }, uc);
     expect(execute).toHaveBeenCalledWith({
       userId: "u",
       message: "what's my best redemption",

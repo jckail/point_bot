@@ -20,6 +20,9 @@ import {
   type TransferBonus,
 } from "../domain/loyalty/transfer-bonus";
 
+/** Closed sets re-exported for surfaces that only import `/contracts` (MCP). */
+export { REDEMPTION_GOAL_KINDS, SWEET_SPOT_KINDS };
+
 /**
  * Wire contracts for the redemption optimizer, sweet-spot catalog and
  * transfer bonuses. Additive to the v1 API.

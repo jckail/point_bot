@@ -83,7 +83,7 @@ interface SpotSeed {
 function spot(seed: SpotSeed): SweetSpot {
   const derived = seed.cash !== undefined;
   const cpp = derived
-    ? Math.round((seed.cash! / seed.cost) * 100) / 100
+    ? Math.round((seed.cash / seed.cost) * 100) / 100
     : (seed.cpp ?? 1);
   return {
     id: seed.id,
@@ -95,7 +95,7 @@ function spot(seed: SpotSeed): SweetSpot {
     pointsCostMin: seed.range[0],
     pointsCostMax: seed.range[1],
     unit: seed.unit,
-    cashValueCents: derived ? seed.cash! : null,
+    cashValueCents: derived ? seed.cash : null,
     estimatedCentsPerPoint: cpp,
     cppBasis: derived ? "derived" : "editorial",
     maxUnits:

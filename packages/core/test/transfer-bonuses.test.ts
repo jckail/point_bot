@@ -23,6 +23,7 @@ import {
   RecordingEventing,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 const now = new Date("2026-10-15T12:00:00Z");
 const clock = { now: () => now };
 const window = {
@@ -35,7 +36,7 @@ const valid = {
   multiplierPermille: 1300,
   ...window,
   source: "user" as const,
-  createdBy: "u1",
+  createdBy: asUserId("u1"),
 };
 
 describe("RecordTransferBonus", () => {
@@ -49,9 +50,9 @@ describe("RecordTransferBonus", () => {
     const eventing = new RecordingEventing();
     const bonus = await new RecordTransferBonus(repo, clock, eventing).execute(valid);
     expect(bonus).toMatchObject({ multiplierPermille: 1300, verifiedAt: null, source: "user" });
-    expect(await new ListActiveTransferBonuses(repo, clock).execute("u1")).toHaveLength(1);
+    expect(await new ListActiveTransferBonuses(repo, clock).execute(asUserId("u1"))).toHaveLength(1);
     expect(
-      await new ListActiveTransferBonuses(repo, { now: () => new Date("2026-11-02T00:00:00Z") }).execute("u1"),
+      await new ListActiveTransferBonuses(repo, { now: () => new Date("2026-11-02T00:00:00Z") }).execute(asUserId("u1")),
     ).toHaveLength(0);
     expect(eventing.events).toHaveLength(1);
     expect(eventing.events[0]).toMatchObject({
@@ -107,7 +108,7 @@ async function seedUser(points: Record<string, number>, daysAgo = 0) {
   const balances = new InMemoryBalanceSnapshotRepository();
   const valuations = new InMemoryCustomValuationRepository();
   for (const [providerId, p] of Object.entries(points)) {
-    const account = createLoyaltyAccount({ userId: "u1", providerId, membershipNumber: "M1" });
+    const account = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "M1" });
     await accounts.insert(account);
     await balances.insert(
       createBalanceSnapshot({
@@ -126,8 +127,8 @@ describe("user-reported bonuses cannot skew other users (poisoning guard)", () =
     const repo = new InMemoryTransferBonusRepository();
     await new RecordTransferBonus(repo, clock).execute(valid); // reported by u1
     const list = new ListActiveTransferBonuses(repo, clock);
-    expect(await list.execute("u1")).toHaveLength(1);
-    expect(await list.execute("u2")).toHaveLength(0);
+    expect(await list.execute(asUserId("u1"))).toHaveLength(1);
+    expect(await list.execute(asUserId("u2"))).toHaveLength(0);
     expect(await list.execute()).toHaveLength(0); // trusted-only view
   });
 
@@ -137,16 +138,16 @@ describe("user-reported bonuses cannot skew other users (poisoning guard)", () =
     await record.execute({ ...valid, source: "manual", createdBy: null });
     await record.execute({ ...valid, toProviderId: "marriott", source: "user", verifiedAt: new Date("2026-10-02T00:00:00Z") });
     const list = new ListActiveTransferBonuses(repo, clock);
-    expect(await list.execute("someone-else")).toHaveLength(2);
+    expect(await list.execute(asUserId("someone-else"))).toHaveLength(2);
     expect(await list.execute()).toHaveLength(2);
   });
 
   it("a fake bonus from one user does not change another user's plan", async () => {
     const { list } = await seedUser({ "chase-ultimate-rewards": 100_000 });
     const bonuses = new InMemoryTransferBonusRepository();
-    await new RecordTransferBonus(bonuses, clock).execute({ ...valid, createdBy: "attacker" });
+    await new RecordTransferBonus(bonuses, clock).execute({ ...valid, createdBy: asUserId("attacker") });
     const plan = new PlanRedemption(list, new ListActiveTransferBonuses(bonuses, clock), new StubAwardAvailabilitySource(), clock);
-    const result = await plan.execute({ userId: "u1", goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 3 } });
+    const result = await plan.execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 3 } });
     expect(result.activeBonusCount).toBe(0);
     expect(result.plans[0]!.sources[0]!.bonus ?? null).toBeNull();
   });
@@ -162,13 +163,13 @@ describe("PlanRedemption / ListBestRedemptions", () => {
       new StubAwardAvailabilitySource(() => now),
       clock,
     );
-    const base = await plan.execute({ userId: "u1", goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 2 } });
+    const base = await plan.execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 2 } });
     expect(base.plans[0]!.programId).toBe("hyatt");
     expect(base.availability).toBeNull();
     expect(base.activeBonusCount).toBe(0);
 
     await valuations.upsert({ userId: "u1", providerId: "chase-ultimate-rewards", centsPerPoint: 5, updatedAt: now } as never);
-    const valued = await plan.execute({ userId: "u1", goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 2 } });
+    const valued = await plan.execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 2 } });
     const pick = (r: typeof base) => r.plans.find((p) => p.spotId === "hyatt-cat1-4-standard")!;
     expect(pick(base).opportunityCostCents).toBe(Math.round(16_000 * 1.6));
     expect(pick(valued).opportunityCostCents).toBe(16_000 * 5);
@@ -180,10 +181,10 @@ describe("PlanRedemption / ListBestRedemptions", () => {
     const bonuses = new InMemoryTransferBonusRepository();
     await new RecordTransferBonus(bonuses, clock).execute(valid);
     const plan = new PlanRedemption(list, new ListActiveTransferBonuses(bonuses, clock), new StubAwardAvailabilitySource(), clock);
-    const result = await plan.execute({ userId: "u1", goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 3 } });
+    const result = await plan.execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 3 } });
     expect(result.activeBonusCount).toBe(1);
     expect(result.plans[0]!.sources[0]!.bonus?.multiplierPermille).toBe(1300);
-    await expect(plan.execute({ userId: "u1", goal: { targetProgramId: "zzz" } })).rejects.toMatchObject({
+    await expect(plan.execute({ userId: asUserId("u1"), goal: { targetProgramId: "zzz" } })).rejects.toMatchObject({
       code: "INVALID_REDEMPTION_GOAL",
     });
   });
@@ -204,7 +205,7 @@ describe("PlanRedemption / ListBestRedemptions", () => {
       }),
     };
     const withData = await new PlanRedemption(list, bonuses, ok, clock).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       goal: { kind: "flight" },
       award: query,
       maxPlans: 50,
@@ -223,7 +224,7 @@ describe("PlanRedemption / ListBestRedemptions", () => {
     }
 
     const stub = await new PlanRedemption(list, bonuses, new StubAwardAvailabilitySource(() => now), clock).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       goal: { kind: "flight" },
       award: query,
     });
@@ -234,14 +235,14 @@ describe("PlanRedemption / ListBestRedemptions", () => {
     const failing: AwardAvailabilitySource = {
       searchAwards: async () => ({ status: "error", options: [], checkedAt: now, message: "boom" }),
     };
-    const err = await new PlanRedemption(list, bonuses, failing, clock).execute({ userId: "u1", goal: { kind: "flight" }, award: query });
+    const err = await new PlanRedemption(list, bonuses, failing, clock).execute({ userId: asUserId("u1"), goal: { kind: "flight" }, award: query });
     expect(err.availability!.status).toBe("error");
     expect(err.plans.every((p) => p.availability === null)).toBe(true);
 
     // Hotel goals never trigger an award search.
     let calls = 0;
     const counting: AwardAvailabilitySource = { searchAwards: async (q) => { calls++; return ok.searchAwards(q); } };
-    await new PlanRedemption(list, bonuses, counting, clock).execute({ userId: "u1", goal: { kind: "hotel" }, award: query });
+    await new PlanRedemption(list, bonuses, counting, clock).execute({ userId: asUserId("u1"), goal: { kind: "hotel" }, award: query });
     expect(calls).toBe(0);
   });
 
@@ -253,7 +254,7 @@ describe("PlanRedemption / ListBestRedemptions", () => {
       new StubAwardAvailabilitySource(),
       clock,
     );
-    const best = await new ListBestRedemptions(plan).execute({ userId: "u1", limit: 4 });
+    const best = await new ListBestRedemptions(plan).execute({ userId: asUserId("u1"), limit: 4 });
     expect(best.plans.length).toBeLessThanOrEqual(4);
     expect(best.plans.length).toBeGreaterThan(0);
     const counts = new Map<string, number>();

@@ -16,7 +16,7 @@ async function getClerkHandler(): Promise<ClerkHandler> {
     const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
     clerkHandler = clerkMiddleware(async (auth, request) => {
       if (isProtectedRoute(request)) await auth.protect();
-    }) as ClerkHandler;
+    });
   }
   return clerkHandler;
 }

@@ -8,9 +8,10 @@ import { CompositeTravelProviderGateway } from "../src/infrastructure/providers/
 import { SimulatedTravelProviderGateway } from "../src/infrastructure/providers/simulated-travel-provider-gateway";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 
+import { asUserId } from "./ids";
 function account(providerId = "united") {
   return createLoyaltyAccount({
-    userId: "u",
+    userId: asUserId("u"),
     providerId,
     membershipNumber: "MP1",
   });

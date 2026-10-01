@@ -191,11 +191,11 @@ describe("MCP over HTTP", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const failing = createHttpServer({
       baseUrl: "http://127.0.0.1:1",
-      fetch: (() => {
+      fetch: () => {
         const error = new Error("boom") as Error & { headers?: unknown };
         error.headers = { authorization: "Bearer pu_leaky" };
         throw error;
-      }) as unknown as typeof fetch,
+      },
     });
     const url = await listen(failing);
     try {

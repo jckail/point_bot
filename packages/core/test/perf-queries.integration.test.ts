@@ -10,6 +10,8 @@ import {
 } from "../src/infrastructure/repositories/drizzle-loyalty-account-repository";
 import type { LoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 
+import { asAccountId, asUserId } from "./ids";
+import type { LoyaltyAccountId } from "../src/domain/shared/ids";
 /**
  * The batched trend/latest SQL (LATERAL index probes) must agree with the
  * reference reduction over full history. Opt in with TEST_DATABASE_URL.
@@ -19,13 +21,13 @@ const DAY = 24 * 60 * 60 * 1000;
 
 describe.skipIf(!url)("batched snapshot reads match the full-history reduction", () => {
   const db = createDb(url ?? "postgresql://unused");
-  const userId = `pq-${crypto.randomUUID()}`;
+  const userId = asUserId(`pq-${crypto.randomUUID()}`);
   const now = new Date("2026-06-15T12:00:00.000Z");
   const accounts = new DrizzleLoyaltyAccountRepository(db);
   const balances = new DrizzleBalanceSnapshotRepository(db);
 
   const account = (id: string, providerId: ProviderId): LoyaltyAccount => ({
-    id: `${userId}-${id}`,
+    id: asAccountId(`${userId}-${id}`),
     userId,
     providerId,
     membershipNumber: "1",
@@ -38,7 +40,7 @@ describe.skipIf(!url)("batched snapshot reads match the full-history reduction",
     createdAt: now,
     updatedAt: now,
   });
-  const snap = (accountId: string, n: number, daysAgo: number, points: number) => ({
+  const snap = (accountId: LoyaltyAccountId, n: number, daysAgo: number, points: number) => ({
     id: `${accountId}-s${n}`,
     loyaltyAccountId: accountId,
     points,
@@ -87,7 +89,7 @@ describe.skipIf(!url)("batched snapshot reads match the full-history reduction",
     const same = new Date(now.getTime() - 5 * DAY);
     await balances.insert({ ...snap(tie.id, 1, 5, 1), capturedAt: same, id: `${tie.id}-a` });
     await balances.insert({ ...snap(tie.id, 2, 5, 2), capturedAt: same, id: `${tie.id}-b` });
-    const latest = await balances.findLatestByAccountIds([tie.id, `${userId}-missing`]);
+    const latest = await balances.findLatestByAccountIds([tie.id, asAccountId(`${userId}-missing`)]);
     expect(latest.size).toBe(1);
     expect(latest.get(tie.id)).toMatchObject({ id: `${tie.id}-b`, points: 2, capturedAt: same });
   });

@@ -13,10 +13,11 @@ import { userCacheTag, type Cache } from "../cache";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { UserId } from "../../domain/shared/ids";
 export class GetUserSettings {
   constructor(private readonly settings: UserSettingsRepository) {}
 
-  async execute(userId: string): Promise<UserSettings> {
+  async execute(userId: UserId): Promise<UserSettings> {
     return (
       (await this.settings.get(userId)) ?? {
         userId,
@@ -33,7 +34,7 @@ export class SetDisplayCurrency {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string, currency: string): Promise<UserSettings> {
+  async execute(userId: UserId, currency: string): Promise<UserSettings> {
     const updated: UserSettings = {
       userId,
       displayCurrency: assertSupportedDisplayCurrency(currency),
@@ -67,7 +68,7 @@ export class BuildDisplayValue {
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     usdCents: number,
   ): Promise<DisplayValue | null> {
     const settings =

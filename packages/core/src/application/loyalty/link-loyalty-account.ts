@@ -11,8 +11,9 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import { recordActivity } from "./list-activity";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface LinkLoyaltyAccountInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly providerId: string;
   readonly membershipNumber: string;
   /**
@@ -24,7 +25,7 @@ export interface LinkLoyaltyAccountInput {
 }
 
 export interface LinkLoyaltyAccountResult {
-  readonly accountId: string;
+  readonly accountId: LoyaltyAccountId;
 }
 
 export class LinkLoyaltyAccount {

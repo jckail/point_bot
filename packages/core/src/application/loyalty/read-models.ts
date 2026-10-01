@@ -2,6 +2,7 @@ import type { BalanceSource } from "../../domain/loyalty/balance-snapshot";
 import type { ProviderId, ProviderKind } from "../../domain/loyalty/provider";
 import type { BalanceTrend } from "./balance-trend";
 
+import type { LoyaltyAccountId } from "../../domain/shared/ids";
 /**
  * Read models returned by use cases. These are plain, serializable shapes:
  * the HTTP layer maps them onto wire DTOs (see `contracts/`), and other
@@ -26,7 +27,7 @@ export interface BalanceReadModel {
 }
 
 export interface LoyaltyAccountReadModel {
-  readonly id: string;
+  readonly id: LoyaltyAccountId;
   readonly provider: ProviderReadModel;
   readonly membershipNumber: string;
   readonly hasStoredCredential: boolean;
@@ -56,7 +57,7 @@ export interface LoyaltyAccountReadModel {
 export interface ActivityEventReadModel {
   readonly id: string;
   readonly type: import("../../domain/loyalty/activity").ActivityType;
-  readonly accountId: string | null;
+  readonly accountId: LoyaltyAccountId | null;
   readonly providerId: string | null;
   readonly summary: string;
   readonly occurredAt: Date;

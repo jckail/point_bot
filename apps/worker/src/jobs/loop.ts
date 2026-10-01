@@ -26,7 +26,8 @@ export function runLoop(
 
     const schedule = (task: ScheduledTask, delay: number) => {
       if (stopping) return;
-      const timer = setTimeout(async () => {
+      // The tick never rejects: task errors are caught and logged inside.
+      const tick = async () => {
         timers.delete(timer);
         if (!running.has(task.name)) {
           running.add(task.name);
@@ -41,6 +42,9 @@ export function runLoop(
         }
         if (running.size === 0 && stopping) resolve();
         schedule(task, task.everyMs);
+      };
+      const timer = setTimeout(() => {
+        void tick();
       }, delay);
       timers.add(timer);
     };

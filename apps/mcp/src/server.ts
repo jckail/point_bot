@@ -12,6 +12,8 @@ import {
   planRedemptionResultDtoSchema,
   portfolioSummaryDtoSchema,
   providerDtoSchema,
+  REDEMPTION_GOAL_KINDS,
+  SWEET_SPOT_KINDS,
   sweetSpotDtoSchema,
   transferBonusDtoSchema,
   tripGoalDtoSchema,
@@ -56,6 +58,9 @@ type ToolResult = {
 const idSchema = z.string().trim().min(1).max(200);
 /** Points fit a 32-bit integer column; larger values are always a misread. */
 const pointsSchema = z.number().int().nonnegative().max(2_147_483_647);
+
+export const TOOL_OUTCOMES = ["ok", "error"] as const;
+type ToolOutcome = (typeof TOOL_OUTCOMES)[number];
 
 /** MCP structured output must be an object, so arrays are wrapped as { items }. */
 function listOutput<T extends z.ZodType>(item: T) {
@@ -149,7 +154,7 @@ export function instrumentTool<A extends unknown[]>(
     const { tracer, metrics, logger } = observability ?? getObservability();
     const log: Logger = requestId ? logger.child({ requestId }) : logger;
     const started = performance.now();
-    let outcome: "ok" | "error" = "ok";
+    let outcome: ToolOutcome = "ok";
     try {
       return await tracer.withSpan(
         `mcp.tool ${tool}`,
@@ -304,7 +309,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
       description:
         "Start here for 'how should I use my points?' / 'find me a deal'. Deterministic optimizer over the user's real balances, active transfer bonuses and a curated sweet-spot catalog: ranked plans with concrete steps (transfer X from A to B at ratio [+bonus], then book Y), points used per source program, effective cents per point, shortfall (and which program could cover it), expiry urgency, confidence and caveats. Estimates, not quotes: award availability is NOT verified unless a plan carries `availability` (only set when the user's deployment has award search configured and you pass origin/destination/dateFrom/dateTo/cabin together for a flight goal). ALWAYS relay the caveats, never promise availability or prices, and tell the user transfers are irreversible: confirm space on the provider's site first. Read-only.",
       inputSchema: {
-        goalKind: z.enum(["flight", "hotel", "any"]).optional(),
+        goalKind: z.enum(REDEMPTION_GOAL_KINDS).optional(),
         targetProgramId: idSchema
           .optional()
           .describe(
@@ -358,7 +363,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
       description:
         "Editorial catalog of well-known redemption patterns with TYPICAL points ranges, estimated cents per point, constraints and confidence. Every entry is unverified (`verified: false`): never quote these as live prices or availability. Read-only.",
       inputSchema: {
-        kind: z.enum(["flight", "hotel", "other"]).optional(),
+        kind: z.enum(SWEET_SPOT_KINDS).optional(),
         programId: idSchema.optional(),
       },
       outputSchema: listOutput(sweetSpotDtoSchema),

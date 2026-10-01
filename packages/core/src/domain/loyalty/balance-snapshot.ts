@@ -1,5 +1,6 @@
 import { InvalidBalanceError, InvalidCaptureTimeError } from "../errors";
 
+import type { LoyaltyAccountId } from "../shared/ids";
 /** How a balance value entered the system. */
 export const BALANCE_SOURCES = ["sync", "manual", "agent"] as const;
 export type BalanceSource = (typeof BALANCE_SOURCES)[number];
@@ -10,14 +11,14 @@ export type BalanceSource = (typeof BALANCE_SOURCES)[number];
  */
 export interface BalanceSnapshot {
   readonly id: string;
-  readonly loyaltyAccountId: string;
+  readonly loyaltyAccountId: LoyaltyAccountId;
   readonly points: number;
   readonly source: BalanceSource;
   readonly capturedAt: Date;
 }
 
 export interface NewBalanceSnapshot {
-  readonly loyaltyAccountId: string;
+  readonly loyaltyAccountId: LoyaltyAccountId;
   readonly points: number;
   readonly source: BalanceSource;
   readonly id?: string;

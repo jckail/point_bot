@@ -8,8 +8,9 @@ import type { TripGoalReadModel } from "./create-trip-goal";
 import type { LoyaltyAccountReadModel } from "./read-models";
 import { DEFAULT_EXPIRY_WARNING_DAYS } from "./list-expiring-accounts";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface PortfolioDigestReadModel {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly summary: PortfolioSummaryReadModel;
   /** Accounts ordered by estimated value, most valuable first. */
   readonly accounts: LoyaltyAccountReadModel[];
@@ -30,7 +31,7 @@ export class BuildPortfolioDigest {
     private readonly listGoals?: ListTripGoals,
   ) {}
 
-  async execute(userId: string): Promise<PortfolioDigestReadModel> {
+  async execute(userId: UserId): Promise<PortfolioDigestReadModel> {
     const accounts = await this.listAccounts.execute(userId);
     const goals = this.listGoals
       ? (await this.listGoals.execute(userId)).filter(

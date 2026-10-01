@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
+import { LoyaltyAccountId } from "@pointup/core";
 type Context = { params: Promise<{ id: string }> };
 
 export function GET(_request: Request, context: Context) {
@@ -14,7 +15,7 @@ export function GET(_request: Request, context: Context) {
     const { id } = await context.params;
     const account = await getContainer().useCases.getLoyaltyAccount.execute(
       userId,
-      id,
+      LoyaltyAccountId.parse(id),
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
   }, { method: "GET", scope: "portfolio:read" });
@@ -27,7 +28,7 @@ export function PATCH(request: Request, context: Context) {
 
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId: id,
+      accountId: LoyaltyAccountId.parse(id),
       membershipNumber: body.membershipNumber,
       credentialRef: body.credentialRef,
       expiresAt:
@@ -43,7 +44,7 @@ export function PATCH(request: Request, context: Context) {
 
     const account = await getContainer().useCases.getLoyaltyAccount.execute(
       userId,
-      id,
+      LoyaltyAccountId.parse(id),
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
   }, { method: "PATCH", scope: "portfolio:write" });
@@ -52,7 +53,7 @@ export function PATCH(request: Request, context: Context) {
 export function DELETE(_request: Request, context: Context) {
   return withAuthenticatedUser(async (userId) => {
     const { id } = await context.params;
-    await getContainer().useCases.unlinkLoyaltyAccount.execute(userId, id);
+    await getContainer().useCases.unlinkLoyaltyAccount.execute(userId, LoyaltyAccountId.parse(id));
     return new NextResponse(null, { status: 204 });
   }, { method: "DELETE", scope: "portfolio:write" });
 }

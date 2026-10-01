@@ -6,6 +6,7 @@ import { requireOwnedAccount } from "./access";
 import { toBalanceReadModel } from "./mappers";
 import type { BalanceReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export const DEFAULT_HISTORY_LIMIT = 50;
 export const MAX_HISTORY_LIMIT = 365;
 
@@ -17,8 +18,8 @@ export class GetBalanceHistory {
 
   /** Returns snapshots newest-first. */
   async execute(
-    userId: string,
-    accountId: string,
+    userId: UserId,
+    accountId: LoyaltyAccountId,
     limit = DEFAULT_HISTORY_LIMIT,
   ): Promise<BalanceReadModel[]> {
     const account = await requireOwnedAccount(this.accounts, userId, accountId);

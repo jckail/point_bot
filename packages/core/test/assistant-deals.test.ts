@@ -19,10 +19,11 @@ import {
 } from "./fakes";
 import type { LlmAssistant } from "../src/application/ports";
 
+import { asTransferBonusId, asUserId } from "./ids";
 describe("transfer partner graph", () => {
   const now = new Date("2026-10-15T00:00:00Z");
   const hyattBonus = createTransferBonus({
-    id: "b1",
+    id: asTransferBonusId("b1"),
     fromProviderId: "chase-ultimate-rewards",
     toProviderId: "hyatt",
     multiplierPermille: 1300,
@@ -98,7 +99,7 @@ describe("GetValueAdvice", () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const balances = new InMemoryBalanceSnapshotRepository();
     const chase = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "chase-ultimate-rewards",
       membershipNumber: "UR1",
     });
@@ -114,7 +115,7 @@ describe("GetValueAdvice", () => {
 
     const advice = await new GetValueAdvice(
       new ListLoyaltyAccounts(accounts, balances),
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(advice.transfers.length).toBeGreaterThan(0);
     expect(advice.deals.length).toBe(CATALOG_DEALS.length);
@@ -147,7 +148,7 @@ describe("ChatWithAssistant", () => {
     const goals = new InMemoryTripGoalRepository();
 
     const chase = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "chase-ultimate-rewards",
       membershipNumber: "UR1",
     });
@@ -162,7 +163,7 @@ describe("ChatWithAssistant", () => {
     );
 
     await new CreateTripGoal(goals, accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       title: "Kyoto",
       targetPoints: 70_000,
       accountIds: [],
@@ -173,7 +174,7 @@ describe("ChatWithAssistant", () => {
       new ListTripGoals(goals, balances),
       new HeuristicAssistant(),
     ).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       message: "What's my best transfer right now?",
     });
 
@@ -195,7 +196,7 @@ describe("ChatWithAssistant", () => {
         new ListLoyaltyAccounts(accounts, balances),
         new ListTripGoals(new InMemoryTripGoalRepository(), balances),
         failing,
-      ).execute({ userId: "user-1", message: "hello" }),
+      ).execute({ userId: asUserId("user-1"), message: "hello" }),
     ).rejects.toMatchObject({ code: "ASSISTANT_UNAVAILABLE" });
   });
 });

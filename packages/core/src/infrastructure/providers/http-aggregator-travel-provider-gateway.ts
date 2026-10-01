@@ -17,7 +17,7 @@ export type AggregatorFetch = (
 ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
 
 const defaultFetch: AggregatorFetch = (url, init) =>
-  fetch(url, init as RequestInit);
+  fetch(url, init);
 
 export interface HttpAggregatorConfig {
   /** Aggregator API base URL, e.g. https://api.aggregator.example */

@@ -1,3 +1,4 @@
+import type { LoyaltyAccountId, ObservationId, UserId } from "../shared/ids";
 /**
  * Audit record of everything an agent wrote (or tried to write) back. Kept
  * append-only so users can see exactly what an agent did on their behalf.
@@ -13,9 +14,9 @@ export const OBSERVATION_OUTCOMES = [
 export type ObservationOutcome = (typeof OBSERVATION_OUTCOMES)[number];
 
 export interface AgentObservation {
-  readonly id: string;
-  readonly userId: string;
-  readonly accountId: string;
+  readonly id: ObservationId;
+  readonly userId: UserId;
+  readonly accountId: LoyaltyAccountId;
   readonly providerId: string;
   readonly skillId: string;
   /** Free-text agent identity, e.g. "claude-code", "chatgpt", "mcp". */
@@ -32,17 +33,17 @@ export interface AgentObservation {
 
 export interface AgentObservationRepository {
   insert(observation: AgentObservation): Promise<void>;
-  findById(id: string): Promise<AgentObservation | null>;
+  findById(id: ObservationId): Promise<AgentObservation | null>;
   /** Newest first. */
-  findByUserId(userId: string, limit: number): Promise<AgentObservation[]>;
+  findByUserId(userId: UserId, limit: number): Promise<AgentObservation[]>;
   /**
    * Atomically moves a row from `from` to `to` and returns it, or null when
    * the row is not (or no longer) in `from`. Makes review ids single-use
    * even under concurrent confirm/reject.
    */
   transition(
-    id: string,
-    userId: string,
+    id: ObservationId,
+    userId: UserId,
     from: ObservationOutcome,
     to: ObservationOutcome,
   ): Promise<AgentObservation | null>;

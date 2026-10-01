@@ -1,5 +1,5 @@
 import { getSessionUserId } from "@/server/auth";
-import { LoyaltyAccountNotFoundError } from "@pointup/core";
+import { LoyaltyAccountId, LoyaltyAccountNotFoundError } from "@pointup/core";
 import { type Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -36,8 +36,8 @@ export default async function AccountDetailPage({
 
   let account, history;
   try {
-    account = await useCases.getLoyaltyAccount.execute(userId, id);
-    history = await useCases.getBalanceHistory.execute(userId, id, 90);
+    account = await useCases.getLoyaltyAccount.execute(userId, LoyaltyAccountId.parse(id));
+    history = await useCases.getBalanceHistory.execute(userId, LoyaltyAccountId.parse(id), 90);
   } catch (error) {
     if (error instanceof LoyaltyAccountNotFoundError) notFound();
     throw error;

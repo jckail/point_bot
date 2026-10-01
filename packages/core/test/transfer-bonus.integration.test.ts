@@ -8,13 +8,14 @@ import {
 import { buildDrizzleRepositories } from "../src/composition/repositories";
 import { createDb } from "../src/infrastructure/db/client";
 import { domainEventOutbox } from "../src/infrastructure/db/schema";
+import { asTransferBonusId, asUserId } from "./ids";
 
 /** Opt in with TEST_DATABASE_URL against a migrated Postgres (0014+). */
 const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)("transfer bonuses on Postgres (Drizzle)", () => {
   const db = createDb(url ?? "postgresql://unused");
-  const userId = `tb-${crypto.randomUUID().slice(0, 8)}`;
+  const userId = asUserId(`tb-${crypto.randomUUID().slice(0, 8)}`);
 
   afterAll(async () => {
     await db.execute(sql`delete from transfer_bonus where created_by = ${userId}`);
@@ -72,7 +73,7 @@ describe.skipIf(!url)("transfer bonuses on Postgres (Drizzle)", () => {
   it("the database itself rejects out-of-range multipliers and inverted windows", async () => {
     const repos = buildDrizzleRepositories(db);
     const base = {
-      id: crypto.randomUUID(),
+      id: asTransferBonusId(crypto.randomUUID()),
       fromProviderId: "chase-ultimate-rewards",
       toProviderId: "hyatt",
       multiplierPermille: 1300,
@@ -88,7 +89,7 @@ describe.skipIf(!url)("transfer bonuses on Postgres (Drizzle)", () => {
       repos.transferBonuses.insert({ ...base, multiplierPermille: 1000 }),
     ).rejects.toThrow();
     await expect(
-      repos.transferBonuses.insert({ ...base, id: crypto.randomUUID(), endsAt: base.startsAt }),
+      repos.transferBonuses.insert({ ...base, id: asTransferBonusId(crypto.randomUUID()), endsAt: base.startsAt }),
     ).rejects.toThrow();
   });
 });

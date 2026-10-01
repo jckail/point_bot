@@ -2,9 +2,11 @@
 
 import { getSessionUserId } from "@/server/auth";
 import {
+  AccessTokenId,
+  ConsentId,
   DomainError,
   isScope,
-  type AccessTokenScope,
+  ObservationId,
 } from "@pointup/core";
 import { revalidatePath } from "next/cache";
 
@@ -27,7 +29,7 @@ export async function createAccessTokenAction(
   const userId = await getSessionUserId();
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
 
-  const scopes = formData.getAll("scopes").map(String).filter(isScope) as AccessTokenScope[];
+  const scopes = formData.getAll("scopes").map(String).filter(isScope);
   const ttl = Number(formData.get("ttlDays") ?? "");
   try {
     const { plaintext } = await getContainer().useCases.issueAccessToken.execute({
@@ -51,7 +53,7 @@ export async function revokeAccessTokenAction(formData: FormData): Promise<void>
   if (!userId) return;
   await getContainer().useCases.revokeAccessToken.execute(
     userId,
-    String(formData.get("tokenId") ?? ""),
+    AccessTokenId.parse(String(formData.get("tokenId") ?? "")),
   );
   revalidatePath("/dashboard/agents");
 }
@@ -83,7 +85,7 @@ export async function revokeConsentAction(formData: FormData): Promise<void> {
   if (!userId) return;
   await getContainer().useCases.revokeConsent.execute(
     userId,
-    String(formData.get("consentId") ?? ""),
+    ConsentId.parse(String(formData.get("consentId") ?? "")),
   );
   revalidatePath("/dashboard/agents");
 }
@@ -99,8 +101,8 @@ export async function resolveReviewAction(
   const decision = String(formData.get("decision") ?? "");
   try {
     const review = getContainer().useCases.resolveObservationReview;
-    if (decision === "confirm") await review.confirm(userId, reviewId);
-    else if (decision === "reject") await review.reject(userId, reviewId);
+    if (decision === "confirm") await review.confirm(userId, ObservationId.parse(reviewId));
+    else if (decision === "reject") await review.reject(userId, ObservationId.parse(reviewId));
     else return { status: "error", message: "Unknown decision." };
     revalidatePath("/dashboard/agents");
     return { status: "success" };

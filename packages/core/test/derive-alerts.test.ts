@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asProviderId } from "./ids";
+import { asAccountId, asProviderId, asTripGoalId, asUserId } from "./ids";
 
 import { deriveAlerts } from "../src/application/loyalty/derive-alerts";
 import type { PortfolioDigestReadModel } from "../src/application/loyalty/build-portfolio-digest";
@@ -15,7 +15,7 @@ function account(
   },
 ): LoyaltyAccountReadModel {
   return {
-    id: over.id,
+    id: asAccountId(over.id),
     provider: {
       id: asProviderId(over.id),
       kind: "airline",
@@ -66,7 +66,7 @@ function digest(
   goals: TripGoalReadModel[] = [],
 ): PortfolioDigestReadModel {
   return {
-    userId: "u",
+    userId: asUserId("u"),
     summary: {
       totalPoints: 0,
       totalValueCents: 0,
@@ -124,7 +124,7 @@ describe("deriveAlerts", () => {
           // warning-severity expiry
           account({ id: "delta", daysUntilExpiry: 10 }),
         ],
-        [goal({ id: "g1", achieved: true }), goal({ id: "g2", achieved: false })],
+        [goal({ id: asTripGoalId("g1"), achieved: true }), goal({ id: asTripGoalId("g2"), achieved: false })],
       ),
     );
     expect(alerts.some((a) => a.type === "goal-reached" && a.goalId === "g1")).toBe(true);

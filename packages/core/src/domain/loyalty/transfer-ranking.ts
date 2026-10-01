@@ -10,6 +10,7 @@ import {
   type TransferEdge,
 } from "./transfer-partners";
 
+import type { TransferBonusId } from "../shared/ids";
 /**
  * Bonus-aware ranking of transfer destinations. Kept apart from the pure
  * transfer graph (transfer-partners.ts) so the graph does not depend on the
@@ -24,7 +25,7 @@ export type TransferOption = {
   readonly bonusMultiplier: number;
   readonly bonusPermille: number;
   readonly bonusLabel: string | null;
-  readonly bonusId: string | null;
+  readonly bonusId: TransferBonusId | null;
   readonly sourcePoints: number;
   readonly destinationPoints: number;
   /** Effective cents-per-point of the *source* currency after transfer. */

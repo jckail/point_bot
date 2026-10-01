@@ -27,6 +27,10 @@ It adds an agent bounded context and hardens the seams below.
 | 9 | No rate limiting on any route | Medium | **Fixed** – per-principal sliding-window limiter, 429 + `Retry-After`; in-memory per instance (swap adapter for multi-instance) |
 | 10 | Pre-existing: `next build` needs network for Google Fonts | Low | **Fixed** – fonts self-hosted via `next/font/local` |
 | 11 | Provider hosts/start URLs in skills are best-effort and will rot | Low | Documented; skills are data and versioned (`version`) |
+| 12 | Closed string sets (`"a" \| "b"`, `z.enum([...])`, ad-hoc `Record` casts) duplicated across layers | Medium | **Fixed** – const tuple + derived union + `satisfies Record<...>` + `assertNever`; `ProviderId`, `ErrorCode`, `EventType` derived; `switch-exhaustiveness-check` enforced |
+| 13 | Ids are interchangeable strings (`accounts.findById(userId)` compiled) | Medium | **Fixed** (compile time) – branded `UserId`/`LoyaltyAccountId`/`TripGoalId`/`ShareId`/`AwardWatchId`/`AccessTokenId`/`ConsentId`/`ObservationId`/`TransferBonusId`/`EventId` across entities, ports, use cases, read models and event aggregate ids; parse at the edge. Wire/DB unchanged. **Partly open**: snapshot/activity ids, `providerId` on audit rows, zod request bodies stay `string` (see architecture.md, Remaining gaps) |
+| 14 | Traced use cases typed as sync where `execute` is async (`listProviders`) | Low | **Fixed** – `TracedAll` types `execute` as `Promise`; `no-floating-promises` / `await-thenable` / `no-misused-promises` enabled and clean |
+| 15 | Stricter compiler flags | Low | **Done**: `noImplicitOverride`, `noFallthroughCasesInSwitch`, `noImplicitReturns`. **Declined**: `exactOptionalPropertyTypes` (about 80 errors at zod/env/SDK option boundaries; see architecture.md) |
 
 ## Verification performed
 

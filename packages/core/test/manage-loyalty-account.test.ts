@@ -28,12 +28,13 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 function seedAccount(
   accounts: InMemoryLoyaltyAccountRepository,
   overrides: Partial<Parameters<typeof createLoyaltyAccount>[0]> = {},
 ) {
   const account = createLoyaltyAccount({
-    userId: "user-1",
+    userId: asUserId("user-1"),
     providerId: "united",
     membershipNumber: "MP123456",
     ...overrides,
@@ -48,7 +49,7 @@ describe("UpdateLoyaltyAccount", () => {
     const account = seedAccount(accounts);
 
     await new UpdateLoyaltyAccount(accounts).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       membershipNumber: "MP999",
       credentialRef: "op://vault/item",
@@ -64,7 +65,7 @@ describe("UpdateLoyaltyAccount", () => {
     const account = seedAccount(accounts, { credentialRef: "op://v/i" });
 
     await new UpdateLoyaltyAccount(accounts).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       credentialRef: null,
     });
@@ -80,7 +81,7 @@ describe("UpdateLoyaltyAccount", () => {
 
     await expect(
       new UpdateLoyaltyAccount(accounts).execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         accountId: account.id,
         membershipNumber: "  ",
       }),
@@ -92,7 +93,7 @@ describe("UpdateLoyaltyAccount", () => {
     const account = seedAccount(accounts);
 
     await new UpdateLoyaltyAccount(accounts).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       membershipNumber: "  MP42  ",
     });
@@ -106,11 +107,11 @@ describe("UnlinkLoyaltyAccount", () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const account = seedAccount(accounts);
 
-    await new UnlinkLoyaltyAccount(accounts).execute("user-1", account.id);
+    await new UnlinkLoyaltyAccount(accounts).execute(asUserId("user-1"), account.id);
 
     const stored = accounts.rows.get(account.id);
     expect(stored?.deletedAt).not.toBeNull();
-    expect(await accounts.findByUserId("user-1")).toHaveLength(0);
+    expect(await accounts.findByUserId(asUserId("user-1"))).toHaveLength(0);
   });
 
   it("hides other users' accounts behind not-found", async () => {
@@ -118,7 +119,7 @@ describe("UnlinkLoyaltyAccount", () => {
     const account = seedAccount(accounts);
 
     await expect(
-      new UnlinkLoyaltyAccount(accounts).execute("user-2", account.id),
+      new UnlinkLoyaltyAccount(accounts).execute(asUserId("user-2"), account.id),
     ).rejects.toBeInstanceOf(LoyaltyAccountNotFoundError);
     expect(accounts.rows.has(account.id)).toBe(true);
   });
@@ -128,11 +129,11 @@ describe("UnlinkLoyaltyAccount", () => {
     const balances = new InMemoryBalanceSnapshotRepository();
     const account = seedAccount(accounts);
 
-    await new UnlinkLoyaltyAccount(accounts).execute("user-1", account.id);
+    await new UnlinkLoyaltyAccount(accounts).execute(asUserId("user-1"), account.id);
     const restored = await new RestoreLoyaltyAccount(
       accounts,
       balances,
-    ).execute("user-1", account.id);
+    ).execute(asUserId("user-1"), account.id);
 
     expect(restored.provider.id).toBe("united");
     expect(accounts.rows.get(account.id)?.deletedAt).toBeNull();
@@ -146,7 +147,7 @@ describe("RecordManualBalance", () => {
     const account = seedAccount(accounts);
 
     const result = await new RecordManualBalance(accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       points: 42_000,
     });
@@ -163,10 +164,10 @@ describe("RecordManualBalance", () => {
     const useCase = new RecordManualBalance(accounts, balances);
 
     await expect(
-      useCase.execute({ userId: "user-1", accountId: account.id, points: -1 }),
+      useCase.execute({ userId: asUserId("user-1"), accountId: account.id, points: -1 }),
     ).rejects.toBeInstanceOf(InvalidBalanceError);
     await expect(
-      useCase.execute({ userId: "user-1", accountId: account.id, points: 1.5 }),
+      useCase.execute({ userId: asUserId("user-1"), accountId: account.id, points: 1.5 }),
     ).rejects.toBeInstanceOf(InvalidBalanceError);
   });
 
@@ -177,7 +178,7 @@ describe("RecordManualBalance", () => {
     const observedAt = new Date("2026-01-15T12:00:00.000Z");
 
     const result = await new RecordManualBalance(accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       accountId: account.id,
       points: 1000,
       capturedAt: observedAt,
@@ -194,7 +195,7 @@ describe("RecordManualBalance", () => {
 
     await expect(
       new RecordManualBalance(accounts, balances).execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         accountId: account.id,
         points: 1000,
         capturedAt: future,
@@ -210,7 +211,7 @@ describe("RecordManualBalance", () => {
 
     await expect(
       new RecordManualBalance(accounts, balances).execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         accountId: account.id,
         points: 1000,
         capturedAt: new Date("not-a-date"),
@@ -237,7 +238,7 @@ describe("GetBalanceHistory", () => {
     }
 
     const history = await new GetBalanceHistory(accounts, balances).execute(
-      "user-1",
+      asUserId("user-1"),
       account.id,
       3,
     );
@@ -283,7 +284,7 @@ describe("GetPortfolioSummary", () => {
 
     const summary = await new GetPortfolioSummary(
       new ListLoyaltyAccounts(accounts, balances),
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(summary.totalPoints).toBe(95_000);
     expect(summary.accountCount).toBe(3);
@@ -333,7 +334,7 @@ describe("SyncAllLoyaltyAccounts", () => {
       new FakeCredentialVault({}),
     );
     const outcomes = await new SyncAllLoyaltyAccounts(accounts, syncOne).execute(
-      "user-1",
+      asUserId("user-1"),
     );
 
     expect(outcomes).toHaveLength(2);

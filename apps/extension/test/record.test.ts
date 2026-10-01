@@ -15,7 +15,7 @@ function setup(respond: (path: string, body?: unknown) => { status?: number; jso
       calls.push({ method: init?.method ?? "GET", path, body });
       const { status = 200, json } = respond(path, body);
       return new Response(JSON.stringify(json), { status });
-    }) as typeof fetch,
+    }),
   });
   return { api, calls };
 }

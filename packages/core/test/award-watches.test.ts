@@ -19,12 +19,13 @@ import {
 import type { PageScraper, ScrapedPage } from "../src/application/ports";
 import { InMemoryAwardWatchRepository } from "./fakes";
 
+import { asUserId } from "./ids";
 const NOW = new Date("2026-07-09T12:00:00Z");
 const clock = { now: () => NOW };
 
 function watch(over: Partial<Parameters<typeof createAwardWatch>[0]> = {}) {
   return createAwardWatch({
-    userId: "u1",
+    userId: asUserId("u1"),
     url: "https://blog.example/hyatt-sweet-spots",
     label: "Hyatt sweet spots",
     minCentsPerPoint: 2,
@@ -129,18 +130,18 @@ describe("CreateAwardWatch / DeleteAwardWatch", () => {
   it("creates then deletes an owned watch; never another user's", async () => {
     const repo = new InMemoryAwardWatchRepository();
     const created = await new CreateAwardWatch(repo, clock).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       url: "https://blog.example/deals",
       label: "Deals",
       minCentsPerPoint: 1.8,
     });
-    expect((await repo.findByUserId("u1"))[0]?.id).toBe(created.id);
+    expect((await repo.findByUserId(asUserId("u1")))[0]?.id).toBe(created.id);
 
     const del = new DeleteAwardWatch(repo);
-    await expect(del.execute("u2", created.id)).rejects.toBeInstanceOf(
+    await expect(del.execute(asUserId("u2"), created.id)).rejects.toBeInstanceOf(
       AwardWatchNotFoundError,
     );
-    await del.execute("u1", created.id);
-    expect(await repo.findByUserId("u1")).toEqual([]);
+    await del.execute(asUserId("u1"), created.id);
+    expect(await repo.findByUserId(asUserId("u1"))).toEqual([]);
   });
 });

@@ -21,6 +21,7 @@ import type { ListTripGoals } from "./list-trip-goals";
 import type { ListActiveTransferBonuses } from "./transfer-bonuses";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface AssistantPortfolioContext {
   readonly summary: PortfolioSummaryReadModel;
   readonly accounts: readonly LoyaltyAccountReadModel[];
@@ -100,7 +101,7 @@ Keep answers short (under ~180 words) with concrete next steps.
 When recommending transfers, name the source and destination programs and approximate value.`;
 
 export interface ChatWithAssistantInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly message: string;
   readonly history?: readonly AssistantMessage[];
 }
@@ -170,7 +171,7 @@ export class GetValueAdvice {
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     extraDeals: readonly import("../../domain/loyalty/deals").DealCandidate[] = [],
   ): Promise<ValueAdviceReadModel> {
     const [accounts, bonuses] = await Promise.all([

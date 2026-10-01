@@ -13,6 +13,7 @@ import {
   DrizzleConsentGrantRepository,
 } from "../src/infrastructure/repositories/drizzle-agent-repositories";
 import { DrizzleBalanceSnapshotRepository } from "../src/infrastructure/repositories/drizzle-loyalty-account-repository";
+import { asUserId } from "./ids";
 
 /**
  * Runs the agent bounded context against a real, migrated Postgres.
@@ -23,7 +24,7 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
   const db = createDb(url ?? "postgresql://unused");
-  const userId = `it-${crypto.randomUUID()}`;
+  const userId = asUserId(`it-${crypto.randomUUID()}`);
 
   afterAll(async () => {
     const { sql } = await import("drizzle-orm");

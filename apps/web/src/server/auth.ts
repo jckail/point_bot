@@ -1,4 +1,4 @@
-import { DEFAULT_DEV_ALLOWED_HOSTS, isDevHostAllowed } from "@pointup/core";
+import { DEFAULT_DEV_ALLOWED_HOSTS, isDevHostAllowed, UserId } from "@pointup/core";
 import { headers } from "next/headers";
 
 import { env } from "@/env";
@@ -27,17 +27,19 @@ function devAllowedHosts(): readonly string[] {
     : DEFAULT_DEV_ALLOWED_HOSTS;
 }
 
-async function devUserId(): Promise<string | null> {
+async function devUserId(): Promise<UserId | null> {
   const host = (await headers()).get("host");
-  return isDevHostAllowed(host, devAllowedHosts()) ? env.DEV_USER_ID : null;
+  return isDevHostAllowed(host, devAllowedHosts())
+    ? UserId.parse(env.DEV_USER_ID)
+    : null;
 }
 
 /** The signed-in (or dev) user's id, or null when there is no session. */
-export async function getSessionUserId(): Promise<string | null> {
+export async function getSessionUserId(): Promise<UserId | null> {
   if (isDevAuth()) return devUserId();
   const { auth } = await import("@clerk/nextjs/server");
   const { userId } = await auth();
-  return userId ?? null;
+  return userId ? UserId.parse(userId) : null;
 }
 
 export interface SessionUser {

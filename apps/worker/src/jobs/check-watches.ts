@@ -1,11 +1,4 @@
-import type {
-  AwardWatchHit,
-  Mailer,
-  Notifier,
-  OutboundEmail,
-  OutboundNotification,
-  UserDirectory,
-} from "@pointup/core";
+import type { AwardWatchHit, Mailer, Notifier, OutboundEmail, OutboundNotification, UserDirectory, UserId } from "@pointup/core";
 
 import type { WorkerContainer } from "../container";
 
@@ -61,7 +54,7 @@ export async function checkWatches(
       );
   }
 
-  const byUser = new Map<string, AwardWatchHit[]>();
+  const byUser = new Map<UserId, AwardWatchHit[]>();
   for (const hit of result.hits) {
     const list = byUser.get(hit.watch.userId) ?? [];
     list.push(hit);

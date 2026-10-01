@@ -77,7 +77,7 @@ export function createOtelMetrics(): Metrics {
         c = meter.createCounter(name, { description: METRIC_DEFS[name].help });
         counters.set(name, c);
       }
-      c.add(value, labels as Attributes | undefined);
+      c.add(value, labels);
     },
     histogram(name, value, labels) {
       let h = histograms.get(name);
@@ -85,7 +85,7 @@ export function createOtelMetrics(): Metrics {
         h = meter.createHistogram(name, { description: METRIC_DEFS[name].help });
         histograms.set(name, h);
       }
-      h.record(value, labels as Attributes | undefined);
+      h.record(value, labels);
     },
     gauge(name, value, labels) {
       let values = gaugeValues.get(name);

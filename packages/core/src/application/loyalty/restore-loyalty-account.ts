@@ -20,6 +20,7 @@ import { recordActivity } from "./list-activity";
 import { toLoyaltyAccountReadModel } from "./mappers";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 /**
  * Restores a soft-deleted account within the undo window. Outside the window
  * the account is treated as gone.
@@ -34,8 +35,8 @@ export class RestoreLoyaltyAccount {
   ) {}
 
   async execute(
-    userId: string,
-    accountId: string,
+    userId: UserId,
+    accountId: LoyaltyAccountId,
   ): Promise<LoyaltyAccountReadModel> {
     const account = await requireOwnedAccountIncludingDeleted(
       this.accounts,
@@ -92,9 +93,9 @@ export class ListDeletedLoyaltyAccounts {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string): Promise<
+  async execute(userId: UserId): Promise<
     Array<{
-      readonly id: string;
+      readonly id: LoyaltyAccountId;
       readonly providerId: string;
       readonly providerName: string;
       readonly deletedAt: Date;
@@ -125,7 +126,7 @@ export class PurgeExpiredUnlinks {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string): Promise<number> {
+  async execute(userId: UserId): Promise<number> {
     const deleted = await this.accounts.findDeletedByUserId(userId);
     const now = this.clock.now();
     let purged = 0;

@@ -1,4 +1,8 @@
-import type { AssistantMessage, LlmAssistant } from "../../application/ports";
+import type {
+  AssistantMessage,
+  AssistantRole,
+  LlmAssistant,
+} from "../../application/ports";
 
 /**
  * Minimal structural view of the parts of `@aws-sdk/client-bedrock-runtime`
@@ -7,7 +11,8 @@ import type { AssistantMessage, LlmAssistant } from "../../application/ports";
  * unit-testable with a fake client (no AWS calls, no credentials).
  */
 export interface BedrockConverseMessage {
-  readonly role: "user" | "assistant";
+  /** Bedrock has no system turn; system text goes in `system`. */
+  readonly role: Exclude<AssistantRole, "system">;
   readonly content: Array<{ readonly text: string }>;
 }
 
@@ -119,7 +124,7 @@ export class BedrockAssistant implements LlmAssistant {
       converse: (converseInput) =>
         runtime.send(
           new ConverseCommand(converseInput as never),
-        ) as Promise<BedrockConverseOutput>,
+        ),
     };
     return this.client;
   }
@@ -137,7 +142,7 @@ function toConverseMessages(
   const merged: BedrockConverseMessage[] = [];
   for (const message of messages) {
     if (!message.content) continue;
-    const role: "user" | "assistant" =
+    const role: BedrockConverseMessage["role"] =
       message.role === "assistant" ? "assistant" : "user";
     const last = merged[merged.length - 1];
     if (last && last.role === role) {

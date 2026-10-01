@@ -4,6 +4,7 @@ import type {
   CustomValuation,
   CustomValuationRepository,
 } from "../../domain/loyalty/custom-valuation";
+import { UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
 import { userProviderValuations } from "../db/schema";
 
@@ -15,14 +16,14 @@ export class DrizzleCustomValuationRepository
 {
   constructor(private readonly db: Database) {}
 
-  async listForUser(userId: string): Promise<CustomValuation[]> {
+  async listForUser(userId: UserId): Promise<CustomValuation[]> {
     const rows = await this.db
       .select()
       .from(userProviderValuations)
       .where(eq(userProviderValuations.userId, userId));
 
     return rows.map((row) => ({
-      userId: row.userId,
+      userId: UserId.parse(row.userId),
       providerId: row.providerId,
       centsPerPoint: row.centsPerPointMilli / MILLI,
       updatedAt: row.updatedAt,
@@ -51,7 +52,7 @@ export class DrizzleCustomValuationRepository
       });
   }
 
-  async delete(userId: string, providerId: string): Promise<void> {
+  async delete(userId: UserId, providerId: string): Promise<void> {
     await this.db
       .delete(userProviderValuations)
       .where(

@@ -8,6 +8,7 @@ import {
 } from "../../domain/loyalty/trip-goal";
 import type { TripGoalReadModel } from "./create-trip-goal";
 
+import type { UserId } from "../../domain/shared/ids";
 function toReadModelSync(
   goal: TripGoal,
   balancesByAccountId: ReadonlyMap<string, number>,
@@ -36,7 +37,7 @@ export class ListTripGoals {
     private readonly balances: BalanceSnapshotRepository,
   ) {}
 
-  async execute(userId: string): Promise<TripGoalReadModel[]> {
+  async execute(userId: UserId): Promise<TripGoalReadModel[]> {
     const goals = await this.goals.findByUserId(userId);
     const accountIds = [...new Set(goals.flatMap((goal) => goal.accountIds))];
     const latest = await this.balances.findLatestByAccountIds(accountIds);

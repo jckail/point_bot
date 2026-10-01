@@ -95,7 +95,7 @@ function CarIcon() {
   );
 }
 
-const KIND_ICONS: Record<ProviderKind, () => React.ReactNode> = {
+const KIND_ICONS = {
   airline: PlaneIcon,
   hotel: BuildingIcon,
   credit_card: CardIcon,
@@ -105,7 +105,7 @@ const KIND_ICONS: Record<ProviderKind, () => React.ReactNode> = {
   rideshare: CarIcon,
   dining: BagIcon,
   shopping: BagIcon,
-};
+} satisfies Record<ProviderKind, () => React.ReactNode>;
 
 export function ProviderBadge({ kind }: { kind: ProviderKind }) {
   const Icon = KIND_ICONS[kind];

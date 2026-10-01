@@ -23,9 +23,10 @@ import { requireOwnedAccount } from "./access";
 import { recordActivity } from "./list-activity";
 import type { BalanceReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface SyncLoyaltyAccountInput {
-  readonly userId: string;
-  readonly accountId: string;
+  readonly userId: UserId;
+  readonly accountId: LoyaltyAccountId;
   /**
    * Credential resolved on the calling surface (e.g. from Apple Keychain on
    * mobile or the Chrome password manager in an extension). Takes precedence

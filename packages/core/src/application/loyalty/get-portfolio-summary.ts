@@ -3,6 +3,8 @@ import { PROVIDER_KINDS } from "../../domain/loyalty/provider";
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import { recordOf } from "../../domain/shared/enum";
+import type { UserId } from "../../domain/shared/ids";
 export interface KindSummary {
   readonly accounts: number;
   readonly points: number;
@@ -27,12 +29,11 @@ export interface PortfolioSummaryReadModel {
 export function computePortfolioSummary(
   accounts: readonly LoyaltyAccountReadModel[],
 ): PortfolioSummaryReadModel {
-  const byKind = Object.fromEntries(
-    PROVIDER_KINDS.map((kind) => [
-      kind,
-      { accounts: 0, points: 0, valueCents: 0 },
-    ]),
-  ) as Record<ProviderKind, { accounts: number; points: number; valueCents: number }>;
+  const byKind = recordOf(PROVIDER_KINDS, () => ({
+    accounts: 0,
+    points: 0,
+    valueCents: 0,
+  }));
 
   let totalPoints = 0;
   let totalValueCents = 0;
@@ -67,7 +68,7 @@ export function computePortfolioSummary(
 export class GetPortfolioSummary {
   constructor(private readonly listAccounts: ListLoyaltyAccounts) {}
 
-  async execute(userId: string): Promise<PortfolioSummaryReadModel> {
+  async execute(userId: UserId): Promise<PortfolioSummaryReadModel> {
     return computePortfolioSummary(await this.listAccounts.execute(userId));
   }
 }

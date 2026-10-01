@@ -1,6 +1,7 @@
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 export const DEFAULT_EXPIRY_WARNING_DAYS = 90;
 
 /**
@@ -11,7 +12,7 @@ export class ListExpiringAccounts {
   constructor(private readonly listAccounts: ListLoyaltyAccounts) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     withinDays = DEFAULT_EXPIRY_WARNING_DAYS,
   ): Promise<LoyaltyAccountReadModel[]> {
     const accounts = await this.listAccounts.execute(userId);

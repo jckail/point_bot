@@ -4,6 +4,7 @@ import type { LoyaltyAccount } from "./loyalty-account";
 import type { PortfolioShare } from "./portfolio-share";
 import type { TripGoal } from "./trip-goal";
 
+import type { LoyaltyAccountId, ShareId, TripGoalId, UserId } from "../shared/ids";
 /**
  * Persistence ports (repository interfaces). The application layer depends on
  * these abstractions; the infrastructure layer supplies the Drizzle-backed
@@ -23,40 +24,40 @@ export interface BalanceTrendContext {
 }
 
 export interface LoyaltyAccountRepository {
-  findById(id: string): Promise<LoyaltyAccount | null>;
+  findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null>;
   /** Active (non-deleted) accounts for a user, pinned first then createdAt. */
-  findByUserId(userId: string): Promise<LoyaltyAccount[]>;
+  findByUserId(userId: UserId): Promise<LoyaltyAccount[]>;
   /** Soft-deleted accounts still inside the restore window. */
-  findDeletedByUserId(userId: string): Promise<LoyaltyAccount[]>;
+  findDeletedByUserId(userId: UserId): Promise<LoyaltyAccount[]>;
   /** Distinct ids of users with at least one linked account (for batch jobs). */
-  listUserIds(): Promise<string[]>;
+  listUserIds(): Promise<UserId[]>;
   findByUserAndProvider(
-    userId: string,
+    userId: UserId,
     providerId: string,
   ): Promise<LoyaltyAccount | null>;
   insert(account: LoyaltyAccount): Promise<void>;
   update(account: LoyaltyAccount): Promise<void>;
   /** Hard-deletes the account; snapshots cascade at the storage layer. */
-  delete(id: string): Promise<void>;
+  delete(id: LoyaltyAccountId): Promise<void>;
 }
 
 export interface BalanceSnapshotRepository {
   insert(snapshot: BalanceSnapshot): Promise<void>;
   /** Latest snapshot per account, for the given account ids. */
   findLatestByAccountIds(
-    accountIds: readonly string[],
-  ): Promise<Map<string, BalanceSnapshot>>;
+    accountIds: readonly LoyaltyAccountId[],
+  ): Promise<Map<LoyaltyAccountId, BalanceSnapshot>>;
   /**
    * Latest, previous, and as-of-30/90-day snapshots per account - everything
    * needed for balance deltas, in one round trip.
    */
   findTrendContextByAccountIds(
-    accountIds: readonly string[],
+    accountIds: readonly LoyaltyAccountId[],
     now: Date,
-  ): Promise<Map<string, BalanceTrendContext>>;
+  ): Promise<Map<LoyaltyAccountId, BalanceTrendContext>>;
   /** Snapshot history for one account, newest first. */
   findByAccountId(
-    accountId: string,
+    accountId: LoyaltyAccountId,
     limit: number,
   ): Promise<BalanceSnapshot[]>;
 }
@@ -64,22 +65,22 @@ export interface BalanceSnapshotRepository {
 export interface ActivityEventRepository {
   insert(event: ActivityEvent): Promise<void>;
   /** Newest-first feed for a user. */
-  findByUserId(userId: string, limit: number): Promise<ActivityEvent[]>;
+  findByUserId(userId: UserId, limit: number): Promise<ActivityEvent[]>;
 }
 
 export interface TripGoalRepository {
-  findById(id: string): Promise<TripGoal | null>;
-  findByUserId(userId: string): Promise<TripGoal[]>;
+  findById(id: TripGoalId): Promise<TripGoal | null>;
+  findByUserId(userId: UserId): Promise<TripGoal[]>;
   insert(goal: TripGoal): Promise<void>;
   update(goal: TripGoal): Promise<void>;
-  delete(id: string): Promise<void>;
+  delete(id: TripGoalId): Promise<void>;
 }
 
 export interface PortfolioShareRepository {
-  findById(id: string): Promise<PortfolioShare | null>;
+  findById(id: ShareId): Promise<PortfolioShare | null>;
   findByToken(token: string): Promise<PortfolioShare | null>;
-  findByUserId(userId: string): Promise<PortfolioShare[]>;
+  findByUserId(userId: UserId): Promise<PortfolioShare[]>;
   insert(share: PortfolioShare): Promise<void>;
   update(share: PortfolioShare): Promise<void>;
-  delete(id: string): Promise<void>;
+  delete(id: ShareId): Promise<void>;
 }

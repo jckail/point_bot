@@ -10,6 +10,7 @@ import {
   type ProviderId,
 } from "./provider";
 
+import { LoyaltyAccountId, type UserId } from "../shared/ids";
 /**
  * A user's membership in a loyalty program (e.g. their United MileagePlus
  * account).
@@ -20,8 +21,8 @@ import {
  * docs/integrations.md.
  */
 export interface LoyaltyAccount {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: LoyaltyAccountId;
+  readonly userId: UserId;
   readonly providerId: ProviderId;
   readonly membershipNumber: string;
   readonly credentialRef: string | null;
@@ -46,7 +47,7 @@ export interface LoyaltyAccount {
 }
 
 export interface NewLoyaltyAccount {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly providerId: string;
   readonly membershipNumber: string;
   readonly credentialRef?: string | null;
@@ -55,7 +56,7 @@ export interface NewLoyaltyAccount {
   readonly notes?: string | null;
   readonly tags?: readonly string[];
   readonly pinnedAt?: Date | null;
-  readonly id?: string;
+  readonly id?: LoyaltyAccountId;
   readonly now?: Date;
 }
 
@@ -117,7 +118,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
       : projectExpiryDate(provider, now);
 
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? LoyaltyAccountId.generate(),
     userId: input.userId,
     providerId,
     membershipNumber: normalizeMembershipNumber(input.membershipNumber),

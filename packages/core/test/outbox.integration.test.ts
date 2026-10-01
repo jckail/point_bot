@@ -23,6 +23,8 @@ import { StubPageScraper } from "../src/infrastructure/scraper/firecrawl-page-sc
 import { NullCredentialVault } from "../src/infrastructure/vault/null-credential-vault";
 import { StaticFxRateSource } from "../src/infrastructure/fx/fx-rate-sources";
 
+import { asAccountId, asUserId } from "./ids";
+import type { UserId } from "../src/domain/shared/ids";
 /**
  * Transactional outbox against a real, migrated Postgres. Opt in with
  * TEST_DATABASE_URL (CI provides one). Tests use unique user ids and clean up
@@ -34,7 +36,7 @@ const url = process.env.TEST_DATABASE_URL;
 describe.skipIf(!url)("domain event outbox on Postgres", () => {
   const db = createDb(url ?? "postgresql://unused");
   const prefix = `ob-${crypto.randomUUID().slice(0, 8)}`;
-  const user = (name: string) => `${prefix}-${name}`;
+  const user = (name: string) => asUserId(`${prefix}-${name}`);
   const store = new DrizzleOutboxStore(db);
   const publisher = new DrizzleEventPublisher(db);
 
@@ -45,10 +47,10 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
       .where(eq(domainEventOutbox.userId, userId))
       .orderBy(domainEventOutbox.occurredAt, domainEventOutbox.id);
 
-  function ev(userId: string, n = 0, occurredAt = new Date(Date.now() - 60_000 + n)) {
+  function ev(userId: UserId, n = 0, occurredAt = new Date(Date.now() - 60_000 + n)) {
     return createDomainEvent("account.linked", {
       userId,
-      aggregateId: `agg-${n}`,
+      aggregateId: asAccountId(`agg-${n}`),
       occurredAt,
       payload: { providerId: "united" },
     });
@@ -86,11 +88,11 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     const userId = user("roundtrip");
     const e = createDomainEvent("balance.recorded", {
       userId,
-      aggregateId: "acct-1",
+      aggregateId: asAccountId("acct-1"),
       occurredAt: new Date(Date.now() - 5_000),
       correlationId: "req-42",
       payload: {
-        accountId: "acct-1",
+        accountId: asAccountId("acct-1"),
         providerId: "united",
         points: 10,
         previousPoints: null,

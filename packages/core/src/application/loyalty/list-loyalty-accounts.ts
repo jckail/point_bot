@@ -12,6 +12,7 @@ import { systemClock } from "../ports";
 import { toLoyaltyAccountReadModel } from "./mappers";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 /** Staleness bound for cross-process writes (worker syncs, other instances). */
 export const DEFAULT_ACCOUNTS_CACHE_TTL_MS = 10_000;
 
@@ -31,7 +32,7 @@ export class ListLoyaltyAccounts {
     private readonly cacheTtlMs = DEFAULT_ACCOUNTS_CACHE_TTL_MS,
   ) {}
 
-  async execute(userId: string): Promise<LoyaltyAccountReadModel[]> {
+  async execute(userId: UserId): Promise<LoyaltyAccountReadModel[]> {
     if (!this.cache || this.cacheTtlMs <= 0) return this.load(userId);
     // Callers get their own array (the cached one is shared and must stay
     // untouched); the read models inside are treated as immutable.
@@ -43,7 +44,7 @@ export class ListLoyaltyAccounts {
     return [...accounts];
   }
 
-  private async load(userId: string): Promise<LoyaltyAccountReadModel[]> {
+  private async load(userId: UserId): Promise<LoyaltyAccountReadModel[]> {
     const accounts = await this.accounts.findByUserId(userId);
     const [trends, overrides] = await Promise.all([
       this.balances.findTrendContextByAccountIds(

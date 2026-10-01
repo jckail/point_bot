@@ -10,6 +10,7 @@ import type {
   LoyaltyAccountReadModel,
 } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface ExportedAccount {
   readonly account: LoyaltyAccountReadModel;
   /** Full history, newest first (capped). */
@@ -36,7 +37,7 @@ export class ExportPortfolio {
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     historyLimit = DEFAULT_EXPORT_HISTORY_LIMIT,
   ): Promise<PortfolioExportReadModel> {
     const accounts = await this.accounts.findByUserId(userId);

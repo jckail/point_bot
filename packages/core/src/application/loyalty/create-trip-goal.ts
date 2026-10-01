@@ -14,21 +14,22 @@ import { LoyaltyAccountNotFoundError } from "../../domain/errors";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { LoyaltyAccountId, TripGoalId, UserId } from "../../domain/shared/ids";
 export interface CreateTripGoalInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly title: string;
   readonly targetPoints: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly notes?: string | null;
 }
 
 export interface TripGoalReadModel {
-  readonly id: string;
+  readonly id: TripGoalId;
   readonly title: string;
   readonly targetPoints: number;
   readonly targetDate: string | null;
-  readonly accountIds: readonly string[];
+  readonly accountIds: readonly LoyaltyAccountId[];
   readonly status: TripGoal["status"];
   readonly notes: string | null;
   readonly currentPoints: number;
@@ -41,8 +42,8 @@ export interface TripGoalReadModel {
 
 async function assertOwnedAccounts(
   accounts: LoyaltyAccountRepository,
-  userId: string,
-  accountIds: readonly string[],
+  userId: UserId,
+  accountIds: readonly LoyaltyAccountId[],
 ): Promise<void> {
   for (const accountId of accountIds) {
     const account = await accounts.findById(accountId);

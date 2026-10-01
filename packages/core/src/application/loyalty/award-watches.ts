@@ -13,6 +13,7 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { IngestDealPage } from "./ingest-deal-page";
 
+import type { AwardWatchId, UserId } from "../../domain/shared/ids";
 export class CreateAwardWatch {
   constructor(
     private readonly watches: AwardWatchRepository,
@@ -20,7 +21,7 @@ export class CreateAwardWatch {
   ) {}
 
   async execute(input: {
-    readonly userId: string;
+    readonly userId: UserId;
     readonly url: string;
     readonly label: string;
     readonly minCentsPerPoint: number;
@@ -34,7 +35,7 @@ export class CreateAwardWatch {
 export class ListAwardWatches {
   constructor(private readonly watches: AwardWatchRepository) {}
 
-  execute(userId: string): Promise<AwardWatch[]> {
+  execute(userId: UserId): Promise<AwardWatch[]> {
     return this.watches.findByUserId(userId);
   }
 }
@@ -42,7 +43,7 @@ export class ListAwardWatches {
 export class DeleteAwardWatch {
   constructor(private readonly watches: AwardWatchRepository) {}
 
-  async execute(userId: string, watchId: string): Promise<void> {
+  async execute(userId: UserId, watchId: AwardWatchId): Promise<void> {
     const watch = await this.watches.findById(watchId);
     // Same never-distinguishable contract as accounts/goals: absent and
     // not-yours both read as not found.

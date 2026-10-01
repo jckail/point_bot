@@ -1,4 +1,4 @@
-import { InsufficientScopeError } from "@pointup/core";
+import { AccessTokenId, InsufficientScopeError, UserId } from "@pointup/core";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -12,11 +12,11 @@ import {
   type Principal,
 } from "./access-policy";
 
-const session: Principal = { userId: "u1", scopes: "session" };
+const session: Principal = { userId: UserId.parse("u1"), scopes: "session" };
 const token = (scopes: Principal["scopes"]): Principal => ({
-  userId: "u1",
+  userId: UserId.parse("u1"),
   scopes,
-  tokenId: "t1",
+  tokenId: AccessTokenId.parse("t1"),
 });
 
 describe("authorize", () => {

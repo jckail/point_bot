@@ -3,9 +3,10 @@ import type { LoyaltyAccountRepository } from "../../domain/loyalty/repositories
 import type { BalanceReadModel } from "./read-models";
 import type { SyncLoyaltyAccount } from "./sync-loyalty-account";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export type SyncOutcome =
-  | { readonly accountId: string; readonly ok: true; readonly balance: BalanceReadModel }
-  | { readonly accountId: string; readonly ok: false; readonly errorCode: ErrorCode };
+  | { readonly accountId: LoyaltyAccountId; readonly ok: true; readonly balance: BalanceReadModel }
+  | { readonly accountId: LoyaltyAccountId; readonly ok: false; readonly errorCode: ErrorCode };
 
 export const DEFAULT_SYNC_CONCURRENCY = 4;
 
@@ -27,7 +28,7 @@ export class SyncAllLoyaltyAccounts {
     private readonly concurrency = DEFAULT_SYNC_CONCURRENCY,
   ) {}
 
-  async execute(userId: string): Promise<SyncOutcome[]> {
+  async execute(userId: UserId): Promise<SyncOutcome[]> {
     const accounts = await this.accounts.findByUserId(userId);
 
     // Results land at their account's index, so output order is the same as
