@@ -22,14 +22,19 @@ const agentName = process.env.POINTUP_AGENT_NAME ?? "mcp";
 async function main() {
   if (process.argv.includes("--http") || process.env.MCP_TRANSPORT === "http") {
     const port = Number(process.env.PORT ?? 8787);
+    const list = (value?: string) => value?.split(",").map((v) => v.trim()).filter(Boolean);
+    const origins = list(process.env.MCP_ALLOWED_ORIGINS);
+    const hosts = list(process.env.MCP_ALLOWED_HOSTS);
     const server = createHttpServer({
       baseUrl,
       agentName,
       publicUrl: process.env.MCP_PUBLIC_URL,
-      allowedOrigins: process.env.MCP_ALLOWED_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean),
+      ...(origins ? { allowedOrigins: origins } : {}),
+      ...(hosts ? { allowedHosts: hosts } : {}),
     });
-    server.listen(port, () => {
-      console.error(`pointup-mcp listening on :${port}/mcp -> ${baseUrl}`);
+    const host = process.env.HOST ?? "127.0.0.1";
+    server.listen(port, host, () => {
+      console.error(`pointup-mcp listening on ${host}:${port}/mcp -> ${baseUrl}`);
     });
     const stop = () => {
       console.error("pointup-mcp shutting down");

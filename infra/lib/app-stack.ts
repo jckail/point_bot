@@ -380,7 +380,7 @@ export class AppStack extends cdk.Stack {
     // Remote, stateless streamable-HTTP MCP server for ChatGPT / claude.ai
     // connectors. It holds no secrets and no DB access: it forwards each
     // caller's own `Authorization: Bearer pu_...` token to the web API.
-    // Opt in with `-c enableMcp=true`; use an ACM cert + domain for HTTPS:
+    // Opt in with `-c enableMcp=true`; an ACM cert + domain are REQUIRED (synth throws without them):
     //   npx cdk deploy -c enableMcp=true \
     //     -c mcpCertificateArn=arn:aws:acm:...:certificate/... \
     //     -c mcpDomainName=mcp.example.com \
@@ -395,6 +395,14 @@ export class AppStack extends cdk.Stack {
 
       const mcpCertificateArn = ctx("mcpCertificateArn");
       const mcpDomainName = ctx("mcpDomainName");
+      // Bearer tokens would cross the ALB in cleartext over HTTP: refuse.
+      if (!mcpCertificateArn || !mcpDomainName) {
+        throw new Error(
+          "enableMcp requires both -c mcpCertificateArn=<ACM certificate ARN> and " +
+            "-c mcpDomainName=<host>: the MCP server carries bearer tokens, which must " +
+            "not be sent over plain HTTP.",
+        );
+      }
 
       const mcpService = new ecsPatterns.ApplicationLoadBalancedFargateService(
         this,
@@ -406,24 +414,26 @@ export class AppStack extends cdk.Stack {
           desiredCount: 1,
           minHealthyPercent: 100,
           publicLoadBalancer: true,
-          ...(mcpCertificateArn && mcpDomainName
-            ? {
-                certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
-                  this,
-                  "McpCertificate",
-                  mcpCertificateArn,
-                ),
-                domainName: mcpDomainName,
-                redirectHTTP: true,
-              }
-            : {}),
+          certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+            this,
+            "McpCertificate",
+            mcpCertificateArn,
+          ),
+          domainName: mcpDomainName,
+          redirectHTTP: true,
           taskImageOptions: {
             image: ecs.ContainerImage.fromDockerImageAsset(mcpImage),
             containerPort: 8787,
             environment: {
               NODE_ENV: "production",
               PORT: "8787",
+              HOST: "0.0.0.0",
               MCP_TRANSPORT: "http",
+              MCP_ALLOWED_HOSTS: mcpDomainName,
+              // Browser origins allowed to call the server (comma-separated); none by default.
+              ...(ctx("mcpAllowedOrigins")
+                ? { MCP_ALLOWED_ORIGINS: ctx("mcpAllowedOrigins")! }
+                : {}),
               // Defaults to the web ALB; set a public HTTPS URL when available.
               POINTUP_URL:
                 ctx("mcpPointupUrl") ??
@@ -444,9 +454,7 @@ export class AppStack extends cdk.Stack {
       });
 
       new cdk.CfnOutput(this, "McpUrl", {
-        value: mcpDomainName
-          ? `https://${mcpDomainName}/mcp`
-          : `http://${mcpService.loadBalancer.loadBalancerDnsName}/mcp`,
+        value: `https://${mcpDomainName}/mcp`,
         description: "Remote MCP endpoint (Authorization: Bearer pu_... required)",
       });
     }
