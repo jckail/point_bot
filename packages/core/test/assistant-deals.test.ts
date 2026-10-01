@@ -7,9 +7,7 @@ import { ListTripGoals } from "../src/application/loyalty/list-trip-goals";
 import { CreateTripGoal } from "../src/application/loyalty/create-trip-goal";
 import { HeuristicAssistant } from "../src/infrastructure/llm/openai-compatible-assistant";
 import { StubPageScraper } from "../src/infrastructure/scraper/firecrawl-page-scraper";
-import {
-  rankTransferOptions,
-} from "../src/domain/loyalty/transfer-partners";
+import { rankTransferOptions } from "../src/domain/loyalty/transfer-ranking";
 import { rankDeals, CATALOG_DEALS } from "../src/domain/loyalty/deals";
 import { createTransferBonus } from "../src/domain/loyalty/transfer-bonus";
 import { createBalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";

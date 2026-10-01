@@ -876,7 +876,7 @@ export function toRankedDealDto(
 }
 
 export function toTransferOptionDto(
-  option: import("../domain/loyalty/transfer-partners").TransferOption,
+  option: import("../domain/loyalty/transfer-ranking").TransferOption,
 ): TransferOptionDto {
   return {
     fromProviderId: option.from.id,

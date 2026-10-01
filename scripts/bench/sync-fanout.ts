@@ -42,15 +42,20 @@ async function run(perUser: number, lanes: number) {
   const useCase = new SyncAllLoyaltyAccounts(repos.loyaltyAccounts, syncOne, perUser);
   let next = 0;
   let syncs = 0;
+  const failures = new Map<string, number>();
   const start = performance.now();
   await Promise.all(
     Array.from({ length: lanes }, async () => {
       for (let i = next++; i < userIds.length; i = next++) {
-        syncs += (await useCase.execute(userIds[i]!)).filter((o) => o.ok).length;
+        for (const o of await useCase.execute(userIds[i]!)) {
+          if (o.ok) syncs += 1;
+          else failures.set(o.errorCode, (failures.get(o.errorCode) ?? 0) + 1);
+        }
       }
     }),
   );
   const secs = (performance.now() - start) / 1000;
+  if (failures.size) console.log(`  (failed outcomes: ${JSON.stringify(Object.fromEntries(failures))})`);
   return { syncs, secs, rate: syncs / secs };
 }
 

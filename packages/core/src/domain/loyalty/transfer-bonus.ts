@@ -1,6 +1,9 @@
 import { InvalidTransferBonusError } from "../errors";
 import { findProvider } from "./provider";
+import { applyBonusPermille } from "./bonus-math";
 import { findTransferEdge } from "./transfer-partners";
+
+export { applyBonusPermille };
 
 /**
  * Transfer bonuses are REAL data, not editorial samples: a time-boxed
@@ -140,15 +143,6 @@ export function describeBonus(bonus: TransferBonus): string {
   const pct = (bonus.multiplierPermille - 1000) / 10;
   const until = bonus.endsAt.toISOString().slice(0, 10);
   return `+${Number.isInteger(pct) ? pct : pct.toFixed(1)}% bonus until ${until}`;
-}
-
-/**
- * Applies a bonus with integer math: floor(base * permille / 1000), where
- * `base` is the already-converted destination amount. This is the single
- * definition used by convertPoints and the optimizer.
- */
-export function applyBonusPermille(base: number, permille: number): number {
-  return Math.floor((base * permille) / 1000);
 }
 
 /** Best (highest-multiplier) active bonus per edge, keyed "from>to". */

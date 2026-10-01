@@ -2,7 +2,7 @@ import {
   AssistantUnavailableError,
   InvalidAssistantMessageError,
 } from "../../domain/errors";
-import { rankTransferOptions } from "../../domain/loyalty/transfer-partners";
+import { rankTransferOptions } from "../../domain/loyalty/transfer-ranking";
 import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
 import {
   CATALOG_DEALS,

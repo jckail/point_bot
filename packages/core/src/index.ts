@@ -70,6 +70,7 @@ export * from "./application/loyalty/sync-all-loyalty-accounts";
 // Domain
 export * from "./domain/loyalty/activity";
 export * from "./domain/loyalty/transfer-partners";
+export * from "./domain/loyalty/transfer-ranking";
 export * from "./domain/loyalty/deals";
 export * from "./domain/loyalty/transfer-bonus";
 export * from "./domain/loyalty/catalog/sweet-spots";

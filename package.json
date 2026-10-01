@@ -23,12 +23,21 @@
     "docker:up:observability": "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 docker compose --profile observability up --build -d",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v --remove-orphans && docker compose up --build -d",
-    "docker:smoke": "node scripts/docker-smoke.mjs"
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "bench:seed": "tsx scripts/bench/seed.ts",
+    "bench:queries": "tsx scripts/bench/queries.ts",
+    "bench:web": "scripts/bench/web-bench.sh",
+    "bench:mcp": "scripts/bench/mcp-bench.sh",
+    "bench:fanout": "tsx scripts/bench/sync-fanout.ts",
+    "hygiene": "npm run hygiene:cycles && npm run hygiene:duplication",
+    "hygiene:cycles": "npx --yes madge@8.0.0 --circular --extensions ts,tsx --ts-config tsconfig.base.json packages/core/src packages/api-client/src apps/web/src apps/mcp/src apps/worker/src apps/bot/src apps/extension/src",
+    "hygiene:duplication": "npx --yes jscpd@4.0.5 packages apps --ignore \"**/node_modules/**,**/.next/**,**/dist/**,**/drizzle/**,**/test/**,**/*.test.ts,**/catalog/**\" --min-lines 15 --min-tokens 120 --threshold 2 --reporters console --silent"
   },
   "devDependencies": {
     "autocannon": "^8.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.10",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0"
   },
   "engines": {
