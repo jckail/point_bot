@@ -12,6 +12,7 @@ import {
   valueAdviceDtoSchema,
   type AgentSkillDto,
 } from "@pointup/core/contracts";
+import { PROVIDER_CATALOG } from "@pointup/core/providers";
 import { z } from "zod";
 
 /**
@@ -103,7 +104,7 @@ export function renderSkillPlaybook(skill: AgentSkillDto): string {
     `Linked: ${skill.accountLinked}. Consent active: ${skill.consentActive}.`,
     skill.consentActive
       ? ""
-      : "Consent is NOT active: call pointup_request_consent first.",
+      : "Consent is NOT active: call pointup_request_consent for the dashboard link and ask the user to grant it there. Stop until they have.",
     `What to read: ${skill.extraction.hint}.`,
     ...(caveats.length ? ["Caveats:", ...caveats.map((c) => `- ${c}`)] : []),
     "Steps:",
@@ -125,7 +126,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       instructions: [
         "PointUp tracks the user's loyalty points (airline, hotel, card, rail, shopping).",
         "Reading is always allowed with a portfolio:read token.",
-        "To read a balance from a provider website with a browser/computer agent, follow the flow: pointup_list_skills → confirm consent is active (never self-approve; use pointup_request_consent which asks the user) → read the page in the user's own signed-in browser → pointup_submit_balance.",
+        "To read a balance from a provider website with a browser/computer agent, follow the flow: pointup_list_skills → confirm consent is active (only the user can grant it, on the dashboard; pointup_request_consent just returns the link) → read the page in the user's own signed-in browser → pointup_submit_balance.",
         "Never ask for, type, or store the user's loyalty passwords.",
       ].join(" "),
     },
@@ -324,48 +325,30 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
   server.registerTool(
     "pointup_request_consent",
     {
-      title: "Ask the user for consent to read a program",
+      title: "Point the user to the consent page for a program",
       description:
-        "Asks the USER (via an interactive prompt in their client) to allow agents to read one program's balance and write it back for N days. Does nothing without an explicit yes. If the client cannot prompt, returns a dashboard link for the user to grant it themselves.",
-      inputSchema: {
-        providerId: idSchema,
-        days: z.number().int().min(1).max(90).optional(),
-      },
-      annotations: WRITE,
+        "Consent can only be granted by the signed-in user on the PointUp dashboard; this tool never grants anything. It validates the program and returns the dashboard link and program name to show the user. Tell the user to grant consent there, then continue once pointup_list_skills shows consentActive.",
+      inputSchema: { providerId: idSchema },
+      annotations: READ,
     },
-    async ({ providerId, days }) => {
-      const link = `${appUrl}/dashboard/agents`;
-      const supportsElicitation =
-        !!server.server.getClientCapabilities()?.elicitation;
-      if (!supportsElicitation) {
+    ({ providerId }) => {
+      // Validate before echoing anything, and show catalog data only.
+      const provider = PROVIDER_CATALOG.find((p) => p.id === providerId);
+      if (!provider) {
         return ok({
           granted: false,
-          reason: "client cannot prompt the user",
-          action: `Ask the user to grant consent for "${providerId}" at ${link}`,
+          reason: "unknown provider",
+          hint: "Use an id from pointup_list_providers.",
         });
       }
-      try {
-        const answer = await server.server.elicitInput({
-          mode: "form",
-          message: `Allow ${agentName} to read your "${providerId}" balance from your own browser and save it to PointUp for ${days ?? 30} days? You can revoke this any time at ${link}.`,
-          requestedSchema: {
-            type: "object",
-            properties: {
-              approve: { type: "boolean", title: "Allow", default: false },
-            },
-            required: ["approve"],
-          },
-        });
-        if (answer.action !== "accept" || answer.content?.approve !== true) {
-          return ok({ granted: false, reason: "user declined" });
-        }
-        return ok({
-          granted: true,
-          consent: await client.grantConsent({ providerId, days }),
-        });
-      } catch (error) {
-        return fail(error);
-      }
+      const link = `${appUrl}/dashboard/agents`;
+      return ok({
+        granted: false,
+        providerId: provider.id,
+        provider: provider.displayName,
+        dashboardUrl: link,
+        action: `Ask the user to open ${link} and allow agents to read their ${provider.displayName} balance. Only the user can grant consent; do not try to do it for them.`,
+      });
     },
   );
 
@@ -374,7 +357,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
     {
       title: "Write back a balance read from a provider site",
       description:
-        "Submit the points balance you read from the user's own signed-in provider page. Requires an active consent for the program (see pointup_request_consent) and a sourceUrl on the skill's allowed hosts. Outcome 'needs_review' means the value looks implausible: show it to the user and resubmit with confirmed=true only if they agree.",
+        "Submit the points balance you read from the user's own signed-in provider page. Requires an active consent for the program (see pointup_request_consent) and a sourceUrl on the skill's allowed hosts. Outcome 'needs_review' means the value looks implausible and was NOT saved: the result carries a reviewId, and the user must confirm or reject it on the dashboard (Dashboard > Agents). You cannot confirm it; resubmitting does not help. Auto-linking an unlinked program (membershipNumber) needs a token with portfolio:write.",
       inputSchema: {
         skillId: idSchema.describe("e.g. united.capture-balance"),
         points: pointsSchema,
@@ -390,7 +373,6 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
           .max(64)
           .optional()
           .describe("Only to auto-link a program that is not linked yet"),
-        confirmed: z.boolean().optional(),
       },
       annotations: WRITE,
     },

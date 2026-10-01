@@ -18,8 +18,9 @@ export POINTUP_TOKEN="pu_..."                                   # Dashboard → 
 ```
 
 **Token scopes.** Give agents `portfolio:read`, `portfolio:write`, `observations:write`.
-Add `consents:manage` only if you want Claude to be able to *ask* you for consent
-interactively (it still needs your explicit yes). Omit it to grant consent solely in the dashboard.
+`consents:manage` only lets a token *revoke* consents. Granting consent is always done by you,
+signed in, on the dashboard (Dashboard → Agents); no token or agent can grant it. Held (implausible)
+readings are likewise confirmed or rejected only by you on that page.
 
 ## Local stdio alternative
 

@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { PROVIDER_CATALOG } from "@pointup/core";
+import { PROVIDER_CATALOG, reviewExpiresAt } from "@pointup/core";
 import { type Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -19,8 +19,12 @@ export default async function AgentsPage() {
   const [tokens, consents, observations] = await Promise.all([
     listAccessTokens.execute(userId),
     listConsents.execute(userId),
-    listAgentObservations.execute(userId, 20),
+    listAgentObservations.execute(userId, 100),
   ]);
+  const now = new Date();
+  const pendingReviews = observations.filter(
+    (o) => o.outcome === "needs_review" && reviewExpiresAt(o) > now,
+  );
   const name = (id: string) =>
     PROVIDER_CATALOG.find((p) => p.id === id)?.displayName ?? id;
 
@@ -44,7 +48,7 @@ export default async function AgentsPage() {
           expiresAt: c.expiresAt,
           active: c.active,
         }))}
-        observations={observations.map((o) => ({
+        observations={observations.slice(0, 20).map((o) => ({
           id: o.id,
           providerName: name(o.providerId),
           agent: o.agent,
@@ -52,6 +56,15 @@ export default async function AgentsPage() {
           points: o.points,
           outcome: o.outcome,
           createdAt: o.createdAt,
+        }))}
+        pendingReviews={pendingReviews.map((o) => ({
+          id: o.id,
+          providerName: name(o.providerId),
+          agent: o.agent,
+          sourceHost: o.sourceHost,
+          points: o.points,
+          previousPoints: o.previousPoints,
+          expiresAt: reviewExpiresAt(o),
         }))}
         providers={PROVIDER_CATALOG.map((p) => ({ id: p.id, name: p.displayName }))}
         mcpUrl={process.env.NEXT_PUBLIC_MCP_URL ?? "http://localhost:8787/mcp"}

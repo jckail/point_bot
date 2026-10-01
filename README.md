@@ -253,7 +253,9 @@ npx cdk deploy -c enableMcp=true \
   -c mcpPointupUrl=https://app.example.com
 ```
 
-In CI set the repo variable `ENABLE_MCP=true` (plus optional `MCP_CERTIFICATE_ARN`, `MCP_DOMAIN_NAME`, `MCP_POINTUP_URL`) and the deploy workflow passes the same context. Use HTTPS in production: bearer tokens must not cross the network in clear text.
+`enableMcp` **requires** `mcpCertificateArn` and `mcpDomainName`: synth fails otherwise, because bearer tokens must not cross the ALB in clear text. In CI set the repo variables `ENABLE_MCP=true`, `MCP_CERTIFICATE_ARN`, `MCP_DOMAIN_NAME` (plus optional `MCP_POINTUP_URL`) and the deploy workflow passes the same context.
+
+MCP HTTP server environment: `HOST` (bind address, default `127.0.0.1`; the Docker image and CDK set `0.0.0.0`), `PORT`, `MCP_ALLOWED_HOSTS` (comma-separated Host allow-list against DNS rebinding; default loopback names; CDK sets the domain name), `MCP_ALLOWED_ORIGINS` (comma-separated browser origins, strictly checked when an `Origin` header is present; default `*` only when `NODE_ENV!=production`, none in production; CDK context `mcpAllowedOrigins`). Requests are capped at 64 concurrent (503 beyond) with 30 s request / 15 s header timeouts.
 
 ### Continuous deployment
 

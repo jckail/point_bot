@@ -102,6 +102,12 @@ jobs:
       - name: Synth
         run: npx cdk synth --quiet
 
+      - name: Synth with MCP enabled (placeholder certificate)
+        run: npx cdk synth --quiet -c enableMcp=true -c mcpCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c mcpDomainName=mcp.example.com
+
+      - name: Synth guard (enableMcp without a certificate must fail)
+        run: npm test
+
   plugins:
     name: Validate plugin manifests & ChatGPT spec
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@ import { withAuthenticatedUser } from "@/server/http";
 
 type Context = { params: Promise<{ id: string }> };
 
+/** Revoking is always safe, so tokens holding `consents:manage` may do it. */
 export function DELETE(_request: Request, context: Context) {
   return withAuthenticatedUser(
     async (userId) => {

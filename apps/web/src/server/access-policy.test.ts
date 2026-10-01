@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  assertCsrfSafe,
   authorize,
+  mayWritePortfolio,
   mapError,
   rateLimitClassFor,
   rateLimitKey,
@@ -80,5 +82,57 @@ describe("mapError", () => {
       message: "Internal server error",
       unexpected: true,
     });
+  });
+});
+
+describe("assertCsrfSafe (cookie sessions)", () => {
+  const ok = {
+    principal: session,
+    origin: "https://app.example.com",
+    host: "app.example.com",
+    contentType: "application/json",
+    hasBody: true,
+  };
+  it("allows same-origin JSON and absent Origin", () => {
+    expect(() => assertCsrfSafe(ok)).not.toThrow();
+    expect(() => assertCsrfSafe({ ...ok, origin: null })).not.toThrow();
+    expect(() =>
+      assertCsrfSafe({ ...ok, contentType: "application/json; charset=utf-8" }),
+    ).not.toThrow();
+    expect(() =>
+      assertCsrfSafe({ ...ok, origin: "https://public.example.com", host: "internal", forwardedHost: "public.example.com" }),
+    ).not.toThrow();
+  });
+  it("allows body-less requests without a content type", () => {
+    expect(() =>
+      assertCsrfSafe({ ...ok, contentType: null, hasBody: false }),
+    ).not.toThrow();
+  });
+  it("rejects a mismatching, null, or malformed Origin", () => {
+    for (const origin of ["https://evil.example", "null", "not a url", "https://app.example.com.evil.example"]) {
+      expect(() => assertCsrfSafe({ ...ok, origin })).toThrow(/rejected/);
+    }
+  });
+  it("rejects cross-site fetch metadata", () => {
+    expect(() => assertCsrfSafe({ ...ok, secFetchSite: "cross-site" })).toThrow();
+    expect(() => assertCsrfSafe({ ...ok, secFetchSite: "same-origin" })).not.toThrow();
+  });
+  it("requires application/json when there is a body", () => {
+    for (const contentType of ["text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", null]) {
+      expect(() => assertCsrfSafe({ ...ok, contentType })).toThrow(/Content-Type/);
+    }
+  });
+  it("exempts bearer tokens", () => {
+    expect(() =>
+      assertCsrfSafe({ ...ok, principal: token(["portfolio:read"]), origin: "https://evil.example", contentType: "text/plain" }),
+    ).not.toThrow();
+  });
+});
+
+describe("mayWritePortfolio", () => {
+  it("is true for sessions and portfolio:write tokens only", () => {
+    expect(mayWritePortfolio(session)).toBe(true);
+    expect(mayWritePortfolio(token(["portfolio:write"]))).toBe(true);
+    expect(mayWritePortfolio(token(["observations:write", "consents:manage"]))).toBe(false);
   });
 });

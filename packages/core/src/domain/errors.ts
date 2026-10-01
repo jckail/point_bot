@@ -279,3 +279,48 @@ export class InvalidObservationError extends DomainError {
     super(`Observation rejected: ${message}`);
   }
 }
+
+export class ObservationReviewNotFoundError extends DomainError {
+  readonly code = "REVIEW_NOT_FOUND";
+
+  constructor(reviewId: string) {
+    super(`Pending review "${reviewId}" was not found`);
+  }
+}
+
+/** The review was already confirmed/rejected (reviews are single-use). */
+export class ObservationReviewResolvedError extends DomainError {
+  readonly code = "REVIEW_ALREADY_RESOLVED";
+
+  constructor(reviewId: string) {
+    super(`Review "${reviewId}" was already resolved`);
+  }
+}
+
+export class ObservationReviewExpiredError extends DomainError {
+  readonly code = "REVIEW_EXPIRED";
+
+  constructor(reviewId: string) {
+    super(`Review "${reviewId}" expired; ask the agent to read the balance again`);
+  }
+}
+
+/** The account or its latest balance changed since the value was held. */
+export class ObservationReviewStaleError extends DomainError {
+  readonly code = "REVIEW_STALE";
+
+  constructor(reviewId: string) {
+    super(
+      `Review "${reviewId}" no longer matches the account's latest balance; reject it and ask the agent to read the balance again`,
+    );
+  }
+}
+
+/** A cookie-authenticated state-changing request failed the CSRF checks. */
+export class CsrfRejectedError extends DomainError {
+  readonly code = "CSRF_REJECTED";
+
+  constructor(reason: string) {
+    super(`Request rejected: ${reason}`);
+  }
+}

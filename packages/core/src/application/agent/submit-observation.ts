@@ -2,10 +2,17 @@ import {
   ConsentRequiredError,
   InvalidObservationError,
   LoyaltyAccountNotFoundError,
+  ObservationReviewExpiredError,
+  ObservationReviewNotFoundError,
+  ObservationReviewResolvedError,
+  ObservationReviewStaleError,
 } from "../../domain/errors";
 import { isConsentActive, type ConsentGrantRepository } from "../../domain/agent/consent";
 import {
+  exceedsSanityCap,
   isImplausibleJump,
+  reviewExpiresAt,
+  type AgentObservation,
   type AgentObservationRepository,
   type ObservationOutcome,
 } from "../../domain/agent/observation";
@@ -32,8 +39,12 @@ export interface SubmitObservationInput {
    * yet. Ignored when the account already exists.
    */
   readonly membershipNumber?: string;
-  /** Set after a human confirmed a value that was held as needs_review. */
-  readonly confirmed?: boolean;
+  /**
+   * Whether the caller may create accounts (a session, or a token holding
+   * `portfolio:write`). Defaults to false: an observations-only caller must
+   * not auto-link, so the user has to link the program first.
+   */
+  readonly canLinkAccount?: boolean;
 }
 
 export interface SubmitObservationResult {
@@ -42,6 +53,11 @@ export interface SubmitObservationResult {
   readonly points: number;
   readonly previousPoints: number | null;
   readonly message: string;
+  /**
+   * Server-issued, single-use id of a held reading (only for needs_review).
+   * Only the signed-in user can confirm or reject it; agents cannot.
+   */
+  readonly reviewId: string | null;
 }
 
 /**
@@ -97,7 +113,9 @@ export class SubmitObservation {
       throw new LoyaltyAccountNotFoundError(skill.providerId);
     }
     if (!account) {
-      if (!input.membershipNumber) {
+      // Creating an account is a portfolio:write effect; observations:write
+      // alone must not be able to do it.
+      if (!input.membershipNumber || !input.canLinkAccount) {
         throw new LoyaltyAccountNotFoundError(skill.providerId);
       }
       const linked = await this.linkAccount.execute({
@@ -115,18 +133,22 @@ export class SubmitObservation {
     const previousPoints = latest?.points ?? null;
     const observedAt = input.observedAt ?? now;
 
+    const id = crypto.randomUUID();
     let outcome: ObservationOutcome;
     let message: string;
+    let reviewId: string | null = null;
     if (previousPoints === input.points) {
       outcome = "unchanged";
       message = "Balance matches the latest reading; nothing written.";
     } else if (
-      previousPoints !== null &&
-      !input.confirmed &&
-      isImplausibleJump(previousPoints, input.points)
+      exceedsSanityCap(input.points, skill.maxPoints) ||
+      (previousPoints !== null && isImplausibleJump(previousPoints, input.points))
     ) {
+      // Held, not written. Only the signed-in user can release it, via the
+      // server-issued review id: there is no agent-supplied override.
       outcome = "needs_review";
-      message = `Reading ${input.points} differs sharply from ${previousPoints}. Show the user and resubmit with confirmed=true if correct.`;
+      reviewId = id;
+      message = `Reading ${input.points} looks implausible${previousPoints === null ? "" : ` (latest is ${previousPoints})`}, so it was NOT saved. Tell the user to open Dashboard > Agents and confirm or reject it. You cannot confirm it yourself.`;
     } else {
       await this.recordBalance.execute({
         userId: input.userId,
@@ -140,7 +162,7 @@ export class SubmitObservation {
     }
 
     await this.observations.insert({
-      id: crypto.randomUUID(),
+      id,
       userId: input.userId,
       accountId: account.id,
       providerId: skill.providerId,
@@ -148,6 +170,7 @@ export class SubmitObservation {
       agent: input.agent.slice(0, 64),
       sourceHost: url.hostname,
       points: input.points,
+      previousPoints,
       outcome,
       observedAt,
       createdAt: now,
@@ -159,6 +182,99 @@ export class SubmitObservation {
       points: input.points,
       previousPoints,
       message,
+      reviewId,
+    };
+  }
+}
+
+/**
+ * Human resolution of a held reading. Both operations are session-only at the
+ * API layer; the review id is single-use (claimed atomically) and expires.
+ */
+export class ResolveObservationReview {
+  constructor(
+    private readonly accounts: LoyaltyAccountRepository,
+    private readonly balances: BalanceSnapshotRepository,
+    private readonly observations: AgentObservationRepository,
+    private readonly recordBalance: RecordManualBalance,
+    private readonly clock: Clock = systemClock,
+  ) {}
+
+  private async loadPending(
+    userId: string,
+    reviewId: string,
+  ): Promise<AgentObservation> {
+    const observation = await this.observations.findById(reviewId);
+    if (!observation || observation.userId !== userId) {
+      throw new ObservationReviewNotFoundError(reviewId);
+    }
+    if (observation.outcome !== "needs_review") {
+      throw new ObservationReviewResolvedError(reviewId);
+    }
+    return observation;
+  }
+
+  async confirm(userId: string, reviewId: string): Promise<SubmitObservationResult> {
+    const held = await this.loadPending(userId, reviewId);
+    const now = this.clock.now();
+    if (now.getTime() >= reviewExpiresAt(held).getTime()) {
+      throw new ObservationReviewExpiredError(reviewId);
+    }
+    const account = await this.accounts.findById(held.accountId);
+    if (!account || account.userId !== userId || account.deletedAt) {
+      throw new LoyaltyAccountNotFoundError(held.providerId);
+    }
+    const latest = (await this.balances.findLatestByAccountIds([account.id])).get(
+      account.id,
+    );
+    if ((latest?.points ?? null) !== held.previousPoints) {
+      throw new ObservationReviewStaleError(reviewId);
+    }
+    const claimed = await this.observations.transition(
+      reviewId,
+      userId,
+      "needs_review",
+      "recorded",
+    );
+    if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+    try {
+      await this.recordBalance.execute({
+        userId,
+        accountId: account.id,
+        points: held.points,
+        capturedAt: held.observedAt,
+        source: "agent",
+      });
+    } catch (error) {
+      await this.observations.transition(reviewId, userId, "recorded", "needs_review");
+      throw error;
+    }
+    return {
+      outcome: "recorded",
+      accountId: account.id,
+      points: held.points,
+      previousPoints: held.previousPoints,
+      message: "Balance recorded after your confirmation.",
+      reviewId: null,
+    };
+  }
+
+  async reject(userId: string, reviewId: string): Promise<SubmitObservationResult> {
+    const held = await this.loadPending(userId, reviewId);
+    const claimed = await this.observations.transition(
+      reviewId,
+      userId,
+      "needs_review",
+      "rejected",
+    );
+    if (!claimed) throw new ObservationReviewResolvedError(reviewId);
+    return {
+      outcome: "rejected",
+      accountId: held.accountId,
+      points: held.points,
+      previousPoints: held.previousPoints,
+      message: "Reading discarded.",
+      reviewId: null,
     };
   }
 }

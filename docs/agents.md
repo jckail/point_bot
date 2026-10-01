@@ -52,20 +52,43 @@ and tests run against in-memory fakes *and* a real Postgres
    tell agents to stop on login/MFA/CAPTCHA. PointUp never receives a password.
 2. **Least privilege tokens.** `portfolio:read`, `portfolio:write`,
    `observations:write`, `consents:manage`. Browser sessions are trusted for all;
-   tokens only for what they hold. Token minting is session-only — a token can't
-   create tokens.
+   tokens only for what they hold. Token minting, **consent granting**, and
+   confirming/rejecting held readings are session-only: a token can't create
+   tokens or approve its own consent. `consents:manage` lets a token *revoke*
+   consents only. Cookie-session requests are also CSRF-checked (an `Origin`
+   that does not match the host is refused; request bodies must be
+   `application/json`); bearer tokens are exempt.
 3. **Consent is separate from scope.** Even with `observations:write`, the write is
-   refused (`CONSENT_REQUIRED`, 403) without an active per-provider consent. The
-   MCP tool `pointup_request_consent` asks the *user* through MCP elicitation;
-   clients that can't prompt get a dashboard link instead. There is intentionally
-   no blind grant tool.
+   refused (`CONSENT_REQUIRED`, 403) without an active per-provider consent. Consent
+   is granted only by the signed-in user on *Dashboard → Agents* (the grant is
+   transactional: one open consent per user and program, enforced by a partial
+   unique index). The MCP tool `pointup_request_consent` never grants: it
+   validates the provider id and returns the dashboard link and the catalog
+   display name. There is intentionally no grant tool and no elicitation grant,
+   because elicitation answers are attested by the client, which a hostile or
+   prompt-injected agent controls.
 4. **Allow-listed hosts.** `sourceUrl` must be https on the skill's hosts (suffix match
    on a dot boundary: `united.com.evil.example` is rejected).
-5. **Plausibility guard.** A reading that jumps ≥10× from the last balance is held as
-   `needs_review` until the user confirms (`confirmed: true`).
-6. **Audit.** Every attempt that reaches an account is recorded and visible at
+5. **Plausibility guard with a human gate.** A reading is held as `needs_review`
+   (and **not written**) when it jumps ≥10× from the last balance, or exceeds the
+   skill's sanity cap (`maxPoints`, default 5,000,000) — including a first reading.
+   The response carries a server-issued, single-use `reviewId`. Only the signed-in
+   user can release it (`POST /api/v1/agent/observations/{id}/confirm`, or
+   *Reject*, session-only; the *Pending review* section of *Dashboard → Agents*).
+   Reviews expire after 24 hours, and confirming is refused if the account's
+   latest balance changed since the hold. There is no agent-supplied `confirmed`
+   flag.
+   **Limitation:** `sourceUrl` and the reported value are self-reported by the
+   agent. The host allow-list proves what the agent *claims* it read, not that it
+   read it, and anything below the guards above is accepted. Treat agent-written
+   balances as provenance-tagged (`source: agent`) hints, not verified data.
+6. **Account creation.** `observations:write` alone cannot create accounts: passing
+   `membershipNumber` to auto-link needs `portfolio:write` (or a session);
+   otherwise the write fails with `LOYALTY_ACCOUNT_NOT_FOUND` and the user links
+   the program first.
+7. **Audit.** Every attempt that reaches an account is recorded and visible at
    *Dashboard → Agents*.
-7. **Database.** RLS is enabled on every table with no policies (migration `0009`),
+8. **Database.** RLS is enabled on every table with no policies (migration `0009`),
    so Supabase's auto-generated REST API exposes nothing.
 
 ## Surfaces

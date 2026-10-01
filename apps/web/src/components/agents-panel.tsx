@@ -6,6 +6,7 @@ import {
   createAccessTokenAction,
   grantConsentAction,
   revokeAccessTokenAction,
+  resolveReviewAction,
   revokeConsentAction,
   type CreateTokenResult,
 } from "@/app/agent-actions";
@@ -38,13 +39,50 @@ export type ObservationRow = {
   outcome: string;
   createdAt: Date;
 };
+export type PendingReviewRow = {
+  id: string;
+  providerName: string;
+  agent: string;
+  sourceHost: string;
+  points: number;
+  previousPoints: number | null;
+  expiresAt: Date;
+};
 
 const SCOPE_HELP: Record<string, string> = {
   "portfolio:read": "Read balances, goals, advice",
   "portfolio:write": "Link accounts, record balances, goals",
   "observations:write": "Agents may write balances read from provider sites (still needs consent)",
-  "consents:manage": "Let an agent ask you for consent (you still must say yes). Leave off for max safety.",
+  "consents:manage": "Revoke consents only. Agents can never grant consent; only you can, here.",
 };
+function PendingReview({ review }: { review: PendingReviewRow }) {
+  const [result, action] = useActionState(resolveReviewAction, idleActionResult);
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-line px-3 py-3 text-sm">
+      <p className="text-ink">
+        <span className="font-medium">{review.providerName}</span>:{" "}
+        <strong>{review.points.toLocaleString("en-US")}</strong>
+        {review.previousPoints !== null && (
+          <span className="text-ink-muted"> (currently {review.previousPoints.toLocaleString("en-US")})</span>
+        )}
+      </p>
+      <p className="text-xs text-ink-faint">
+        Reported by {review.agent} via {review.sourceHost}. Not saved until you confirm. Expires {formatDateTime(review.expiresAt)}.
+      </p>
+      <form action={action} className="flex gap-2">
+        <input type="hidden" name="reviewId" value={review.id} />
+        <button type="submit" name="decision" value="confirm" className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-midnight">
+          Confirm
+        </button>
+        <button type="submit" name="decision" value="reject" className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink">
+          Reject
+        </button>
+      </form>
+      <FormFeedback result={result} successMessage="Done." />
+    </li>
+  );
+}
+
 const DEFAULT_SCOPES = new Set(["portfolio:read", "portfolio:write", "observations:write"]);
 
 const input =
@@ -54,12 +92,14 @@ export function AgentsPanel({
   tokens,
   consents,
   observations,
+  pendingReviews,
   providers,
   mcpUrl,
 }: {
   tokens: TokenRow[];
   consents: ConsentRow[];
   observations: ObservationRow[];
+  pendingReviews: PendingReviewRow[];
   providers: { id: string; name: string }[];
   mcpUrl: string;
 }) {
@@ -71,6 +111,23 @@ export function AgentsPanel({
 
   return (
     <div className="flex flex-col gap-6">
+      {pendingReviews.length > 0 && (
+        <section className="card-surface flex flex-col gap-3 p-6">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-ink">Pending review</h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              These readings looked implausible, so they were held. Check them against the
+              provider site, then confirm or reject. Agents cannot do this for you.
+            </p>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {pendingReviews.map((review) => (
+              <PendingReview key={review.id} review={review} />
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="card-surface flex flex-col gap-4 p-6">
         <div>
           <h2 className="font-display text-lg font-semibold text-ink">Consent for agents</h2>

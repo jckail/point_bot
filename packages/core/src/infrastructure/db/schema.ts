@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   index,
@@ -279,7 +279,14 @@ export const consentGrants = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
-  (consent) => [index("consent_grant_user_id_idx").on(consent.userId)],
+  (consent) => [
+    index("consent_grant_user_id_idx").on(consent.userId),
+    // At most one non-revoked grant per (user, provider). Expiry cannot be in
+    // the predicate, so grants revoke expired rows before inserting.
+    uniqueIndex("consent_grant_one_open")
+      .on(consent.userId, consent.providerId)
+      .where(sql`${consent.revokedAt} is null`),
+  ],
 );
 
 export const agentObservations = pgTable(
@@ -295,8 +302,10 @@ export const agentObservations = pgTable(
     agent: varchar("agent", { length: 64 }).notNull(),
     sourceHost: varchar("source_host", { length: 255 }).notNull(),
     points: bigint("points", { mode: "number" }).notNull(),
+    /** Latest balance when written; lets a human confirmation detect drift. */
+    previousPoints: bigint("previous_points", { mode: "number" }),
     outcome: varchar("outcome", { length: 16 })
-      .$type<"recorded" | "unchanged" | "needs_review">()
+      .$type<"recorded" | "unchanged" | "needs_review" | "rejected">()
       .notNull(),
     observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

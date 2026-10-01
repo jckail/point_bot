@@ -176,7 +176,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           scheme: "bearer",
           bearerFormat: "pu_...",
           description:
-            "PointUp personal access token (create one in Settings or POST /api/v1/tokens). Used by the MCP server, ChatGPT Actions, and scripts. Scoped: portfolio:read, portfolio:write, observations:write, consents:manage.",
+            "PointUp personal access token (create one in Settings or POST /api/v1/tokens). Used by the MCP server, ChatGPT Actions, and scripts. Scoped: portfolio:read, portfolio:write, observations:write, consents:manage (revoke consent only; granting is session-only).",
         },
         clerkSession: {
           type: "http",
@@ -611,7 +611,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         },
         post: {
           operationId: "grantConsent",
-          summary: "Grant time-boxed consent for agents to read one program and write balances back",
+          summary: "Grant time-boxed consent for agents to read one program and write balances back (session auth only: tokens cannot grant)",
           requestBody: body("GrantConsentRequest"),
           responses: {
             "201": jsonResponse("Granted consent", ref("ConsentDto")),
@@ -645,9 +645,33 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           summary: "Write back a balance an agent read from the user's own browser (requires active consent)",
           requestBody: body("SubmitObservationRequest"),
           responses: {
-            "200": jsonResponse("Outcome (recorded, unchanged, or needs_review)", ref("ObservationResultDto")),
+            "200": jsonResponse("Outcome (recorded, unchanged, or needs_review with a reviewId only the signed-in user can resolve)", ref("ObservationResultDto")),
             "403": jsonResponse("Missing scope or no active consent", ref("ApiError")),
             ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/agent/observations/{id}/confirm": {
+        parameters: [ID_PARAM],
+        post: {
+          operationId: "confirmObservationReview",
+          summary: "Confirm a held reading and write it (session auth only; single-use, expires after 24h)",
+          responses: {
+            "200": jsonResponse("Recorded", ref("ObservationResultDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
+      },
+      "/api/v1/agent/observations/{id}/reject": {
+        parameters: [ID_PARAM],
+        post: {
+          operationId: "rejectObservationReview",
+          summary: "Discard a held reading (session auth only)",
+          responses: {
+            "200": jsonResponse("Rejected", ref("ObservationResultDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
           },
         },
       },

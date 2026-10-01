@@ -34,6 +34,12 @@ const DOMAIN_ERROR_MESSAGES: Record<string, string> = {
   ACCESS_TOKEN_NOT_FOUND: "We couldn't find that token.",
   INVALID_CONSENT: "Consent can last between 1 and 90 days.",
   CONSENT_NOT_FOUND: "We couldn't find that consent.",
+  REVIEW_NOT_FOUND: "We couldn't find that pending reading.",
+  REVIEW_ALREADY_RESOLVED: "That reading was already confirmed or rejected.",
+  REVIEW_EXPIRED:
+    "That reading expired (24 hours). Ask the agent to read the balance again.",
+  REVIEW_STALE:
+    "Your balance changed since this reading was held. Reject it and ask the agent to read it again.",
   CREDENTIAL_UNAVAILABLE:
     "No credentials available for this program - connect a vault or enter the balance manually.",
 };

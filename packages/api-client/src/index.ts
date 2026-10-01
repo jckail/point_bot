@@ -5,7 +5,6 @@ import type {
   ConsentDto,
   CreateAccessTokenRequest,
   CreatedAccessTokenDto,
-  GrantConsentRequest,
   ObservationResultDto,
   SubmitObservationRequest,
   ActivityEventDto,
@@ -347,9 +346,8 @@ export class PointUpClient {
     return this.request("GET", "/api/v1/consents");
   }
 
-  grantConsent(body: GrantConsentRequest): Promise<ConsentDto> {
-    return this.request("POST", "/api/v1/consents", body);
-  }
+  // There is deliberately no grantConsent: granting consent is a session-only
+  // human action (dashboard). Tokens can list and revoke only.
 
   revokeConsent(consentId: string): Promise<void> {
     return this.request(
@@ -473,7 +471,6 @@ export type {
   ConsentDto,
   CreateAccessTokenRequest,
   CreatedAccessTokenDto,
-  GrantConsentRequest,
   ObservationResultDto,
   SubmitObservationRequest,
   ActivityEventDto,

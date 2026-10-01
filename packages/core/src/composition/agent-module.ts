@@ -12,6 +12,7 @@ import {
 import { ListAgentSkills } from "../application/agent/list-skills";
 import {
   SubmitObservation,
+  ResolveObservationReview,
   ListAgentObservations,
 } from "../application/agent/submit-observation";
 import type { LinkLoyaltyAccount } from "../application/loyalty/link-loyalty-account";
@@ -44,6 +45,12 @@ export function buildAgentModule(deps: AgentModuleDeps) {
       repos.observations,
       deps.recordManualBalance,
       deps.linkLoyaltyAccount,
+    ),
+    resolveObservationReview: new ResolveObservationReview(
+      repos.loyaltyAccounts,
+      repos.balanceSnapshots,
+      repos.observations,
+      deps.recordManualBalance,
     ),
     listAgentObservations: new ListAgentObservations(repos.observations),
   };

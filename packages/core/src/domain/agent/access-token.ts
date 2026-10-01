@@ -14,7 +14,7 @@ export const ACCESS_TOKEN_SCOPES = [
   "portfolio:write",
   /** Submit balances observed by an agent. Further gated by per-provider consent. */
   "observations:write",
-  /** Manage consents (grant/revoke agent access). Never implied by the others. */
+  /** Revoke agent consents. Granting consent is session-only. Never implied by the others. */
   "consents:manage",
 ] as const;
 

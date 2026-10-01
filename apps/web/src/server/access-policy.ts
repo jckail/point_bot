@@ -1,4 +1,5 @@
 import {
+  CsrfRejectedError,
   DomainError,
   InsufficientScopeError,
   requireScope,
@@ -51,6 +52,61 @@ export function authorize(
     throw new InsufficientScopeError("session");
   }
   requireScope(principal.scopes, requirement.scope);
+}
+
+/** Whether the principal may create/link accounts (portfolio:write or session). */
+export function mayWritePortfolio(principal: Principal): boolean {
+  return (
+    principal.scopes === "session" ||
+    principal.scopes.includes("portfolio:write")
+  );
+}
+
+export interface CsrfInput {
+  readonly principal: Principal;
+  readonly origin: string | null;
+  readonly host: string | null;
+  readonly forwardedHost?: string | null;
+  readonly secFetchSite?: string | null;
+  readonly contentType: string | null;
+  /** True when the request carries a body (content-length > 0 or chunked). */
+  readonly hasBody: boolean;
+}
+
+/**
+ * CSRF defence for cookie-session principals (bearer tokens are exempt: the
+ * Authorization header cannot be set by a cross-site form). Applied to every
+ * method: browsers omit Origin on same-origin GETs, so legitimate reads pass,
+ * while a cross-origin request carrying the cookie is refused.
+ *  - A present Origin must match the request host (`null` never matches).
+ *  - Request bodies must be application/json, which a plain cross-site form
+ *    cannot send without a CORS preflight.
+ */
+export function assertCsrfSafe(input: CsrfInput): void {
+  if (input.principal.scopes !== "session") return;
+  if (input.secFetchSite === "cross-site") {
+    throw new CsrfRejectedError("cross-site request");
+  }
+  if (input.origin !== null) {
+    let originHost: string;
+    try {
+      originHost = new URL(input.origin).host;
+    } catch {
+      throw new CsrfRejectedError("invalid Origin header");
+    }
+    const allowed = [input.host, input.forwardedHost].filter(
+      (h): h is string => !!h,
+    );
+    if (!allowed.includes(originHost)) {
+      throw new CsrfRejectedError("Origin does not match the request host");
+    }
+  }
+  if (input.hasBody) {
+    const type = input.contentType?.split(";")[0]?.trim().toLowerCase();
+    if (type !== "application/json") {
+      throw new CsrfRejectedError("Content-Type must be application/json");
+    }
+  }
 }
 
 /** Limiter key: token id for tokens, user id for sessions. */

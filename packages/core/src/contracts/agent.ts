@@ -9,6 +9,7 @@ import type {
 import { ACCESS_TOKEN_SCOPES } from "../domain/agent/access-token";
 import {
   OBSERVATION_OUTCOMES,
+  reviewExpiresAt,
   type AgentObservation,
 } from "../domain/agent/observation";
 
@@ -93,10 +94,8 @@ export const submitObservationRequestSchema = z
     /** Agent identity for the audit trail, e.g. "claude-code". */
     agent: z.string().min(1).max(64).default("unknown"),
     observedAt: isoDateTime.optional(),
-    /** Only used to auto-link a program that is not linked yet. */
+    /** Only used to auto-link a program that is not linked yet; needs portfolio:write (or a session), otherwise link the program first. */
     membershipNumber: z.string().min(1).optional(),
-    /** Set after the user confirmed a value held as needs_review. */
-    confirmed: z.boolean().optional(),
   })
   .strict();
 
@@ -106,6 +105,11 @@ export const observationResultDtoSchema = z.object({
   points: z.number().int(),
   previousPoints: z.number().int().nullable(),
   message: z.string(),
+  /**
+   * Set only when outcome is needs_review. Single-use and server-issued: the
+   * signed-in user confirms or rejects it on the dashboard; an agent cannot.
+   */
+  reviewId: z.string().nullable(),
 });
 
 export const agentObservationDtoSchema = z.object({
@@ -115,9 +119,12 @@ export const agentObservationDtoSchema = z.object({
   agent: z.string(),
   sourceHost: z.string(),
   points: z.number().int(),
+  previousPoints: z.number().int().nullable(),
   outcome: z.enum(OBSERVATION_OUTCOMES),
   observedAt: isoDateTime,
   createdAt: isoDateTime,
+  /** Only for needs_review rows: when the review id stops being usable. */
+  reviewExpiresAt: isoDateTime.nullable(),
 });
 
 export type AccessTokenDto = z.infer<typeof accessTokenDtoSchema>;
@@ -193,8 +200,13 @@ export function toAgentObservationDto(
     agent: observation.agent,
     sourceHost: observation.sourceHost,
     points: observation.points,
+    previousPoints: observation.previousPoints,
     outcome: observation.outcome,
     observedAt: observation.observedAt.toISOString(),
     createdAt: observation.createdAt.toISOString(),
+    reviewExpiresAt:
+      observation.outcome === "needs_review"
+        ? reviewExpiresAt(observation).toISOString()
+        : null,
   };
 }

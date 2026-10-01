@@ -9,8 +9,8 @@ name: Deploy
 #   3. Repo secret  CLERK_PUBLISHABLE_KEY = pk_live_... (inlined at build time)
 #   4. Optional repo variables: AWS_REGION (default us-east-1),
 #      DIGEST_FROM_EMAIL (verified SES sender for weekly digests),
-#      ENABLE_MCP=true (also deploy the remote MCP server; optional
-#      MCP_CERTIFICATE_ARN, MCP_DOMAIN_NAME, MCP_POINTUP_URL)
+#      ENABLE_MCP=true (also deploy the remote MCP server; requires
+#      MCP_CERTIFICATE_ARN and MCP_DOMAIN_NAME, optional MCP_POINTUP_URL)
 
 on:
   push:
@@ -116,8 +116,12 @@ jobs:
           CTX=()
           if [ "$ENABLE_MCP" = "true" ]; then
             CTX+=(-c enableMcp=true)
-            [ -n "$MCP_CERTIFICATE_ARN" ] && CTX+=(-c "mcpCertificateArn=$MCP_CERTIFICATE_ARN")
-            [ -n "$MCP_DOMAIN_NAME" ] && CTX+=(-c "mcpDomainName=$MCP_DOMAIN_NAME")
+            # Bearer tokens must not cross the ALB in cleartext: fail fast without TLS.
+            if [ -z "$MCP_CERTIFICATE_ARN" ] || [ -z "$MCP_DOMAIN_NAME" ]; then
+              echo "ENABLE_MCP requires MCP_CERTIFICATE_ARN and MCP_DOMAIN_NAME" >&2
+              exit 1
+            fi
+            CTX+=(-c "mcpCertificateArn=$MCP_CERTIFICATE_ARN" -c "mcpDomainName=$MCP_DOMAIN_NAME")
             [ -n "$MCP_POINTUP_URL" ] && CTX+=(-c "mcpPointupUrl=$MCP_POINTUP_URL")
           fi
           npx cdk deploy TemplateApp "${CTX[@]}" \

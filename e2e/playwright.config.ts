@@ -28,6 +28,7 @@ export default defineConfig({
       command: "node ../apps/mcp/dist/index.mjs --http",
       env: {
         PORT: String(MCP_PORT),
+        MCP_ALLOWED_ORIGINS: "https://claude.ai",
         POINTUP_URL: `http://127.0.0.1:${API_PORT}`,
         POINTUP_AGENT_NAME: "e2e-agent",
       },

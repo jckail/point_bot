@@ -46,7 +46,7 @@ Two token types are accepted in the popup, chosen by prefix:
   `POST /api/v1/agent/observations`: the program must have an **active
   consent**, the source page must be on the skill's allowed hosts (the
   extension sends origin + path only, never the query string), implausible
-  jumps are held as `needs_review`, and every write is audited. If consent is
+  readings are held as `needs_review` (confirm or reject them in *Dashboard → Agents*), and every write is audited. If consent is
   missing the popup says so and points at *Dashboard → Agents*.
 - **Clerk session token (legacy).** Records a manual snapshot on an
   already-linked account (same path mobile uses — see

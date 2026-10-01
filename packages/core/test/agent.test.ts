@@ -7,7 +7,10 @@ import {
 } from "../src/application/agent/access-tokens";
 import { GrantConsent, RevokeConsent } from "../src/application/agent/consents";
 import { ListAgentSkills } from "../src/application/agent/list-skills";
-import { SubmitObservation } from "../src/application/agent/submit-observation";
+import {
+  ResolveObservationReview,
+  SubmitObservation,
+} from "../src/application/agent/submit-observation";
 import { LinkLoyaltyAccount } from "../src/application/loyalty/link-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import type {
@@ -63,6 +66,14 @@ class InMemoryConsents implements ConsentGrantRepository {
   async update(c: ConsentGrant) {
     this.rows.set(c.id, c);
   }
+  async replaceActive(c: ConsentGrant, at: Date) {
+    for (const row of this.rows.values()) {
+      if (row.userId === c.userId && row.providerId === c.providerId && !row.revokedAt) {
+        this.rows.set(row.id, { ...row, revokedAt: at });
+      }
+    }
+    this.rows.set(c.id, c);
+  }
 }
 
 class InMemoryObservations implements AgentObservationRepository {
@@ -70,8 +81,24 @@ class InMemoryObservations implements AgentObservationRepository {
   async insert(o: AgentObservation) {
     this.rows.push(o);
   }
+  async findById(id: string) {
+    return this.rows.find((o) => o.id === id) ?? null;
+  }
   async findByUserId(userId: string) {
     return this.rows.filter((o) => o.userId === userId);
+  }
+  async transition(
+    id: string,
+    userId: string,
+    from: AgentObservation["outcome"],
+    to: AgentObservation["outcome"],
+  ) {
+    const index = this.rows.findIndex(
+      (o) => o.id === id && o.userId === userId && o.outcome === from,
+    );
+    if (index < 0) return null;
+    this.rows[index] = { ...this.rows[index]!, outcome: to };
+    return this.rows[index]!;
   }
 }
 
@@ -97,7 +124,8 @@ function setup() {
     clock,
   );
   const grant = new GrantConsent(consents, clock);
-  return { accounts, balances, activity, consents, observations, submit, grant, link, record };
+  const review = new ResolveObservationReview(accounts, balances, observations, record, clock);
+  return { review, accounts, balances, activity, consents, observations, submit, grant, link, record };
 }
 
 const base = {
@@ -105,6 +133,7 @@ const base = {
   skillId: "united.capture-balance",
   sourceUrl: "https://www.united.com/en/us/myunited?token=secret",
   agent: "test-agent",
+  canLinkAccount: true,
 };
 
 describe("access tokens", () => {
@@ -164,6 +193,29 @@ describe("access tokens", () => {
     await expect(
       issue.execute({ userId: "u", name: "x", scopes: ["portfolio:read"], ttlDays: 9999 }),
     ).rejects.toMatchObject({ code: "INVALID_ACCESS_TOKEN_REQUEST" });
+  });
+});
+
+describe("GrantConsent", () => {
+  it("keeps one open grant per provider and rejects unknown providers", async () => {
+    const s = setup();
+    const first = await s.grant.execute({ userId: "u1", providerId: "united" });
+    const second = await s.grant.execute({ userId: "u1", providerId: "united" });
+    const open = [...s.consents.rows.values()].filter((c) => !c.revokedAt);
+    expect(open.map((c) => c.id)).toEqual([second.id]);
+    expect(s.consents.rows.get(first.id)?.revokedAt).not.toBeNull();
+    await expect(
+      s.grant.execute({ userId: "u1", providerId: "nope" }),
+    ).rejects.toMatchObject({ code: "PROVIDER_NOT_SUPPORTED" });
+  });
+
+  it("revoking any grant for a provider revokes every open one", async () => {
+    const s = setup();
+    const a = await s.grant.execute({ userId: "u1", providerId: "united" });
+    // A stray duplicate (e.g. legacy data from before the unique index).
+    s.consents.rows.set("dup", { ...s.consents.rows.get(a.id)!, id: "dup" });
+    await new RevokeConsent(s.consents, clock).execute("u1", "dup");
+    expect([...s.consents.rows.values()].every((c) => c.revokedAt)).toBe(true);
   });
 });
 
@@ -252,16 +304,99 @@ describe("SubmitObservation", () => {
     expect(s.balances.rows).toHaveLength(1);
   });
 
-  it("holds implausible jumps until confirmed", async () => {
+  it("holds implausible jumps and ignores any agent-supplied confirmation", async () => {
     const s = setup();
     await s.link.execute({ userId: "u1", providerId: "united", membershipNumber: "M1" });
     await s.grant.execute({ userId: "u1", providerId: "united" });
     await s.submit.execute({ ...base, points: 50_000 });
     const held = await s.submit.execute({ ...base, points: 5 });
     expect(held.outcome).toBe("needs_review");
+    expect(held.reviewId).toEqual(expect.any(String));
     expect(s.balances.rows).toHaveLength(1);
-    const confirmed = await s.submit.execute({ ...base, points: 5, confirmed: true });
-    expect(confirmed.outcome).toBe("recorded");
+    // Resubmitting (even with a smuggled flag) is held again, never written.
+    const again = await s.submit.execute({ ...base, points: 5, confirmed: true } as typeof base & { points: number });
+    expect(again.outcome).toBe("needs_review");
+    expect(again.reviewId).not.toBe(held.reviewId);
+    expect(s.balances.rows).toHaveLength(1);
+  });
+
+  it("holds an implausible FIRST reading above the sanity cap", async () => {
+    const s = setup();
+    await s.link.execute({ userId: "u1", providerId: "united", membershipNumber: "M1" });
+    await s.grant.execute({ userId: "u1", providerId: "united" });
+    const held = await s.submit.execute({ ...base, points: 9_000_000 });
+    expect(held).toMatchObject({ outcome: "needs_review", previousPoints: null });
+    expect(s.balances.rows).toHaveLength(0);
+    const ok = await s.submit.execute({ ...base, points: 40_000 });
+    expect(ok.outcome).toBe("recorded");
+  });
+
+  describe("human review", () => {
+    async function held() {
+      const s = setup();
+      await s.link.execute({ userId: "u1", providerId: "united", membershipNumber: "M1" });
+      await s.grant.execute({ userId: "u1", providerId: "united" });
+      await s.submit.execute({ ...base, points: 50_000 });
+      const result = await s.submit.execute({ ...base, points: 5 });
+      return { s, reviewId: result.reviewId! };
+    }
+
+    it("confirm writes the balance with source agent, once", async () => {
+      const { s, reviewId } = await held();
+      const result = await s.review.confirm("u1", reviewId);
+      expect(result).toMatchObject({ outcome: "recorded", points: 5, previousPoints: 50_000 });
+      expect(s.balances.rows.at(-1)).toMatchObject({ points: 5, source: "agent" });
+      expect(s.observations.rows.find((o) => o.id === reviewId)?.outcome).toBe("recorded");
+      await expect(s.review.confirm("u1", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_ALREADY_RESOLVED",
+      });
+      await expect(s.review.reject("u1", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_ALREADY_RESOLVED",
+      });
+      expect(s.balances.rows).toHaveLength(2);
+    });
+
+    it("reject discards and cannot be confirmed afterwards", async () => {
+      const { s, reviewId } = await held();
+      expect((await s.review.reject("u1", reviewId)).outcome).toBe("rejected");
+      await expect(s.review.confirm("u1", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_ALREADY_RESOLVED",
+      });
+      expect(s.balances.rows).toHaveLength(1);
+    });
+
+    it("is scoped to the owner and to review rows", async () => {
+      const { s, reviewId } = await held();
+      await expect(s.review.confirm("u2", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_NOT_FOUND",
+      });
+      await expect(s.review.confirm("u1", "nope")).rejects.toMatchObject({
+        code: "REVIEW_NOT_FOUND",
+      });
+      const recorded = s.observations.rows.find((o) => o.outcome === "recorded")!;
+      await expect(s.review.confirm("u1", recorded.id)).rejects.toMatchObject({
+        code: "REVIEW_ALREADY_RESOLVED",
+      });
+    });
+
+    it("expires after 24 hours", async () => {
+      const { s, reviewId } = await held();
+      now = new Date(now.getTime() + 25 * 3_600_000);
+      await expect(s.review.confirm("u1", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_EXPIRED",
+      });
+      expect(s.balances.rows).toHaveLength(1);
+    });
+
+    it("refuses when the latest balance changed since the hold", async () => {
+      const { s, reviewId } = await held();
+      const account = [...s.accounts.rows.values()][0]!;
+      now = new Date(now.getTime() + 60_000);
+      await s.record.execute({ userId: "u1", accountId: account.id, points: 51_000, source: "manual" });
+      await expect(s.review.confirm("u1", reviewId)).rejects.toMatchObject({
+        code: "REVIEW_STALE",
+      });
+    });
   });
 
   it("rejects off-allowlist hosts, non-https, and bad skills", async () => {
@@ -283,12 +418,17 @@ describe("SubmitObservation", () => {
     ).rejects.toMatchObject({ code: "SKILL_NOT_FOUND" });
   });
 
-  it("auto-links only when a membership number is supplied", async () => {
+  it("auto-links only with a membership number AND permission to link", async () => {
     const s = setup();
     await s.grant.execute({ userId: "u1", providerId: "united" });
     await expect(s.submit.execute({ ...base, points: 10 })).rejects.toMatchObject({
       code: "LOYALTY_ACCOUNT_NOT_FOUND",
     });
+    // observations:write alone (no portfolio:write) must not create accounts.
+    await expect(
+      s.submit.execute({ ...base, canLinkAccount: false, points: 10, membershipNumber: "MP9" }),
+    ).rejects.toMatchObject({ code: "LOYALTY_ACCOUNT_NOT_FOUND" });
+    expect(s.accounts.rows.size).toBe(0);
     const result = await s.submit.execute({
       ...base,
       points: 10,

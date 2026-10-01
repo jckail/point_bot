@@ -90,6 +90,7 @@ describe("composition modules", () => {
       "listAgentObservations",
       "listAgentSkills",
       "listConsents",
+      "resolveObservationReview",
       "revokeAccessToken",
       "revokeConsent",
       "submitObservation",

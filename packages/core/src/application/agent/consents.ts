@@ -36,16 +36,10 @@ export class GrantConsent {
   }): Promise<ConsentReadModel> {
     getProviderOrThrow(input.providerId);
     const now = this.clock.now();
-    for (const existing of await this.consents.findByUserId(input.userId)) {
-      if (
-        existing.providerId === input.providerId &&
-        isConsentActive(existing, now)
-      ) {
-        await this.consents.update({ ...existing, revokedAt: now });
-      }
-    }
     const consent = createConsentGrant({ ...input, now });
-    await this.consents.insert(consent);
+    // Revoke-then-insert in one transaction (see the repository); a partial
+    // unique index guarantees one active grant per (user, provider).
+    await this.consents.replaceActive(consent, now);
     return toReadModel(consent, now);
   }
 }
@@ -76,6 +70,14 @@ export class RevokeConsent {
       throw new ConsentNotFoundError(consentId);
     }
     if (consent.revokedAt) return;
-    await this.consents.update({ ...consent, revokedAt: this.clock.now() });
+    const now = this.clock.now();
+    // Revoke every open grant for the provider, so no stray duplicate keeps
+    // consent alive after the user pressed "revoke".
+    const open = (await this.consents.findByUserId(userId)).filter(
+      (c) => c.providerId === consent.providerId && !c.revokedAt,
+    );
+    for (const grant of open) {
+      await this.consents.update({ ...grant, revokedAt: now });
+    }
   }
 }

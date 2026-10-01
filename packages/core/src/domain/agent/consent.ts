@@ -50,4 +50,10 @@ export interface ConsentGrantRepository {
   findByUserId(userId: string): Promise<ConsentGrant[]>;
   insert(consent: ConsentGrant): Promise<void>;
   update(consent: ConsentGrant): Promise<void>;
+  /**
+   * Atomically revokes every non-revoked grant (active or merely expired)
+   * for the consent's user and provider, then inserts `consent`. Concurrent
+   * calls leave exactly one active grant.
+   */
+  replaceActive(consent: ConsentGrant, now: Date): Promise<void>;
 }

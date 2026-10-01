@@ -87,3 +87,27 @@ export async function revokeConsentAction(formData: FormData): Promise<void> {
   );
   revalidatePath("/dashboard/agents");
 }
+
+/** Human confirmation of a reading the server held as needs_review. */
+export async function resolveReviewAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { userId } = await auth();
+  if (!userId) return { status: "error", message: "Your session expired - sign in again." };
+  const reviewId = String(formData.get("reviewId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  try {
+    const review = getContainer().useCases.resolveObservationReview;
+    if (decision === "confirm") await review.confirm(userId, reviewId);
+    else if (decision === "reject") await review.reject(userId, reviewId);
+    else return { status: "error", message: "Unknown decision." };
+    revalidatePath("/dashboard/agents");
+    return { status: "success" };
+  } catch (error) {
+    if (error instanceof DomainError) {
+      return { status: "error", message: messageForDomainError(error.code) };
+    }
+    throw error;
+  }
+}

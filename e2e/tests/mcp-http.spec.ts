@@ -110,3 +110,31 @@ test("a token the API rejects yields a tool error", async ({ request }) => {
   expect(result!.isError).toBe(true);
   expect(result!.content![0]!.text).toContain("ACCESS_TOKEN_INVALID");
 });
+
+test("rejects a foreign Host header (DNS rebinding) but healthz stays open", async ({ request }) => {
+  const rebound = await request.get("/.well-known/oauth-protected-resource", {
+    headers: { Host: "evil.example" },
+  });
+  expect(rebound.status()).toBe(403);
+  const health = await request.get("/healthz", { headers: { Host: "evil.example" } });
+  expect(health.status()).toBe(200);
+});
+
+test("rejects a disallowed browser Origin, accepts the allow-listed one", async ({ request }) => {
+  const call = (origin: string) =>
+    request.post("/mcp", {
+      headers: { ...HEADERS, Origin: origin, Authorization: "Bearer pu_e2e" },
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
+    });
+  expect((await call("https://evil.example")).status()).toBe(403);
+  expect((await call("https://claude.ai")).status()).toBe(200);
+});
+
+test("malformed JSON is a 400 parse error, not a 500", async ({ request }) => {
+  const response = await request.post("/mcp", {
+    headers: { ...HEADERS, Authorization: "Bearer pu_e2e" },
+    data: "{not json",
+  });
+  expect(response.status()).toBe(400);
+  expect(await response.json()).toMatchObject({ error: { code: -32700 } });
+});

@@ -42,7 +42,7 @@ Make the data users already have more useful. All items are core + web changes w
 
 | Status | Feature | Notes |
 | --- | --- | --- |
-| ✅ | **MCP server** | `apps/mcp`: stdio + stateless HTTP; tools, prompts, elicitation-based consent |
+| ✅ | **MCP server** | `apps/mcp`: stdio + stateless HTTP; tools, prompts, dashboard-only consent |
 | ✅ | **Personal access tokens** | Scoped, hashed, expiring; session-only minting |
 | ✅ | **Consent + skills + write-back** | Per-provider consent, host allow-list, plausibility guard, audit trail |
 | ✅ | **Claude plugin / ChatGPT Action** | `plugins/claude`, `plugins/chatgpt` |

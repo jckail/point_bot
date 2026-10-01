@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import {
   RATE_LIMIT_POLICIES,
+  assertCsrfSafe,
   authorize,
   mapError,
   rateLimitClassFor,
@@ -65,8 +66,22 @@ async function resolvePrincipal(): Promise<Principal | null> {
   return userId ? { userId, scopes: "session" } : null;
 }
 
+async function checkCsrf(principal: Principal): Promise<void> {
+  const h = await headers();
+  const length = h.get("content-length");
+  assertCsrfSafe({
+    principal,
+    origin: h.get("origin"),
+    host: h.get("host"),
+    forwardedHost: h.get("x-forwarded-host"),
+    secFetchSite: h.get("sec-fetch-site"),
+    contentType: h.get("content-type"),
+    hasBody: h.has("transfer-encoding") || (length !== null && length !== "0"),
+  });
+}
+
 export async function withAuthenticatedUser(
-  handler: (userId: string) => Promise<NextResponse>,
+  handler: (userId: string, principal: Principal) => Promise<NextResponse>,
   options: AuthOptions,
 ): Promise<NextResponse> {
   try {
@@ -74,6 +89,7 @@ export async function withAuthenticatedUser(
     if (!principal) {
       return errorResponse("UNAUTHENTICATED", "Sign in required");
     }
+    await checkCsrf(principal);
     authorize(principal, options);
 
     const cls = rateLimitClassFor(principal, options);
@@ -88,7 +104,7 @@ export async function withAuthenticatedUser(
         "RateLimit-Remaining": "0",
       });
     }
-    return await handler(principal.userId);
+    return await handler(principal.userId, principal);
   } catch (error) {
     const mapped = mapError(error);
     if (mapped.unexpected) console.error("Unhandled API error", error);

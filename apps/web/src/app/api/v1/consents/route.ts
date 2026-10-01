@@ -17,7 +17,7 @@ export function GET() {
   );
 }
 
-/** Granting consent is a user decision; tokens need `consents:manage`. */
+/** Granting consent is a human decision: session-only. Tokens (even consents:manage) cannot grant. */
 export function POST(request: Request) {
   return withAuthenticatedUser(
     async (userId) => {
@@ -28,6 +28,6 @@ export function POST(request: Request) {
       });
       return NextResponse.json(toConsentDto(consent), { status: 201 });
     },
-    { scope: "consents:manage" },
+    { scope: "consents:manage", sessionOnly: true },
   );
 }

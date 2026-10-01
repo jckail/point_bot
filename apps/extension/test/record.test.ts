@@ -61,7 +61,7 @@ describe("recordCapture", () => {
     }));
     const result = await recordCapture(api, "pu_abc", capture);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain("Looks high.");
+    expect(result.message).toMatch(/Dashboard > Agents/);
   });
 
   it("keeps the session-token path for non-pu_ tokens", async () => {

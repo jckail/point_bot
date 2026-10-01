@@ -10,17 +10,17 @@ PointUp never sees passwords. You read a number from a page the **user is alread
 ## Flow
 
 1. `pointup_list_skills` with the `providerId`. Note `skillId`, `startUrl`, `allowedHosts`, `accountLinked`, `consentActive`, `unverified` and `notes`. If `unverified` is true, the start URL is best-effort: tell the user, and if the page does not clearly show the balance, stop instead of guessing. (The same playbook is available as the MCP resource `pointup://skills/{skillId}`.)
-2. If `consentActive` is false → call `pointup_request_consent`. This prompts the **user**; only proceed on an explicit yes. If the client cannot prompt, tell the user to grant consent at the dashboard link returned, then stop.
+2. If `consentActive` is false → call `pointup_request_consent`. It never grants anything: it returns the program name and the dashboard link. Tell the user to grant consent there themselves (only the signed-in user can), then stop until they say it is done and `pointup_list_skills` shows `consentActive: true`.
 3. Pick the tool for the job, in this order:
    - Claude in Chrome / built-in browser tools (preferred, uses the user's own session).
    - Computer use (desktop) only if no browser tool is available.
 4. Open `startUrl`. If a login, MFA, or CAPTCHA appears, **stop and ask the user to complete it themselves**. Never request, type, or store a password or one-time code.
 5. Read the one balance number (integer; strip commas/labels). Do not click offers, redeem, book, or transfer anything.
-6. `pointup_submit_balance` with `skillId`, `points`, and the exact `sourceUrl`. If the account is not linked and the user gave you their member number, pass `membershipNumber` to auto-link.
+6. `pointup_submit_balance` with `skillId`, `points`, and the exact `sourceUrl`. If the account is not linked, ask the user to link the program first (auto-linking via `membershipNumber` only works with a `portfolio:write` token; otherwise you get `LOYALTY_ACCOUNT_NOT_FOUND`).
 7. Report the outcome:
    - `recorded` → say old → new.
    - `unchanged` → say nothing changed.
-   - `needs_review` → show the value, ask the user if it is right, and only then resubmit with `confirmed: true`.
+   - `needs_review` → the value was **not** saved. Show it to the user and tell them to open **Dashboard > Agents** and Confirm or Reject the pending reading (the result carries a `reviewId`). You cannot confirm it and resubmitting will not bypass the review; never retry to force it through.
 
 ## Rules
 

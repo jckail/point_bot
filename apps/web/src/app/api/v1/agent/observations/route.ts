@@ -6,6 +6,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
+import { mayWritePortfolio } from "@/server/access-policy";
 import { withAuthenticatedUser } from "@/server/http";
 
 export function GET() {
@@ -20,11 +21,13 @@ export function GET() {
 
 /**
  * Agent write-back. Requires the `observations:write` scope AND an active
- * per-provider consent (enforced in the use case).
+ * per-provider consent (enforced in the use case). Auto-linking a program
+ * additionally needs `portfolio:write`. Implausible values are held and can
+ * only be released by the signed-in user (see ./[id]/confirm).
  */
 export function POST(request: Request) {
   return withAuthenticatedUser(
-    async (userId) => {
+    async (userId, principal) => {
       const body = submitObservationRequestSchema.parse(await request.json());
       const result = await getContainer().useCases.submitObservation.execute({
         userId,
@@ -34,7 +37,7 @@ export function POST(request: Request) {
         agent: body.agent,
         observedAt: body.observedAt ? new Date(body.observedAt) : undefined,
         membershipNumber: body.membershipNumber,
-        confirmed: body.confirmed,
+        canLinkAccount: mayWritePortfolio(principal),
       });
       return NextResponse.json(toObservationResultDto(result));
     },

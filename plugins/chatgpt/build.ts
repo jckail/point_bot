@@ -7,7 +7,7 @@
  * Output: plugins/chatgpt/dist/openapi.json (paste/import into the GPT builder
  * → Actions → Import from URL/Schema). ChatGPT limits Actions to 30 operations
  * and 300-char descriptions, so only a curated allow-list is exported, and
- * session-only operations (token minting, consent granting) are excluded on
+ * session-only operations (token minting, consent granting, confirming held readings) are excluded on
  * purpose: those stay in the dashboard where the human is present.
  */
 import { mkdirSync, writeFileSync } from "node:fs";

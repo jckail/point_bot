@@ -1,10 +1,10 @@
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { PROVIDER_KINDS } from "@pointup/core/providers";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createHttpServer, shutdown } from "../src/http";
 
@@ -121,5 +121,105 @@ describe("MCP over HTTP", () => {
       { path: "/api/v1/summary", auth: "Bearer pu_secret123" },
     ]);
     await client.close();
+  });
+
+  it("rejects unknown Host headers (DNS rebinding) but keeps /healthz open", async () => {
+    const hostFetch = (host: string, path = "/.well-known/oauth-protected-resource") =>
+      new Promise<number>((resolve, reject) => {
+        const { port } = new URL(mcpUrl);
+        const req = httpRequest({ host: "127.0.0.1", port, path, headers: { Host: host } }, (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on("error", reject);
+        req.end();
+      });
+    expect(await hostFetch("evil.example")).toBe(403);
+    expect(await hostFetch("evil.example:8787")).toBe(403);
+    expect(await hostFetch("localhost:8787")).toBe(200);
+    expect(await hostFetch("127.0.0.1")).toBe(200);
+    expect(await hostFetch("evil.example", "/healthz")).toBe(200);
+  });
+
+  it("honours an explicit Host allow-list, and has no wildcard origin in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const prod = createHttpServer({
+      baseUrl: "http://127.0.0.1:1",
+      allowedHosts: ["mcp.example.com"],
+    });
+    vi.unstubAllEnvs();
+    const url = await listen(prod);
+    try {
+      const wrongHost = await fetch(`${url}/mcp`, { method: "POST", body: "{}" });
+      expect(wrongHost.status).toBe(403);
+    } finally {
+      await shutdown(prod, 200);
+    }
+    vi.stubEnv("NODE_ENV", "production");
+    const prod2 = createHttpServer({ baseUrl: "http://127.0.0.1:1" });
+    vi.unstubAllEnvs();
+    const url2 = await listen(prod2);
+    try {
+      const withOrigin = await fetch(`${url2}/mcp`, {
+        method: "OPTIONS",
+        headers: { Origin: "https://anything.example" },
+      });
+      expect(withOrigin.status).toBe(403);
+      const noOrigin = await fetch(`${url2}/mcp`, { method: "POST", body: "{}" });
+      expect(noOrigin.status).toBe(401);
+    } finally {
+      await shutdown(prod2, 200);
+    }
+  });
+
+  it("sheds load beyond maxInFlight with 503", async () => {
+    const busy = createHttpServer({ baseUrl: "http://127.0.0.1:1", maxInFlight: 0 });
+    const url = await listen(busy);
+    try {
+      const res = await fetch(`${url}/mcp`, {
+        method: "POST",
+        headers: { Authorization: "Bearer pu_x" },
+        body: "{}",
+      });
+      expect(res.status).toBe(503);
+    } finally {
+      await shutdown(busy, 200);
+    }
+  });
+
+  it("logs only error name and message, never the error object or tokens", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failing = createHttpServer({
+      baseUrl: "http://127.0.0.1:1",
+      fetch: (() => {
+        const error = new Error("boom") as Error & { headers?: unknown };
+        error.headers = { authorization: "Bearer pu_leaky" };
+        throw error;
+      }) as unknown as typeof fetch,
+    });
+    const url = await listen(failing);
+    try {
+      await fetch(`${url}/mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer pu_leaky",
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "pointup_get_portfolio_summary", arguments: {} },
+        }),
+      });
+    } finally {
+      await shutdown(failing, 200);
+    }
+    for (const call of spy.mock.calls) {
+      expect(call.every((arg) => typeof arg === "string")).toBe(true);
+      expect(call.join(" ")).not.toContain("pu_leaky");
+    }
+    spy.mockRestore();
   });
 });

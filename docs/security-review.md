@@ -12,8 +12,8 @@ prompt-injected agent, a stolen token, or a hostile web page get?".
 
 ## Summary
 
-| # | Finding | Severity | Where |
-| --- | --- | --- | --- |
+| # | Finding | Severity | Where | Status |
+| --- | --- | --- | --- | --- |
 | S1 | A token with `consents:manage` can self-approve consent; MCP elicitation is client-attested | **High** | `consents/route.ts:31`, `mcp/server.ts:245-278` |
 | S2 | `confirmed=true` is agent-controlled, so the human review gate is bypassable | **High** | `submit-observation.ts:204-208`, `contracts/agent.ts:99` |
 | S3 | Elicitation prompt interpolates unvalidated `providerId` (spoofable consent text) | Medium | `mcp/server.ts:239-259` |
@@ -37,6 +37,15 @@ non-https are all rejected); `sessionOnly` correctly rejects tokens for minting/
 user-controlled text reaches the `capture-balance` prompt except `providerId` echo, see S3); MCP
 HTTP server never persists tokens and `baseUrl` comes from env, so there is no user-controlled
 SSRF target.
+
+**Status key.** S1-S7 were implemented in this change (see the Status column and the notes below); S8-S13 are owned elsewhere or still open. Implementation notes:
+
+- S1: `POST /consents` is `sessionOnly`; `DELETE /consents/{id}` still accepts `consents:manage` tokens (revoke only). `pointup_request_consent` returns the dashboard link and the catalog display name and never calls the API; the api-client has no `grantConsent`.
+- S2: held readings are persisted (`agent_observation.outcome = needs_review`, plus `previous_points`) and returned as `reviewId`. `POST /api/v1/agent/observations/{id}/confirm|reject` are session-only; the claim is an atomic `UPDATE ... WHERE outcome='needs_review'`, reviews expire after 24h, and confirm is refused if the latest balance no longer equals `previous_points`. The `confirmed` field is gone from the contract, MCP tool, extension, skills and spec. Dashboard: *Pending review* section.
+- S4: held when above the skill's `maxPoints` (default 5,000,000) even as a first reading. Not done: tighter ratio for large balances, "revert" UI. Source URL stays self-reported; documented in `docs/agents.md`.
+- S5: `assertCsrfSafe` (access-policy.ts), run for session principals on every method: mismatching/`null` Origin and `Sec-Fetch-Site: cross-site` are refused, and any request with a body must be `application/json`. Bearer tokens are exempt.
+- S6: the route passes `canLinkAccount` (session or `portfolio:write`); otherwise `LOYALTY_ACCOUNT_NOT_FOUND`.
+- S7: migration `0012` dedupes existing open grants, then adds `consent_grant_one_open`; grants run revoke-then-insert in one transaction with retry on unique violation; revoke closes every open grant for the provider. Tested with concurrent grants on Postgres.
 
 ---
 

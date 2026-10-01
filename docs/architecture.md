@@ -202,16 +202,16 @@ sequenceDiagram
     U->>DB: active consent for provider?
     alt no consent
         U-->>A: CONSENT_REQUIRED
-    else implausible jump and not confirmed
-        U->>DB: audit (needs_review)
-        U-->>A: needs_review (ask the human)
+    else implausible reading (jump or over the sanity cap)
+        U->>DB: audit row (needs_review, nothing written)
+        U-->>A: needs_review + reviewId (only the signed-in user can confirm)
     else ok
         U->>DB: record balance (source=agent) + audit (recorded)
         U-->>A: recorded
     end
 ```
 
-Key invariants: a token never mints tokens (session-only), tokens only ever hold the scopes they were created with, consent is per provider and time-boxed, and only the source **host** is persisted in the audit trail.
+Key invariants: a token never mints tokens, grants consent, or confirms a held reading (all session-only), tokens only ever hold the scopes they were created with, consent is per provider and time-boxed, and only the source **host** is persisted in the audit trail.
 
 ### Delivery and CI
 
@@ -222,7 +222,7 @@ flowchart LR
     CI --> M[master]
     M --> D[deploy.yml: verify then cdk deploy]
     D --> W[web + worker + migrate]
-    D -.ENABLE_MCP=true.-> MS[MCP service<br/>Dockerfile.mcp]
+    D -.ENABLE_MCP=true (HTTPS cert required).-> MS[MCP service<br/>Dockerfile.mcp]
 ```
 
 ## SOLID mapping

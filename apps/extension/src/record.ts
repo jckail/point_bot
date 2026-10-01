@@ -58,7 +58,8 @@ async function submitViaAgentEndpoint(
     if (result.outcome === "needs_review") {
       return {
         ok: false,
-        message: `Held for review: ${result.message} Confirm it in PointUp.`,
+        message:
+          "Held for review, not saved: this value looks unusual. Open PointUp > Dashboard > Agents to confirm or reject it.",
       };
     }
     return { ok: true, message: result.message };

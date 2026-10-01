@@ -12,7 +12,7 @@ Two supported paths. Use whichever your ChatGPT plan offers; both hit the same A
    - Name / description / instructions / conversation starters: copy from [`gpt-config.md`](./gpt-config.md).
    - **Actions → Create new action → Import** `plugins/chatgpt/dist/openapi.json`.
    - **Authentication → API Key → Bearer**, paste a PointUp token (`pu_…`) with scopes
-     `portfolio:read portfolio:write observations:write` (no `consents:manage`).
+     `portfolio:read portfolio:write observations:write` (`consents:manage` only allows revoking consent, so leave it off).
    - Privacy policy URL: your deployment's policy page (required to publish beyond "only me").
 3. Every write action is marked `x-openai-isConsequential`, so ChatGPT asks the user before each one.
 
@@ -25,7 +25,7 @@ Two supported paths. Use whichever your ChatGPT plan offers; both hit the same A
 Run the remote MCP server (`npm run build --workspace @pointup/mcp && node apps/mcp/dist/index.mjs --http`),
 expose `https://mcp.your-domain.example/mcp`, and add it as a connector with header
 `Authorization: Bearer pu_…`. This gives ChatGPT the full tool set, including `pointup_request_consent`
-(interactive consent) and the `capture-balance` playbook prompt.
+(returns the dashboard link; consent is granted only by you, signed in) and the `capture-balance` playbook prompt.
 
 ## Browser/computer use in ChatGPT
 

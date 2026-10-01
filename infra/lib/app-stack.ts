@@ -3,6 +3,7 @@ import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ecsPatterns from "aws-cdk-lib/aws-ecs-patterns";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as events from "aws-cdk-lib/aws-events";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -419,7 +420,8 @@ export class AppStack extends cdk.Stack {
             "McpCertificate",
             mcpCertificateArn,
           ),
-          domainName: mcpDomainName,
+          // DNS is the operator's job: point mcpDomainName (a CNAME/alias) at the ALB.
+          protocol: elbv2.ApplicationProtocol.HTTPS,
           redirectHTTP: true,
           taskImageOptions: {
             image: ecs.ContainerImage.fromDockerImageAsset(mcpImage),
