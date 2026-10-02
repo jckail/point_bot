@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ##### DEPENDENCIES #####
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /repo
 
 # Workspace manifests only, to keep this layer cacheable.
@@ -13,7 +13,7 @@ COPY packages/api-client/package.json packages/api-client/
 RUN npm ci
 
 ##### BUILDER #####
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /repo
 
 COPY --from=deps /repo/node_modules ./node_modules
@@ -32,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN SKIP_ENV_VALIDATION=1 npm run build --workspace @pointup/web
 
 ##### RUNNER #####
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

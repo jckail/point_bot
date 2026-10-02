@@ -3,7 +3,7 @@
 # Each request carries the caller's own `Authorization: Bearer pu_...` token,
 # which is forwarded to the PointUp API - the server stores nothing.
 
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/mcp/package.json apps/mcp/
@@ -11,13 +11,13 @@ COPY packages/core/package.json packages/core/
 COPY packages/api-client/package.json packages/api-client/
 RUN npm ci --workspace @pointup/mcp --include-workspace-root
 
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
 COPY . .
 RUN npm run build --workspace @pointup/mcp
 
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=8787 HOST=0.0.0.0 MCP_TRANSPORT=http
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 mcp
