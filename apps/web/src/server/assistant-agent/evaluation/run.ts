@@ -48,6 +48,25 @@ export function scoreEvaluation(testCase: EvaluationCase, reply: string, fixture
   ];
   if (testCase.id === "reviewed-balance") checks.push({ name: "exact_balance_payload", passed: fixture.persisted.length === 1 && fixture.persisted[0]?.kind === "manual_balance" && "points" in fixture.persisted[0].payload && fixture.persisted[0].payload.accountId === "synthetic_northstar" && fixture.persisted[0].payload.points === 42000 && new Date(fixture.persisted[0].payload.capturedAt).toISOString() === "2026-09-30T12:00:00.000Z" });
   if (testCase.id === "reviewed-goal") checks.push({ name: "exact_goal_payload", passed: fixture.persisted.length === 1 && fixture.persisted[0]?.kind === "trip_goal" && "targetPoints" in fixture.persisted[0].payload && fixture.persisted[0].payload.title === "Tokyo autumn" && fixture.persisted[0].payload.targetPoints === 120000 && fixture.persisted[0].payload.targetDate === null && fixture.persisted[0].payload.accountIds.length === 0 && fixture.persisted[0].payload.notes === null });
+  if (testCase.variant === "transfer-known" || testCase.variant === "transfer-unknown") {
+    const exact = fixture.transferCalls.length === 1 && fixture.transferCalls[0]?.input.accountId === "synthetic_chase"
+      && fixture.transferCalls[0].input.userId === syntheticOwner && fixture.transferCalls[0].input.toProviderId === "hyatt"
+      && fixture.transferCalls[0].input.sourcePoints === 40000;
+    checks.push({ name: "exact_targeted_transfer", passed: exact });
+    const result = fixture.transferCalls[0]?.result;
+    if (testCase.variant === "transfer-known") {
+      checks.push({ name: "resolved_transfer_evidence", passed: result?.status === "estimated"
+        && result.estimate.destinationPoints === 30000 && result.estimate.ratioFrom === 4 && result.estimate.ratioTo === 3
+        && result.estimate.eligibility.effectiveFrom === "2026-10-01T00:00:00.000Z"
+        && result.estimate.limits.status === "unknown" });
+    } else {
+      checks.push({ name: "unknown_card_no_estimate", passed: result?.status === "unavailable"
+        && result.estimate === null && result.reason === "CARD_PRODUCT_REQUIRED" });
+      // Conservative diagnostics, not a semantic judge: flag confident invented
+      // yields/ratios while allowing explanations that a user-suggested ratio is unknown.
+      checks.push({ name: "no_unestablished_transfer_claim", passed: !/\b(?:yield|receive|get|produce|gives?)\s+(?:you\s+)?(?:30,?000|40,?000)\s+(?:hyatt|destination)|\b(?:at|is|ratio\s+(?:is|of))\s+(?:1:1|4:3)\b/i.test(reply) });
+    }
+  }
   return checks;
 }
 
@@ -93,5 +112,5 @@ export async function runEvaluationSuite(options: { modelName: string; apiKey?: 
   // Sequential requests bound concurrency, tools, and the maximum number of paid model turns.
   for (const testCase of cases) results.push(await runEvaluationCase(testCase, { ...options, tracing: tracingEffective }));
   const traceFlush = tracingEffective ? await flushEvaluationTraces() : "not_requested";
-  return { schemaVersion: 1, datasetVersion: "synthetic-portfolio-v1", mode: options.model ? "injected" : "live", model: options.modelName, semanticReviewRequired: true, tracingRequested, tracingEffective, traceFlush, traceDeliveryVerified: false, results, passed: results.every(result => result.status === "passed") };
+  return { schemaVersion: 1, datasetVersion: "synthetic-portfolio-v2", mode: options.model ? "injected" : "live", model: options.modelName, semanticReviewRequired: true, tracingRequested, tracingEffective, traceFlush, traceDeliveryVerified: false, results, passed: results.every(result => result.status === "passed") };
 }

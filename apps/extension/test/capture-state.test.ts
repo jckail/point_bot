@@ -22,7 +22,8 @@ describe("capture replay state", () => {
     const state = receiveCapture({ latest: first, pending }, second);
     expect(state.pending).toBe(pending);
     expect(state.latest).toBe(second);
-    expect(finishCapture(state, firstId, { ok: true, message: "Recorded", outcome: "recorded" })).toEqual({ latest: second, pending: null, completedIds: [firstId] });
+    expect(finishCapture(state, firstId, { ok: true, message: "Recorded", outcome: "recorded" })).toEqual({ latest: second, pending: null, completedIds: [firstId],
+      lastReceipt: { captureId: firstId, identity: "identity", observedAt: first.observedAt, result: { ok: true, message: "Recorded", outcome: "recorded" } } });
   });
   it("retains held/failed/rejected review and ignores an unrelated completion", () => {
     const state = { latest: first, pending: { capture: first, identity: "identity", request: observationRequest(first) } };

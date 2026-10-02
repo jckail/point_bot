@@ -168,7 +168,7 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     eventing,
   );
   const listTripGoals = new ListTripGoals(tripGoals, balanceSnapshots);
-  const ingestDealPage = new IngestDealPage(scraper);
+  const ingestDealPage = new IngestDealPage(scraper, clock);
   const listActiveTransferBonuses = new ListActiveTransferBonuses(transferBonuses, clock);
   const planRedemption = new PlanRedemption(
     listLoyaltyAccounts,
@@ -263,13 +263,13 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     planRedemption,
     listBestRedemptions: new ListBestRedemptions(planRedemption),
     listCustomValuations: new ListCustomValuations(customValuations),
-    createAwardWatch: new CreateAwardWatch(awardWatches),
+    createAwardWatch: new CreateAwardWatch(awardWatches, clock),
     listAwardWatches: new ListAwardWatches(awardWatches),
     deleteAwardWatch: new DeleteAwardWatch(awardWatches),
     checkAwardWatches: new CheckAwardWatches(
       awardWatches,
       ingestDealPage,
-      undefined,
+      clock,
       eventing,
     ),
     getUserSettings: new GetUserSettings(settings),

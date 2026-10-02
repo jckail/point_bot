@@ -36,6 +36,26 @@ it("restores persisted rejection guidance and receipt reference on reopening", (
   expect(elements.status!.textContent).toContain("Check PointUp");
   expect(elements.status!.textContent).toContain("Observation: receipt_123");
 });
+it("shows completed receipt on reopening even after the capture cleared, without recording again", async () => {
+  send.mockImplementation(async message => message.type === "getLatest" ? null : message.type === "getCaptureReceipt"
+    ? { ok: true, outcome: "recorded", message: "Recorded", observationId: "receipt_complete" } : { ok: true, message: "", chat: [] });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  expect(elements.status!.textContent).toContain("Last completed capture: Outcome: recorded");
+  expect(elements.status!.textContent).toContain("Observation: receipt_complete");
+  expect(elements.record!.disabled).toBe(true);
+  expect(send.mock.calls.some(([message]) => message.type === "record")).toBe(false);
+});
+it("saves a pasted page URL as canonical origin and reports unsafe URLs clearly", async () => {
+  elements.baseUrl!.value = "https://pointup.example/dashboard";
+  elements.save!.listeners.click!(); await flush();
+  expect(mocks.save).toHaveBeenCalledWith({ baseUrl: "https://pointup.example", token: "pu_original" });
+  expect(elements.baseUrl!.value).toBe("https://pointup.example");
+  mocks.save.mockClear(); elements.baseUrl!.value = "https://user:password@pointup.example";
+  elements.save!.listeners.click!(); await flush();
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(elements.status!.textContent).toContain("without credentials");
+  expect(elements.status!.textContent).not.toContain("password@");
+});
 
 it("binds popup discard to the displayed capture", async () => {
   elements.discardCapture!.listeners.click!();
@@ -89,6 +109,10 @@ it("reopens an in-flight question and automatically refreshes its eventual answe
   expect(elements.question!.value).toBe("Saved question");
   expect(elements.ask!.disabled).toBe(true);
   expect(elements.chatStatus!.textContent).toContain("working");
+  current = { ...current, pending: { question: "Saved question", status: "in_flight", message: "Still working; question remains saved." } };
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(elements.chatStatus!.textContent).toContain("Still working");
+  expect(elements.ask!.disabled).toBe(true);
   current = { ok: true, message: "", chat: [{ role: "user", content: "Saved question" }, { role: "assistant", content: "Recovered answer" }] };
   await vi.advanceTimersByTimeAsync(1000);
   expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, current.chat, expect.any(Function));

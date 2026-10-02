@@ -7,7 +7,7 @@ import path from "node:path";
 const help = `PointUp synthetic assistant evaluations
 No inference occurs without --live. Supply OPENAI_API_KEY through your existing environment.
 Usage: node scripts/evaluate-assistant.mjs --live --model MODEL --output NEW_FILE [--case CASE_ID] [--trace]
-The live run makes up to five model turns per case (ten cases by default), sequentially.
+The live run makes up to five model turns per case (twelve cases by default), sequentially.
 No database or real portfolios are used. Reports contain checks and usage, not prompts or replies.
 Review docs/assistant-evaluations.md for the case rubric and limitations.`;
 const args = process.argv.slice(2);

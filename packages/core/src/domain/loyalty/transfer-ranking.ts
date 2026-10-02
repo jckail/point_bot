@@ -4,6 +4,7 @@ import {
   describeBonus,
   indexBestBonuses,
   type TransferBonus,
+  type TransferBonusSource,
 } from "./transfer-bonus";
 import {
   convertPoints,
@@ -27,6 +28,9 @@ export type TransferOption = {
   readonly bonusPermille: number;
   readonly bonusLabel: string | null;
   readonly bonusId: TransferBonusId | null;
+  /** Missing legacy metadata is unknown; only an explicit true establishes verification. */
+  readonly bonusVerified?: boolean | null;
+  readonly bonusSource?: TransferBonusSource | null;
   readonly sourcePoints: number;
   readonly destinationPoints: number;
   /** Effective cents-per-point of the *source* currency after transfer. */
@@ -86,6 +90,8 @@ export function rankTransferAdvice(fromProviderId: string, sourcePoints: number,
       bonusPermille: permille,
       bonusLabel: bonus ? describeBonus(bonus) : null,
       bonusId: bonus?.id ?? null,
+      bonusVerified: bonus ? bonus.verifiedAt !== null : null,
+      bonusSource: bonus?.source ?? null,
       sourcePoints,
       destinationPoints,
       effectiveCentsPerPoint:

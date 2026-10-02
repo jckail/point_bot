@@ -131,6 +131,7 @@ function TransferRow({ option }: { option: TransferOptionDto }) {
         {option.bonusMultiplier > 1 ? (
           <span className="ml-2 text-xs text-gold">
             {Math.round((option.bonusMultiplier - 1) * 100)}% bonus
+            {option.bonusVerified !== true ? " · unverified" : ""}
           </span>
         ) : null}
       </p>
@@ -148,6 +149,9 @@ function TransferRow({ option }: { option: TransferOptionDto }) {
       )}
       {option.bonusLabel && (
         <p className="mt-0.5 text-[11px] text-ink-faint">{option.bonusLabel}</p>
+      )}
+      {option.bonusMultiplier > 1 && option.bonusSource && (
+        <p className="mt-0.5 text-[11px] text-ink-faint">Bonus source: {option.bonusSource}</p>
       )}
     </li>
   );

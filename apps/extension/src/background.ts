@@ -6,11 +6,13 @@ import {
   saveLatestCapture,
   loadCaptureState,
   saveCaptureState,
+  loadCaptureReceipt,
 } from "./config";
 import { captureIdentity, completeCapture, finishCapture, isReviewedCapture, observationRequest, type ReviewedCapture } from "./capture-state";
 import type { ExtensionMessage, RecordResult } from "./messages";
 import { recordCapture } from "./record";
-import { askAssistant, clearChat, loadChatState, openReviewTab, pointUpOrigin } from "./assistant";
+import { askAssistant, clearChat, loadChatState, openReviewTab } from "./assistant";
+import { configuredApiOrigin } from "./api-origin";
 import { openOwnedReviewTab } from "./review-tab";
 
 let assistantBusy = false;
@@ -38,20 +40,24 @@ async function record(captureId?: string): Promise<RecordResult> {
   if (!config.baseUrl || !config.token) return { ok: false, message: "Set the API URL and token in the popup first." };
   const identity = await captureIdentity(config.baseUrl, config.token);
   if (state.pending && state.pending.identity !== identity) return { ok: false, message: "API settings changed for this pending capture. Restore the original settings to retry, or check Dashboard > Agents before discarding it." };
+  try { configuredApiOrigin(config.baseUrl); }
+  catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Save a valid PointUp URL first." }; }
   if (config.token.startsWith("pu_") && !state.pending) {
     state = { ...state, pending: { capture, identity, request: observationRequest(capture) } };
     await saveCaptureState(state); // Freeze the identity/time/payload before network IO.
   }
   const result = await recordCapture(client(config.baseUrl, config.token), config.token, capture, state.pending?.request);
   if (state.pending) state = finishCapture(state, capture.captureId, result);
-  else if (result.ok) state = completeCapture(state, capture.captureId);
+  else if (result.ok) state = { ...completeCapture(state, capture.captureId), lastReceipt: {
+    captureId: capture.captureId, identity, observedAt: capture.observedAt, result: { ...result, message: result.message.slice(0, 2048) },
+  } };
   await saveCaptureState(state);
   await updateBadge(state.pending?.capture ?? state.latest);
   return result;
 }
 async function openObservationReview(): Promise<RecordResult> {
   const config = await loadConfig();
-  const url = `${pointUpOrigin(config.baseUrl)}/dashboard/agents`;
+  const url = `${configuredApiOrigin(config.baseUrl)}/dashboard/agents`;
   await openOwnedReviewTab(url);
   return { ok: true, message: "Review observations in PointUp. Only you can confirm or reject them." };
 }
@@ -85,10 +91,11 @@ chrome.runtime.onMessage.addListener(
       void captureAction(async () => { await saveLatestCapture(message.capture); await updateBadge(await loadLatestCapture()); });
       return;
     }
-    if (["getLatest", "record", "discardCapture", "openObservationReview"].includes(message.type)) {
+    if (["getLatest", "getCaptureReceipt", "record", "discardCapture", "openObservationReview"].includes(message.type)) {
       if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab) return;
       const action = captureAction(async () => {
         if (message.type === "getLatest") return loadLatestCapture();
+        if (message.type === "getCaptureReceipt") return loadCaptureReceipt();
         if (message.type === "record") return record(message.captureId);
         if (message.type === "openObservationReview") return openObservationReview();
         const state = await loadCaptureState();

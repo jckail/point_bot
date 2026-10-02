@@ -47,6 +47,18 @@ removed by an older response. These tombstones are local delivery protection,
 not permanent server replay storage. Explicit discard clears local review only;
 it cannot undo a committed observation and instructs dashboard recovery first.
 
+The last successful receipt is retained separately with the original capture ID,
+observed time and endpoint/token fingerprint. Popup reopening and worker restart
+can show this labeled completion even after the matching candidate is cleared;
+newer candidates remain intact. Changed endpoint/token settings hide that receipt.
+This is local recovery feedback, not a fresh server read or automatic resubmission.
+
+Explicit settings saves accept a pasted page path and store its canonical origin.
+Chat, capture and review share HTTPS/loopback validation and reject credentials,
+query parameters and fragments. Legacy stored page paths require an explicit
+re-save; reading storage never rewrites frozen request identity. Check PointUp
+before discarding and recapturing an incompatible pending request.
+
 Source: [state protocol](../apps/extension/src/capture-state.ts),
 [storage validation](../apps/extension/src/config.ts),
 [content candidate](../apps/extension/src/content.ts),

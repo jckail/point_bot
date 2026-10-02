@@ -65,7 +65,7 @@ describe("scraped signed amounts", () => {
   });
   it("never publishes or raises a watch best from negative cash, while accepting a positive hit", async () => {
     const repo = new InMemoryAwardWatchRepository();
-    const watch = createAwardWatch({ userId: asUserId("signed-cash"), url: "https://synthetic.example/deals", label: "Signed cash", minCentsPerPoint: 2.5 });
+    const watch = createAwardWatch({ userId: asUserId("signed-cash"), url: "https://synthetic.example/deals", label: "Signed cash", minCentsPerPoint: 2.5, now: new Date("2026-10-02T12:00:00Z") });
     await repo.insert(watch);
     let markdown = "Hyatt 10,000 points or -$500";
     let now = new Date("2026-10-02T12:00:00Z");

@@ -85,11 +85,16 @@ eligibility against primary terms before adding their numeric rules.
   execution recovery. The success journal is authoritative; metrics/logs do not prove
   completion. Verify production outbox delivery and observation replay/review recovery
   after deployment, preserving current credential/grant rechecks and original witnesses.
+  Award-watch checks now lock and reread the current row after scraping, preserving
+  newer success/timestamps through delayed failures and serializing notifications
+  with outbox writes. Deleted or changed configurations cannot publish stale hits.
+  Root verified four actual PostgreSQL lock barriers; this does not prove production
+  scheduling or event delivery. Preserve this atomic composition during rollout.
 
 ## Live assistant, Chrome and provider acceptance
 
 - Configure an approved OpenAI project key in the web-only secret and choose an
-  explicitly available model. Run the ten-case synthetic live evaluation with the
+  explicitly available model. Run the twelve-case synthetic live evaluation with the
   manual rubric and automated assertions; the paid evaluation is currently skipped.
   Prove inference, opt-in SDK trace export and dashboard/CloudWatch arrival independently.
   Keep default-off tracing, kill switch and private payload handling intact.
@@ -98,6 +103,12 @@ eligibility against primary terms before adding their numeric rules.
   refresh, popup reopening during inference, account changes, service-worker lifetime,
   frozen capture retries, displayed-ID discard, review-tab reuse, focus and accessibility.
   Source tests and bounded layout checks do not prove browser/provider lifecycle behavior.
+  Source follow-ups retain the last scoped capture receipt across popup reopening,
+  normalize explicitly saved API origins consistently and preserve transcript DOM
+  during unchanged polling. Cached proposal status is labeled as a snapshot.
+  Web chat drafts currently survive only while the dashboard stays mounted; copy
+  no longer promises persistence after navigation/reload. Owner-scoped web chat
+  recovery remains a product follow-up alongside live Chrome acceptance.
 - Verify the new program-specific bank capture candidate for Chase, US Amex,
   Capital One Miles and Bilt against controlled logged-in pages. Synthetic
   product/unit/region fixtures and exact hosts are implemented; current Capital

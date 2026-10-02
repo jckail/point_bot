@@ -1,5 +1,6 @@
 import { renderChat } from "./chat-view";
 import { loadConfig, saveConfig } from "./config";
+import { canonicalApiOrigin, INVALID_API_URL } from "./api-origin";
 import type { ReviewedCapture } from "./capture-state";
 import { captureFeedback } from "./capture-view";
 import type { ChatEntry, ChatPending, ChatResult, ExtensionMessage, RecordResult } from "./messages";
@@ -48,6 +49,12 @@ async function refreshLatest(): Promise<void> {
   } else {
     box.textContent = "Open a provider page to capture a balance.";
   }
+  if (!capture?.receipt) {
+    const receipt = await chrome.runtime.sendMessage<ExtensionMessage, RecordResult | null>({ type: "getCaptureReceipt" });
+    if (receipt?.ok && typeof receipt.message === "string" && [undefined, "recorded", "unchanged"].includes(receipt.outcome)) {
+      $("status").textContent = `Last completed capture: ${captureFeedback(receipt)}`;
+    }
+  }
   updateControls();
 }
 
@@ -62,16 +69,19 @@ async function init(): Promise<void> {
     updateControls();
     void (async () => {
       try {
-        await saveConfig({ baseUrl: ($("baseUrl") as HTMLInputElement).value.trim(), token: ($("token") as HTMLInputElement).value.trim() });
-      } catch {
-        $("status").textContent = "Settings could not be saved. Retry before recording or asking.";
+        const baseUrl = canonicalApiOrigin(($("baseUrl") as HTMLInputElement).value.trim());
+        await saveConfig({ baseUrl, token: ($("token") as HTMLInputElement).value.trim() });
+        ($("baseUrl") as HTMLInputElement).value = baseUrl;
+      } catch (error) {
+        $("status").textContent = error instanceof Error && error.message === INVALID_API_URL
+          ? INVALID_API_URL : "Settings could not be saved. Retry before recording or asking.";
         return;
       }
       showChat([]);
       applyChatState({ ok: true, message: "", chat: [] });
       try {
         await chatRequest({ type: "clearChat" });
-        $("status").textContent = "Saved. Pending captures still require their original settings to retry.";
+        $("status").textContent = "Saved. Pending captures keep their original identity. If settings changed, check PointUp before discarding and recapturing.";
       } catch {
         $("status").textContent = "Settings saved. Conversation could not be cleared while the worker is busy; reopen the popup after it finishes.";
       }

@@ -65,6 +65,12 @@ export class DrizzleAwardWatchRepository implements AwardWatchRepository {
     return rows[0] ? toDomain(rows[0]) : null;
   }
 
+  async lockById(id: AwardWatchId): Promise<AwardWatch | null> {
+    const rows = await this.db.select().from(awardWatches)
+      .where(eq(awardWatches.id, id)).limit(1).for("update");
+    return rows[0] ? toDomain(rows[0]) : null;
+  }
+
   async findByUserId(userId: UserId): Promise<AwardWatch[]> {
     const rows = await this.db
       .select()

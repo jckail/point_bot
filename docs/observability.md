@@ -61,7 +61,9 @@ bot or worker can do the same with one call.
 ## Correlation (request id)
 
 * `x-request-id` is accepted when well formed (`[A-Za-z0-9._:-]{8,128}`),
-  otherwise generated (UUID), and always returned in the response.
+  otherwise generated (UUID), and always returned in the response. Known secret
+  strings such as a PointUp PAT, including a PAT embedded in an otherwise valid
+  ID, are replaced before response echo, upstream forwarding and span creation.
 * It lives in an `AsyncLocalStorage` context, so every log line carries
   `requestId` (plus `traceId`/`spanId` when a span is active) without plumbing.
 * API errors: `{ "error": { "code", "message", "requestId" } }` (`requestId` is an
@@ -69,6 +71,12 @@ bot or worker can do the same with one call.
   exposes it to clients).
 * MCP forwards its request id to the API as `X-Request-Id`, so one id spans
   MCP request, tool call and API request.
+
+The MCP correlation regression exercises real HTTP requests and the real
+OpenTelemetry SDK with an in-memory exporter. It verifies that mistaken PAT
+correlation values cannot reach response headers, upstream request IDs, logs or
+exported span attributes. This is local SDK evidence; it does not establish
+OTLP collector or hosted dashboard delivery.
 
 ## Configuration
 

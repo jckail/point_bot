@@ -2,6 +2,7 @@ import { PointUpApiError, PointUpClient } from "@pointup/api-client";
 import { loadConfig, type ExtensionConfig } from "./config";
 import type { ActionReview, ChatEntry, ChatPending, ChatResult } from "./messages";
 import { openOwnedReviewTab } from "./review-tab";
+import { canonicalApiOrigin, configuredApiOrigin } from "./api-origin";
 
 export const CHAT_TIMEOUT_MS = 25_000;
 export const CHAT_HISTORY_LIMIT = 16;
@@ -78,11 +79,7 @@ export async function clearChat(): Promise<ChatResult> {
   return { ok: true, message: "Conversation cleared.", chat: [] };
 }
 export function pointUpOrigin(value: string): string {
-  const url = new URL(value);
-  if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))) {
-    throw new Error("Use an HTTPS PointUp URL or a local development URL.");
-  }
-  return url.origin;
+  return canonicalApiOrigin(value);
 }
 export function assistantFailure(error: unknown, requestId?: string): string {
   const message = error instanceof PointUpApiError && [401, 403].includes(error.status)
@@ -110,7 +107,7 @@ async function runAssistant(question: unknown, prepared: () => void): Promise<Ch
   const config = await loadConfig();
   if (!config.baseUrl || !config.token) return { ok: false, message: "Save your PointUp API URL and token first." };
   let baseUrl: string;
-  try { baseUrl = pointUpOrigin(config.baseUrl); } catch { return { ok: false, message: "Use an HTTPS PointUp URL or a local development URL." }; }
+  try { baseUrl = configuredApiOrigin(config.baseUrl); } catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Save a valid PointUp URL first." }; }
   const history = await loadChat(config);
   const requestId = crypto.randomUUID();
   const scope = await chatScope(config.baseUrl, config.token);
@@ -153,8 +150,8 @@ async function runAssistant(question: unknown, prepared: () => void): Promise<Ch
 export async function openReviewTab(): Promise<ChatResult> {
   const config = await loadConfig();
   let url: string;
-  try { url = `${pointUpOrigin(config.baseUrl)}/dashboard/agents#review-actions`; }
-  catch { return { ok: false, message: "Save a valid PointUp URL first." }; }
+  try { url = `${configuredApiOrigin(config.baseUrl)}/dashboard/agents#review-actions`; }
+  catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Save a valid PointUp URL first." }; }
   await openOwnedReviewTab(url);
   return { ok: true, message: "Review and approve proposed actions in PointUp." };
 }

@@ -22,7 +22,7 @@ export interface GetLatestMessage {
 export type ExtensionMessage = CaptureMessage | RecordMessage | GetLatestMessage
   | { readonly type: "ask"; readonly message: string }
   | { readonly type: "discardCapture"; readonly captureId: string }
-  | { readonly type: "getChat" | "clearChat" | "openReview" | "openObservationReview" };
+  | { readonly type: "getChat" | "clearChat" | "openReview" | "openObservationReview" | "getCaptureReceipt" };
 
 export interface ActionReview {
   readonly id: string; readonly kind: string; readonly status: string;

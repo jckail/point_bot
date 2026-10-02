@@ -178,4 +178,11 @@ describe("extension assistant", () => {
     expect(() => pointUpOrigin("http://example.com")).toThrow();
     expect(() => pointUpOrigin("https://user:password@example.com")).toThrow();
   });
+  it("refuses legacy page-path chat settings with the same remediation as capture and no network", async () => {
+    localGet.mockResolvedValue({ baseUrl: "https://pointup.example/dashboard", token: "pu_test" });
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    const result = await askAssistant("My points?");
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("Save settings again") });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

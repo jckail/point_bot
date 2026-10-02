@@ -6,11 +6,13 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import {
   PrometheusMetrics,
   createConsoleLogger,
-  noopTracer,
+  createOtelTracer,
   type Observability,
 } from "@pointup/core/observability";
 import { PROVIDER_KINDS } from "@pointup/core/providers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { InMemorySpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { context, trace } from "@opentelemetry/api";
 
 import { createHttpServer, shutdown } from "../src/http";
 
@@ -32,6 +34,8 @@ const upstreamRequestIds: (string | undefined)[] = [];
 const lines: Record<string, unknown>[] = [];
 const raw: string[] = [];
 const metrics = new PrometheusMetrics();
+const exported = new InMemorySpanExporter();
+const provider = new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exported)] });
 
 const obs: Observability = {
   logger: createConsoleLogger({
@@ -40,7 +44,7 @@ const obs: Observability = {
       lines.push(JSON.parse(l));
     },
   }),
-  tracer: noopTracer,
+  tracer: createOtelTracer(),
   metrics,
   prometheus: metrics,
 };
@@ -53,6 +57,7 @@ const listen = (server: Server) =>
   );
 
 beforeAll(async () => {
+  provider.register();
   upstream = createServer((req, res) => {
     upstreamRequestIds.push(req.headers["x-request-id"] as string | undefined);
     if (failUpstream) {
@@ -75,6 +80,9 @@ afterAll(async () => {
   await shutdown(mcp, 500);
   upstream.closeAllConnections();
   await new Promise((r) => upstream.close(r));
+  await provider.shutdown();
+  trace.disable();
+  context.disable();
 });
 
 describe("MCP request correlation", () => {
@@ -113,6 +121,31 @@ describe("MCP request correlation", () => {
       'mcp_tool_calls_total{outcome="ok",tool="pointup_get_portfolio_summary"} 1',
     );
     await client.close();
+  });
+
+  it("replaces a PAT mistakenly used as correlation before echo, upstream forwarding or trace export", async () => {
+    const client = new Client({ name: "secret-correlation-test", version: "1" });
+    upstreamRequestIds.length = 0;
+    raw.length = 0;
+    exported.reset();
+    try {
+      const response = await fetch(`${mcpUrl}/healthz`, { headers: { "X-Request-Id": TOKEN } });
+      expect(response.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${mcpUrl}/mcp`), {
+        requestInit: { headers: { Authorization: `Bearer ${TOKEN}`, "X-Request-Id": `prefix-${TOKEN}` } },
+      }));
+      expect((await client.callTool({ name: "pointup_get_portfolio_summary", arguments: {} })).isError).toBeFalsy();
+      expect(upstreamRequestIds.length).toBeGreaterThan(0);
+      expect(upstreamRequestIds.every(id => /^[0-9a-f-]{36}$/.test(id ?? ""))).toBe(true);
+      await provider.forceFlush();
+      const spans = exported.getFinishedSpans();
+      expect(spans.some(span => span.name === "mcp.tool pointup_get_portfolio_summary")).toBe(true);
+      expect(spans.every(span => /^[0-9a-f-]{36}$/.test(String(span.attributes["request.id"])))).toBe(true);
+      expect(JSON.stringify(spans.map(span => ({ name: span.name, attributes: span.attributes, events: span.events })))).not.toContain(TOKEN);
+      expect(raw.join("\n")).not.toContain(TOKEN);
+    } finally {
+      await client.close();
+    }
   });
 
   it("counts failed tool calls as outcome=error and still never logs the token", async () => {

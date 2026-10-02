@@ -132,6 +132,8 @@ export function recordCheck(
 
 export interface AwardWatchRepository {
   findById(id: AwardWatchId): Promise<AwardWatch | null>;
+  /** Lock the current row until the enclosing atomic unit of work commits. */
+  lockById?(id: AwardWatchId): Promise<AwardWatch | null>;
   findByUserId(userId: UserId): Promise<AwardWatch[]>;
   /** Every watch across all users — the worker's check loop. */
   findAll(): Promise<AwardWatch[]>;

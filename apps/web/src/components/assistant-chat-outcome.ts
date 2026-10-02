@@ -42,6 +42,6 @@ export function assistantChatFailure(error: unknown, aborted: boolean, timedOut:
     : status === 401 || status === 403 ? "Sign in again or check your assistant access."
     : status === 429 ? "The assistant request limit was reached."
     : "The assistant response could not be confirmed.";
-  return { message: `${reason} Your question is saved. ${ASSISTANT_UNCERTAIN_NOTICE}`,
+  return { message: `${reason} Your question remains in this dashboard until you leave or reload it. ${ASSISTANT_UNCERTAIN_NOTICE}`,
     ...(error instanceof AssistantChatRequestError ? { requestId: error.requestId } : {}) };
 }

@@ -87,12 +87,14 @@ export class CheckAwardWatches {
   ) {}
 
   async execute(): Promise<CheckAwardWatchesResult> {
+    if (Boolean(this.watches.lockById) !== this.eventing.unitOfWork.atomic) {
+      throw new Error("Award watch checks require an atomic unit of work and watch locking");
+    }
     const all = await this.watches.findAll();
     const hits: AwardWatchHit[] = [];
     let failed = 0;
 
     for (const watch of all) {
-      const now = this.clock.now();
       let best: { cpp: number; title: string } | null = null;
       let pageTitle = "";
 
@@ -109,24 +111,23 @@ export class CheckAwardWatches {
         failed += 1;
         // Invalid numeric claims must not change bookkeeping or publish a hit.
         if (error instanceof InvalidAwardWatchError) continue;
-        await this.watches.update(
-          recordCheck(watch, { bestRealizedCpp: null, notified: false, now }),
-        );
-        continue;
+        best = null;
       }
 
-      const notified = shouldNotify(watch, best?.cpp ?? null);
-      if (notified && best) {
-        hits.push({
-          watch,
-          bestRealizedCpp: best.cpp,
-          bestDealTitle: best.title,
-          pageTitle,
-        });
-      }
-      await this.eventing.unitOfWork.run(async () => {
+      const hit = await this.eventing.unitOfWork.run(async (): Promise<AwardWatchHit | null> => {
+        const current = this.watches.lockById
+          ? await this.watches.lockById(watch.id)
+          : await this.watches.findById(watch.id);
+        // Observation bookkeeping may change while scraping. Configuration and
+        // ownership changes invalidate the scrape; deletion must not notify.
+        if (!current || current.userId !== watch.userId || current.url !== watch.url
+          || current.label !== watch.label || current.minCentsPerPoint !== watch.minCentsPerPoint
+          || current.createdAt.getTime() !== watch.createdAt.getTime()) return null;
+        const now = new Date(Math.max(this.clock.now().getTime(), current.updatedAt.getTime(),
+          current.lastCheckedAt?.getTime() ?? 0, current.lastNotifiedAt?.getTime() ?? 0));
+        const notified = shouldNotify(current, best?.cpp ?? null);
         await this.watches.update(
-          recordCheck(watch, {
+          recordCheck(current, {
             bestRealizedCpp: best?.cpp ?? null,
             notified,
             now,
@@ -135,17 +136,20 @@ export class CheckAwardWatches {
         if (notified && best) {
           await this.eventing.publisher.publish([
             createDomainEvent("watch.triggered", {
-              userId: watch.userId,
-              aggregateId: watch.id,
+              userId: current.userId,
+              aggregateId: current.id,
               occurredAt: now,
               payload: {
                 bestRealizedCpp: best.cpp,
-                minCentsPerPoint: watch.minCentsPerPoint,
+                minCentsPerPoint: current.minCentsPerPoint,
               },
             }),
           ]);
+          return { watch: current, bestRealizedCpp: best.cpp, bestDealTitle: best.title, pageTitle };
         }
+        return null;
       });
+      if (hit) hits.push(hit);
     }
 
     return { checked: all.length, failed, hits };

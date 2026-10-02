@@ -17,6 +17,7 @@ export interface CaptureState {
   readonly latest: ReviewedCapture | null;
   readonly pending: PendingCapture | null;
   readonly completedIds?: readonly string[];
+  readonly lastReceipt?: { readonly captureId: string; readonly identity: string; readonly observedAt: string; readonly result: RecordResult };
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function isReviewedCapture(value: unknown): value is ReviewedCapture {
@@ -52,7 +53,8 @@ export function completeCapture(state: CaptureState, captureId: string): Capture
 export function finishCapture(state: CaptureState, captureId: string, result: RecordResult): CaptureState {
   if (state.pending?.capture.captureId !== captureId) return state;
   if (result.outcome === "recorded" || result.outcome === "unchanged") {
-    return completeCapture(state, captureId);
+    return { ...completeCapture(state, captureId), lastReceipt: { captureId, identity: state.pending.identity,
+      observedAt: state.pending.capture.observedAt, result: { ...result, message: result.message.slice(0, 2048) } } };
   }
   return { ...state, pending: { ...state.pending, result } };
 }

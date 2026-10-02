@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { pageCandidate } from "../src/capture-state";
+import { captureIdentity, observationRequest, pageCandidate } from "../src/capture-state";
 import type { ExtensionMessage } from "../src/messages";
 
 const stored: Record<string, unknown> = {};
@@ -117,4 +117,72 @@ it("bounds recording to 25 seconds and retains the frozen review on timeout", as
   expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("took too long") });
   expect(timeout).toHaveBeenCalledWith(25_000);
   expect(await request({ type: "getLatest" })).toMatchObject({ captureId: capture.captureId, retryLocked: true });
+});
+it("new pasted settings use the same origin for capture and chat without modifying a frozen request", async () => {
+  const { saveConfig } = await import("../src/config");
+  await saveConfig({ baseUrl: "https://pointup.example/dashboard", token: "pu_original" });
+  await deliver();
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(String(input).endsWith("assistant/chat")
+    ? { reply: "Answer" } : { outcome: "recorded", accountId: "a", points: 123, previousPoints: 1, message: "Recorded", observationId: "receipt_origin" })));
+  vi.stubGlobal("fetch", fetchMock);
+  await request({ type: "record", captureId: capture.captureId });
+  expect(fetchMock.mock.calls[0]?.[0]).toBe("https://pointup.example/api/v1/agent/observations");
+  await request({ type: "ask", message: "My points?" });
+  expect(fetchMock.mock.calls[1]?.[0]).toBe("https://pointup.example/api/v1/assistant/chat");
+  const frozen = structuredClone(stored.captureState);
+  await saveConfig({ baseUrl: "https://other.example/dashboard", token: "pu_other" });
+  expect(stored.captureState).toEqual(frozen);
+});
+it("does not rewrite or replay an old frozen page-path request after explicit settings normalization", async () => {
+  const { saveConfig } = await import("../src/config");
+  stored.baseUrl = "https://pointup.example/dashboard";
+  stored.captureState = { latest: capture, pending: { capture,
+    identity: await captureIdentity(stored.baseUrl as string, "pu_original"), request: observationRequest(capture) } };
+  const frozen = structuredClone(stored.captureState);
+  const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("check PointUp") });
+  await saveConfig({ baseUrl: "https://pointup.example/dashboard", token: "pu_original" });
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("settings changed") });
+  expect(stored.captureState).toEqual(frozen);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+it("refuses legacy page-path capture settings with remediation and no network or identity rewrite", async () => {
+  stored.baseUrl = "https://pointup.example/dashboard";
+  await deliver();
+  const before = structuredClone(stored.captureState);
+  const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("Save settings again") });
+  expect(stored.captureState).toEqual(before);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+it("recovers a completed receipt after restart without resubmission or hiding newer captures, scoped to original settings", async () => {
+  await deliver();
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ outcome: "unchanged", accountId: "a", points: 123, previousPoints: 123, message: "Already current", observationId: "receipt_completed" })));
+  vi.stubGlobal("fetch", fetchMock);
+  await request({ type: "record", captureId: capture.captureId });
+  await startWorker();
+  expect(await request({ type: "getLatest" })).toBeNull();
+  expect(await request({ type: "getCaptureReceipt" })).toMatchObject({ ok: true, outcome: "unchanged", observationId: "receipt_completed" });
+  await deliver(newer);
+  expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
+  expect(await request({ type: "getCaptureReceipt" })).toMatchObject({ observationId: "receipt_completed" });
+  stored.token = "pu_other";
+  expect(await request({ type: "getCaptureReceipt" })).toBeNull();
+  stored.token = "pu_original"; stored.baseUrl = "https://other.example";
+  expect(await request({ type: "getCaptureReceipt" })).toBeNull();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+it("retains a legacy manual completion without claiming observation idempotency or a server receipt", async () => {
+  stored.token = "clerk_session";
+  await deliver();
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(String(input).endsWith("loyalty-accounts")
+    ? [{ id: "account", provider: { id: "united", displayName: "United" } }] : {})));
+  vi.stubGlobal("fetch", fetchMock);
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: true });
+  await startWorker();
+  const receipt = await request({ type: "getCaptureReceipt" });
+  expect(receipt).toMatchObject({ ok: true, message: "Recorded 123 for United." });
+  expect(receipt).not.toHaveProperty("observationId");
+  expect(receipt).not.toHaveProperty("outcome");
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });
