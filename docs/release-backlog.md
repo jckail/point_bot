@@ -7,7 +7,35 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged Restore feedback release is [PR #45](https://github.com/jckail/point_bot/pull/45)
+The latest merged mutation-feedback and telemetry release is [PR #46](https://github.com/jckail/point_bot/pull/46)
+from source `c9b82e708276ec6de74337a3e88e1d3e3bd07f1e`, at master
+`f2ea9b5b5457116a5a03ac5787b2c59547c7d065`. Candidate, prospective master and
+actual master have the same tree, `9e4f0e941e3edf3a5a24a2f21363bed7009b7114`.
+All six candidate jobs in [CI 37059302301](https://github.com/jckail/point_bot/actions/runs/37059302301),
+[CodeQL 37059302378](https://github.com/jckail/point_bot/actions/runs/37059302378)
+and Bugbot passed, with 1,807 workspace tests and one paid live skip.
+[Master CodeQL 37059830185](https://github.com/jckail/point_bot/actions/runs/37059830185)
+passed; merged-master [Deploy 37059830514](https://github.com/jckail/point_bot/actions/runs/37059830514)
+also passed, with 1,807 workspace tests and one paid live skip, including 41 popup
+and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
+deployment-role configuration; production activation remains unverified.
+
+The current two-file session capture timestamp candidate is applied on
+`codex/pointup-capture-timestamp-20261002` after hash verification and independent
+review. The session manual-balance request now forwards the original
+`capture.observedAt` as `capturedAt`, without replacing or normalizing it. Four
+new cases use the actual API client, shared input schema and actual core use case
+with existing in-memory repositories at a synthetic HTTP boundary. They prove
+that a late reading retains its capture time and leaves a newer snapshot latest,
+preserves explicit or cleared expiry, and rejects malformed/future timestamps
+without writes. The activity-array assertion was corrected before first execution.
+Original source produced four failures and 11 passes; fixed source passes all 15
+cases, with extension typecheck and two-file lint passing. Committed candidate
+release gates remain pending. No real authenticated route, provider or native
+browser proof is claimed. PAT frozen payloads and idempotency are unchanged;
+legacy session writes remain non-idempotent, with no automatic retry guarantee.
+
+The preceding Restore feedback release is [PR #45](https://github.com/jckail/point_bot/pull/45)
 from source `5b528500842050acc332b960acaaffdfcd0b06b8`, at master
 `2517c5648cfdbc156ee68152ec21b9c62c05a834`. Candidate, prospective master and
 actual master have the same tree, `1ea69887e79dec51e55b9738ed4cc693e81c21e2`.
@@ -20,9 +48,8 @@ also passed with 1,796 workspace tests and one paid live skip, including 41 popu
 and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
 deployment-role configuration; production activation remains unverified.
 
-The current six-file Goal Remove feedback and initial tool-abort candidate is
-applied on `codex/pointup-mutation-feedback-telemetry-20261002`, following hash
-verification of both independently approved proposals. Eight actual core/action
+The merged six-file PR #46 Goal Remove feedback and initial tool-abort change
+followed hash verification of both independently approved proposals. Eight actual core/action
 Goal Remove cases preserve owner checks, events and success-only refresh while
 returning bounded error/session feedback through the existing form components.
 A past target date remains removable; no deletion deadline is invented.
@@ -35,8 +62,8 @@ not prove full runner signal handling or paid inference.
 The original two-test-file source produced nine failures and two passes; a
 legacy single-argument Goal Remove call adapter qualifies that red proof. The
 fixed two files pass all 11 cases, and six existing Restore controls also pass
-(17 total). Web typecheck, six-file lint and whitespace checks passed. No new
-browser verification or committed candidate release gate is claimed.
+(17 total). Web typecheck, six-file lint and whitespace checks passed. Candidate
+release verification passed as recorded above; no new browser proof is claimed.
 
 The preceding SDK tracing release is [PR #44](https://github.com/jckail/point_bot/pull/44)
 from source `c260cb385cc8b01acb88a9174f5866218deaa8a1`, merged at master
@@ -67,7 +94,7 @@ port 55821 were closed. Node PID 2201102 required SIGTERM because `/finish` call
 `server.close` but left esbuild running; the wrapper exited 241. Functional browser
 assertions passed, but the wrapper was not green. The temporary helper now calls
 `esbuild.stop` during cleanup and has not been rerun. Goal Remove feedback is
-prepared in the separate current candidate described above.
+merged in PR #46 as described above.
 
 The preceding hydration-recovery release is [PR #42](https://github.com/jckail/point_bot/pull/42)
 from source `fd59f2008ce92024f18d3f8cf1f6ef687490bcdf` (tree

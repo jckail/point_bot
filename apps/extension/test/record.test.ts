@@ -1,3 +1,10 @@
+import { RecordManualBalance } from "../../../packages/core/src/application/loyalty/record-manual-balance";
+import { createLoyaltyAccount } from "../../../packages/core/src/domain/loyalty/loyalty-account";
+import { createBalanceSnapshot } from "../../../packages/core/src/domain/loyalty/balance-snapshot";
+import { UserId } from "../../../packages/core/src/domain/shared/ids";
+import { InvalidCaptureTimeError } from "../../../packages/core/src/domain/errors";
+import { recordManualBalanceRequestSchema } from "../../../packages/core/src/contracts";
+import { InMemoryActivityEventRepository, InMemoryBalanceSnapshotRepository, InMemoryLoyaltyAccountRepository, RecordingEventing } from "../../../packages/core/test/fakes";
 import { PointUpClient } from "@pointup/api-client";
 import { AGENT_SKILL_CATALOG, isHostAllowed } from "@pointup/core";
 import { describe, expect, it } from "vitest";
@@ -131,4 +138,79 @@ describe("recordCapture", () => {
     expect(result.ok).toBe(true);
     expect(calls.map((c) => c.path)).not.toContain("/api/v1/agent/observations");
   });
+});
+
+
+/** Synthetic HTTP boundary uses the real API client, server input schema and core use case. */
+async function sessionCaptureServer(expiry: Date | null) {
+  const accounts = new InMemoryLoyaltyAccountRepository();
+  const balances = new InMemoryBalanceSnapshotRepository();
+  const activity = new InMemoryActivityEventRepository();
+  const events = new RecordingEventing();
+  const now = new Date("2026-10-02T12:00:00.000Z");
+  const account = createLoyaltyAccount({ userId: UserId.parse("synthetic-session-owner"), providerId: "hyatt",
+    membershipNumber: "synthetic", now: new Date("2026-10-01T12:00:00.000Z"), expiresAt: expiry });
+  await accounts.insert(account);
+  const record = new RecordManualBalance(accounts, balances, activity, { now: () => now }, events);
+  const calls: { path: string; body?: unknown }[] = [];
+  let executions = 0;
+  const api = new PointUpClient({ baseUrl: "https://pointup.test", headers: { Authorization: "Bearer synthetic-session" },
+    fetch: async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ path, body });
+      if (init?.method === "GET" && path === "/api/v1/loyalty-accounts") return Response.json([
+        { id: account.id, provider: { id: "hyatt", displayName: "World of Hyatt" } },
+      ]);
+      if (init?.method !== "POST" || path !== `/api/v1/loyalty-accounts/${account.id}/balances`) throw new Error("Unexpected synthetic endpoint");
+      const parsed = recordManualBalanceRequestSchema.safeParse(body);
+      if (!parsed.success) return Response.json({ error: { code: "VALIDATION_ERROR", message: "Invalid capture input" } }, { status: 400 });
+      executions++;
+      try {
+        const result = await record.execute({ userId: account.userId, accountId: account.id, points: parsed.data.points,
+          capturedAt: parsed.data.capturedAt ? new Date(parsed.data.capturedAt) : undefined });
+        return Response.json(result, { status: 201 });
+      } catch (error) {
+        if (!(error instanceof InvalidCaptureTimeError)) throw error;
+        return Response.json({ error: { code: "INVALID_CAPTURE_TIME", message: "Invalid capture time" } }, { status: 400 });
+      }
+    },
+  });
+  return { api, calls, account, accounts, balances, activity, events, now, executions: () => executions };
+}
+
+it.each([new Date("2029-01-01T12:00:00.000Z"), null])("keeps original session capture chronology and existing expiry %s through client/schema/core", async expiry => {
+  const f = await sessionCaptureServer(expiry);
+  const newer = createBalanceSnapshot({ loyaltyAccountId: f.account.id, points: 50000, source: "sync",
+    capturedAt: new Date("2026-10-02T01:00:00.000Z") });
+  await f.balances.insert(newer);
+  const retained = { ...capture, providerId: "hyatt", sourceUrl: "https://www.hyatt.com/account",
+    observedAt: "2026-09-30T10:15:30.000Z" };
+  const original = JSON.stringify(retained);
+  expect(await recordCapture(f.api, "clerk_session", retained)).toMatchObject({ ok: true });
+  expect(f.calls[1]?.body).toEqual({ points: retained.points, capturedAt: retained.observedAt });
+  expect(f.executions()).toBe(1);
+  expect((await f.balances.findLatestByAccountIds([f.account.id])).get(f.account.id)?.id).toBe(newer.id);
+  expect(f.balances.rows).toContainEqual(expect.objectContaining({ points: retained.points, capturedAt: new Date(retained.observedAt), source: "manual" }));
+  expect(await f.accounts.findById(f.account.id)).toMatchObject({ expiresAt: expiry, updatedAt: f.now });
+  expect(f.activity.rows).toContainEqual(expect.objectContaining({ occurredAt: new Date(retained.observedAt) }));
+  expect(f.events.events[0]?.payload).toMatchObject({ capturedAt: retained.observedAt, previousPoints: 50000 });
+  expect(JSON.stringify(retained)).toBe(original);
+  expect(f.calls.some(call => call.path === "/api/v1/agent/observations")).toBe(false);
+});
+
+it.each([
+  { observedAt: "not-a-date", executions: 0 },
+  { observedAt: "2026-10-03T12:00:00.000Z", executions: 1 },
+])("keeps server validation/future guards for session capture $observedAt", async ({ observedAt, executions }) => {
+  const expiry = new Date("2029-01-01T12:00:00.000Z");
+  const f = await sessionCaptureServer(expiry);
+  const retained = { ...capture, providerId: "hyatt", sourceUrl: "https://www.hyatt.com/account", observedAt };
+  expect(await recordCapture(f.api, "clerk_session", retained)).toMatchObject({ ok: false });
+  expect(f.calls[1]?.body).toEqual({ points: retained.points, capturedAt: observedAt });
+  expect(f.executions()).toBe(executions);
+  expect(f.balances.rows).toHaveLength(0);
+  expect(f.activity.rows).toHaveLength(0);
+  expect(f.events.events).toHaveLength(0);
+  expect(await f.accounts.findById(f.account.id)).toMatchObject({ expiresAt: expiry, updatedAt: f.account.updatedAt });
 });
