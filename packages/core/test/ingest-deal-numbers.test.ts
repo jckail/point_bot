@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { CheckAwardWatches } from "../src/application/loyalty/award-watches";
+import { createAwardWatch } from "../src/domain/loyalty/award-watch";
+import { InMemoryAwardWatchRepository } from "./fakes";
+import { asUserId } from "./ids";
 import { IngestDealPage } from "../src/application/loyalty/ingest-deal-page";
 
 async function ingest(markdown: string) {
@@ -37,5 +41,55 @@ describe("scraped deal numeric tokens", () => {
     const result = await ingest(line);
     expect(result.deals).toHaveLength(1);
     expect(result.deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+  });
+});
+
+
+describe("scraped cash currency provenance", () => {
+  const foreign = ["C$300", "CA$300", "A$300", "AU$300", "NZ$300", "HK$300", "SG$300", "S$300", "NT$300", "R$300", "XYZ$300", "TWD $300", "$300 TWD",
+    "$300 CAD", "$300 AUD", "$300 NZD", "EUR 300", "€300", "£300", "¥300", "300 Canadian dollars"];
+  it.each(foreign)("keeps foreign cash unstructured in both token orders: %s", async cash => {
+    for (const line of [`Hyatt 10,000 points or ${cash}`, `Hyatt ${cash} or 10,000 points`]) {
+      expect((await ingest(line)).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+    }
+  });
+  it.each(["$300", "USD 300", "US$300", "USD$300", "$300 USD"])("preserves USD and legacy bare-dollar claims: %s", async cash => {
+    for (const line of [`Hyatt 10,000 points or ${cash}`, `Hyatt ${cash} or 10,000 points`]) {
+      expect((await ingest(line)).deals[0]).toMatchObject({ pointsCost: 10000, cashEquivalentCents: 30000 });
+    }
+  });
+  it("refuses mixed currencies rather than picking an unrelated USD amount", async () => {
+    expect((await ingest("Hyatt 10,000 points or C$300 (USD 200)")).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+    expect((await ingest("Hyatt USD 200 / AUD 300 for 10,000 points")).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+  });
+  it("does not let one foreign line discard an independently valid USD line", async () => {
+    const result = await ingest("Hyatt 10,000 points or C$300\nHyatt 20,000 points or US$400");
+    expect(result.deals).toHaveLength(1);
+    expect(result.deals[0]).toMatchObject({ pointsCost: 20000, cashEquivalentCents: 40000 });
+  });
+  it.each(["Prices quoted in CAD", "All prices are displayed in TWD", "Currency: AUD"])("refuses bare-dollar claims under a foreign page declaration: %s", async declaration => {
+    for (const line of ["Hyatt 25000 points for $1500", "Hyatt $1500 for 25000 points"]) {
+      expect((await ingest(`${declaration}\n${line}`)).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+    }
+  });
+  it.each(["USD 300", "US$300", "USD$300", "$300 USD"])("permits an explicitly USD cash token on a foreign-declared page: %s", async cash => {
+    for (const line of [`Hyatt 10000 points for ${cash}`, `Hyatt ${cash} for 10000 points`]) {
+      expect((await ingest(`Prices quoted in CAD\n${line}`)).deals[0]).toMatchObject({ pointsCost: 10000, cashEquivalentCents: 30000 });
+    }
+  });
+  it("does not let an unrelated USD mention relabel a bare-dollar claim", async () => {
+    expect((await ingest("Prices quoted in CAD\nHyatt 10000 points for $300; US dollars accepted")).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+  });
+  it.each(["Hyatt 10,000 points or C$300", "Prices quoted in CAD\nHyatt 10,000 points or $300", "Hyatt 10,000 points or TWD $300", "Hyatt 10,000 points or R$300"])("blocks a false foreign-cash watch hit/state: %s", async markdown => {
+    const repo = new InMemoryAwardWatchRepository();
+    const watch = createAwardWatch({ userId: asUserId("synthetic"), url: "https://synthetic.example/deals", label: "Foreign cash", minCentsPerPoint: 2.5 });
+    await repo.insert(watch);
+    const ingestPage = new IngestDealPage({ scrape: async url => ({ url, title: "Synthetic", markdown, fetchedAt: new Date(0) }) });
+    const result = await new CheckAwardWatches(repo, ingestPage).execute();
+    expect(result).toEqual({ checked: 1, failed: 0, hits: [] });
+    const after = await repo.findById(watch.id);
+    expect(after?.bestSeenCentsPerPoint).toBeNull();
+    expect(after?.lastNotifiedAt).toBeNull();
+    expect(after?.lastCheckedAt).toBeInstanceOf(Date);
   });
 });

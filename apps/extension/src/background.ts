@@ -10,7 +10,7 @@ import {
 import { captureIdentity, completeCapture, finishCapture, isReviewedCapture, observationRequest, type ReviewedCapture } from "./capture-state";
 import type { ExtensionMessage, RecordResult } from "./messages";
 import { recordCapture } from "./record";
-import { askAssistant, clearChat, loadChat, openReviewTab, pointUpOrigin } from "./assistant";
+import { askAssistant, clearChat, loadChatState, openReviewTab, pointUpOrigin } from "./assistant";
 import { openOwnedReviewTab } from "./review-tab";
 
 let assistantBusy = false;
@@ -67,12 +67,15 @@ chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, sender, sendResponse) => {
     if (["ask", "getChat", "clearChat", "openReview"].includes(message?.type)) {
       if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab) return;
+      if (message.type === "getChat") {
+        void loadChatState().catch(() => ({ ok: false, message: "Conversation unavailable. Reopen the popup and retry." })).then(sendResponse);
+        return true;
+      }
       if (assistantBusy) { sendResponse({ ok: false, message: "The assistant is working. Please wait." }); return; }
       assistantBusy = true;
       const action = message.type === "ask" ? askAssistant(message.message)
         : message.type === "clearChat" ? clearChat()
-        : message.type === "openReview" ? openReviewTab()
-        : loadChat().then(chat => ({ ok: true, message: "", chat }));
+        : openReviewTab();
       void action.catch(() => ({ ok: false, message: "Extension worker unavailable. Reopen the popup and retry." }))
         .then(sendResponse).finally(() => { assistantBusy = false; });
       return true;

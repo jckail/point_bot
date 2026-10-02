@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PointUpApiError } from "@pointup/api-client";
-import { askAssistant, assistantFailure, boundedChat, CHAT_TIMEOUT_MS, clearChat, loadChat, openReviewTab, pointUpOrigin } from "../src/assistant";
+import { askAssistant, assistantFailure, boundedChat, CHAT_TIMEOUT_MS, clearChat, loadChat, loadChatState, openReviewTab, pointUpOrigin } from "../src/assistant";
 
 const state: Record<string, unknown> = {};
 const sessionGet = vi.fn(async (key: string | string[]) => Object.fromEntries((Array.isArray(key) ? key : [key]).map(name => [name, state[name]])));
@@ -71,7 +71,7 @@ describe("extension assistant", () => {
     expect(result.message).toContain("support_123");
     expect(result.message).not.toContain("private provider text");
     expect(state.assistantChat).toEqual([{ role: "user", content: "Existing question" }]);
-    expect(sessionSet).not.toHaveBeenCalled();
+    expect(state.assistantChatPending).toMatchObject({ question: "New question", status: "uncertain" });
   });
   it("retains history on timeout and provides a clear retry message", async () => {
     state.assistantChat = [{ role: "assistant", content: "Existing answer" }];
@@ -80,6 +80,64 @@ describe("extension assistant", () => {
     expect(result.message).toContain("took too long");
     expect(result.message).not.toContain("private timeout detail");
     expect(await loadChat()).toHaveLength(1);
+    expect(result.message).toContain("outcome is unknown");
+    expect(result.pending).toMatchObject({ question: "Question", status: "uncertain" });
+    expect(result.message).toContain((state.assistantChatPending as { requestId: string }).requestId);
+  });
+  it("persists a correlated question before inference and recovers completion without the initiating popup", async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn(async (_url: unknown, init: RequestInit) => {
+      expect(state.assistantChatPending).toMatchObject({ question: "Saved question", status: "in_flight",
+        requestId: (init.headers as Record<string, string>)["x-request-id"] });
+      return new Promise<Response>(resolve => { finish = resolve; });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const asking = askAssistant("Saved question");
+    while (!finish) await new Promise(resolve => setTimeout(resolve, 0));
+    expect(await loadChatState()).toMatchObject({ ok: true, pending: { question: "Saved question", status: "in_flight" } });
+    finish(new Response(JSON.stringify({ reply: "Recovered answer" })));
+    await asking;
+    expect(await loadChatState()).toMatchObject({ chat: [{ role: "user", content: "Saved question" }, { role: "assistant", content: "Recovered answer" }] });
+    expect((await loadChatState()).pending).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("does not let an immediate popup read miss pending request preparation", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(async () => new Promise<Response>(resolve => { finish = resolve; })));
+    const asking = askAssistant("Immediate reopen");
+    const recovered = await loadChatState();
+    expect(recovered.pending).toMatchObject({ question: "Immediate reopen", status: "in_flight" });
+    finish(new Response(JSON.stringify({ reply: "Answer" })));
+    await asking;
+  });
+  it("reports worker restart as uncertain with the original support ID and never resends", async () => {
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn(async () => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const asking = askAssistant("Interrupted question");
+    while (!finish) await new Promise(resolve => setTimeout(resolve, 0));
+    const original = state.assistantChatPending as { requestId: string };
+    vi.resetModules();
+    const restarted = await import("../src/assistant");
+    const recovered = await restarted.loadChatState();
+    expect(recovered.pending).toMatchObject({ question: "Interrupted question", status: "uncertain" });
+    expect(recovered.pending?.message).toContain("outcome is unknown");
+    expect(recovered.pending?.message).toContain(original.requestId);
+    expect(recovered.pending?.message).toContain("Check proposed actions");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(new Response(JSON.stringify({ reply: "Finished" })));
+    await asking;
+  });
+  it.each(["token", "endpoint"])("does not expose old history or a failed pending question after %s rotation", async field => {
+    state.assistantChat = [{ role: "assistant", content: "Private former portfolio" }];
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      localGet.mockResolvedValue({ baseUrl: field === "endpoint" ? "https://other.example" : "https://pointup.example", token: field === "token" ? "pu_other" : "pu_test" });
+      throw new Error("response lost");
+    }));
+    const failed = await askAssistant("Private former question");
+    expect(failed.chat).toBeUndefined();
+    expect(failed.pending).toBeUndefined();
+    expect(await loadChatState()).toEqual({ ok: true, message: "", chat: [] });
   });
   it("rejects unsafe support ids and does not echo exception messages", () => {
     expect(assistantFailure(new PointUpApiError(502, "PRIVATE", "private detail", "bad <script>"))).not.toContain("script");
@@ -91,7 +149,9 @@ describe("extension assistant", () => {
     const result = await askAssistant("Question");
     expect(result.ok).toBe(false);
     expect(result.message).toContain("settings changed");
-    expect(sessionSet).not.toHaveBeenCalled();
+    expect(state.assistantChatPending).toMatchObject({ question: "Question", status: "in_flight" });
+    expect(state.assistantChat).not.toContainEqual(expect.objectContaining({ content: "First identity" }));
+    expect(await loadChatState()).toEqual({ ok: true, message: "", chat: [] });
   });
   it("does not send a previous identity's conversation after settings change", async () => {
     state.assistantChat = [{ role: "user", content: "Private former portfolio" }];
@@ -110,9 +170,10 @@ describe("extension assistant", () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
   it("clears only conversation and validates origin without widening production HTTP", async () => {
-    state.assistantChat = [{ role: "user", content: "Question" }]; state.latestCapture = "keep";
+    state.assistantChat = [{ role: "user", content: "Question" }]; state.latestCapture = "keep"; state.assistantChatPending = { question: "Pending" };
     expect((await clearChat()).chat).toEqual([]);
     expect(state.latestCapture).toBe("keep");
+    expect(state.assistantChatPending).toBeUndefined();
     expect(pointUpOrigin("http://localhost:3000/path")).toBe("http://localhost:3000");
     expect(() => pointUpOrigin("http://example.com")).toThrow();
     expect(() => pointUpOrigin("https://user:password@example.com")).toThrow();

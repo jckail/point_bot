@@ -51,8 +51,13 @@ export class HttpFxRateSource implements FxRateSource {
       throw new Error(`FX rate fetch failed (${response.status})`);
     }
     const payload = JSON.parse(await response.text()) as {
+      base?: unknown;
       rates?: Record<string, unknown>;
     };
+    // Older compatible providers omit base; a supplied base must be USD.
+    if ("base" in payload && payload.base !== "USD") {
+      throw new Error("FX API returned an invalid USD base currency.");
+    }
     const rate = payload.rates?.[currency];
     if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
       throw new Error(`FX API returned an invalid rate for ${currency}`);

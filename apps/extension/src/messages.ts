@@ -33,4 +33,12 @@ export interface ChatEntry {
   readonly requestId?: string; readonly mode?: string; readonly traceId?: string;
   readonly actions?: readonly ActionReview[];
 }
-export interface ChatResult extends RecordResult { readonly chat?: readonly ChatEntry[]; }
+export interface ChatPending {
+  readonly question: string;
+  readonly status: "in_flight" | "uncertain";
+  readonly message: string;
+}
+export interface ChatResult extends RecordResult {
+  readonly chat?: readonly ChatEntry[];
+  readonly pending?: ChatPending;
+}

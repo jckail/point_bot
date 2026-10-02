@@ -2,7 +2,7 @@ import { renderChat } from "./chat-view";
 import { loadConfig, saveConfig } from "./config";
 import type { ReviewedCapture } from "./capture-state";
 import { captureFeedback } from "./capture-view";
-import type { ChatEntry, ChatResult, ExtensionMessage, RecordResult } from "./messages";
+import type { ChatEntry, ChatPending, ChatResult, ExtensionMessage, RecordResult } from "./messages";
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -14,14 +14,18 @@ let selectedCaptureId: string | undefined;
 let captureBusy = false;
 let settingsBusy = false;
 let chatBusy = false;
+let chatPending: ChatPending | undefined;
+let chatRefresh: ReturnType<typeof setTimeout> | undefined;
 function updateControls(): void {
   const busy = captureBusy || settingsBusy;
   ($("record") as HTMLButtonElement).disabled = busy || !selectedCaptureId;
   ($("discardCapture") as HTMLButtonElement).disabled = busy || !selectedCaptureId;
   ($("openObservationReview") as HTMLButtonElement).disabled = busy;
-  ($("save") as HTMLButtonElement).disabled = busy || chatBusy;
-  for (const id of ["baseUrl", "token"]) ($(id) as HTMLInputElement).disabled = busy || chatBusy;
-  $("assistant").querySelectorAll("button").forEach(button => { button.disabled = chatBusy || settingsBusy; });
+  const inferenceBusy = chatBusy || chatPending?.status === "in_flight";
+  ($("save") as HTMLButtonElement).disabled = busy || inferenceBusy;
+  for (const id of ["baseUrl", "token"]) ($(id) as HTMLInputElement).disabled = busy || inferenceBusy;
+  ($("question") as HTMLTextAreaElement).disabled = inferenceBusy || settingsBusy;
+  $("assistant").querySelectorAll("button").forEach(button => { button.disabled = inferenceBusy || settingsBusy; });
 }
 async function runCapture(action: () => Promise<void>): Promise<void> {
   if (captureBusy || settingsBusy) return;
@@ -53,7 +57,7 @@ async function init(): Promise<void> {
   ($("token") as HTMLInputElement).value = config.token;
 
   $("save").addEventListener("click", () => {
-    if (settingsBusy || captureBusy || chatBusy) return;
+    if (settingsBusy || captureBusy || chatBusy || chatPending?.status === "in_flight") return;
     settingsBusy = true;
     updateControls();
     void (async () => {
@@ -64,6 +68,7 @@ async function init(): Promise<void> {
         return;
       }
       showChat([]);
+      applyChatState({ ok: true, message: "", chat: [] });
       try {
         await chatRequest({ type: "clearChat" });
         $("status").textContent = "Saved. Pending captures still require their original settings to retry.";
@@ -119,18 +124,43 @@ async function init(): Promise<void> {
   updateControls();
   try { await refreshLatest(); }
   catch { $("status").textContent = "Capture unavailable. Reopen the popup to retry."; }
-  try { const result = await chatRequest({ type: "getChat" }); showChat(result.chat ?? []); }
+  try { await chatRequest({ type: "getChat" }); }
   catch { $("chatStatus").textContent = "Conversation unavailable. Reopen the popup to retry."; }
 }
 
 async function chatRequest(message: ExtensionMessage): Promise<ChatResult> {
   const result = await chrome.runtime.sendMessage<ExtensionMessage, ChatResult | undefined>(message);
   if (!result || typeof result.ok !== "boolean") throw new Error("Extension worker unavailable. Reopen the popup and retry.");
+  if (result.chat || result.pending || message.type === "getChat" || message.type === "clearChat") applyChatState(result);
   if (!result.ok) throw new Error(result.message);
   return result;
 }
+function applyChatState(result: ChatResult): void {
+  if (result.chat) showChat(result.chat);
+  const previous = chatPending;
+  chatPending = result.pending;
+  const question = $("question") as HTMLTextAreaElement;
+  if (chatPending) {
+    if (!question.value || chatPending.status === "in_flight") question.value = chatPending.question;
+    $("chatStatus").textContent = chatPending.message;
+  } else if (previous) {
+    if (question.value === previous.question) question.value = "";
+    $("chatStatus").textContent = "";
+  }
+  updateControls();
+  if (chatRefresh !== undefined) clearTimeout(chatRefresh);
+  chatRefresh = undefined;
+  if (chatPending?.status === "in_flight") {
+    chatRefresh = setTimeout(() => {
+      chatRefresh = undefined;
+      void chatRequest({ type: "getChat" }).catch(() => {
+        $("chatStatus").textContent = "Conversation status unavailable. Reopen the popup to recover your saved question.";
+      });
+    }, 1000);
+  }
+}
 async function runChat(action: () => Promise<void>): Promise<void> {
-  if (chatBusy || settingsBusy) return;
+  if (chatBusy || settingsBusy || chatPending?.status === "in_flight") return;
   chatBusy = true;
   $("chatStatus").textContent = "Thinking…";
   updateControls();

@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ ask: vi.fn(), clear: vi.fn(), load: vi.fn(), review: vi.fn() }));
-vi.mock("../src/assistant", () => ({ askAssistant: mocks.ask, clearChat: mocks.clear, loadChat: mocks.load, openReviewTab: mocks.review }));
+vi.mock("../src/assistant", () => ({ askAssistant: mocks.ask, clearChat: mocks.clear, loadChatState: mocks.load, openReviewTab: mocks.review }));
 vi.mock("../src/record", () => ({ recordCapture: vi.fn() }));
 let listener: (message: unknown, sender: unknown, respond: (result: unknown) => void) => unknown;
 beforeEach(async () => {
@@ -28,4 +28,17 @@ it("serializes chat mutation while a request is pending", async () => {
   finish({ ok: true, message: "", chat: [] });
   await new Promise(resolve => setTimeout(resolve, 0));
   expect(respond).toHaveBeenCalledWith({ ok: true, message: "", chat: [] });
+});
+it("permits scoped conversation reads while an inference mutation is busy", async () => {
+  let finish!: (value: unknown) => void;
+  mocks.ask.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  mocks.load.mockResolvedValue({ ok: true, chat: [], pending: { question: "Saved question", status: "in_flight" } });
+  const askResponse = vi.fn();
+  listener({ type: "ask", message: "Saved question" }, popup, askResponse);
+  const readResponse = vi.fn();
+  expect(listener({ type: "getChat" }, popup, readResponse)).toBe(true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(readResponse).toHaveBeenCalledWith(expect.objectContaining({ pending: { question: "Saved question", status: "in_flight" } }));
+  finish({ ok: true, chat: [] });
+  await new Promise(resolve => setTimeout(resolve, 0));
 });

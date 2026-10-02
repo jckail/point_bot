@@ -87,6 +87,17 @@ describe("HttpAggregatorTravelProviderGateway", () => {
     ).rejects.toThrow(/invalid balance/);
   });
 
+  it.each(["9007199254740992", "9007199254740993", "1e308"])("rejects an unsafe rounded external balance: %s", async token => {
+    const { fetchImpl } = stubFetch(() => ({ ok: true, text: `{"points":${token}}` }));
+    const gateway = new HttpAggregatorTravelProviderGateway({ baseUrl: "https://synthetic.test", apiKey: "synthetic", fetchImpl });
+    await expect(gateway.fetchBalance(account(), null)).rejects.toThrow("invalid balance");
+  });
+  it.each([0, 0.49, 0.5, 124300.6, Number.MAX_SAFE_INTEGER])("preserves safe external rounding: %s", async points => {
+    const { fetchImpl } = stubFetch(() => ({ ok: true, text: JSON.stringify({ points }) }));
+    const gateway = new HttpAggregatorTravelProviderGateway({ baseUrl: "https://synthetic.test", apiKey: "synthetic", fetchImpl });
+    expect(await gateway.fetchBalance(account(), null)).toEqual({ points: Math.round(points) });
+  });
+
   it("scopes support to configured providers", () => {
     const gw = new HttpAggregatorTravelProviderGateway({
       baseUrl: "https://a",

@@ -1,5 +1,5 @@
-import { beforeEach, expect, it, vi } from "vitest";
-import type { ExtensionMessage } from "../src/messages";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { ChatResult, ExtensionMessage } from "../src/messages";
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(), render: vi.fn() }));
 vi.mock("../src/config", () => ({ loadConfig: async () => ({ baseUrl: "https://pointup.example", token: "pu_original" }), saveConfig: mocks.save }));
@@ -29,6 +29,7 @@ beforeEach(async () => {
   await import("../src/popup");
   await flush();
 });
+afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
 
 it("restores persisted rejection guidance and receipt reference on reopening", () => {
   expect(elements.status!.textContent).toContain("Outcome: rejected");
@@ -76,4 +77,56 @@ it("distinguishes saved settings from a busy conversation-clear failure", async 
   expect(mocks.save).toHaveBeenCalledWith({ baseUrl: "https://pointup.example", token: "pu_original" });
   expect(elements.status!.textContent).toContain("Settings saved. Conversation could not be cleared");
   expect(elements.save!.disabled).toBe(false);
+});
+
+it("reopens an in-flight question and automatically refreshes its eventual answer", async () => {
+  vi.useFakeTimers();
+  let current: ChatResult = { ok: true, message: "", chat: [], pending: { question: "Saved question", status: "in_flight", message: "The assistant is working. Your question is saved." } };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture : current);
+  vi.resetModules();
+  await import("../src/popup");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(elements.question!.value).toBe("Saved question");
+  expect(elements.ask!.disabled).toBe(true);
+  expect(elements.chatStatus!.textContent).toContain("working");
+  current = { ok: true, message: "", chat: [{ role: "user", content: "Saved question" }, { role: "assistant", content: "Recovered answer" }] };
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, current.chat, expect.any(Function));
+  expect(elements.question!.value).toBe("");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(elements.chatStatus!.textContent).toBe("");
+  const count = send.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(send).toHaveBeenCalledTimes(count);
+  expect(send.mock.calls.some(([message]) => message.type === "ask")).toBe(false);
+});
+
+it("restores an uncertain question for explicit retry without polling or resubmission", async () => {
+  vi.useFakeTimers();
+  const current: ChatResult = { ok: true, message: "", chat: [], pending: { question: "Interrupted question", status: "uncertain", message: "Outcome unknown. Check proposed actions before explicitly retrying." } };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture : current);
+  vi.resetModules();
+  await import("../src/popup");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(elements.question!.value).toBe("Interrupted question");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(elements.chatStatus!.textContent).toContain("Check proposed actions");
+  const count = send.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(send).toHaveBeenCalledTimes(count);
+  expect(send.mock.calls.some(([message]) => message.type === "ask")).toBe(false);
+});
+
+it("clears the pending display when a scoped read returns no prior-scope conversation", async () => {
+  vi.useFakeTimers();
+  let current: ChatResult = { ok: true, message: "", chat: [], pending: { question: "Former identity question", status: "in_flight", message: "Working" } };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture : current);
+  vi.resetModules(); await import("../src/popup");
+  await vi.advanceTimersByTimeAsync(0);
+  current = { ok: true, message: "", chat: [] };
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(elements.question!.value).toBe("");
+  expect(elements.chatStatus!.textContent).toBe("");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
 });

@@ -97,7 +97,7 @@ export class HttpAggregatorTravelProviderGateway
 
     const payload = JSON.parse(await response.text()) as { points?: unknown };
     const points = payload.points;
-    if (typeof points !== "number" || !Number.isFinite(points) || points < 0) {
+    if (typeof points !== "number" || !Number.isFinite(points) || points < 0 || !Number.isSafeInteger(Math.round(points))) {
       throw new Error(
         `Aggregator returned an invalid balance for "${account.providerId}"`,
       );

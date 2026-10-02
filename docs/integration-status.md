@@ -467,3 +467,30 @@ exporter/provider/Chrome lifecycle proof, in-flight extension chat recovery and
 capture request references, broader source-currency/rate/cash boundaries, public
 OAuth MCP/plugin onboarding and provider partnerships. Keep the original goal
 active and preserve the stacked PR14/PR15/PR16 branches; iOS remains deferred.
+
+## Extension recovery and currency candidate
+
+The next candidate persists scoped pending assistant questions before network
+submission, recovers reopened popup status and retains an uncertain outcome after
+worker restart without automatic replay. Diagnostic UUIDs reach the API as
+x-request-id; they do not authorize or deduplicate writes. Capture errors now
+show fixed public guidance with validated request references and distinguish
+personal-token scope from legacy browser-session authentication.
+
+Deal ingestion rejects explicitly foreign or mixed currency lines and non-US
+alphabetic dollar prefixes instead of publishing their cash as USD. A foreign
+page currency declaration requires an explicit USD token. Ordinary bare dollar
+compatibility remains; this is a bounded vocabulary, not universal currency
+detection. FX adapters reject a
+supplied non-USD base, and aggregator balances reject unsafe rounded integers.
+Root verified77 extension plus103 focused core cases, full workspace lint/types
+and whitespace checks. Fresh candidate CI is required after commit; previous
+docs-only8a06591 passes CI36992988875 and CodeQL36992988783.
+
+[Standalone design](chatgpt-standalone-plan.md) separates approved website/Clerk
+session issuance from open-source ChatGPT plan usage. Dynamic registration does
+not establish hosted-app eligibility or a safe browser credential flow. Remaining
+work: real OAuth provider/session compatibility, public MCP OAuth onboarding,
+live model/exporter/provider/Chrome checks, remaining numeric boundaries and AWS
+rollout prerequisites. Agent Hub still lacks project memory routing; retain this
+curated checkpoint. The original goal remains active.

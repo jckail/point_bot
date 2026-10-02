@@ -89,9 +89,16 @@ other agent sessions' tabs.
 Reopening the popup restores persisted outcome, explanation and observation/
 review references as plain text. Record/settings controls indicate pending work,
 worker failures end the pending state, and a saved configuration is distinguished
-from a conversation-clear failure. A popup reopened during assistant inference
-still needs durable pending-chat recovery; full Clerk extension sign-in and
-capture API support-reference expansion remain follow-ups.
+from a conversation-clear failure. Pending assistant questions and diagnostic
+request IDs are stored before inference under the endpoint/token scope. A reopened
+popup polls while the worker is active; a restarted worker reports an unknown
+outcome and requires an explicit retry after checking proposed actions in PointUp.
+The request ID is correlation, not write idempotency. Credential changes hide
+previous-scope conversation state. Full Clerk extension sign-in remains open.
+
+Capture failures use fixed public wording and validated API support references.
+Personal tokens receive observations:write guidance; legacy browser sessions
+receive sign-in guidance. Raw upstream error messages are not displayed.
 
 Focused concurrency/stale-discard/popup cases pass with synthetic Chrome APIs.
 Exact runtime3e7ba69 passes all six CI36992427488 jobs and CodeQL36992427509,

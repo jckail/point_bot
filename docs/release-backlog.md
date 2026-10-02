@@ -270,3 +270,15 @@ Logs retained /tmp/pointup-deals-fx-extension-ci.log and
 coverage gap persists. Local-only Agent Hub scope is unconfigured; no upload.
 Owned DB stopped; no browser/server opened. Latest AWS STS still expired after
 renewal request; no production deployment/merge. Continue remaining gates above.
+
+## Recovery/currency continuation
+
+Implemented pending extension chat recovery, request correlation, fixed capture
+errors/support references, explicit foreign-currency deal rejection, FX base
+validation and safe aggregator rounding. Root77 extension +103 focused core tests
+and full workspace lint/types pass. This is a new candidate requiring committed
+head CI. Standalone ChatGPT plan records website versus open-source requirements;
+neither genuine standalone login nor plan-backed inference is implemented.
+AWS renewal remains pending. Public OAuth MCP/Clerk compatibility, live SDK traces,
+provider access, Chrome lifecycle, legacy data repair and production activation
+remain open. Preserve PR14/15/16; iOS stays deferred.

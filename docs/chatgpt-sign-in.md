@@ -66,9 +66,10 @@ web task, with the existing scoped execution-role secret permissions.
 
 CDK rejects an enabled deployment without all three registration settings, or
 with an HTTP callback, wrong callback path, credentials, query or fragment. It
-sets the web task's canonical `APP_URL` to the callback origin. These parameters
-do not provision an HTTPS web ingress or establish client approval: the operator
-must already route the registered HTTPS host to this service. Missing or false
+sets the web task's canonical `APP_URL` to the callback origin. Production CDK
+requires the web domain and ACM certificate and provisions HTTPS ingress; the
+operator must verify certificate, DNS and callback ownership before activation.
+Infrastructure does not establish OpenAI client approval. Missing or false
 `enableChatGptLinking` provisions no OAuth secret or client environment values.
 The existing migration, trusted server-role permissions, functioning Clerk
 session and approved-client prerequisites still apply. This deployment option

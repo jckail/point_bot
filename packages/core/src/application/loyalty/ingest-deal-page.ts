@@ -75,6 +75,15 @@ export class IngestDealPage {
   }
 }
 
+/** Conservative line guard: cash DTOs are USD, never an inferred foreign conversion. */
+function hasForeignCashCurrency(line: string): boolean {
+  const foreignDollarPrefix = [...line.matchAll(/(?<!\w)([a-z]+)\$/gi)].some(match => !["US", "USD"].includes(match[1]!.toUpperCase()));
+  return foreignDollarPrefix || /\b(?:CAD|AUD|NZD|HKD|SGD|TWD|PHP|IDR|VND|EUR|GBP|JPY|CHF|CNY|RMB|KRW|INR|THB|AED|MXN|BRL|ZAR)\b/i.test(line)
+    || /(?<!\w)(?:CA|C|AU|A|NZ|HK|SG|S)\s*\$/i.test(line)
+    || /[€£¥₹₩]/u.test(line)
+    || /\b(?:Canadian|Australian|New Zealand|Hong Kong|Singapore)\s+dollars?\b/i.test(line);
+}
+
 function extractDealsFromMarkdown(
   markdown: string,
   sourceUrl: string,
@@ -86,12 +95,23 @@ function extractDealsFromMarkdown(
   // Capture whole numeric tokens before validating grammar; never numeric fragments.
   const numeric = String.raw`\d(?:[\d,]*\d)?(?:\.\d+)?`;
   const pointsToken = String.raw`(?<![\w.,+-])(${numeric}\s*k?)\s*(?:points?|miles?|pts\.?)(?!\w)`;
-  const cashToken = String.raw`(?:\$|\busd\s*)\s*(${numeric})(?!\w|[.,][\d.,])`;
+  const foreignPageCurrency = lines.some(line =>
+    /\b(?:prices?|rates?|amounts?|costs?|fares?)\s+(?:(?:are|shown|displayed|quoted|listed|denominated)\s+)*(?:in|as)\b|\bcurrency\s*[:=]/i.test(line)
+      && hasForeignCashCurrency(line));
+  // A foreign page declaration removes the bare-dollar assumption. Only the
+  // selected cash token's explicit US/USD prefix or USD suffix can override it.
+  const currencyToken = foreignPageCurrency
+    ? String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$(?=\s*${numeric}\s*USD\b))`
+    : String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$)`;
+  const cashToken = String.raw`${currencyToken}\s*(${numeric})(?!\w|[.,][\d.,])`;
   const pointCash = new RegExp(`${pointsToken}.*?${cashToken}`, "i");
   const cashPoint = new RegExp(`${cashToken}.*?${pointsToken}`, "i");
 
   let idx = 0;
   for (const line of lines.slice(0, 80)) {
+    // Preserve legacy bare-$ and explicit USD/US$ parsing. Foreign or mixed
+    // currency lines remain unstructured rather than publishing fabricated USD.
+    if (hasForeignCashCurrency(line)) continue;
     let points: number | null = null;
     let cashCents: number | null = null;
 
