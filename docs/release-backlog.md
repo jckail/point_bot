@@ -7,7 +7,36 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged legacy-grounding release is [PR #39](https://github.com/jckail/point_bot/pull/39)
+The latest merged extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
+at master `464cb0ec0c7de73403c5aaf5fb24fd5495a78a81` (source
+`30a29d6975a7b3375f633c011483c06106a3ea7e`, tree
+`6d496fcfd67ae3c53cd0e0c24fe64617ae6314c3`). Candidate
+[CI 37047006779](https://github.com/jckail/point_bot/actions/runs/37047006779),
+[CodeQL 37047006632](https://github.com/jckail/point_bot/actions/runs/37047006632)
+and Bugbot passed, with 1,752 workspace tests and one paid live skip; the three
+native popup settings/storage cases also passed. Merged-master
+[Deploy 37047566040](https://github.com/jckail/point_bot/actions/runs/37047566040)
+failed the existing PostgreSQL retention cap test: batch size 10 and run cap 20
+should delete 20 rows in two batches, but deleted 25 in one. The other five release
+verification jobs and [master CodeQL 37047565755](https://github.com/jckail/point_bot/actions/runs/37047565755)
+passed. AWS deployment remained skipped for missing deployment-role configuration;
+the merged-master release gate is not green.
+
+The current retention correction claims one materialized ID set per batch, then
+uses `DELETE USING` for all four targets without changing retention policy. Twelve
+PostgreSQL cases, including eight new cases, are prepared in uniquely owned schemas
+cloned from migrated tables. They cover small direct limits, run caps and concurrent
+claims across all targets under adverse planner settings. Independent review, core
+typecheck and focused lint passed. The wrapped local PostgreSQL red/green attempt
+returned exit 75 before execution: no source substitution or test schemas occurred,
+the retained public fixture's 16 outbox rows and 22 migration journal entries were
+unchanged, and its container was stopped. No unchanged retry occurred. Fresh
+committed CI is pending. PostgreSQL's documented selector-rescan mechanism supports
+the fix; the exact failed runner plan was not observed and remains an inference.
+See [retention mechanism and boundaries](events.md#retention-purge-job). This does not complete
+production, identity, model/provider, licensing or native web-owner acceptance.
+
+The preceding legacy-grounding release is [PR #39](https://github.com/jckail/point_bot/pull/39)
 at master `f88ac067d8c69a5f85d7fd008666f5c1b2a839a2` (source
 `b00e3a41048f08e31b18ec9f1a59e338b19ac324`, tree
 `60826291085bbd372cdcf763ef81ad844432e5e0`). Candidate
@@ -19,7 +48,7 @@ All six merged-master verification jobs in
 and [CodeQL 37046173223](https://github.com/jckail/point_bot/actions/runs/37046173223)
 passed. AWS deployment was skipped for missing deployment-role configuration.
 
-The current extension settings fix clears the assistant question draft after every
+The merged PR #40 extension settings fix clears the assistant question draft after every
 successful save and preserves it on failure. Six new regressions produced five
 failures on the original source; all 23 focused popup tests then passed, along
 with extension typecheck and lint. Independent source review approved the fix.

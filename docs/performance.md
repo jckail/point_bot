@@ -436,10 +436,23 @@ See [events.md](./events.md#retention-purge-job) for what is deleted and kept
 (dead-lettered outbox rows, balance snapshots and agent observations are never
 purged), the knobs, and the log line. Implementation:
 `packages/core/src/infrastructure/retention/` (policy + orchestration +
-`DrizzleRetentionStore`), `apps/worker/src/jobs/purge.ts`. Every batch is
-`DELETE ... WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)`, so it is
-bounded and safe with many workers (the integration test runs four purges
-concurrently and asserts each row is deleted exactly once).
+`DrizzleRetentionStore`), `apps/worker/src/jobs/purge.ts`. All four targets
+materialize their bounded eligible IDs once using
+`WITH selected AS MATERIALIZED (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)`;
+`DELETE ... USING selected` consumes that fixed claim set. The cutoff and
+retention predicates are unchanged, including keeping dead-lettered outbox
+rows and never purging balance snapshots or agent observations.
+
+The old locking `IN` subquery could reevaluate its selector and exceed the
+statement limit ([PostgreSQL explanation](https://www.postgresql.org/message-id/16497.1553640836@sss.pgh.pa.us)).
+Master CI on 2026-10-02 observed 25 deletions in one batch requested at 10,
+exceeding the run cap of 20; its exact execution plan is unknown. The new worker
+code is required for the batch guarantee. Local focused PostgreSQL verification
+did not execute because the shared queue returned exit 75; there was no unchanged
+retry. Committed-source database verification remains pending, and a production
+rollout has not been established. The integration
+coverage checks bounded statements, run caps and concurrent nonduplicate
+purges; see [events.md](./events.md#retention-purge-job) for the full policy.
 
 ### 10.5 `balance_snapshot` monthly partitioning plan (NOT IMPLEMENTED)
 
