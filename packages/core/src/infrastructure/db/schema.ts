@@ -1,3 +1,4 @@
+import type { ManualBalanceAccountWitness } from "../../domain/loyalty/account-identity-witness";
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
@@ -384,6 +385,8 @@ export const agentObservations = pgTable(
     sourceMethod: varchar("source_method", { length: 24 }).$type<"page_capture" | "manual_entry" | "unknown">(),
     captureId: varchar("capture_id", { length: 36 }),
     payloadHash: varchar("payload_hash", { length: 64 }),
+    /** Private capture-time account identity; nullable historical rows fail closed on confirmation. */
+    accountIdentityWitness: jsonb("account_identity_witness").$type<ManualBalanceAccountWitness>(),
     baselineSnapshotId: varchar("baseline_snapshot_id", { length: 255 }),
     recordedSnapshotId: varchar("recorded_snapshot_id", { length: 255 }),
     reviewExpiresAt: timestamp("review_expires_at", { withTimezone: true }),

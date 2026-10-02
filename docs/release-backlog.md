@@ -7,6 +7,8 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
+PR #52 is released on master `f5ebad89db698be4ae0d15d384c2e7b95a7676b7`: 1,892 workspace tests plus one paid skip; AWS activation remains missing role configuration. The current review-integrity iteration addresses held-reading membership reassignment, confirmation cache consistency and reconciled proposal refresh. It passes 101 focused cases and type/lint checks; migration/PostgreSQL/release and native lifecycle acceptance remain pending. [Review integrity receipt](reviewed-balance-integrity-20261002.md) records the compatibility policy and exact coverage. Per-account and bulk sync failure feedback remains a concrete follow-up.
+
 The frontend fixes are merged in [PR #48](https://github.com/jckail/point_bot/pull/48),
 from source `4af48bb20499958b0a071f82c1cd6cbce46767ae` at master
 `0864a1978603caa18ad8d01fb3fe0f6f6820f38b`. Source, prospective and actual

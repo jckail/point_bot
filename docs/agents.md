@@ -82,9 +82,11 @@ and tests run against in-memory fakes *and* a real Postgres
    *Reject*, session-only; the *Pending review* section of *Dashboard → Agents*).
    Reviews expire after 24 hours. Confirmation locks the owned account/receipt
    and checks live expiry and the exact baseline snapshot ID before commit; a
-   different snapshot with equal points is still stale. Legacy rows without a
-   known snapshot witness retain the points comparison, including SQL NULL
-   provenance fields. Expiry after blocking/writing rolls back the full effect;
+   different snapshot with equal points is still stale. A private salted witness
+   also binds the stored account membership at submission and is rechecked by
+   the locked balance writer. Historical held receipts without that identity
+   evidence cannot be confirmed; reject them and request a fresh capture.
+   Notes/tags changes alone preserve identity. Expiry after blocking/writing rolls back the full effect;
    owner rejection remains available after expiry for cleanup. There is no
    agent-supplied `confirmed` flag.
    **Limitation:** `sourceUrl` and the reported value are self-reported by the

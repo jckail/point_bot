@@ -39,6 +39,8 @@ export function ReviewedAssistantActions({
   const requestGate = useRef(new AssistantActionRequestGate());
   const reviewStatus = useRef(new Map<string, HTMLParagraphElement>());
   const reviewedId = useRef<string | null>(null);
+  const refreshedSuccessIds = useRef(new Set<string>());
+  const hasAcceptedRead = useRef(false);
   const [actions, setActions] = useState<ReviewedAction[] | null>(null);
   const [version, setVersion] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -60,6 +62,15 @@ export function ReviewedAssistantActions({
         if (active && requestGate.current.canApplyRead(generation)) {
           setActions(result.actions);
           setBlockedId(null);
+          // Reconcile a lost/executing review response with the canonical list
+          // before refreshing server-rendered balances, goals and advice.
+          const succeeded = result.actions.filter(action => action.status === "succeeded");
+          if ((hasAcceptedRead.current || version > 0)
+            && succeeded.some(action => !refreshedSuccessIds.current.has(action.id))) {
+            for (const action of succeeded) refreshedSuccessIds.current.add(action.id);
+            router.refresh();
+          }
+          hasAcceptedRead.current = true;
         }
       })
       .catch((err) => {
@@ -69,7 +80,7 @@ export function ReviewedAssistantActions({
     return () => {
       active = false;
     };
-  }, [version, refreshKey]);
+  }, [version, refreshKey, router]);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 5_000);
     return () => window.clearInterval(timer);
@@ -92,7 +103,10 @@ export function ReviewedAssistantActions({
           item.id === action.id ? result.action : item,
         ),
       );
-      if (result.action.status === "succeeded") router.refresh();
+      if (result.action.status === "succeeded") {
+        refreshedSuccessIds.current.add(result.action.id);
+        router.refresh();
+      }
     } catch (err) {
       setBlockedId(action.id);
       setError(agentError(err));

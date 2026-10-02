@@ -20,7 +20,9 @@ It found invalid PAT errors mapping to 500; the reviewed genuine-object identity
 passes 52 targeted tests, core/web types and lint. A restarted real app now verifies 401 invalid/revoked-token responses and preserves
 valid read 200/write-scope 403. The authentication fix is merged in [PR #50](https://github.com/jckail/point_bot/pull/50), master `a88b001b222c49ab450947d5fd5160d07580d997`, with 1,851 workspace tests plus one paid live skip and successful release/CodeQL checks. AWS deployment remains skipped for missing role configuration. The full overhaul is unfinished.
 
-The stale one-time token display fix is released in [PR #51](https://github.com/jckail/point_bot/pull/51) with 1,857 workspace tests plus one paid skip. The next Agents polish requires a 1–365 day web lifetime, gives session/ownership revocation feedback and provides a keyboard-selectable token field. It passes 41 focused cases, web types and lint; native lifecycle acceptance and release gates remain pending. See the current browser receipt for exact evidence and limitations.
+The token display fix is released in [PR #51](https://github.com/jckail/point_bot/pull/51), and lifetime/revocation/keyboard polish in [PR #52](https://github.com/jckail/point_bot/pull/52). PR #52 master `f5ebad89db698be4ae0d15d384c2e7b95a7676b7` passed release checks and CodeQL with 1,892 workspace tests plus one paid skip; AWS deployment was skipped. Their native lifecycle acceptance remains pending.
+
+The next review-integrity iteration binds held readings to stored membership, invalidates portfolio cache after human confirmation, and reconciles completed proposals after lost replies. Corrected meaningful source comparisons and 101 focused cases pass with types/lint. Migration 0022 and full PostgreSQL/release acceptance remain pending; legacy held readings require recapture before confirmation. See [reviewed-balance-integrity-20261002.md](reviewed-balance-integrity-20261002.md) for exact evidence and rollout policy.
 
 
 

@@ -197,3 +197,23 @@ targeted lint and whitespace checks passed. Rendered controls use completed hook
 states; native keyboard selection, dispatch, expired-session lifecycle and
 revalidated props still require acceptance. A fresh local gate was occupied by
 Switchboard PID3259208; no app launcher was queued or retried.
+
+
+## Continuation after PR #52
+
+PR #52 is merged from source `2b2757d1306073db57b2eb6b8e9c3d6c7d6ade69`
+at master `f5ebad89db698be4ae0d15d384c2e7b95a7676b7`, equal tree
+`20d4295e8cf477dac6efe95bd7e124ac070e0de4`. Candidate CI 37072597684,
+CodeQL 37072597675, Bugbot, master Deploy 37072934929 and CodeQL 37072934581
+passed with 1,892 workspace tests plus one paid skip. AWS deployment was skipped.
+
+A later admission attempt incorrectly proceeded after a transient repository-job
+scan failed. The owner stopped only that briefly started helper immediately.
+Wrapper 81569 ended with exit 0 and port 3117 closed, qualifying the previously
+fixed signal cleanup; no browser feature was tested. Generated Next dev metadata
+was restored exactly, owned instruction pointers archived/removed, and PostgreSQL
+stopped with its synthetic database retained. The corrected sequential guard was
+then exercised: repository scan passed but the occupied shared gate prevented any
+new launch. Native PR #51–52 acceptance remains pending, separate from that cleanup
+receipt. The next substantive audit and fixes are documented in
+[reviewed-balance-integrity-20261002.md](reviewed-balance-integrity-20261002.md).

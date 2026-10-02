@@ -1,3 +1,4 @@
+import type { ManualBalanceAccountWitness } from "../loyalty/account-identity-witness";
 import type { AccessTokenId, LoyaltyAccountId, ObservationId, UserId } from "../shared/ids";
 import type { ConsentGrant } from "./consent";
 import type { LoyaltyAccount } from "../loyalty/loyalty-account";
@@ -48,6 +49,8 @@ export interface AgentObservation {
   readonly sourceMethod?: ObservationSourceMethod | null;
   readonly captureId?: string | null;
   readonly payloadHash?: string | null;
+  /** Private salted identity evidence; never projected into DTOs or events. */
+  readonly accountIdentityWitness?: ManualBalanceAccountWitness | null;
   readonly baselineSnapshotId?: string | null;
   readonly recordedSnapshotId?: string | null;
   readonly reviewExpiresAt?: Date | null;
