@@ -4,10 +4,8 @@ import type { TripGoalReadModel } from "@pointup/core";
 import type { LoyaltyAccountReadModel } from "@pointup/core";
 import { useActionState } from "react";
 
-import {
-  createTripGoalAction,
-  deleteTripGoalAction,
-} from "@/app/actions";
+import { createTripGoalAction } from "@/app/actions";
+import { RemoveGoalForm } from "@/components/remove-goal-form";
 import { FormFeedback, SubmitButton } from "@/components/form-feedback";
 import { formatPoints } from "@/lib/format";
 import { idleActionResult } from "@/lib/action-result";
@@ -75,10 +73,7 @@ export function TripGoalsSection({
                   </p>
                 </div>
                 {goal.status !== "archived" && (
-                  <form action={deleteTripGoalAction}>
-                    <input type="hidden" name="goalId" value={goal.id} />
-                    <SubmitButton variant="secondary" size="sm" pendingLabel="Removing…">Remove</SubmitButton>
-                  </form>
+                  <RemoveGoalForm goalId={goal.id} goalTitle={goal.title} />
                 )}
               </div>
             </li>

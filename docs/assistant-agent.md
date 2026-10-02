@@ -4,7 +4,38 @@ The web dashboard and extension share authenticated `POST /api/v1/assistant/chat
 
 The route retains PR14's shared authentication, rate limiting, CSRF checks, request telemetry and error mapping. Chat requires `portfolio:read`. Cookie sessions and tokens with `portfolio:write` receive proposal tools; read-only tokens receive only read tools. Legacy chat does not propose changes. No model or token can approve a proposal through a chat tool.
 
-The latest merged SDK tracing release is [PR #44](https://github.com/jckail/point_bot/pull/44)
+The latest merged Restore feedback release is [PR #45](https://github.com/jckail/point_bot/pull/45)
+from source `5b528500842050acc332b960acaaffdfcd0b06b8`, at master
+`2517c5648cfdbc156ee68152ec21b9c62c05a834`. Candidate, prospective master and
+actual master have the same tree, `1ea69887e79dec51e55b9738ed4cc693e81c21e2`.
+All six candidate jobs in [CI 37058268812](https://github.com/jckail/point_bot/actions/runs/37058268812),
+[CodeQL 37058268584](https://github.com/jckail/point_bot/actions/runs/37058268584)
+and Bugbot passed, with 1,796 workspace tests and one paid live skip. Merged-master
+[Deploy 37058846422](https://github.com/jckail/point_bot/actions/runs/37058846422)
+and [CodeQL 37058845968](https://github.com/jckail/point_bot/actions/runs/37058845968)
+also passed with 1,796 workspace tests and one paid live skip, including 41 popup
+and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
+deployment-role configuration; production activation remains unverified.
+
+The current six-file Goal Remove feedback and initial tool-abort candidate is
+applied on `codex/pointup-mutation-feedback-telemetry-20261002`, following hash
+verification of both independently approved proposals. Eight actual core/action
+Goal Remove cases preserve owner checks, events and success-only refresh while
+returning bounded error/session feedback through the existing form components.
+A past target date remains removable; no deletion deadline is invented.
+Three real installed SDK `tool.invoke` cases cover pre-aborted Error/string
+reasons across four read tools and ordinary private query failure: no pre-abort
+query starts, one cancelled completion event per tool and fixed SDK-visible error
+text keep the private reason out of results/events. These direct invocations do
+not prove full runner signal handling or paid inference.
+
+The original two-test-file source produced nine failures and two passes; a
+legacy single-argument Goal Remove call adapter qualifies that red proof. The
+fixed two files pass all 11 cases, and six existing Restore controls also pass
+(17 total). Web typecheck, six-file lint and whitespace checks passed. No new
+browser verification or committed candidate release gate is claimed.
+
+The preceding SDK tracing release is [PR #44](https://github.com/jckail/point_bot/pull/44)
 from source `c260cb385cc8b01acb88a9174f5866218deaa8a1`, merged at master
 `bbeb8f1d3bfdc2928293bfd6d52dab363efa2d73`. Candidate, prospective master and
 actual master have the same tree, `b6fa189c7382428626567c0dd5f48961a2dddc81`.
@@ -16,9 +47,7 @@ also passed, with 1,790 workspace tests and one paid live skip, including 41 pop
 and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
 deployment-role configuration; these gates do not establish production activation.
 
-The current four-file Restore feedback candidate is prepared on
-`codex/pointup-restore-feedback-20261002`; candidate and merged-master gates remain
-pending. The dashboard action returns existing
+The merged four-file PR #45 Restore feedback change returns existing
 session/domain error feedback, and each row uses `useActionState`, `FormFeedback`
 and `SubmitButton`. Core ownership, fresh seven-day checks, writes, audit/events
 and success-only revalidation are preserved. Six actual action/core tests pass;
@@ -34,8 +63,8 @@ is not authenticated or live-service acceptance. Owned browser page 14 and serve
 port 55821 were closed. Node PID 2201102 required SIGTERM because `/finish` called
 `server.close` but left esbuild running; the wrapper exited 241. Functional browser
 assertions passed, but the wrapper was not green. The temporary helper now calls
-`esbuild.stop` during cleanup and has not been rerun. Goal Remove feedback remains
-a separate backlog finding.
+`esbuild.stop` during cleanup and has not been rerun. Goal Remove feedback is
+prepared in the separate current candidate described above.
 
 The preceding hydration-recovery release is [PR #42](https://github.com/jckail/point_bot/pull/42)
 from source `fd59f2008ce92024f18d3f8cf1f6ef687490bcdf` (tree

@@ -9,8 +9,8 @@ import type { Observation } from "./observation";
 export function createPortfolioTools(useCases: AgentUseCases, userId: UserId, signal: AbortSignal, emit: (event: Omit<Observation, "requestId" | "mode" | "sdkTraceId">) => void, proposals?: { service: Pick<ManageAssistantActions, "proposeManualBalance" | "proposeTripGoal">; requestId: string; onProposed: (action: AssistantActionDto) => void }) {
   const execute = async (name: string, query: () => Promise<unknown>) => {
     const start = performance.now();
-    signal.throwIfAborted();
     try {
+      signal.throwIfAborted();
       const data = await withinDeadline(query(), signal);
       signal.throwIfAborted();
       const serialized = JSON.stringify(data);
