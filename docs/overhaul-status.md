@@ -16,17 +16,17 @@ this round began. Do not infer merged or deployed features from that handoff.
 | Observability | Request correlation, metadata-only SDK tracing, structured lifecycle logs and CDK CloudWatch metrics/dashboard/alarms | Inspect live trace export, log ingestion and alarm thresholds; operational notification actions remain |
 | MCP and plugins | Local stdio and private Streamable HTTP MCP with per-request scoped PAT access and proposal-only mutations, Claude skill and ChatGPT Actions setup material | Focused transport isolation tests passed; hosted OAuth connector, publishing and full plugin package remain |
 | Sign in with ChatGPT | Registered OIDC identity linking to an existing Clerk account | Managed migration + approved client + live roundtrip; independent sign-in/session bridge remains |
-| Core/data integrity | Owner-bound tokens, atomic capture writes, migration 0009 tenant-qualified goal membership and canonical tags, transactional import/manual writes and explicit migration locking | Focused tests passed; current migration/transaction PostgreSQL suite and aggregate recheck remain |
+| Core/data integrity | Owner-bound tokens, atomic capture writes, migration 0009 tenant-qualified goal membership and canonical tags, transactional import/manual writes and explicit migration locking | 358 unit and 47 actual PostgreSQL tests passed in current-source CI; PR #14 reconciliation and production adoption remain |
 | Provider integrations | Official capability catalog, six reviewed page-reader programs and guided manual fallback; aggregator/vault ports exist | Live reader verification and partnership APIs remain; no new partnership credential is provisioned here |
 | Documentation | Feature-specific design/setup/audit docs and this evidence record | Reconcile historical roadmap claims against current source and live deployment |
 | iOS | Deferred by user; shared API remains client boundary | Future project phase |
 
 ## Verified milestone
 
-See [verification.md](verification.md): the prior combined run passed 303 unit
-tests, and the latest expiry/authority fixture passed 32 real PostgreSQL checks.
-Earlier lint/typecheck and application bundles passed; aggregate validation of
-the current normalization/design/evaluation/remote transport changes is pending.
+See [verification.md](verification.md): current-source CI passed 358 unit
+tests and 47 real PostgreSQL checks, including all 15 normalization/transaction
+cases. Root lint, workspace typechecks, application bundles and infrastructure
+contracts/synthesis passed. [PR #15](https://github.com/jckail/point_bot/pull/15) preserves this work; PR #14 integration remains.
 Production dependency audit reports zero findings. Live auth, provider and rendered
 reviews remain unverified; the requirements below remain active.
 

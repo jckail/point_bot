@@ -4,17 +4,19 @@ Verified on 2026-10-01. The overhaul remains active; these results cover the
 implemented milestone and do not establish production deployment or all roadmap
 requirements.
 
+Current source at `326b2e50e1523bbeb4e97594ff250d6845dfbdee` passed all four jobs in [GitHub Actions run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868). Infrastructure also passed eight contract tests (including eleven Python migration lifecycle cases), typechecking and CDK synthesis. Production deployment and rendered authenticated flows remain unverified.
+
 ## Automated evidence
 
 | Check | Result |
 | --- | --- |
-| Last combined workspace unit run | 303 passed: bot 20, extension 44, MCP 9, web 60, API client 20, core 150; this predates the current design/evaluation/remote-MCP/0009 changes |
-| Dedicated PostgreSQL fixture | Latest expiry pass: 32 passed (24 agent + 8 baseline); actual migrations, repositories, concurrency and private-table RLS; see database-verification.md |
+| Last combined workspace unit run | 358 passed: bot 20, extension 47, MCP 15, web 92, API client 20, core 164; one live evaluation skipped and 47 database cases executed separately |
+| Dedicated PostgreSQL fixture | 47 passed in fresh CI fixtures: 24 agent + 8 baseline + 15 portfolio migration/transaction cases; actual current migrations, concurrency and private-table RLS |
 | Root ESLint | Passed with zero errors or warnings after cleanup |
 | Workspace TypeScript | Passed for all seven workspaces |
 | Production web build | Passed using Next.js 16.3.8, no network font dependency, placeholder publishable key and SKIP_ENV_VALIDATION |
 | Extension, MCP, worker and bot bundles | Passed |
-| MCP protocol | Prior compiled stdio discovery passed; current focused remote HTTP protocol suite passed with overlapping owner requests; aggregate recheck pending |
+| MCP protocol | Current 15-test stdio/remote HTTP suite passed, including overlapping owner requests; MCP bundle passed |
 | Production dependency audit | Zero reported vulnerabilities after upgrades and compatible lockfile fixes |
 | Full dependency audit | Six moderate development-tool advisories remain in Vitest/mocker and Drizzle Kit's legacy esbuild loader |
 
@@ -23,7 +25,7 @@ tests, 24 extension background tests and four synthesized observability contract
 tests. Web, extension and infrastructure TypeScript checks passed. This pass adds
 cache/reasoning token details, correct completed-agent turn counts, correlation
 for pre-run failures, and extension deadlines bounded below Chrome's worker fetch
-limit. These results do not replace the pending aggregate run or live Chrome test.
+limit. These focused results are now included in the successful aggregate CI run; live Chrome testing remains unverified.
 
 The release review then added bounded owner/process admission control and HTTP
 429 contracts. Seventeen admission/route tests, 21 focused core contract tests,
@@ -36,8 +38,7 @@ by release branch operations. Only semantic changes and new feature files are
 copied there, excluding the pre-existing repository-wide line-ending churn.
 
 The PostgreSQL tests are opt-in via `DATABASE_INTEGRATION_URL`. They skip when it
-is absent and refuse a non-loopback or non-fixture database/user. The dedicated
-fixture and temporary credential files were removed after verification.
+is absent and refuse a non-loopback or non-fixture database/user. Earlier local expiry fixtures and their temporary credentials were removed. The current locally owned portfolio fixture was stopped after CI supplied current-source evidence; its data volume remains preserved.
 
 ## Verification environment
 
@@ -56,7 +57,7 @@ and its esbuild binary returned EACCES before collecting tests. The verified mir
 already has the patched dependencies, so focused checks used it without reinstalling
 or clearing caches. A future coordinated `npm ci` can align the native dependency
 tree. CI builds the MCP bundle as well as the
-existing application bundles. The separate CDK infrastructure passed four synthesized-template tests and typechecking in the prior pass. Its audit reports one high advisory in bundled brace-expansion. Current combined verification remains pending the shared resource gate.
+existing application bundles. The separate CDK infrastructure passed four synthesized-template tests and typechecking in the prior pass. Its audit reports one high advisory in bundled brace-expansion. Current combined verification passed on GitHub-hosted runners; local expensive checks remain subject to the shared resource gate.
 
 ## Unverified runtime gates
 
@@ -75,7 +76,7 @@ existing application bundles. The separate CDK infrastructure passed four synthe
   provisioned by this source update.
 - Reviewed assistant actions, server-enforced account consent, scoped PATs and managed
   SIWC storage are implemented. Current normalization migration 0009 and atomic
-  import/manual write work require database and aggregate verification.
+  import/manual write work passed database and aggregate CI verification; production adoption remains.
 - Remote private bearer MCP transport and the synthetic assistant evaluation harness
   have focused checks; live deployment, hosted OAuth and model quality review remain.
 
@@ -84,8 +85,7 @@ existing application bundles. The separate CDK infrastructure passed four synthe
 The portfolio PostgreSQL check used `agent-heavy-check` and exited 75 after the
 shared 120-second lock wait. An unrelated job held the global resource gate. Its
 log and dedicated fixture are preserved; root's aggregate unit attempt also exited 75 before any test execution. The unchanged command is not repeatedly
-queued. Root is the broad verification owner and will run checks once the relevant
-source settles and the gate is available. Broad Vitest defaults to two workers.
+queued. Root is the broad verification owner. After pushing the authorized preservation branch, the full suite/build and fresh database fixtures passed in GitHub CI, so no unchanged local broad run is being requeued. Broad Vitest defaults to two workers.
 The resumed harness did not retain the prior Linux mirror, so it was recreated
 with the checked-in lockfiles; no existing cache was cleared.
 

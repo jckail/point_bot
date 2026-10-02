@@ -2,6 +2,8 @@
 
 ## Verified source state
 
+Native work was committed and pushed as `326b2e5` on `codex/pointup-overhaul-20261001`, with [draft PR #15](https://github.com/jckail/point_bot/pull/15). All four jobs in [CI run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868) passed: 358 unit tests, 47 PostgreSQL tests, application bundles, eight infrastructure contracts, typechecks and synthesis. PR #15 has not been merged or deployed. The local portfolio fixture is stopped, with its data retained.
+
 The active native repository is `/home/jkail/projects/point_bot`; its Linux validation mirror is `/tmp/pointup-verification`. Native HEAD and the inspected `origin/master` are `4ebba1f2b07895017f2ab9fe1a8a50b505ddaed0`, with substantial uncommitted overhaul work. PR [#14](https://github.com/jckail/point_bot/pull/14), branch `origin/claude/charming-cannon-d6xxhc`, was inspected at `e04725fd01df49ce02ac3e0b14f4da96640ded41`. These references must be refreshed before release integration; this document records the inspected state, not a completed merge or deployment.
 
 PR #14 and native implement overlapping agent features independently. Preserve PR #14's contributions. Do not replace its tree with the native snapshot or merge their migration histories blindly.
@@ -36,9 +38,9 @@ PR #14's Docker smoke assumes its dev/bootstrap stack, readiness routes, provide
 - Historical native combined workspace run: **303 unit tests passed** (bot 20, extension 44, MCP 9, web 60, API client 20, core 150). It predates current design/evaluation/remote-MCP/0009 changes; see [verification.md](verification.md).
 - Latest native root lint and all seven workspace TypeScript checks passed on the exact-source Linux mirror. Focused admission/HTTP checks passed 17 tests, core contracts 21, SDK/usage 12, extension background 24, observability templates 4 and provider capabilities 9. These focused checks are not a new aggregate build/suite result.
 - Historical/latest recorded native PostgreSQL expiry pass: **32 passed** (24 agent, 8 baseline). It does not establish current portfolio migration success; see [database-verification.md](database-verification.md).
-- Current portfolio suite contains **15 tests**. Actual execution remains **pending**, with root owning the fresh dedicated fixture and all expensive checks. Shared heavy-check lock contention has blocked the run; preserve its evidence rather than bypassing serialization.
+- Current portfolio suite passed **15 actual PostgreSQL tests** in its own fresh CI fixture. Earlier local attempts were blocked by shared heavy-check contention; that evidence remains preserved.
 - PR #14 was reported to have passing CI at its current branch state; that does not establish compatibility with native ports or an integrated release.
-- New reusable `.github/workflows/postgres.yml` is called by CI and deploy, and deployment depends on its result. All three YAML files parsed and structural assertions passed; this new workflow has **not executed**.
+- New reusable `.github/workflows/postgres.yml` is called by CI and deploy, and deployment depends on its result. All three YAML files parsed and structural assertions passed; this workflow **passed both fresh-fixture matrix jobs** at `326b2e5`.
 
 The user authorized committing, pushing and deploying all work. Authorization persists; missing configuration is an operational blocker, not a reason to request the same permission again. At this checkpoint, repository deployment secrets were unavailable and local AWS credentials were expired. Do not claim a release, deployment or new CI result until observed. Root owns broad checks and release mutations; delegated work must retain explicit file ownership.
 

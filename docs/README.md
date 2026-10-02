@@ -17,6 +17,7 @@ product scope; an iOS client is a later consumer of the same contracts.
 - [ChatGPT identity](chatgpt-sign-in.md): registered OIDC linking and setup boundaries.
 - [Core audit](core-audit.md): concrete integrity findings and remaining work.
 - [Verification](verification.md): exact checks, source identity and runtime gaps.
+- [Release continuation](release-continuation.md): pushed branch, PR #14 integration and deployment blockers.
 - [Database verification](database-verification.md): disposable PostgreSQL evidence.
 - [Provider capabilities](provider-capabilities.md): official sources and access gates.
 - [Overhaul status](overhaul-status.md): requirement-level evidence and next gates.

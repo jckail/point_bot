@@ -1,5 +1,15 @@
 # PostgreSQL verification
 
+## Current-source CI evidence
+
+At `326b2e5`, [GitHub Actions run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868) passed **47 actual PostgreSQL tests**: 24 agent/authority/action cases, eight baseline cases and 15 portfolio migration/transaction cases. The reusable workflow provisions separate fresh PostgreSQL 16 services. Agent runs before baseline to exercise legacy SIWC adoption; portfolio runs on its own empty database to stage legacy data before migration 0009.
+
+Portfolio cases verify tenant-qualified membership, canonical tags and legacy projections, snapshot/feed and whole-import rollback, concurrent imports/replacements, migration lock contention and independent concurrent migration clients. This verifies the current source history, not PR #14 schema compatibility or production deployment.
+
+The local portfolio fixture was not rerun after lock contention; it is stopped with its volume preserved. Earlier local verification and cleanup below remain historical.
+
+## Earlier local verification
+
 Verified on 2026-10-01 using the opt-in suite at `packages/core/test/postgres-integration.test.ts`.
 
 A dedicated Docker fixture used cached image `postgis/postgis:16-3.4`, test-only role `pointup_fixture`, database `pointup_integration`, and a randomly assigned port bound to `127.0.0.1`. The fixture name was `pointup-pg-verification-fc3f09bd4e`. Its generated password was stored only in temporary files with mode 0600 and never printed. No project environment file, production credentials, deployment database or existing user container was used.
@@ -44,7 +54,7 @@ The URL above contains placeholders, not the verification password. Prefer injec
 
 This suite verifies the actual core repositories and the SQL semantics used by SIWC storage. The SIWC operations are direct parameterized SQL, matching the source operations; the suite does **not** import application `storage.ts`, because that module uses the web environment alias. JSON payloads are explicitly serialized/cast in this combined test client because Drizzle configures the postgres-js serializers; the application's raw storage client is separate.
 
-Passing these tests does not establish HTTP callback validation, ID-token signature/issuer/audience verification, browser cookies, Clerk account linking, PKCE exchange, or a live ChatGPT login. Expiry/state/verifier checks belong to the application callback logic, not the atomic consume SQL tested here. It also does not establish production migration state, deployment-role privileges, database backups, tenant isolation for portfolio tables, transaction support for portfolio imports, or live provider integrations. RLS assertions apply to the two server-only SIWC tables; they do not claim that loyalty tables have tenant RLS.
+Passing these tests does not establish HTTP callback validation, ID-token signature/issuer/audience verification, browser cookies, Clerk account linking, PKCE exchange, or a live ChatGPT login. Expiry/state/verifier checks belong to the application callback logic, not the atomic consume SQL tested here. The baseline suite alone does not establish production migration state, deployment-role privileges, database backups, tenant isolation for portfolio tables, transaction support for portfolio imports, or live provider integrations. The current portfolio suite separately verifies import transaction rollback; see current-source CI evidence above. RLS assertions apply to the two server-only SIWC tables; they do not claim that loyalty tables have tenant RLS.
 
 The shared Graphify query still lacked PointUp source coverage, so this work verified the current source directly. Agent Hub context routing for the actual repository returned a generic projects/no-default-child response; no remote memory was used.
 
