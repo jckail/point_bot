@@ -61,7 +61,7 @@ function normalizeNotes(notes: string | null | undefined): string | null {
 }
 
 function assertTargetPoints(points: number): void {
-  if (!Number.isInteger(points) || points <= 0) {
+  if (!Number.isSafeInteger(points) || points <= 0) {
     throw new InvalidGoalTargetError();
   }
 }
@@ -76,7 +76,7 @@ export function createTripGoal(input: NewTripGoal): TripGoal {
     title: normalizeTitle(input.title),
     targetPoints: input.targetPoints,
     targetDate: input.targetDate ?? null,
-    accountIds: input.accountIds ?? [],
+    accountIds: [...new Set(input.accountIds ?? [])],
     status: "active",
     notes: normalizeNotes(input.notes),
     createdAt: now,
@@ -98,7 +98,7 @@ export function applyTripGoalChanges(
     targetPoints,
     targetDate:
       changes.targetDate !== undefined ? changes.targetDate : goal.targetDate,
-    accountIds: changes.accountIds ?? goal.accountIds,
+    accountIds: [...new Set(changes.accountIds ?? goal.accountIds)],
     status: changes.status ?? goal.status,
     notes:
       changes.notes !== undefined
@@ -120,7 +120,7 @@ export function computeGoalProgress(
   goal: TripGoal,
   balancesByAccountId: ReadonlyMap<string, number>,
 ): TripGoalProgress {
-  const current = goal.accountIds.reduce(
+  const current = [...new Set(goal.accountIds)].reduce(
     (sum, accountId) => sum + (balancesByAccountId.get(accountId) ?? 0),
     0,
   );

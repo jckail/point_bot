@@ -5,7 +5,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
 export function POST(
   request: Request,
@@ -14,7 +14,7 @@ export function POST(
   return withAuthenticatedUser(async (userId) => {
     const { id } = await context.params;
     const body = syncLoyaltyAccountRequestSchema.parse(
-      await request.json().catch(() => ({})),
+      await readJsonBody(request, true),
     );
 
     const balance = await getContainer().useCases.syncLoyaltyAccount.execute({
@@ -23,5 +23,5 @@ export function POST(
       transientCredential: body.transientCredential,
     });
     return NextResponse.json(toBalanceDto(balance));
-  });
+  }, { request: request, scope: "sync:execute", browserOnly: true });
 }

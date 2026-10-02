@@ -1,9 +1,10 @@
+import type { PortfolioUnitOfWork } from "./portfolio-unit-of-work";
 import { InvalidImportError } from "../../domain/errors";
 import { isSupportedProvider } from "../../domain/loyalty/provider";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
-import type { LinkLoyaltyAccount } from "./link-loyalty-account";
-import type { RecordManualBalance } from "./record-manual-balance";
+import { LinkLoyaltyAccount } from "./link-loyalty-account";
+import { RecordManualBalance } from "./record-manual-balance";
 import type { LoyaltyAccountRepository } from "../../domain/loyalty/repositories";
 
 export interface ImportPortfolioInput {
@@ -36,9 +37,15 @@ export class ImportPortfolio {
     private readonly link: LinkLoyaltyAccount,
     private readonly recordBalance: RecordManualBalance,
     private readonly clock: Clock = systemClock,
+    private readonly unitOfWork?: PortfolioUnitOfWork,
   ) {}
 
   async execute(input: ImportPortfolioInput): Promise<ImportPortfolioResult> {
+    if (this.unitOfWork) {
+      return this.unitOfWork.run(input.userId, ({ accounts, balances, activity }) =>
+        new ImportPortfolio(accounts, new LinkLoyaltyAccount(accounts, activity, this.clock),
+          new RecordManualBalance(accounts, balances, activity, this.clock), this.clock).execute(input));
+    }
     const rows = parseExportCsv(input.csv);
     if (rows.length === 0) {
       throw new InvalidImportError("CSV has no data rows");
@@ -60,6 +67,16 @@ export class ImportPortfolio {
       byProvider.set(row.providerId, group);
     }
 
+    // Preflight identities before writing: a provider link represents one
+    // membership, so merging another member's exported balances corrupts it.
+    for (const [providerId, providerRows] of byProvider) {
+      const memberships = new Set(providerRows.map((row) => row.membershipNumber.trim()).filter(Boolean));
+      const existing = await this.accounts.findByUserAndProvider(input.userId, providerId);
+      if (memberships.size > 1 || (existing && memberships.size > 0 && !memberships.has(existing.membershipNumber))) {
+        throw new InvalidImportError(`conflicting membership for provider "${providerId}"`);
+      }
+    }
+
     for (const [providerId, providerRows] of byProvider) {
       const membership =
         providerRows.find((row) => row.membershipNumber.trim().length > 0)
@@ -69,6 +86,12 @@ export class ImportPortfolio {
         input.userId,
         providerId,
       );
+      // Recheck the account used for writes: a legacy/nontransactional writer
+      // may have created a missing provider link since the initial preflight.
+      const memberships = new Set(providerRows.map((row) => row.membershipNumber.trim()).filter(Boolean));
+      if (account && memberships.size > 0 && !memberships.has(account.membershipNumber)) {
+        throw new InvalidImportError(`conflicting membership for provider "${providerId}"`);
+      }
       if (!account) {
         const linked = await this.link.execute({
           userId: input.userId,
@@ -78,7 +101,10 @@ export class ImportPortfolio {
         account = await this.accounts.findById(linked.accountId);
         accountsLinked += 1;
       }
-      if (!account) continue;
+      if (!account || account.deletedAt) {
+        skippedRows += providerRows.length;
+        continue;
+      }
 
       for (const row of providerRows) {
         if (!row.points || row.points.trim() === "") {
@@ -86,7 +112,7 @@ export class ImportPortfolio {
           continue;
         }
         const points = Number(row.points);
-        if (!Number.isInteger(points) || points < 0) {
+        if (!Number.isSafeInteger(points) || points < 0) {
           skippedRows += 1;
           continue;
         }
@@ -98,9 +124,12 @@ export class ImportPortfolio {
             skippedRows += 1;
             continue;
           }
-          // Clamp future timestamps to now so re-imports of fresh exports work.
-          const now = this.clock.now();
-          capturedAt = parsed.getTime() > now.getTime() ? now : parsed;
+          // Preserve chronology; future observations cannot be silently rewritten.
+          if (parsed.getTime() > this.clock.now().getTime()) {
+            skippedRows += 1;
+            continue;
+          }
+          capturedAt = parsed;
         }
 
         await this.recordBalance.execute({
@@ -118,14 +147,9 @@ export class ImportPortfolio {
 }
 
 function parseExportCsv(csv: string): CsvRow[] {
-  const lines = csv
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (lines.length < 2) return [];
-
-  const header = parseCsvLine(lines[0]!);
+  const records = parseCsvRecords(csv.replace(/^\uFEFF/, ""));
+  if (records.length < 2) return [];
+  const header = records[0]!;
   const indexOf = (name: string) => {
     const idx = header.indexOf(name);
     if (idx < 0) {
@@ -140,8 +164,10 @@ function parseExportCsv(csv: string): CsvRow[] {
   const capturedAtIdx = indexOf("capturedAt");
 
   const rows: CsvRow[] = [];
-  for (const line of lines.slice(1)) {
-    const cols = parseCsvLine(line);
+  for (const cols of records.slice(1)) {
+    if (cols.length !== header.length) {
+      throw new InvalidImportError("CSV row has an unexpected number of columns");
+    }
     rows.push({
       providerId: cols[providerIdIdx] ?? "",
       membershipNumber: cols[membershipIdx] ?? "",
@@ -152,34 +178,52 @@ function parseExportCsv(csv: string): CsvRow[] {
   return rows;
 }
 
-/** Minimal RFC-4180-ish CSV line parser (handles quoted fields). */
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = [];
+/** Parses complete RFC-4180 records, including escaped quotes and newlines. */
+function parseCsvRecords(csv: string): string[][] {
+  const records: string[][] = [];
+  let fields: string[] = [];
   let current = "";
   let inQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i]!;
+  let closedQuote = false;
+  const finishField = () => {
+    fields.push(current);
+    current = "";
+    closedQuote = false;
+  };
+  const finishRecord = () => {
+    finishField();
+    if (fields.some((field) => field.length > 0)) records.push(fields);
+    fields = [];
+  };
+  for (let i = 0; i < csv.length; i += 1) {
+    const ch = csv[i]!;
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') {
+        if (csv[i + 1] === '"') {
           current += '"';
           i += 1;
         } else {
           inQuotes = false;
+          closedQuote = true;
         }
       } else {
         current += ch;
       }
-    } else if (ch === '"') {
-      inQuotes = true;
     } else if (ch === ",") {
-      fields.push(current);
-      current = "";
+      finishField();
+    } else if (ch === "\r" || ch === "\n") {
+      if (ch === "\r" && csv[i + 1] === "\n") i += 1;
+      finishRecord();
+    } else if (ch === '"' && current.length === 0 && !closedQuote) {
+      inQuotes = true;
     } else {
+      if (closedQuote || ch === '"') {
+        throw new InvalidImportError("malformed quoted CSV field");
+      }
       current += ch;
     }
   }
-  fields.push(current);
-  return fields;
+  if (inQuotes) throw new InvalidImportError("unterminated quoted CSV field");
+  if (fields.length > 0 || current.length > 0 || closedQuote) finishRecord();
+  return records;
 }

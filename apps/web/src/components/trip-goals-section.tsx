@@ -58,7 +58,7 @@ export function TripGoalsSection({
                     {goal.targetDate ? ` · by ${goal.targetDate}` : ""}
                     {goal.achieved ? " · reached" : ""}
                   </p>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+                  <div role="progressbar" aria-label={`${goal.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, goal.percentComplete))} className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
                     <div
                       className="h-full rounded-full bg-brand transition-[width]"
                       style={{
@@ -90,6 +90,7 @@ export function TripGoalsSection({
         </ul>
       )}
 
+      {accounts.length === 0 && <p className="card-surface p-5 text-sm text-ink-muted">Link a program to start a trip goal and track your progress.</p>}
       {accounts.length > 0 && (
         <form
           action={createAction}
@@ -138,7 +139,7 @@ export function TripGoalsSection({
                       type="checkbox"
                       name="accountIds"
                       value={account.id}
-                      className="accent-[var(--brand)]"
+                      className="accent-[var(--color-brand)]"
                     />
                     {account.provider.displayName}
                   </label>

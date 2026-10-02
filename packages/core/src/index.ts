@@ -70,3 +70,8 @@ export * from "./infrastructure/llm/openai-compatible-assistant";
 export * from "./infrastructure/llm/bedrock-assistant";
 export * from "./infrastructure/notify/webhook-notifiers";
 export * from "./infrastructure/scraper/firecrawl-page-scraper";
+
+export * from "./application/loyalty/portfolio-unit-of-work";
+export * from "./infrastructure/repositories/drizzle-portfolio-unit-of-work";
+
+export { migrateWithLock, MIGRATION_LOCK_KEY, type MigrationLockOptions } from "./infrastructure/db/migrations";

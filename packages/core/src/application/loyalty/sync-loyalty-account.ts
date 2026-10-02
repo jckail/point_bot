@@ -3,7 +3,6 @@ import {
   ProviderNotSupportedError,
 } from "../../domain/errors";
 import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
-import { refreshExpiryFromActivity } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type {
   ActivityEventRepository,
@@ -65,8 +64,7 @@ export class SyncLoyaltyAccount {
     });
     await this.balances.insert(snapshot);
 
-    // Activity resets the inactivity clock for programs that expire.
-    await this.accounts.update(refreshExpiryFromActivity(account, now));
+    // Reading a provider balance does not reset its inactivity expiry.
 
     const provider = getProviderOrThrow(account.providerId);
     await recordActivity(this.activity, {
@@ -94,7 +92,7 @@ export class SyncLoyaltyAccount {
     }
 
     if (credentialRef) {
-      const credential = await this.vault.resolve(credentialRef);
+      const credential = await this.vault.resolve(credentialRef, input.userId);
       if (!credential) {
         throw new CredentialUnavailableError(
           `vault has no entry for ref "${credentialRef}"`,

@@ -13,7 +13,7 @@
     "@aws-sdk/client-ses": "^3.750.0",
     "@clerk/backend": "^2.29.5",
     "@pointup/core": "*",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^10.0.13",
     "zod": "^4.4.3"
   },
   "devDependencies": {

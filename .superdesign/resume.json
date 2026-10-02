@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "settings-agent-controls": {
+      "targetKind": "existing-ui",
+      "projectId": "72097302-039b-4f67-81aa-bfda96527ec4",
+      "baselineDraftId": "6c6e7d2d-5d23-4a5f-bd49-61a92581c9b0",
+      "activeDraftId": "6c6e7d2d-5d23-4a5f-bd49-61a92581c9b0",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "apps/web/src/styles/globals.css",
+        "apps/web/src/components/agent-token-controls.tsx",
+        "apps/web/src/components/capture-consent-controls.tsx",
+        "apps/web/src/components/balance-observation-reviews.tsx",
+        "apps/web/src/components/reviewed-assistant-actions.tsx",
+        "apps/web/src/components/agent-controls-contract.ts",
+        "apps/web/src/components/assistant-action-contract.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "302134817a877ddec7306126aef8458cd932a803881c791af2d8445b71972fe6",
+        "apps/web/src/styles/globals.css": "5de5aac2e8eb43d5c7f39ffc1c5cafbbe9bb85cfd2260b2e32f65c0079576309",
+        "apps/web/src/components/agent-token-controls.tsx": "3a3ac65a49bda5eaaeda8ce67d9ed3d20f16b93c5f4b108ce510ad4d16f53c5f",
+        "apps/web/src/components/capture-consent-controls.tsx": "8c764f9b5ffe83b50d3b48f096b5d4c181b8e31665b37a12b9c7bab1318286b2",
+        "apps/web/src/components/balance-observation-reviews.tsx": "2f384f2201f75d6bc787e1a0df6556989249968f09dd6f24b8222e8c10158c0a",
+        "apps/web/src/components/reviewed-assistant-actions.tsx": "7c63836b15ed8b92146e9761ca99760ef27faed131895f5b91f2a617b0cd1bc9",
+        "apps/web/src/components/agent-controls-contract.ts": "e55ca075c288303303c08e0233327f36a6c65631b87f04e1b260b170dd6c6c30",
+        "apps/web/src/components/assistant-action-contract.ts": "cdd6b2c5ee9e0e8ae8f3c2d3e9fd3a516de36b063f8aa08e25d6ce753a7f47fb"
+      },
+      "components": [],
+      "drafts": {
+        "6c6e7d2d-5d23-4a5f-bd49-61a92581c9b0": {
+          "title": "PointUp Agent Settings Baseline",
+          "visualDirection": "Sky/navy paper cards; standalone control sections; illustrative source reproduction",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-02T03:24:22.447441+00:00"
+    }
+  }
+}

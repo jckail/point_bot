@@ -10,33 +10,31 @@ import { Logo } from "@/components/logo";
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-midnight/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line site-header backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="no-underline">
-          <Logo size={30} />
+          <Logo size={26} />
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav aria-label="Main navigation" className="flex items-center gap-2 sm:gap-3">
           <Show when="signed-in">
             <Link
               href="/dashboard"
-              className="rounded-full px-4 py-2 text-sm font-semibold text-ink-muted no-underline transition hover:text-ink"
+              className="rounded-full px-2 py-2 text-xs sm:px-4 sm:text-sm font-semibold text-ink-muted no-underline transition hover:text-ink"
             >
               Dashboard
             </Link>
-            <span className="hidden text-xs text-ink-faint sm:inline">
-              Ask PointUp on the dashboard
-            </span>
+            <Link href="/dashboard/settings" className="rounded-full px-2 py-2 text-xs sm:text-sm font-semibold text-ink-muted hover:text-brand">Settings</Link>
             <UserButton />
           </Show>
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button className="cursor-pointer rounded-full px-4 py-2 text-sm font-semibold text-ink-muted transition hover:text-ink">
+              <button className="cursor-pointer rounded-full px-2 py-2 text-xs sm:px-4 sm:text-sm font-semibold text-ink-muted transition hover:text-ink">
                 Sign in
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="cursor-pointer rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-strong">
+              <button className="cursor-pointer rounded-full bg-brand px-3 py-2 text-xs sm:px-5 sm:text-sm font-semibold text-white  transition hover:bg-brand-strong">
                 Get started
               </button>
             </SignUpButton>

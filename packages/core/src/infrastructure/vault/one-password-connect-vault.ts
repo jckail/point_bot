@@ -7,6 +7,11 @@ export interface OnePasswordConnectOptions {
   /** Base URL of the 1Password Connect server, e.g. https://op-connect.internal:8080 */
   readonly baseUrl: string;
   readonly token: string;
+  /**
+   * Trusted server-side registry. Never populate from request input. Absent
+   * registration denies all access, including pre-existing stored references.
+   */
+  readonly authorizedReferences?: ReadonlyMap<string, readonly string[]>;
 }
 
 interface OnePasswordField {
@@ -27,14 +32,19 @@ interface OnePasswordItem {
 export class OnePasswordConnectVault implements CredentialVault {
   constructor(private readonly options: OnePasswordConnectOptions) {}
 
-  async resolve(credentialRef: string): Promise<ProviderCredential | null> {
+  async resolve(credentialRef: string, userId: string): Promise<ProviderCredential | null> {
+    if (!this.options.authorizedReferences?.get(userId)?.includes(credentialRef)) {
+      return null;
+    }
     const parsed = this.parseRef(credentialRef);
     if (!parsed) return null;
 
     const response = await fetch(
-      `${this.options.baseUrl}/v1/vaults/${parsed.vaultId}/items/${parsed.itemId}`,
+      `${this.options.baseUrl.replace(/\/$/, "")}/v1/vaults/${encodeURIComponent(parsed.vaultId)}/items/${encodeURIComponent(parsed.itemId)}`,
       {
         headers: { Authorization: `Bearer ${this.options.token}` },
+        signal: AbortSignal.timeout(15_000),
+        redirect: "error",
       },
     );
     if (!response.ok) return null;
@@ -54,7 +64,7 @@ export class OnePasswordConnectVault implements CredentialVault {
   private parseRef(
     credentialRef: string,
   ): { vaultId: string; itemId: string } | null {
-    const match = /^op:\/\/([^/]+)\/([^/]+)$/.exec(credentialRef);
+    const match = /^op:\/\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)$/.exec(credentialRef);
     if (!match) return null;
     return { vaultId: match[1]!, itemId: match[2]! };
   }

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
@@ -23,8 +23,11 @@ import {
   loyaltyAccounts,
   portfolioShares,
   tripGoals,
+  tripGoalAccounts,
 } from "../db/schema";
 import type { TripGoal } from "../../domain/loyalty/trip-goal";
+
+type RepositoryDatabase = Pick<Database, "query" | "select" | "selectDistinct" | "selectDistinctOn" | "insert" | "update" | "delete">;
 
 const PG_UNIQUE_VIOLATION = "23505";
 
@@ -40,15 +43,6 @@ function isUniqueViolation(error: unknown): boolean {
 type LoyaltyAccountRow = typeof loyaltyAccounts.$inferSelect;
 type BalanceSnapshotRow = typeof balanceSnapshots.$inferSelect;
 
-function serializeTags(tags: readonly string[]): string {
-  return tags.join(",");
-}
-
-function parseTags(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
-}
-
 function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
   return {
     id: row.id,
@@ -58,7 +52,7 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
     credentialRef: row.credentialRef,
     expiresAt: row.expiresAt,
     notes: row.notes,
-    tags: parseTags(row.tags),
+    tags: row.tagValues,
     pinnedAt: row.pinnedAt,
     deletedAt: row.deletedAt,
     createdAt: row.createdAt,
@@ -79,9 +73,13 @@ function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
 export class DrizzleLoyaltyAccountRepository
   implements LoyaltyAccountRepository
 {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: RepositoryDatabase, private readonly lockRows = false) {}
 
   async findById(id: string): Promise<LoyaltyAccount | null> {
+    if (this.lockRows) {
+      const [row] = await this.db.select().from(loyaltyAccounts).where(eq(loyaltyAccounts.id, id)).for("update");
+      return row ? toLoyaltyAccount(row) : null;
+    }
     const row = await this.db.query.loyaltyAccounts.findFirst({
       where: eq(loyaltyAccounts.id, id),
     });
@@ -95,7 +93,7 @@ export class DrizzleLoyaltyAccountRepository
         isNull(loyaltyAccounts.deletedAt),
       ),
       // Pinned first (NULLS LAST), then oldest linked.
-      orderBy: (table, { asc: a, desc: d }) => [
+      orderBy: (table, { asc: a }) => [
         sql`${table.pinnedAt} DESC NULLS LAST`,
         a(table.createdAt),
       ],
@@ -118,6 +116,11 @@ export class DrizzleLoyaltyAccountRepository
     userId: string,
     providerId: string,
   ): Promise<LoyaltyAccount | null> {
+    if (this.lockRows) {
+      const [row] = await this.db.select().from(loyaltyAccounts)
+        .where(and(eq(loyaltyAccounts.userId, userId), eq(loyaltyAccounts.providerId, providerId))).for("update");
+      return row ? toLoyaltyAccount(row) : null;
+    }
     // Include soft-deleted rows so re-linking the same provider is blocked
     // until restore or hard purge — the unique index still applies.
     const row = await this.db.query.loyaltyAccounts.findFirst({
@@ -147,7 +150,7 @@ export class DrizzleLoyaltyAccountRepository
         credentialRef: account.credentialRef,
         expiresAt: account.expiresAt,
         notes: account.notes,
-        tags: serializeTags(account.tags),
+        tagValues: [...account.tags],
         pinnedAt: account.pinnedAt,
         deletedAt: account.deletedAt,
         createdAt: account.createdAt,
@@ -172,12 +175,12 @@ export class DrizzleLoyaltyAccountRepository
         credentialRef: account.credentialRef,
         expiresAt: account.expiresAt,
         notes: account.notes,
-        tags: serializeTags(account.tags),
+        tagValues: [...account.tags],
         pinnedAt: account.pinnedAt,
         deletedAt: account.deletedAt,
         updatedAt: account.updatedAt,
       })
-      .where(eq(loyaltyAccounts.id, account.id));
+      .where(and(eq(loyaltyAccounts.id, account.id), eq(loyaltyAccounts.userId, account.userId)));
   }
 
   async delete(id: string): Promise<void> {
@@ -188,7 +191,7 @@ export class DrizzleLoyaltyAccountRepository
 export class DrizzleBalanceSnapshotRepository
   implements BalanceSnapshotRepository
 {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: RepositoryDatabase) {}
 
   async insert(snapshot: BalanceSnapshot): Promise<void> {
     await this.db.insert(balanceSnapshots).values({
@@ -265,7 +268,7 @@ export class DrizzleBalanceSnapshotRepository
 }
 
 export class DrizzleActivityEventRepository implements ActivityEventRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: RepositoryDatabase) {}
 
   async insert(event: ActivityEvent): Promise<void> {
     await this.db.insert(activityEvents).values({
@@ -301,21 +304,16 @@ function serializeAccountIds(accountIds: readonly string[]): string {
   return accountIds.join(",");
 }
 
-function parseAccountIds(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((id) => id.trim()).filter(Boolean);
-}
-
 type TripGoalRow = typeof tripGoals.$inferSelect;
 
-function toTripGoal(row: TripGoalRow): TripGoal {
+function toTripGoal(row: TripGoalRow & { normalizedAccountIds: string[] }): TripGoal {
   return {
     id: row.id,
     userId: row.userId,
     title: row.title,
     targetPoints: row.targetPoints,
     targetDate: row.targetDate,
-    accountIds: parseAccountIds(row.accountIds),
+    accountIds: row.normalizedAccountIds,
     status: row.status,
     notes: row.notes,
     createdAt: row.createdAt,
@@ -323,21 +321,23 @@ function toTripGoal(row: TripGoalRow): TripGoal {
   };
 }
 
+// A correlated subquery reads parent and memberships in one PostgreSQL snapshot.
+const goalSelection = {
+  ...getTableColumns(tripGoals),
+  normalizedAccountIds: sql<string[]>`ARRAY(SELECT m.loyalty_account_id FROM ${tripGoalAccounts} m WHERE m.goal_id = ${tripGoals.id} AND m.user_id = ${tripGoals.userId} ORDER BY m.position, m.loyalty_account_id)`,
+};
+
 export class DrizzleTripGoalRepository implements TripGoalRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: RepositoryDatabase) {}
 
   async findById(id: string): Promise<TripGoal | null> {
-    const row = await this.db.query.tripGoals.findFirst({
-      where: eq(tripGoals.id, id),
-    });
+    const [row] = await this.db.select(goalSelection).from(tripGoals).where(eq(tripGoals.id, id));
     return row ? toTripGoal(row) : null;
   }
 
   async findByUserId(userId: string): Promise<TripGoal[]> {
-    const rows = await this.db.query.tripGoals.findMany({
-      where: eq(tripGoals.userId, userId),
-      orderBy: (table, { desc: d }) => [d(table.updatedAt)],
-    });
+    const rows = await this.db.select(goalSelection).from(tripGoals)
+      .where(eq(tripGoals.userId, userId)).orderBy(desc(tripGoals.updatedAt));
     return rows.map(toTripGoal);
   }
 
@@ -368,7 +368,7 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
         notes: goal.notes,
         updatedAt: goal.updatedAt,
       })
-      .where(eq(tripGoals.id, goal.id));
+      .where(and(eq(tripGoals.id, goal.id), eq(tripGoals.userId, goal.userId)));
   }
 
   async delete(id: string): Promise<void> {
@@ -393,7 +393,7 @@ function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
 export class DrizzlePortfolioShareRepository
   implements PortfolioShareRepository
 {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: RepositoryDatabase) {}
 
   async findById(id: string): Promise<PortfolioShare | null> {
     const row = await this.db.query.portfolioShares.findFirst({

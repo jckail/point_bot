@@ -32,6 +32,18 @@ export const env = createEnv({
     DATABASE_URL: z.url(),
     // Clerk user management (https://clerk.com).
     CLERK_SECRET_KEY: z.string().min(1),
+    // Registered OpenAI SIWC identity client; authenticated linking only.
+    CHATGPT_CLIENT_ID: z.string().min(1).optional(),
+    CHATGPT_REDIRECT_URI: z.url().optional(),
+    CHATGPT_CLIENT_AUTH_METHOD: z.enum(["none", "client_secret_basic"]).optional(),
+    CHATGPT_CLIENT_SECRET: z.string().min(1).optional(),
+    // Optional OpenAI Agents SDK runtime. Model selection is explicit.
+    ASSISTANT_RUNTIME: z.enum(["agents", "legacy"]).optional(),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    ASSISTANT_MODEL: z.string().min(1).max(128).optional(),
+    ASSISTANT_TRACING_ENABLED: z.enum(["true", "false"]).optional(),
+    ASSISTANT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).optional(),
+    ASSISTANT_MAX_TURNS: z.coerce.number().int().min(1).max(12).optional(),
     // Optional server-side credential vault (1Password Connect).
     OP_CONNECT_HOST: z.url().optional(),
     OP_CONNECT_TOKEN: z.string().min(1).optional(),
@@ -66,6 +78,16 @@ export const env = createEnv({
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    CHATGPT_CLIENT_ID: process.env.CHATGPT_CLIENT_ID,
+    CHATGPT_REDIRECT_URI: process.env.CHATGPT_REDIRECT_URI,
+    CHATGPT_CLIENT_AUTH_METHOD: process.env.CHATGPT_CLIENT_AUTH_METHOD,
+    CHATGPT_CLIENT_SECRET: process.env.CHATGPT_CLIENT_SECRET,
+    ASSISTANT_RUNTIME: process.env.ASSISTANT_RUNTIME,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ASSISTANT_MODEL: process.env.ASSISTANT_MODEL,
+    ASSISTANT_TRACING_ENABLED: process.env.ASSISTANT_TRACING_ENABLED,
+    ASSISTANT_TIMEOUT_MS: process.env.ASSISTANT_TIMEOUT_MS,
+    ASSISTANT_MAX_TURNS: process.env.ASSISTANT_MAX_TURNS,
     OP_CONNECT_HOST: process.env.OP_CONNECT_HOST,
     OP_CONNECT_TOKEN: process.env.OP_CONNECT_TOKEN,
     LLM_PROVIDER: process.env.LLM_PROVIDER,

@@ -10,6 +10,7 @@ import {
   DrizzleBalanceSnapshotRepository,
   DrizzleLoyaltyAccountRepository,
   DrizzlePortfolioShareRepository,
+  DrizzlePortfolioUnitOfWork,
   DrizzleTripGoalRepository,
   BedrockAssistant,
   BulkUpdateMembershipNumbers,
@@ -162,6 +163,7 @@ function buildContainer(): Container {
   const loyaltyAccounts = new DrizzleLoyaltyAccountRepository(db);
   const balanceSnapshots = new DrizzleBalanceSnapshotRepository(db);
   const activity = new DrizzleActivityEventRepository(db);
+  const portfolioUnitOfWork = new DrizzlePortfolioUnitOfWork(db);
   const tripGoals = new DrizzleTripGoalRepository(db);
   const shares = new DrizzlePortfolioShareRepository(db);
   const customValuations = new DrizzleCustomValuationRepository(db);
@@ -191,11 +193,13 @@ function buildContainer(): Container {
     undefined,
     customValuations,
   );
-  const linkLoyaltyAccount = new LinkLoyaltyAccount(loyaltyAccounts, activity);
+  const linkLoyaltyAccount = new LinkLoyaltyAccount(loyaltyAccounts, activity, undefined, portfolioUnitOfWork);
   const recordManualBalance = new RecordManualBalance(
     loyaltyAccounts,
     balanceSnapshots,
     activity,
+    undefined,
+    portfolioUnitOfWork,
   );
   const updateLoyaltyAccount = new UpdateLoyaltyAccount(
     loyaltyAccounts,
@@ -246,6 +250,8 @@ function buildContainer(): Container {
         loyaltyAccounts,
         linkLoyaltyAccount,
         recordManualBalance,
+        undefined,
+        portfolioUnitOfWork,
       ),
       seedDemoPortfolio: new SeedDemoPortfolio(
         loyaltyAccounts,

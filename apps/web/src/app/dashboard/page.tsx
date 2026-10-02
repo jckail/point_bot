@@ -21,7 +21,7 @@ import { SharePortfolioSection } from "@/components/share-portfolio-section";
 import { StatCard } from "@/components/stat-card";
 import { TripGoalsSection } from "@/components/trip-goals-section";
 import { ValueDealsSection } from "@/components/value-deals-section";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getContainer } from "@/server/container";
 import { toValueAdviceDto } from "@pointup/core/contracts";
@@ -84,16 +84,16 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-1 text-ink-muted">
             {accounts.length > 0
-              ? "Here's where every program stands."
+              ? "Your balances, your next trip, and the details in between."
               : "Link your first loyalty program to get started."}
           </p>
         </div>
         {accounts.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <form action={syncAllLoyaltyAccountsAction}>
-              <Button type="submit" size="sm">
+              <SubmitButton pendingLabel="Syncing programs…" size="sm">
                 Sync all programs
-              </Button>
+              </SubmitButton>
             </form>
             <a
               href="/api/v1/export?format=csv"
@@ -117,16 +117,19 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <nav className="dashboard-nav" aria-label="Portfolio sections">
+        <a href="#overview">Overview</a><a href="#programs">Programs</a>{accounts.length > 0 && <a href="#opportunities">Value &amp; deals</a>}<a href="#trip-goals">Trip goals</a><a href="#manage">Manage portfolio</a><a href="/dashboard/settings">Agents &amp; access</a>
+      </nav>
+      <div id="overview" className="dashboard-stats">
         <StatCard
           label="Points tracked"
           value={formatPoints(summary.totalPoints)}
-          hint="Sum of latest balances"
+          hint="Latest balance in each program"
         />
         <StatCard
           label="Estimated value"
           value={formatUsdFromCents(summary.totalValueCents)}
-          hint="At editorial cents-per-point"
+          hint="Editorial estimate, not cash value"
         />
         <StatCard
           label="Last sync"
@@ -158,20 +161,22 @@ export default async function DashboardPage() {
 
       {accounts.length === 0 && <DemoPortfolioCta />}
 
-      {accounts.length > 0 && <AccountGrid accounts={accounts} />}
+      <section id="programs" className="dashboard-section" aria-labelledby="programs-title">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 id="programs-title" className="font-display text-2xl font-bold">Your programs</h2><p className="mt-1 text-sm text-ink-muted">A balance is only the beginning. Open a program for history and details.</p></div><a href="#manage" className="rounded-xl border border-brand px-4 py-2 text-sm font-semibold text-brand">Link a program</a></div>
+        {accounts.length > 0 ? <AccountGrid accounts={accounts} /> : <p className="card-surface p-6 text-sm text-ink-muted">No programs linked yet. Add a membership below or try the demo portfolio.</p>}
+      </section>
 
       <RecentlyUnlinked accounts={deleted} />
       <ExpiryWarnings accounts={expiring} />
-      {accounts.length > 0 && <ValueDealsSection initialAdvice={adviceDto} />}
-      <TripGoalsSection goals={goals} accounts={accounts} />
+      {accounts.length > 0 && <div id="opportunities"><ValueDealsSection initialAdvice={adviceDto} /></div>}
+      <div id="trip-goals"><TripGoalsSection goals={goals} accounts={accounts} /></div>
       <ActivityFeed events={activity} />
 
       {accounts.length > 0 && (
         <SharePortfolioSection shares={shares} baseUrl={baseUrl} />
       )}
 
-      <LinkAccountForm providers={availableProviders} />
-      <ImportPortfolioForm />
+      <section id="manage" className="dashboard-section" aria-labelledby="manage-title"><h2 id="manage-title" className="font-display text-2xl font-bold">Manage your portfolio</h2><LinkAccountForm providers={availableProviders} /><ImportPortfolioForm /></section>
       <AssistantPanel />
     </main>
   );

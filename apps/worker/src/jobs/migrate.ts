@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { migrateWithLock } from "@pointup/core";
 import postgres from "postgres";
 
 /**
@@ -11,11 +11,11 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
   const migrationsFolder = process.env.MIGRATIONS_DIR ?? "./drizzle";
   console.info(`[migrate] applying migrations from ${migrationsFolder}`);
 
-  // A dedicated single connection: the migrator takes a session-level
-  // advisory lock, so concurrent runs (two deploys racing) serialize safely.
-  const client = postgres(databaseUrl, { max: 1 });
+  // One reserved connection holds the explicit session lock while Drizzle
+  // uses the other connection for its journal reads and migration transaction.
+  const client = postgres(databaseUrl, { max: 2 });
   try {
-    await migrate(drizzle(client), { migrationsFolder });
+    await migrateWithLock(drizzle(client), { migrationsFolder });
     console.info("[migrate] done");
   } finally {
     await client.end();

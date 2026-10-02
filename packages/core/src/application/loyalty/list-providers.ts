@@ -11,6 +11,7 @@ export class ListProviders {
       pointsCurrency: provider.pointsCurrency,
       estimatedCentsPerPoint: provider.estimatedCentsPerPoint,
       inactivityExpiryMonths: provider.inactivityExpiryMonths,
+      capabilities: provider.capabilities ? { ...provider.capabilities, collectionMethods: [...provider.capabilities.collectionMethods] } : undefined,
     }));
   }
 }

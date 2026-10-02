@@ -18,5 +18,5 @@ export function GET(request: Request) {
       limit,
     );
     return NextResponse.json(events.map(toActivityEventDto));
-  });
+  }, { request: request, scope: "portfolio:read" });
 }

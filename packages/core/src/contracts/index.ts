@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assistantActionDtoSchema } from "../domain/assistant/actions";
 
 import type {
   PortfolioSummaryReadModel,
@@ -33,6 +34,16 @@ export const isoDateTimeSchema = z.iso.datetime();
 
 export const providerKindSchema = z.enum(PROVIDER_KINDS);
 
+export const providerCapabilitiesDtoSchema = z.object({
+  officialAccountUrl: z.url({ protocol: /^https$/ }),
+  collectionMethods: z.array(z.enum(["manual", "page_capture"])),
+  pageCapture: z.enum(["review_required", "unavailable"]),
+  automaticSync: z.literal("requires_verified_adapter"),
+  balanceApiReadiness: z.enum(["not_verified", "partnership_required"]),
+  balanceUnit: z.enum(["points_or_miles", "ambiguous"]),
+  balanceGuidance: z.string(),
+});
+
 export const providerDtoSchema = z.object({
   id: z.string(),
   kind: providerKindSchema,
@@ -42,6 +53,7 @@ export const providerDtoSchema = z.object({
   estimatedCentsPerPoint: z.number().positive(),
   /** Months of inactivity before expiry; null if the program never expires. */
   inactivityExpiryMonths: z.number().int().positive().nullable(),
+  capabilities: providerCapabilitiesDtoSchema.optional(),
 });
 
 export const balanceDtoSchema = z.object({
@@ -329,7 +341,15 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   INVALID_ASSISTANT_MESSAGE: 422,
   INVALID_SCRAPE_URL: 422,
   ASSISTANT_UNAVAILABLE: 503,
+  RATE_LIMITED: 429,
   SCRAPE_FAILED: 502,
+  AGENT_TOKEN_INVALID: 401,
+  AGENT_SCOPE_DENIED: 403,
+  OBSERVATION_CONSENT_REQUIRED: 403,
+  AGENT_RECORD_NOT_FOUND: 404,
+  AGENT_VALIDATION_ERROR: 422,
+  OBSERVATION_CONFLICT: 409,
+  ASSISTANT_ACTION_NOT_FOUND: 404,
   INTERNAL: 500,
 } as const satisfies Record<string, number>;
 
@@ -388,7 +408,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 // ─── Read model → DTO mappers ──────────────────────────────────────────────
 
 export function toProviderDto(provider: ProviderReadModel): ProviderDto {
-  return { ...provider };
+  return { ...provider, ...(provider.capabilities ? { capabilities: { ...provider.capabilities, collectionMethods: [...provider.capabilities.collectionMethods] } } : { capabilities: undefined }) };
 }
 
 export function toBalanceDto(balance: BalanceReadModel): BalanceDto {
@@ -754,6 +774,7 @@ export const chatAssistantRequestSchema = z
 
 export const chatAssistantResponseSchema = z.object({
   reply: z.string(),
+  actions: z.array(assistantActionDtoSchema).optional(),
 });
 
 export const scrapeDealRequestSchema = z

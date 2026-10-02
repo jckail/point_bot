@@ -1,25 +1,4 @@
 import { LogoMark } from "@/components/logo";
-
 export function SiteFooter() {
-  return (
-    <footer className="border-t border-line">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-ink-faint sm:flex-row sm:px-6">
-        <div className="flex items-center gap-2">
-          <LogoMark size={20} />
-          <span>PointUp - all your points, one clear view.</span>
-        </div>
-        <div className="flex items-center gap-6">
-          <a
-            href="https://github.com/jckail/pointup"
-            target="_blank"
-            rel="noreferrer"
-            className="transition hover:text-ink-muted"
-          >
-            GitHub
-          </a>
-          <span>Open architecture: TypeScript, Drizzle, PostgreSQL, AWS</span>
-        </div>
-      </div>
-    </footer>
-  );
+  return <footer className="border-t border-line bg-surface"><div className="mx-auto flex max-w-6xl flex-col justify-between gap-5 px-5 py-8 text-sm text-ink-muted sm:flex-row sm:items-center sm:px-6"><div className="flex items-center gap-2"><LogoMark size={24}/><span>PointUp. Your next trip starts here.</span></div><a href="https://github.com/jckail/pointup" target="_blank" rel="noreferrer" className="font-medium hover:text-brand">View source on GitHub</a></div></footer>;
 }

@@ -1,3 +1,5 @@
+import { providerCapabilities, type ProviderCapabilities } from "./provider-capabilities";
+export type { ProviderCapabilities } from "./provider-capabilities";
 import { ProviderNotSupportedError } from "../errors";
 
 /**
@@ -46,6 +48,8 @@ export interface ProviderDefinition {
    * does not expire balances for inactivity (or has no published policy).
    */
   readonly inactivityExpiryMonths: number | null;
+  /** Optional for compatibility with custom/older provider read models. */
+  readonly capabilities?: ProviderCapabilities;
 }
 
 /** Approximate USD value (in whole cents) of a points balance. */
@@ -63,18 +67,23 @@ export function projectExpiryDate(
 ): Date | null {
   if (provider.inactivityExpiryMonths === null) return null;
   const expires = new Date(from.getTime());
+  // Calendar anniversaries clamp to month-end rather than rolling into the next month.
+  const day = expires.getUTCDate();
+  expires.setUTCDate(1);
   expires.setUTCMonth(expires.getUTCMonth() + provider.inactivityExpiryMonths);
+  const monthEnd = new Date(Date.UTC(expires.getUTCFullYear(), expires.getUTCMonth() + 1, 0)).getUTCDate();
+  expires.setUTCDate(Math.min(day, monthEnd));
   return expires;
 }
 
-export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
+const PROVIDER_DEFINITIONS: readonly ProviderDefinition[] = [
   {
     id: "united",
     kind: "airline",
     displayName: "United Airlines",
     pointsCurrency: "MileagePlus miles",
     estimatedCentsPerPoint: 1.2,
-    inactivityExpiryMonths: 18,
+    inactivityExpiryMonths: null, // United MileagePlus: miles do not expire. See docs/provider-capabilities.md.
   },
   {
     id: "delta",
@@ -106,7 +115,7 @@ export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
     displayName: "Hilton Honors",
     pointsCurrency: "Honors points",
     estimatedCentsPerPoint: 0.5,
-    inactivityExpiryMonths: null,
+    inactivityExpiryMonths: 24, // Hilton Honors terms, verified 2026-10-01.
   },
   {
     id: "hyatt",
@@ -162,7 +171,7 @@ export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
     displayName: "Amtrak Guest Rewards",
     pointsCurrency: "Guest Rewards points",
     estimatedCentsPerPoint: 2.5,
-    inactivityExpiryMonths: 36,
+    inactivityExpiryMonths: 24, // Amtrak Guest Rewards FAQ; cardholder exceptions need account evidence.
   },
   {
     id: "rakuten",
@@ -173,6 +182,10 @@ export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
     inactivityExpiryMonths: null,
   },
 ];
+
+export const PROVIDER_CATALOG: readonly ProviderDefinition[] = PROVIDER_DEFINITIONS.map((provider) => ({
+  ...provider, capabilities: providerCapabilities(provider.id),
+}));
 
 export function findProvider(
   providerId: string,

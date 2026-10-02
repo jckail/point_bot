@@ -44,7 +44,7 @@ async function assertOwnedAccounts(
 ): Promise<void> {
   for (const accountId of accountIds) {
     const account = await accounts.findById(accountId);
-    if (!account || account.userId !== userId) {
+    if (!account || account.userId !== userId || account.deletedAt) {
       throw new LoyaltyAccountNotFoundError(accountId);
     }
   }

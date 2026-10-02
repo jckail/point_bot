@@ -26,7 +26,7 @@ export interface NewBalanceSnapshot {
 export function createBalanceSnapshot(
   input: NewBalanceSnapshot,
 ): BalanceSnapshot {
-  if (!Number.isInteger(input.points) || input.points < 0) {
+  if (!Number.isSafeInteger(input.points) || input.points < 0) {
     throw new InvalidBalanceError();
   }
   if (input.capturedAt && Number.isNaN(input.capturedAt.getTime())) {

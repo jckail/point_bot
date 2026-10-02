@@ -26,7 +26,8 @@ export interface ProviderCredential {
  *   pass it as a transient credential instead (see SyncLoyaltyAccount).
  */
 export interface CredentialVault {
-  resolve(credentialRef: string): Promise<ProviderCredential | null>;
+  /** Authorize the reference against the authenticated account owner before access. */
+  resolve(credentialRef: string, userId: string): Promise<ProviderCredential | null>;
 }
 
 /** A balance reading returned by a provider integration. */

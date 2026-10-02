@@ -5,7 +5,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -17,13 +17,13 @@ export function GET(_request: Request, context: Context) {
       id,
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
-  });
+  }, { request: _request, scope: "portfolio:read" });
 }
 
 export function PATCH(request: Request, context: Context) {
   return withAuthenticatedUser(async (userId) => {
     const { id } = await context.params;
-    const body = updateLoyaltyAccountRequestSchema.parse(await request.json());
+    const body = updateLoyaltyAccountRequestSchema.parse(await readJsonBody(request));
 
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
@@ -46,7 +46,7 @@ export function PATCH(request: Request, context: Context) {
       id,
     );
     return NextResponse.json(toLoyaltyAccountDto(account));
-  });
+  }, { request: request, scope: "portfolio:write" });
 }
 
 export function DELETE(_request: Request, context: Context) {
@@ -54,5 +54,5 @@ export function DELETE(_request: Request, context: Context) {
     const { id } = await context.params;
     await getContainer().useCases.unlinkLoyaltyAccount.execute(userId, id);
     return new NextResponse(null, { status: 204 });
-  });
+  }, { request: _request, scope: "portfolio:write" });
 }

@@ -1,0 +1,1285 @@
+# Page dependency trees
+
+All local imports/re-exports traced recursively, including type imports, workspace package exports, server actions and server dependencies. External npm modules are excluded. Each route has a deduplicated tree: already-expanded files reference their first occurrence in that route; cycles are marked. Server-only branches are discovery metadata and need not enter a visual design payload. Shared RootLayout dependencies are included for each page.
+
+## / (Home)
+Entry: `apps/web/src/app/page.tsx`
+Centered hero, CTA, balance preview sparkline, provider strip, three feature cards and three onboarding steps.
+
+Dependencies:
+- `apps/web/src/app/page.tsx`
+  - `packages/core/src/index.ts`
+    - `packages/core/src/domain/errors.ts`
+    - `packages/core/src/domain/loyalty/provider.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/balance-snapshot.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/repositories.ts`
+      - `packages/core/src/domain/loyalty/activity.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/loyalty/trip-goal.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/custom-valuation.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/award-watch.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/fx.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/user-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/application/ports.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/read-models.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-providers.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/link-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts`
+        - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-loyalty-accounts.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/custom-valuations.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/award-watches.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/ingest-deal-page.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/display-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/bulk-update-membership.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/application/loyalty/update-loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/restore-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-balance-history.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/record-manual-balance.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-portfolio-summary.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-portfolio-digest.ts`
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts`
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+        - `packages/core/src/application/loyalty/create-trip-goal.ts`
+          - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+          - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+          - `packages/core/src/domain/errors.ts` (expanded above)
+          - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts`
+        - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/derive-alerts.ts`
+      - `packages/core/src/application/loyalty/build-portfolio-digest.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/export-portfolio.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/import-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+    - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-expiration-calendar.ts`
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-trip-goal.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/seed-demo-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+    - `packages/core/src/application/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/application/loyalty/assistant.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/transfer-partners.ts`
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/ingest-deal-page.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-all-loyalty-accounts.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/sync-loyalty-account.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/transfer-partners.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+    - `packages/core/src/infrastructure/db/client.ts`
+      - `packages/core/src/infrastructure/db/schema.ts`
+    - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-loyalty-account-repository.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-custom-valuation-repository.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-award-watch-repository.ts`
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-user-settings-repository.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/fx/fx-rate-sources.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/build-gateway.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/one-password-connect-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/null-credential-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/openai-compatible-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/bedrock-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/notify/webhook-notifiers.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/scraper/firecrawl-page-scraper.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+  - `apps/web/src/components/provider-badge.tsx`
+    - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+  - `apps/web/src/components/sparkline.tsx`
+- `apps/web/src/app/layout.tsx`
+  - `apps/web/src/styles/globals.css`
+  - `apps/web/src/components/site-footer.tsx`
+    - `apps/web/src/components/logo.tsx`
+  - `apps/web/src/components/site-header.tsx`
+    - `apps/web/src/components/logo.tsx` (expanded above)
+
+## /dashboard (Dashboard)
+Entry: `apps/web/src/app/dashboard/page.tsx`
+Authenticated portfolio metrics, account grid/filtering, restore/expiry notices, deals/transfers, trip goals, activity, sharing, link/import forms and assistant.
+
+Dependencies:
+- `apps/web/src/app/dashboard/page.tsx`
+  - `packages/core/src/index.ts`
+    - `packages/core/src/domain/errors.ts`
+    - `packages/core/src/domain/loyalty/provider.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/balance-snapshot.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/repositories.ts`
+      - `packages/core/src/domain/loyalty/activity.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/loyalty/trip-goal.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/custom-valuation.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/award-watch.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/fx.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/user-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/application/ports.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/read-models.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-providers.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/link-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts`
+        - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-loyalty-accounts.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/custom-valuations.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/award-watches.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/ingest-deal-page.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/display-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/bulk-update-membership.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/application/loyalty/update-loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/restore-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-balance-history.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/record-manual-balance.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-portfolio-summary.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-portfolio-digest.ts`
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts`
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+        - `packages/core/src/application/loyalty/create-trip-goal.ts`
+          - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+          - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+          - `packages/core/src/domain/errors.ts` (expanded above)
+          - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts`
+        - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/derive-alerts.ts`
+      - `packages/core/src/application/loyalty/build-portfolio-digest.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/export-portfolio.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/import-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+    - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-expiration-calendar.ts`
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-trip-goal.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/seed-demo-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+    - `packages/core/src/application/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/application/loyalty/assistant.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/transfer-partners.ts`
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/ingest-deal-page.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-all-loyalty-accounts.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/sync-loyalty-account.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/transfer-partners.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+    - `packages/core/src/infrastructure/db/client.ts`
+      - `packages/core/src/infrastructure/db/schema.ts`
+    - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-loyalty-account-repository.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-custom-valuation-repository.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-award-watch-repository.ts`
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-user-settings-repository.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/fx/fx-rate-sources.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/build-gateway.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/one-password-connect-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/null-credential-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/openai-compatible-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/bedrock-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/notify/webhook-notifiers.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/scraper/firecrawl-page-scraper.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+  - `apps/web/src/app/actions.ts`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/lib/action-result.ts`
+    - `apps/web/src/server/container.ts`
+      - `packages/core/src/index.ts` (expanded above)
+      - `apps/web/src/env.ts`
+        - `packages/core/src/index.ts` (expanded above)
+  - `apps/web/src/components/account-grid.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/components/account-card.tsx`
+      - `packages/core/src/index.ts` (expanded above)
+      - `apps/web/src/app/actions.ts` (expanded above)
+      - `apps/web/src/components/balance-trend.tsx`
+        - `packages/core/src/index.ts` (expanded above)
+        - `apps/web/src/lib/format.ts`
+      - `apps/web/src/components/provider-badge.tsx`
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `apps/web/src/components/ui/button.tsx`
+      - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/activity-feed.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/assistant-panel.tsx`
+  - `apps/web/src/components/demo-portfolio-cta.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/ui/button.tsx` (expanded above)
+  - `apps/web/src/components/expiry-warnings.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/import-portfolio-form.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx`
+      - `apps/web/src/lib/action-result.ts` (expanded above)
+      - `apps/web/src/components/ui/button.tsx` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/link-account-form.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/recently-unlinked.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/share-portfolio-section.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/stat-card.tsx`
+  - `apps/web/src/components/trip-goals-section.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/value-deals-section.tsx`
+    - `packages/core/src/contracts/index.ts`
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/sync-all-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/export-portfolio.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/transfer-partners.ts` (expanded above)
+      - `packages/core/src/application/loyalty/assistant.ts` (expanded above)
+      - `packages/core/src/application/loyalty/ingest-deal-page.ts` (expanded above)
+    - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/components/ui/button.tsx` (expanded above)
+  - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/server/container.ts` (expanded above)
+  - `packages/core/src/contracts/index.ts` (expanded above)
+- `apps/web/src/app/layout.tsx`
+  - `apps/web/src/styles/globals.css`
+  - `apps/web/src/components/site-footer.tsx`
+    - `apps/web/src/components/logo.tsx`
+  - `apps/web/src/components/site-header.tsx`
+    - `apps/web/src/components/logo.tsx` (expanded above)
+
+## /dashboard/accounts/[id] (Account detail)
+Entry: `apps/web/src/app/dashboard/accounts/[id]/page.tsx`
+Authenticated program balance/history, pin/sync controls, manual balance, membership editing, notes/tags and unlink section.
+
+Dependencies:
+- `apps/web/src/app/dashboard/accounts/[id]/page.tsx`
+  - `packages/core/src/index.ts`
+    - `packages/core/src/domain/errors.ts`
+    - `packages/core/src/domain/loyalty/provider.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/balance-snapshot.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/repositories.ts`
+      - `packages/core/src/domain/loyalty/activity.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/loyalty/trip-goal.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/custom-valuation.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/award-watch.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/fx.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/user-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/application/ports.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/read-models.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-providers.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/link-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts`
+        - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-loyalty-accounts.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/custom-valuations.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/award-watches.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/ingest-deal-page.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/display-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/bulk-update-membership.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/application/loyalty/update-loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/restore-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-balance-history.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/record-manual-balance.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-portfolio-summary.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-portfolio-digest.ts`
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts`
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+        - `packages/core/src/application/loyalty/create-trip-goal.ts`
+          - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+          - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+          - `packages/core/src/domain/errors.ts` (expanded above)
+          - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts`
+        - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/derive-alerts.ts`
+      - `packages/core/src/application/loyalty/build-portfolio-digest.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/export-portfolio.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/import-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+    - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-expiration-calendar.ts`
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-trip-goal.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/seed-demo-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+    - `packages/core/src/application/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/application/loyalty/assistant.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/transfer-partners.ts`
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/ingest-deal-page.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-all-loyalty-accounts.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/sync-loyalty-account.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/transfer-partners.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+    - `packages/core/src/infrastructure/db/client.ts`
+      - `packages/core/src/infrastructure/db/schema.ts`
+    - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-loyalty-account-repository.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-custom-valuation-repository.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-award-watch-repository.ts`
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-user-settings-repository.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/fx/fx-rate-sources.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/build-gateway.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/one-password-connect-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/null-credential-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/openai-compatible-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/bedrock-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/notify/webhook-notifiers.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/scraper/firecrawl-page-scraper.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+  - `apps/web/src/app/actions.ts`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/lib/action-result.ts`
+    - `apps/web/src/server/container.ts`
+      - `packages/core/src/index.ts` (expanded above)
+      - `apps/web/src/env.ts`
+        - `packages/core/src/index.ts` (expanded above)
+  - `apps/web/src/components/account-notes-form.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx`
+      - `apps/web/src/lib/action-result.ts` (expanded above)
+      - `apps/web/src/components/ui/button.tsx`
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/manual-balance-form.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/membership-number-form.tsx`
+    - `apps/web/src/app/actions.ts` (expanded above)
+    - `apps/web/src/components/form-feedback.tsx` (expanded above)
+    - `apps/web/src/lib/action-result.ts` (expanded above)
+  - `apps/web/src/components/balance-trend.tsx`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/lib/format.ts`
+  - `apps/web/src/components/provider-badge.tsx`
+    - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+  - `apps/web/src/components/sparkline.tsx`
+  - `apps/web/src/components/ui/button.tsx` (expanded above)
+  - `apps/web/src/lib/format.ts` (expanded above)
+  - `apps/web/src/server/container.ts` (expanded above)
+- `apps/web/src/app/layout.tsx`
+  - `apps/web/src/styles/globals.css`
+  - `apps/web/src/components/site-footer.tsx`
+    - `apps/web/src/components/logo.tsx`
+  - `apps/web/src/components/site-header.tsx`
+    - `apps/web/src/components/logo.tsx` (expanded above)
+
+## /share/[token] (Public portfolio)
+Entry: `apps/web/src/app/share/[token]/page.tsx`
+Read-only token snapshot with points, estimated values and provider list; hides membership numbers.
+
+Dependencies:
+- `apps/web/src/app/share/[token]/page.tsx`
+  - `packages/core/src/index.ts`
+    - `packages/core/src/domain/errors.ts`
+    - `packages/core/src/domain/loyalty/provider.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/balance-snapshot.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/repositories.ts`
+      - `packages/core/src/domain/loyalty/activity.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/loyalty/trip-goal.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/custom-valuation.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/award-watch.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/fx.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/user-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/application/ports.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/read-models.ts`
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-providers.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/link-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts`
+        - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-loyalty-accounts.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts`
+        - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-loyalty-account.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/custom-valuations.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/award-watches.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/ingest-deal-page.ts`
+        - `packages/core/src/domain/errors.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+        - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/display-settings.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/application/loyalty/bulk-update-membership.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/application/loyalty/update-loyalty-account.ts` (expanded above)
+    - `packages/core/src/application/loyalty/restore-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-balance-history.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/record-manual-balance.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/get-portfolio-summary.ts`
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-portfolio-digest.ts`
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts`
+        - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+        - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+        - `packages/core/src/application/loyalty/create-trip-goal.ts`
+          - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+          - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+          - `packages/core/src/domain/errors.ts` (expanded above)
+          - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts`
+        - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+        - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/derive-alerts.ts`
+      - `packages/core/src/application/loyalty/build-portfolio-digest.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/export-portfolio.ts`
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/mappers.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/import-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+    - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-expiring-accounts.ts` (expanded above)
+    - `packages/core/src/application/loyalty/build-expiration-calendar.ts`
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+    - `packages/core/src/application/loyalty/update-trip-goal.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+    - `packages/core/src/application/loyalty/seed-demo-portfolio.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/link-loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/loyalty/record-manual-balance.ts` (expanded above)
+    - `packages/core/src/application/loyalty/portfolio-share.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+    - `packages/core/src/application/loyalty/assistant.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/transfer-partners.ts`
+        - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/create-trip-goal.ts` (expanded above)
+      - `packages/core/src/application/loyalty/get-portfolio-summary.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-loyalty-accounts.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-trip-goals.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/ingest-deal-page.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-loyalty-account.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/application/loyalty/access.ts` (expanded above)
+      - `packages/core/src/application/loyalty/list-activity.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+    - `packages/core/src/application/loyalty/sync-all-loyalty-accounts.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/application/loyalty/read-models.ts` (expanded above)
+      - `packages/core/src/application/loyalty/sync-loyalty-account.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/transfer-partners.ts` (expanded above)
+    - `packages/core/src/domain/loyalty/deals.ts` (expanded above)
+    - `packages/core/src/infrastructure/db/client.ts`
+      - `packages/core/src/infrastructure/db/schema.ts`
+    - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-loyalty-account-repository.ts`
+      - `packages/core/src/domain/errors.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/balance-snapshot.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/repositories.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/activity.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/portfolio-share.ts` (expanded above)
+      - `packages/core/src/application/loyalty/balance-trend.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/trip-goal.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-custom-valuation-repository.ts`
+      - `packages/core/src/domain/loyalty/custom-valuation.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-award-watch-repository.ts`
+      - `packages/core/src/domain/loyalty/award-watch.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/repositories/drizzle-user-settings-repository.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/user-settings.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/client.ts` (expanded above)
+      - `packages/core/src/infrastructure/db/schema.ts` (expanded above)
+    - `packages/core/src/infrastructure/fx/fx-rate-sources.ts`
+      - `packages/core/src/domain/fx.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts`
+      - `packages/core/src/domain/loyalty/loyalty-account.ts` (expanded above)
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/providers/build-gateway.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/composite-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/http-aggregator-travel-provider-gateway.ts` (expanded above)
+      - `packages/core/src/infrastructure/providers/simulated-travel-provider-gateway.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/one-password-connect-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/vault/null-credential-vault.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/openai-compatible-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/llm/bedrock-assistant.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/notify/webhook-notifiers.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+    - `packages/core/src/infrastructure/scraper/firecrawl-page-scraper.ts`
+      - `packages/core/src/application/ports.ts` (expanded above)
+  - `packages/core/src/domain/loyalty/provider.ts` (expanded above)
+  - `apps/web/src/components/logo.tsx`
+  - `apps/web/src/lib/format.ts`
+  - `apps/web/src/server/container.ts`
+    - `packages/core/src/index.ts` (expanded above)
+    - `apps/web/src/env.ts`
+      - `packages/core/src/index.ts` (expanded above)
+- `apps/web/src/app/layout.tsx`
+  - `apps/web/src/styles/globals.css`
+  - `apps/web/src/components/site-footer.tsx`
+    - `apps/web/src/components/logo.tsx` (expanded above)
+  - `apps/web/src/components/site-header.tsx`
+    - `apps/web/src/components/logo.tsx` (expanded above)
+
+## Browser extension popup
+Entry: `apps/extension/public/popup.html`
+Dependencies (popup.js is compiled from popup.ts):
+- `apps/extension/src/popup.ts`
+  - `apps/extension/src/config.ts`
+    - `apps/extension/src/extraction.ts`
+  - `apps/extension/src/extraction.ts` (expanded above)
+  - `apps/extension/src/messages.ts`
+    - `apps/extension/src/extraction.ts` (expanded above)
+
+
+## Account access controls — current UI dependency expansion
+
+`apps/web/src/app/dashboard/settings/page.tsx` renders `reviewed-assistant-actions.tsx`, `balance-observation-reviews.tsx`, `agent-token-controls.tsx`, `capture-consent-controls.tsx`, and `chatgpt-identity-settings.tsx`. These use `agent-api.ts`, `agent-controls-contract.ts`, `assistant-action-contract.ts`, and `assistant-action-request-gate.ts` for validated requests/state. All visual context is inline JSX plus globals.css. The isolated draft target intentionally excludes site shell and identity linking.

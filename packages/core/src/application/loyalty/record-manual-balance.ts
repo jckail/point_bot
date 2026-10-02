@@ -1,6 +1,6 @@
+import type { PortfolioUnitOfWork } from "./portfolio-unit-of-work";
 import { InvalidCaptureTimeError } from "../../domain/errors";
 import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
-import { refreshExpiryFromActivity } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type {
   ActivityEventRepository,
@@ -35,9 +35,14 @@ export class RecordManualBalance {
     private readonly balances: BalanceSnapshotRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly unitOfWork?: PortfolioUnitOfWork,
   ) {}
 
   async execute(input: RecordManualBalanceInput): Promise<BalanceReadModel> {
+    if (this.unitOfWork) {
+      return this.unitOfWork.run(input.userId, ({ accounts, balances, activity }) =>
+        new RecordManualBalance(accounts, balances, activity, this.clock).execute(input));
+    }
     const account = await requireOwnedAccount(
       this.accounts,
       input.userId,
@@ -58,8 +63,8 @@ export class RecordManualBalance {
     });
     await this.balances.insert(snapshot);
 
-    // Manual entries count as activity for inactivity-expiry programs.
-    await this.accounts.update(refreshExpiryFromActivity(account, capturedAt));
+    // Observing a balance is not a qualifying earn/redeem transaction.
+    // Preserve the provider/user expiry, including when backfilling history.
 
     const provider = getProviderOrThrow(account.providerId);
     await recordActivity(this.activity, {

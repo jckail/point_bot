@@ -27,6 +27,16 @@ export class GithubOidcStack extends cdk.Stack {
       clientIds: ["sts.amazonaws.com"],
     });
 
+    const expectedSubject = `repo:${props.githubRepo}:environment:production`;
+    const oidcSubject: unknown = this.node.tryGetContext("githubOidcSubject") ?? expectedSubject;
+    // New GitHub repositories can include immutable numeric IDs in subject names.
+    const subjectSuffix = ":environment:production";
+    if (typeof oidcSubject !== "string" || !oidcSubject.startsWith("repo:") || !oidcSubject.endsWith(subjectSuffix) || oidcSubject.includes("*") || oidcSubject.includes("?")) {
+      throw new Error("githubOidcSubject must identify this repository's production environment exactly");
+    }
+    const subjectRepository = oidcSubject.slice(5, -subjectSuffix.length).split("/").map(part => part.replace(/@\d+$/, "")).join("/");
+    if (subjectRepository !== props.githubRepo) throw new Error("githubOidcSubject does not match githubRepo");
+
     const role = new iam.Role(this, "DeployRole", {
       roleName: "pointup-github-deploy",
       description: `CDK deploys from GitHub Actions (${props.githubRepo})`,
@@ -36,11 +46,8 @@ export class GithubOidcStack extends cdk.Stack {
         {
           StringEquals: {
             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          },
-          StringLike: {
-            // Restrict to this repository; tighten to ":ref:refs/heads/master"
-            // to exclude other branches and environments.
-            "token.actions.githubusercontent.com:sub": `repo:${props.githubRepo}:*`,
+            // The deploy job uses the protected production environment.
+            "token.actions.githubusercontent.com:sub": oidcSubject,
           },
         },
       ),
@@ -48,32 +55,18 @@ export class GithubOidcStack extends cdk.Stack {
 
     // CDK deployments only need to assume the bootstrap roles; the heavy
     // permissions live on those roles, not on this one.
+    const qualifier = this.node.tryGetContext("@aws-cdk/core:bootstrapQualifier") ?? "hnb659fds";
+    if (typeof qualifier !== "string" || !/^[A-Za-z0-9_-]{1,10}$/.test(qualifier)) throw new Error("Invalid CDK bootstrap qualifier");
     role.addToPolicy(
       new iam.PolicyStatement({
         sid: "AssumeCdkBootstrapRoles",
         actions: ["sts:AssumeRole"],
-        resources: [`arn:aws:iam::${this.account}:role/cdk-*`],
+        resources: [`arn:${this.partition}:iam::${this.account}:role/cdk-${qualifier}-*-role-${this.account}-${this.region}`],
       }),
     );
 
-    // Post-deploy database migrations run as a one-off ECS task from CI.
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "RunMigrationTask",
-        actions: ["ecs:RunTask", "ecs:DescribeTasks"],
-        resources: ["*"],
-      }),
-    );
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "PassTaskRoles",
-        actions: ["iam:PassRole"],
-        resources: [`arn:aws:iam::${this.account}:role/*`],
-        conditions: {
-          StringEquals: { "iam:PassedToService": "ecs-tasks.amazonaws.com" },
-        },
-      }),
-    );
+    // The stack-owned migration gate runs ECS tasks with narrowly scoped roles.
+    // GitHub itself only assumes the CDK bootstrap deployment roles.
 
     new cdk.CfnOutput(this, "DeployRoleArn", {
       value: role.roleArn,

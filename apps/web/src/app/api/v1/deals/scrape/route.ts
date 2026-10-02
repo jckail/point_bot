@@ -6,7 +6,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
 /**
  * Scrape a deal / award-chart URL (Firecrawl or stub) and re-rank value advice
@@ -14,7 +14,7 @@ import { withAuthenticatedUser } from "@/server/http";
  */
 export function POST(request: Request) {
   return withAuthenticatedUser(async (userId) => {
-    const body = scrapeDealRequestSchema.parse(await request.json());
+    const body = scrapeDealRequestSchema.parse(await readJsonBody(request));
     const { useCases } = getContainer();
     const ingested = await useCases.ingestDealPage.execute({
       url: body.url,
@@ -31,5 +31,5 @@ export function POST(request: Request) {
       },
       { status: 201 },
     );
-  });
+  }, { request: request, scope: "assistant:chat" });
 }

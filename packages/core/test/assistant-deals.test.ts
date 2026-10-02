@@ -21,7 +21,7 @@ import {
 import type { LlmAssistant } from "../src/application/ports";
 
 describe("transfer partner graph", () => {
-  it("applies Hyatt bonus and ranks partners by effective cpp", () => {
+  it("ranks editorial partners without fabricated demo bonuses", () => {
     const options = rankTransferOptions("chase-ultimate-rewards", 100_000);
     expect(options.length).toBeGreaterThan(0);
 
@@ -29,7 +29,8 @@ describe("transfer partner graph", () => {
     const hilton = options.find((o) => o.to.id === "hilton");
     expect(hyatt).toBeDefined();
     expect(hilton).toBeDefined();
-    expect(hyatt!.bonusMultiplier).toBeGreaterThan(1);
+    expect(hyatt!.bonusMultiplier).toBe(1);
+    expect(hyatt!.bonusLabel).toBeNull();
     expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
       hilton!.effectiveCentsPerPoint,
     );

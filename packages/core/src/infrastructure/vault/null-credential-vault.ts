@@ -9,7 +9,9 @@ import type {
  * on mobile, Chrome password manager in an extension).
  */
 export class NullCredentialVault implements CredentialVault {
-  async resolve(): Promise<ProviderCredential | null> {
+  async resolve(_credentialRef: string, _userId: string): Promise<ProviderCredential | null> {
+    void _credentialRef;
+    void _userId;
     return null;
   }
 }

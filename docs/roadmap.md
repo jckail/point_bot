@@ -1,5 +1,11 @@
 # PointUp feature roadmap
 
+> This historical roadmap mixes source implementation and planned deployment.
+> Use [overhaul-status.md](overhaul-status.md) for current requirement-level gates
+> and [README.md](README.md) for the maintained documentation index.
+> Web and Chrome extension are the active scope; iOS is deferred.
+
+
 This roadmap is organized into phases sequenced by dependency, not by dates: each phase builds on capabilities the previous one puts in place. Within a phase, items are independent and can ship in any order. Status: ✅ shipped, 🔜 next up, 🔮 later.
 
 ## Foundation (shipped)

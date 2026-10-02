@@ -86,7 +86,7 @@ export default async function AccountDetailPage({
       <section className="card-surface flex flex-col gap-6 p-6 md:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+            <p className="text-sm font-medium text-ink-muted">
               Current balance
             </p>
             <p className="font-display mt-1 text-4xl font-bold text-ink">
