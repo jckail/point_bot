@@ -66,6 +66,10 @@ export interface CsrfInput {
   readonly expectedOrigin: string;
   readonly method?: string;
   readonly secFetchSite?: string | null;
+  readonly secFetchMode?: string | null;
+  readonly secFetchDest?: string | null;
+  /** Server-selected exception only for the state-bound ChatGPT OIDC callback. */
+  readonly oauthCallback?: "chatgpt";
   readonly contentType: string | null;
   /** True when the request carries a body (content-length > 0 or chunked). */
   readonly hasBody: boolean;
@@ -95,6 +99,11 @@ export function parseAppOrigin(value: string): string {
 export function assertCsrfSafe(input: CsrfInput): void {
   if (input.principal.scopes !== "session" || input.principal.credential === "clerk-bearer") return;
   if (input.secFetchSite === "cross-site") {
+    // A provider's top-level GET redirect must reach the callback's one-time
+    // state/owner validation. This exception never permits writes or fetches.
+    if (input.oauthCallback === "chatgpt" && input.method === "GET"
+        && input.origin === null && !input.hasBody
+        && input.secFetchMode === "navigate" && input.secFetchDest === "document") return;
     throw new CsrfRejectedError("cross-site request");
   }
   if (input.origin !== null) {

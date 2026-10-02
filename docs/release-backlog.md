@@ -11,31 +11,54 @@ See [integration-status.md](integration-status.md) for verified evidence and
 
 - Inspect actual staging/production migration journals and relevant tables;
   establish a recoverable backup and compatible adoption plan before applying
-  this lineage. PR #14 migrations 0000–0015 and proposal-only 0016 are the
-  integration history. Neither branch proves the deployed schema.
+  this lineage. The integration history is preserved PR #14 migrations
+  0000–0015, proposal 0016, SIWC storage/adoption 0017 and tenant-qualified
+  goal membership 0018. Observation 0019 remains proposed. Neither source
+  branch nor fixture proves the deployed schema. Apply managed migrations
+  before activating hosts that require their tables; the current workflow
+  still deploys CDK hosts before its ECS migration step, so ordering remains
+  a release gate. Migration 0018 has a 30-second transaction-local lock
+  timeout; diagnose contention before any deliberate retry.
 - Restore AWS authentication (`aws login`) and configure GitHub deployment
-  role/Clerk secrets. No deployment credentials were available during this
-  milestone. Keep production deploy distinct from source/CI completion.
+  role/Clerk secrets. Local AWS authentication is expired and deployment
+  secrets remain absent. Keep production deploy distinct from source/CI
+  completion; successful verification-only runs skip AWS writes.
 - Supply an approved OpenAI project key through the web-only Secrets Manager
   secret and choose an explicitly available model. Activation and tracing are
   separate opt-ins. Prove inference and exporter/dashboard delivery with
   controlled fixtures before claiming live behavior.
-- Inspect the production deploy verifier: its existing verification job lacks
-  the PostgreSQL fixture used by pull-request CI. Align it with required
-  integration checks before relying on it as the sole release gate.
+- Complete final review fixes and their focused regressions, then await the
+  full suite and aggregate CI for the new SIWC/goal source. Workflow commit `350ccc9`
+  already closes the earlier verifier gap by reusing the complete six-job
+  gate: [CI 36976573470](https://github.com/jckail/point_bot/actions/runs/36976573470)
+  and [verification-only Deploy 36976965575](https://github.com/jckail/point_bot/actions/runs/36976965575)
+  passed, with AWS deployment/migrations skipped. Preserve that gate for release.
+- Confirm the deployment/hosting route and public HTTPS `APP_URL`, Clerk
+  session handling, approved OIDC client configuration and exact SIWC callback
+  routing before enabling account linking. Linking does not establish an
+  independent ChatGPT sign-in or an approved session bridge.
 - Configure alarm notification destinations and tune thresholds from actual
   traffic. Current alarms have no notification actions; cancellations remain
   in the started-run denominator and are excluded from the failure numerator.
 
 ## Remaining original overhaul work
 
-- Integrate native SIWC account linking with this migration lineage. Approved
-  ChatGPT OIDC client access and an independently verified ChatGPT session
-  bridge remain separate prerequisites; linking alone does not complete sign-in.
-- Port tenant-qualified goal membership with quarantine of invalid legacy
-  associations; preserve valid goals and PR #14 features.
-- Port observation-token versioning, consent/idempotency/replay provenance and
-  audit fixes without fabricating provenance for historical observations.
+- Complete live SIWC account-linking validation once approved client access,
+  callback hosting and Clerk credentials exist. Source linking and managed
+  storage migration 0017 are implemented; approved ChatGPT OIDC client access
+  and an independently verified ChatGPT session bridge remain separate
+  prerequisites for independent sign-in.
+- Rehearse tenant-qualified goal migration 0018 against the actual deployed
+  lineage after journal/backup inspection. Source quarantine/ownership behavior
+  is implemented and six real PostgreSQL goal cases pass, including concurrent
+  membership-write blocking after the lock correction; deployment adoption
+  remains unverified.
+- Implement [observation-integration-plan.md](observation-integration-plan.md)
+  as additive migration 0019 and tightly scoped source changes. Retain existing
+  observation IDs/outcomes, provider consent, auto-link scopes, `agent` balance
+  source, outbox and retention behavior. Fix authorization/review checks at the
+  write boundary, stable replay/provenance, and review cache invalidation;
+  do not fabricate historical token/consent/snapshot provenance.
 - Add staged numeric constraints and complete remaining atomicity/RLS review;
   preserve account tags, the agent balance source, outbox and retention behavior.
 - Verify the actual dashboard/chat/review UI and unpacked Chrome extension with
@@ -59,12 +82,29 @@ See [integration-status.md](integration-status.md) for verified evidence and
 - Continue the broader frontend/backend/data audit and documentation cleanup.
   iOS remains deferred at the user's request.
 
+## Latest local milestone evidence
+
+Root-owned focused PostgreSQL fixtures pass 23 SIWC/goal cases (ten adoption,
+six ownership, seven storage). All six goal cases pass after the migration lock
+correction, including an actual concurrent membership-write blocking race. The
+managed migration command passed, earlier full lint/all workspace types passed,
+and Drizzle metadata showed zero drift. The full workspace suite passed 708 tests
+with one paid live evaluation skipped **before** the OAuth callback CSRF fix;
+53 focused callback/policy checks now pass, including 11 through the real shared
+HTTP/authentication boundary. Final full lint and workspace types also pass;
+final-source aggregate CI follows the source commit.
+These checks verify their source checkpoints and fixtures only.
+SIWC is account linking for a signed-in Clerk user, not independent sign-in.
+See [integration-status.md](integration-status.md) for the workflow run evidence.
+
 ## Working constraints
 
 Root owns aggregate verification and all release operations. Expensive local
 checks use `agent-heavy-check`, two workers, and a single owner; lock exit 75
 is recorded without unchanged retries. Preserve other worktrees and processes.
-The isolated proposal PostgreSQL fixture is root-owned and stopped after checks.
+The prior isolated proposal fixture is stopped. The current SIWC/goal PostgreSQL
+fixture remains root-owned and will be stopped after root's final checks; other
+agents must not clean up that fixture.
 Agent Hub cannot map these worktrees to a memory scope, so curated repository
 notes carry continuity. Shared Graphify currently lacks PointUp code coverage;
 query it first, inspect current source, and refresh the whole shared corpus.

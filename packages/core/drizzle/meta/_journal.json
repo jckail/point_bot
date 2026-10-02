@@ -120,6 +120,20 @@
       "when": 1790921744186,
       "tag": "0016_assistant_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790921744187,
+      "tag": "0017_chatgpt_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790921744188,
+      "tag": "0018_goal_ownership",
+      "breakpoints": true
     }
   ]
 }

@@ -2,12 +2,15 @@ import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
   timestamp,
+  text,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -73,6 +76,7 @@ export const loyaltyAccounts = pgTable(
     index("loyalty_account_deleted_at_idx").on(account.deletedAt),
     // One account per provider per user, enforced at the storage layer so
     // concurrent link requests cannot race past the application check.
+    uniqueIndex("loyalty_account_id_user_unique").on(account.id, account.userId),
     uniqueIndex("loyalty_account_user_provider_unique").on(
       account.userId,
       account.providerId,
@@ -186,26 +190,40 @@ export const tripGoals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (goal) => [index("trip_goal_user_id_idx").on(goal.userId)],
+  (goal) => [
+    index("trip_goal_user_id_idx").on(goal.userId),
+    uniqueIndex("trip_goal_id_user_unique").on(goal.id, goal.userId),
+  ],
 );
 
 /** Accounts counting toward a goal; `position` preserves ordering. */
 export const tripGoalAccounts = pgTable(
   "trip_goal_account",
   {
-    goalId: varchar("goal_id", { length: 255 })
-      .notNull()
-      .references(() => tripGoals.id, { onDelete: "cascade" }),
-    accountId: varchar("account_id", { length: 255 })
-      .notNull()
-      .references(() => loyaltyAccounts.id, { onDelete: "cascade" }),
+    goalId: varchar("goal_id", { length: 255 }).notNull(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    accountId: varchar("account_id", { length: 255 }).notNull(),
     position: integer("position").notNull(),
   },
   (row) => [
     primaryKey({ columns: [row.goalId, row.accountId] }),
     index("trip_goal_account_account_idx").on(row.accountId),
+    foreignKey({ name: "trip_goal_account_owned_goal_fk", columns: [row.goalId, row.userId], foreignColumns: [tripGoals.id, tripGoals.userId] }).onDelete("cascade"),
+    foreignKey({ name: "trip_goal_account_owned_account_fk", columns: [row.accountId, row.userId], foreignColumns: [loyaltyAccounts.id, loyaltyAccounts.userId] }).onDelete("cascade"),
   ],
-);
+).enableRLS();
+
+/** Exact invalid legacy membership rows retained for server-side repair review. */
+export const tripGoalMembershipReview = pgTable("trip_goal_membership_review", {
+  goalId: varchar("goal_id", { length: 255 }).notNull(),
+  accountId: varchar("account_id", { length: 255 }).notNull(),
+  goalOwnerId: varchar("goal_owner_id", { length: 255 }),
+  accountOwnerId: varchar("account_owner_id", { length: 255 }),
+  reason: varchar("reason", { length: 64 }).notNull(),
+  originalRow: jsonb("original_row").$type<Record<string, unknown>>().notNull(),
+  provenance: varchar("provenance", { length: 128 }).notNull(),
+  quarantinedAt: timestamp("quarantined_at", { withTimezone: true }).defaultNow().notNull(),
+}, row => [primaryKey({ columns: [row.goalId, row.accountId] })]).enableRLS();
 
 // ─── Custom valuations ─────────────────────────────────────────────────────
 // Per-user override of a provider's editorial cents-per-point. Stored as an
@@ -352,8 +370,8 @@ export const tripGoalAccountsRelations = relations(
   tripGoalAccounts,
   ({ one }) => ({
     goal: one(tripGoals, {
-      fields: [tripGoalAccounts.goalId],
-      references: [tripGoals.id],
+      fields: [tripGoalAccounts.goalId, tripGoalAccounts.userId],
+      references: [tripGoals.id, tripGoals.userId],
     }),
   }),
 );
@@ -429,3 +447,20 @@ export const transferBonuses = pgTable(
     check("transfer_bonus_window_order", sql`${bonus.endsAt} > ${bonus.startsAt}`),
   ],
 );
+
+// Managed server-only SIWC storage; no browser-accessible policies.
+export const chatGptTransactions = pgTable("pointup_chatgpt_transactions", {
+  browserIdHash: text("browser_id_hash").primaryKey(),
+  transactionData: jsonb("transaction_data").$type<Record<string, unknown>>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (row) => [index("pointup_chatgpt_transactions_expiry").on(row.expiresAt)]).enableRLS();
+export const chatGptIdentities = pgTable("pointup_chatgpt_identities", {
+  issuer: text("issuer").notNull(),
+  clientId: text("client_id").notNull(),
+  subject: text("subject").notNull(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (row) => [
+  primaryKey({ name: "pointup_chatgpt_identities_pkey", columns: [row.issuer, row.clientId, row.subject] }),
+  unique("pointup_chatgpt_identities_issuer_client_id_clerk_user_id_key").on(row.issuer, row.clientId, row.clerkUserId),
+]).enableRLS();

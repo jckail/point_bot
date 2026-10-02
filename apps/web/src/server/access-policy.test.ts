@@ -142,6 +142,22 @@ describe("assertCsrfSafe (cookie sessions)", () => {
     expect(() => assertCsrfSafe({ ...ok, secFetchSite: "cross-site" })).toThrow();
     expect(() => assertCsrfSafe({ ...ok, secFetchSite: "same-origin" })).not.toThrow();
   });
+  it("allows only explicitly selected, bodyless top-level ChatGPT callback navigation", () => {
+    const callback = {
+      ...ok, method: "GET", origin: null, contentType: null, hasBody: false,
+      secFetchSite: "cross-site", secFetchMode: "navigate", secFetchDest: "document",
+      oauthCallback: "chatgpt" as const,
+    };
+    expect(() => assertCsrfSafe(callback)).not.toThrow();
+    for (const changes of [
+      { oauthCallback: undefined }, { method: "POST" }, { method: "HEAD" },
+      { origin: "https://auth.openai.com" }, { origin: "null" }, { hasBody: true },
+      { secFetchMode: "cors" }, { secFetchMode: null },
+      { secFetchDest: "iframe" }, { secFetchDest: "empty" }, { secFetchDest: null },
+    ]) {
+      expect(() => assertCsrfSafe({ ...callback, ...changes })).toThrow(/rejected/);
+    }
+  });
   it("requires application/json when there is a body", () => {
     for (const contentType of ["text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x", null]) {
       expect(() => assertCsrfSafe({ ...ok, contentType })).toThrow(/Content-Type/);

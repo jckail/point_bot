@@ -12,6 +12,7 @@ import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
 import { AssistantObservability } from "./assistant-observability.js";
+import { chatGptDeployment } from "./chatgpt-deployment.js";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 
@@ -113,6 +114,13 @@ export class AppStack extends cdk.Stack {
         description,
         generateSecretString: { passwordLength: 40, excludePunctuation: true },
       });
+
+    // Identity linking is separately opted in using an approved OAuth client.
+    // Only the web task needs this configuration; never pass secrets via context.
+    const chatGpt = chatGptDeployment(key => this.node.tryGetContext(key));
+    const chatGptSecret = chatGpt?.confidential
+      ? placeholderSecret("ChatGptClientSecret", "Approved ChatGPT OAuth confidential-client secret; populate before linking")
+      : undefined;
 
     const openAiLlmSecret = this.node.tryGetContext("enableOpenAiLlm")
       ? placeholderSecret(
@@ -240,6 +248,7 @@ export class AppStack extends cdk.Stack {
             // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
             ...assistantEnvironment,
             ...agentsEnvironment,
+            ...chatGpt?.environment,
             ...aggregatorEnvironment,
           },
           secrets: {
@@ -252,6 +261,9 @@ export class AppStack extends cdk.Stack {
             ...assistantSecrets,
             ...(agentsSecret
               ? { OPENAI_API_KEY: ecs.Secret.fromSecretsManager(agentsSecret) }
+              : {}),
+            ...(chatGptSecret
+              ? { CHATGPT_CLIENT_SECRET: ecs.Secret.fromSecretsManager(chatGptSecret) }
               : {}),
             ...aggregatorSecrets,
           },
@@ -740,6 +752,12 @@ export class AppStack extends cdk.Stack {
     new cdk.CfnOutput(this, "AssistantDashboardName", {
       value: assistantMonitoring.dashboard.dashboardName,
     });
+    if (chatGptSecret) {
+      new cdk.CfnOutput(this, "ChatGptClientSecretArn", {
+        value: chatGptSecret.secretArn,
+        description: "Populate with the approved OAuth client secret before ChatGPT identity linking",
+      });
+    }
     if (agentsSecret) {
       new cdk.CfnOutput(this, "OpenAiAgentsSecretArn", {
         value: agentsSecret.secretArn,

@@ -107,14 +107,15 @@ PostgreSQL cases; one paid live evaluation was intentionally skipped. Subsequent
 client request-budget and observation-type refactors passed their focused checks.
 Full aggregate CI/build evidence for this second stage is recorded after its source commit.
 
-Next additive migrations still need planning and production-state verification:
-SIWC account linking; tenant-qualified goal membership with quarantine; versioned
-observation token/consent/idempotency provenance; staged safe numeric constraints.
-Preserve historical observations without inventing missing provenance, existing
-review IDs/outcomes, `account_tag`, the `agent` balance source, outbox events and
-retention audit semantics. Inspect actual deployment journals/tables and preserve
-a recoverable backup before selecting/applying adoption migrations. Neither source
-branch proves what schema reached staging or production.
+The later SIWC/goal milestone below adds 0017/0018 to this lineage. Versioned
+observation token/consent/idempotency provenance remains proposed as 0019 in
+[observation-integration-plan.md](observation-integration-plan.md); staged numeric
+constraints and remaining atomicity/RLS review also remain. Preserve historical
+observations without inventing missing provenance, existing review IDs/outcomes,
+`account_tag`, the `agent` balance source, outbox events and retention audit
+semantics. Inspect actual deployment journals/tables and preserve a recoverable
+backup before selecting/applying adoption migrations. Neither source branch proves
+what schema reached staging or production.
 
 Production deployment is authorized but currently lacks GitHub deployment secrets
 and valid local AWS authentication. Live Clerk/OpenAI/Chrome testing, exporter
@@ -160,3 +161,65 @@ CloudWatch event arrival or production database adoption. The root-owned fixture
 No development server or browser tab was opened during this milestone. Root remains
 the aggregate verification/release owner. Continue with the gates and priorities in
 [release-backlog.md](release-backlog.md), preserving PR #14, #15 and #16 histories.
+
+
+## SIWC linking and tenant-qualified goal milestone
+
+The integration now includes ChatGPT identity **account linking** for an already
+signed-in Clerk browser session. It preserves issuer/client/subject identity,
+one-to-one owner mappings, hashed browser transaction keys, single-use expiry,
+PKCE/state/nonce verification, safe callback diagnostics and private responses.
+It does not create a Clerk session or provide independent ChatGPT sign-in. An
+approved OpenAI OIDC client and a separately approved, independently verified
+session bridge remain prerequisites for that broader capability. Live linking
+and provider behavior have not been verified.
+
+Additive migrations `0017_chatgpt_identity` and `0018_goal_ownership` are present
+in the managed journal after proposal migration 0016. The SIWC adoption migration
+preserves compatible existing links/transactions and refuses incompatible storage;
+the goal migration preserves valid ordered membership and quarantines invalid
+legacy associations before enforcing tenant-qualified ownership. Migrations
+0000–0016 remain unchanged.
+
+Root-owned focused real PostgreSQL checks now pass **23 cases**: ten
+migration/adoption, six goal ownership and seven SIWC storage cases. The six goal
+cases passed after the migration-lock correction, including an actual concurrent
+membership-write blocking race. Migration 0018 locks the parent and membership
+tables before archive/delete/backfill; its lock wait is bounded by a transaction-local
+**30-second lock timeout**. A timeout requires diagnosis of the blocking workload
+and a deliberate retry plan, not an unchanged automatic retry.
+
+The managed migration command passed, earlier full root lint and all workspace
+TypeScript checks passed, and installed Drizzle metadata validation reported
+**zero schema drift**. The full workspace suite passed **708 tests**, with one
+paid live evaluation skipped, **before the OAuth callback CSRF correction**.
+The callback fix then passed 53 focused checks, including 11 through the real
+shared HTTP/authentication boundary. Final full lint and all workspace types
+passed; final-source aggregate CI follows the source commit. These are
+fixture and source checks; they do not establish staging/production journals,
+backup recoverability, hosted callback routing or live OIDC authorization.
+The root-owned PostgreSQL fixture will be stopped after root's final checks;
+no fixture cleanup is delegated to other agents.
+
+## Production verification gate and deployment state
+
+Workflow commit `350ccc9` makes production verification reuse the complete
+six-job CI gate, including its PostgreSQL fixture, Docker/direct/pooler smoke,
+application bundles, plugin contracts and infrastructure checks. Both
+[CI 36976573470](https://github.com/jckail/point_bot/actions/runs/36976573470) and
+[Deploy verification-only 36976965575](https://github.com/jckail/point_bot/actions/runs/36976965575)
+passed. The verification-only run deliberately skipped AWS deployment and
+migration jobs. This closes the earlier missing-PostgreSQL deploy-verifier gap;
+it is not evidence that AWS resources or a production database changed.
+
+Real deployment remains blocked by expired local AWS authentication and absent
+GitHub deployment role/Clerk secrets. Before activating schema-dependent hosts,
+inspect the actual production journal/tables, establish and verify a recoverable
+backup, choose the compatible adoption path, and apply managed migrations through
+0018. The current deployment workflow still runs CDK deployment before its ECS
+migration task; resolve migration-before-host-activation ordering rather than
+letting new hosts serve against missing tables. Confirm the chosen hosting route,
+public HTTPS canonical origin, Clerk session handling and SIWC callback/config
+wiring before enabling linking. Observation migration 0019 is a plan, not an
+applied migration. Original live SDK/exporter/Chrome/OAuth/provider and data-audit
+work remains in [release-backlog.md](release-backlog.md).

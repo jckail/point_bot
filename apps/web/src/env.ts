@@ -60,6 +60,11 @@ export const env = createEnv({
     // PointUp Assistant provider selection. "bedrock" uses AWS Bedrock
     // (Claude via the Converse API, credentials from the task role); anything
     // else falls back to the OpenAI-compatible path, then the heuristic.
+    // Approved OpenAI identity client; linking remains Clerk-session-only.
+    CHATGPT_CLIENT_ID: z.string().min(1).optional(),
+    CHATGPT_REDIRECT_URI: z.url().optional(),
+    CHATGPT_CLIENT_AUTH_METHOD: z.enum(["none", "client_secret_basic"]).optional(),
+    CHATGPT_CLIENT_SECRET: z.string().min(1).optional(),
     ASSISTANT_RUNTIME: z.enum(["agents", "legacy"]).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     ASSISTANT_MODEL: z.string().min(1).max(128).optional(),
@@ -106,6 +111,10 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     OP_CONNECT_HOST: process.env.OP_CONNECT_HOST,
     OP_CONNECT_TOKEN: process.env.OP_CONNECT_TOKEN,
+    CHATGPT_CLIENT_ID: process.env.CHATGPT_CLIENT_ID,
+    CHATGPT_REDIRECT_URI: process.env.CHATGPT_REDIRECT_URI,
+    CHATGPT_CLIENT_AUTH_METHOD: process.env.CHATGPT_CLIENT_AUTH_METHOD,
+    CHATGPT_CLIENT_SECRET: process.env.CHATGPT_CLIENT_SECRET,
     ASSISTANT_RUNTIME: process.env.ASSISTANT_RUNTIME,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ASSISTANT_MODEL: process.env.ASSISTANT_MODEL,

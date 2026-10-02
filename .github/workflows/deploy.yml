@@ -93,6 +93,10 @@ jobs:
           ENABLE_AGENTS: ${{ vars.ENABLE_AGENTS }}
           ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL }}
           ASSISTANT_TRACING_ENABLED: ${{ vars.ASSISTANT_TRACING_ENABLED }}
+          ENABLE_CHATGPT_LINKING: ${{ vars.ENABLE_CHATGPT_LINKING }}
+          CHATGPT_CLIENT_ID: ${{ vars.CHATGPT_CLIENT_ID }}
+          CHATGPT_REDIRECT_URI: ${{ vars.CHATGPT_REDIRECT_URI }}
+          CHATGPT_CLIENT_AUTH_METHOD: ${{ vars.CHATGPT_CLIENT_AUTH_METHOD }}
           MCP_CERTIFICATE_ARN: ${{ vars.MCP_CERTIFICATE_ARN }}
           MCP_DOMAIN_NAME: ${{ vars.MCP_DOMAIN_NAME }}
           MCP_POINTUP_URL: ${{ vars.MCP_POINTUP_URL }}
@@ -107,6 +111,15 @@ jobs:
             if [ "$ASSISTANT_TRACING_ENABLED" = "true" ]; then
               CTX+=(-c assistantTracing=true)
             fi
+          fi
+          if [ "$ENABLE_CHATGPT_LINKING" = "true" ]; then
+            if [ -z "$CHATGPT_CLIENT_ID" ] || [ -z "$CHATGPT_REDIRECT_URI" ] || [ -z "$CHATGPT_CLIENT_AUTH_METHOD" ]; then
+              echo "ENABLE_CHATGPT_LINKING requires approved CHATGPT_CLIENT_ID, registered HTTPS CHATGPT_REDIRECT_URI and explicit CHATGPT_CLIENT_AUTH_METHOD" >&2
+              exit 1
+            fi
+            # CDK validates the registered HTTPS callback and authentication method.
+            # Confidential client secrets remain in Secrets Manager, outside CI.
+            CTX+=(-c enableChatGptLinking=true -c "chatGptClientId=$CHATGPT_CLIENT_ID" -c "chatGptRedirectUri=$CHATGPT_REDIRECT_URI" -c "chatGptClientAuthMethod=$CHATGPT_CLIENT_AUTH_METHOD")
           fi
           if [ "$ENABLE_MCP" = "true" ]; then
             CTX+=(-c enableMcp=true)

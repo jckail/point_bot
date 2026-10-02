@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { DuplicateLoyaltyAccountError } from "../../domain/errors";
+import { DuplicateLoyaltyAccountError, TripGoalNotFoundError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { parseProviderId } from "../../domain/loyalty/provider";
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
@@ -389,15 +389,16 @@ const withGoalAccounts = {
 async function replaceGoalAccounts(
   db: Executor,
   goalId: TripGoalId,
+  userId: UserId,
   accountIds: readonly LoyaltyAccountId[],
 ): Promise<void> {
-  await db.delete(tripGoalAccounts).where(eq(tripGoalAccounts.goalId, goalId));
+  await db.delete(tripGoalAccounts).where(and(eq(tripGoalAccounts.goalId, goalId), eq(tripGoalAccounts.userId, userId)));
   const unique = [...new Set(accountIds)];
   if (unique.length === 0) return;
   await db
     .insert(tripGoalAccounts)
     .values(
-      unique.map((accountId, position) => ({ goalId, accountId, position })),
+      unique.map((accountId, position) => ({ goalId, userId, accountId, position })),
     );
 }
 
@@ -449,13 +450,13 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
         createdAt: goal.createdAt,
         updatedAt: goal.updatedAt,
       });
-      await replaceGoalAccounts(tx, goal.id, goal.accountIds);
+      await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
     });
   }
 
   async update(goal: TripGoal): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx
+      const changed = await tx
         .update(tripGoals)
         .set({
           title: goal.title,
@@ -465,8 +466,10 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
           notes: goal.notes,
           updatedAt: goal.updatedAt,
         })
-        .where(eq(tripGoals.id, goal.id));
-      await replaceGoalAccounts(tx, goal.id, goal.accountIds);
+        .where(and(eq(tripGoals.id, goal.id), eq(tripGoals.userId, goal.userId)))
+        .returning({ id: tripGoals.id });
+      if (changed.length !== 1) throw new TripGoalNotFoundError(goal.id);
+      await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
     });
   }
 

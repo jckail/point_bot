@@ -62,11 +62,13 @@ export interface AuthOptions {
   readonly scope: AccessTokenScope;
   /** Reject tokens outright (e.g. minting new tokens). */
   readonly sessionOnly?: boolean;
+  /** Only the ChatGPT state-bound GET callback may accept cross-site navigation. */
+  readonly oauthCallback?: "chatgpt";
   /** Rate-limit class; defaults from the scope (token writes are stricter). */
   readonly rateLimit?: RateLimitClass;
 }
 
-async function checkCsrf(principal: Principal, method?: HttpMethod): Promise<void> {
+async function checkCsrf(principal: Principal, options: AuthOptions): Promise<void> {
   if (principal.scopes !== "session" || principal.credential === "clerk-bearer") return;
   const h = await headers();
   const length = h.get("content-length");
@@ -74,8 +76,12 @@ async function checkCsrf(principal: Principal, method?: HttpMethod): Promise<voi
     principal,
     origin: h.get("origin"),
     expectedOrigin: env.APP_URL ?? parseAppOrigin(`${env.NODE_ENV === "production" ? "https" : "http"}://${h.get("host") ?? ""}`),
-    method,
+    method: options.method,
     secFetchSite: h.get("sec-fetch-site"),
+    secFetchMode: h.get("sec-fetch-mode"),
+    secFetchDest: h.get("sec-fetch-dest"),
+    // No bearer/cookie borrowing: the auth boundary still requires a session.
+    oauthCallback: options.sessionOnly && options.method === "GET" ? options.oauthCallback : undefined,
     contentType: h.get("content-type"),
     hasBody: h.has("transfer-encoding") || (length !== null && length !== "0"),
   });
@@ -118,7 +124,7 @@ async function authenticatedResponse(
       return errorResponse("UNAUTHENTICATED", "Sign in required", requestId);
     }
     state.principal = principal;
-    await checkCsrf(principal, options.method);
+    await checkCsrf(principal, options);
     authorize(principal, options);
 
     const cls = rateLimitClassFor(principal, options);

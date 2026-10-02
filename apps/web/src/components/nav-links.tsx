@@ -12,6 +12,9 @@ export function NavLinks() {
       <Link href="/dashboard/agents" className={LINK}>
         Agents
       </Link>
+      <Link href="/dashboard/settings" className={LINK}>
+        Settings
+      </Link>
       <span className="hidden text-xs text-ink-faint sm:inline">
         Ask PointUp on the dashboard
       </span>
