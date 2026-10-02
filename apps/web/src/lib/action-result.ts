@@ -19,6 +19,7 @@ const DOMAIN_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   INVALID_CARD_PRODUCT: "Choose a transfer card that belongs to this program, or Unknown.",
   INVALID_MEMBERSHIP_NUMBER: "Membership number can't be empty.",
   INVALID_BALANCE: "Balance must be a whole, non-negative number.",
+  INVALID_VALUATION: "Enter a positive value up to 100 cents per point that rounds to at least 0.001.",
   INVALID_CAPTURE_TIME: "The date can't be in the future.",
   INVALID_GOAL_TITLE: "Goal title must be between 1 and 120 characters.",
   INVALID_GOAL_TARGET: "Target points must be a positive whole number.",

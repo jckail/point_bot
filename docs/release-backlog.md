@@ -7,17 +7,28 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The current local frontend audit candidate has nine reviewed source/test fixes
-for active-share controls, Revoke feedback, explicit input labels and effective
-valuation rates. Its 25 focused tests, web typecheck, nine-file lint and whitespace
-checks pass. Actual application browser coverage is **not executed**: the initial
-heavy-check launch exited 75 before startup; a later caller after a capacity update
-was stopped before startup when the fresh precheck showed contention again.
-The audit records the guard error and cleanup; no gate bypass or native acceptance
-is claimed. Candidate release gates remain pending. See the bounded evidence
-and planned feature matrix in [frontend-audit-20261002.md](frontend-audit-20261002.md).
-The baseline is fully verified PR #47 master `6c1735167` (1,811 tests plus one paid
-live skip; AWS deployment skipped); the linked audit records its exact run IDs.
+The frontend fixes are merged in [PR #48](https://github.com/jckail/point_bot/pull/48),
+from source `4af48bb20499958b0a071f82c1cd6cbce46767ae` at master
+`0864a1978603caa18ad8d01fb3fe0f6f6820f38b`. Source, prospective and actual
+master share tree `3b7ea1a03578994f286046e28f3c325f1eecc899`.
+[Candidate CI 37063543492](https://github.com/jckail/point_bot/actions/runs/37063543492),
+[candidate CodeQL 37063543554](https://github.com/jckail/point_bot/actions/runs/37063543554),
+Bugbot, [master Deploy 37064115281](https://github.com/jckail/point_bot/actions/runs/37064115281)
+and [master CodeQL 37064114784](https://github.com/jckail/point_bot/actions/runs/37064114784)
+passed: 1,822 workspace tests plus one paid live skip, including 41 popup and
+12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
+role configuration. Active-share visibility, Revoke feedback, explicit labels
+and effective valuation provenance have source/controller verification.
+
+Actual application browser coverage remains **not executed**. The first local
+launch exited 75 before startup; a later caller was stopped before startup after
+a stale capacity update and shell guard error. No application/database work ran.
+The 15-surface matrix in [frontend-audit-20261002.md](frontend-audit-20261002.md)
+remains pending changed shared-gate admission evidence. Custom valuation editing
+and reset now have reviewed source, 25 new actual-core cases and 39 focused tests
+with controls, web typecheck and five-file lint passing. Release gates for this
+iteration are pending, and native form acceptance remains unexecuted; the linked
+audit keeps its evidence separate from the completed PR #48 release.
 
 The preceding merged mutation-feedback and telemetry release is [PR #46](https://github.com/jckail/point_bot/pull/46)
 from source `c9b82e708276ec6de74337a3e88e1d3e3bd07f1e`, at master
