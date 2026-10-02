@@ -10,6 +10,21 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+The recovery polish is merged at
+`d65b0f1dd585c1ef9a5f54dcbe4cefb5a41ae271` through
+[PR #33](https://github.com/jckail/point_bot/pull/33). All six merged-source jobs
+in [Deploy 37030692963](https://github.com/jckail/point_bot/actions/runs/37030692963)
+and [CodeQL 37030692749](https://github.com/jckail/point_bot/actions/runs/37030692749)
+passed: 1,694 workspace tests plus one paid live skip. AWS remained explicitly
+skipped for missing deployment-role configuration.
+
+Shared Chrome extension tools are now available after the coordinated restart.
+This session acknowledged idle Chrome and verified the completion marker before
+browser discovery. A native extension verification build hit the shared heavy
+queue limit (exit 75), so no extension was installed or tab opened. This is an
+unresolved verification limit, not a Chrome acceptance pass; full committed-source
+bundling evidence above remains valid.
+
 The claim/identity/goal fixes below are merged at
 `e3e33b5d6a98ffe416af180c98b0b3aca909ff29` through
 [PR #32](https://github.com/jckail/point_bot/pull/32). All six merged-source

@@ -36,6 +36,15 @@ always-available Chrome proposal-review control and bounded observations for
 actual stalled-execution recovery; preserve uncertainty and support references.
 Pending expiry telemetry and durable audit delivery remain separate open work.
 
+Recovery polish [PR #33](https://github.com/jckail/point_bot/pull/33) is merged at
+`d65b0f1dd585c1ef9a5f54dcbe4cefb5a41ae271`. Its six master verification jobs
+in [Deploy 37030692963](https://github.com/jckail/point_bot/actions/runs/37030692963)
+and [CodeQL 37030692749](https://github.com/jckail/point_bot/actions/runs/37030692749)
+passed with 1,694 workspace tests and one paid live skip; AWS deployment remains
+skipped. Native Chrome extension acceptance can now use the newly enabled shared
+extension tools, but this session's build was blocked by heavy-check exit 75.
+No native acceptance, provider DOM compatibility or live inference is inferred.
+
 ## Immediate release gates
 
 **Deploy the reviewed-action and goal mutation fixes together.** Manual-balance
