@@ -4,11 +4,11 @@ import { getSessionUserId } from "@/server/auth";
 import {
   AccessTokenId,
   ConsentId,
-  DomainError,
   InvalidAccessTokenRequestError,
   isDomainError,
   isScope,
   ObservationId,
+  userCacheTag,
 } from "@pointup/core";
 import { revalidatePath } from "next/cache";
 
@@ -17,6 +17,7 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { getContainer } from "@/server/container";
+import { getReadCache } from "@/server/read-cache";
 
 /** Server actions for the Agents page (tokens + consent). Session-only. */
 
@@ -95,7 +96,7 @@ export async function grantConsentAction(
     revalidatePath("/dashboard/agents");
     return { status: "success" };
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       return { status: "error", message: messageForDomainError(error.code) };
     }
     throw error;
@@ -129,13 +130,17 @@ export async function resolveReviewAction(
   const decision = String(formData.get("decision") ?? "");
   try {
     const review = getContainer().useCases.resolveObservationReview;
-    if (decision === "confirm") await review.confirm(userId, ObservationId.parse(reviewId));
-    else if (decision === "reject") await review.reject(userId, ObservationId.parse(reviewId));
-    else return { status: "error", message: "Unknown decision." };
+    if (decision !== "confirm" && decision !== "reject") return { status: "error", message: "Unknown decision." };
+    try {
+      await review[decision](userId, ObservationId.parse(reviewId));
+    } finally {
+      // Multi-method review services bypass the execute-only cache wrapper.
+      await getReadCache().invalidateTag(userCacheTag(userId));
+    }
     revalidatePath("/dashboard/agents");
     return { status: "success" };
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       return { status: "error", message: messageForDomainError(error.code) };
     }
     throw error;

@@ -44,7 +44,7 @@ const DOMAIN_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   REVIEW_EXPIRED:
     "That reading expired (24 hours). Ask the agent to read the balance again.",
   REVIEW_STALE:
-    "Your balance changed since this reading was held. Reject it and ask the agent to read it again.",
+    "This reading no longer matches the account. Reject it and ask the agent to read the balance again.",
   CREDENTIAL_UNAVAILABLE:
     "No credentials available for this program - connect a vault or enter the balance manually.",
 };

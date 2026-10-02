@@ -1,3 +1,4 @@
+import { createAccountIdentityWitness, matchesAccountIdentityWitness } from "../loyalty/account-identity-witness";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createDomainEvent } from "../../domain/events";
@@ -188,6 +189,7 @@ export class SubmitObservation {
         consentId: locked.consent.id, consentGrantedAt: locked.consent.grantedAt, consentExpiresAt: locked.consent.expiresAt,
         skillVersion: skill.version, sourceMethod: input.sourceMethod ?? "unknown", captureId: captureId ?? null,
         payloadHash: fingerprint(input, account.id, skill.providerId, skill.version, source),
+        accountIdentityWitness: outcome === "needs_review" ? createAccountIdentityWitness(account) : null,
         baselineSnapshotId: latest?.id ?? null, recordedSnapshotId,
         reviewExpiresAt: outcome === "needs_review" ? new Date(createdAt.getTime() + REVIEW_TTL_MS) : null,
         reviewedAt: null, reviewDecision: null,
@@ -234,6 +236,7 @@ export class ResolveObservationReview {
       assertUnexpired();
       const account = await this.accounts.findById(held.accountId);
       if (!account || account.userId !== userId || account.providerId !== held.providerId || account.deletedAt) throw new LoyaltyAccountNotFoundError(held.providerId);
+      if (!matchesAccountIdentityWitness(held.accountIdentityWitness, account)) throw new ObservationReviewStaleError(reviewId);
       const latest = (await this.balances.findLatestByAccountIds([account.id])).get(account.id);
       const hasSnapshotWitness = held.provenanceVersion === 1 || typeof held.payloadHash === "string";
       if ((hasSnapshotWitness && (latest?.id ?? null) !== (held.baselineSnapshotId ?? null)) ||
@@ -241,6 +244,9 @@ export class ResolveObservationReview {
       assertUnexpired();
       const { snapshotId } = await this.recordBalance.executeWithSnapshotId({
         userId, accountId: account.id, points: held.points, capturedAt: held.observedAt, source: "agent",
+      }, {
+        expectedAccountWitness: held.accountIdentityWitness!,
+        onPreconditionFailure: () => { throw new ObservationReviewStaleError(reviewId); },
       });
       assertUnexpired();
       const reviewedAt = this.clock.now();

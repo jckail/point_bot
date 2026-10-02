@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SubmitObservation, ResolveObservationReview } from "../src/application/agent/submit-observation";
+import { toAgentObservationDto } from "../src/contracts/agent";
+import { UpdateLoyaltyAccount } from "../src/application/loyalty/update-loyalty-account";
 import { LinkLoyaltyAccount } from "../src/application/loyalty/link-loyalty-account";
 import { SyncLoyaltyAccount } from "../src/application/loyalty/sync-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
@@ -226,22 +228,19 @@ suite("production-composed observation replay, locking and rollback", () => {
     expect(await f.counts()).toEqual({ receipts: 1, snapshots: 2, events: 1, activity: 0 });
   });
 
-  it.each([false, true])("keeps legacy nullable baseline receipts compatible (changed points: %s)", async changed => {
+  it.each([false, true])("refuses legacy identity-free confirmation and permits rejection (changed points: %s)", async changed => {
     const f = await fixture();
     await f.repos.balanceSnapshots.insert(createBalanceSnapshot({ loyaltyAccountId: f.account.id, points: 100, source: "manual", capturedAt: new Date(f.clock.now().getTime() - 2000) }));
     const id = ObservationId.generate();
     await f.repos.observations.insert({ id, userId: f.userId, accountId: f.account.id, providerId: "united", skillId: f.input.skillId,
       agent: "legacy-fixture", sourceHost: "www.united.com", points: 9_999_999, previousPoints: 100, outcome: "needs_review",
       observedAt: f.clock.now(), createdAt: f.clock.now(), provenanceVersion: 0, payloadHash: null, baselineSnapshotId: null });
-    if (changed) {
-      await f.repos.balanceSnapshots.insert(createBalanceSnapshot({ loyaltyAccountId: f.account.id, points: 200, source: "sync", capturedAt: new Date(f.clock.now().getTime() - 1000) }));
-      await expect(f.review.confirm(f.userId, id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
-      expect((await f.repos.observations.findById(id))?.outcome).toBe("needs_review");
-      expect(await f.counts()).toEqual({ receipts: 1, snapshots: 2, events: 0, activity: 0 });
-    } else {
-      expect((await f.review.confirm(f.userId, id)).outcome).toBe("recorded");
-      expect(await f.counts()).toEqual({ receipts: 1, snapshots: 2, events: 2, activity: 1 });
-    }
+    if (changed) await f.repos.balanceSnapshots.insert(createBalanceSnapshot({ loyaltyAccountId: f.account.id, points: 200, source: "sync", capturedAt: new Date(f.clock.now().getTime() - 1000) }));
+    const before = await f.counts();
+    await expect(f.review.confirm(f.userId, id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+    expect(await f.counts()).toEqual(before);
+    expect((await f.repos.observations.findById(id))?.outcome).toBe("needs_review");
+    expect((await f.review.reject(f.userId, id)).outcome).toBe("rejected");
   });
 
   it("concurrent confirm/reject has one resolution and at most one balance", async () => {
@@ -367,4 +366,25 @@ suite("production-composed observation replay, locking and rollback", () => {
     expect(await f.repos.observations.findById(result.observationId!)).toMatchObject({ accessTokenId: f.token.id, consentId: f.consent.id, consentGrantedAt: f.consent.grantedAt, consentExpiresAt: f.consent.expiresAt });
     expect(await f.counts()).toEqual({ receipts: 1, snapshots: 1, events: 1, activity: 1 });
   });
+  it.each([true, false])("persists a private identity witness and rejects only identity edits; membership change=%s", async changeMembership => {
+    const f = await fixture();
+    await f.submit.execute({ ...f.input, points: 50_000 });
+    const held = await f.submit.execute({ ...f.input, captureId: randomUUID(), points: 5 });
+    const receipt = await f.repos.observations.findById(held.reviewId!);
+    expect(receipt?.accountIdentityWitness).toMatchObject({ version: 1, kind: "manual_balance_account_identity" });
+    expect(JSON.stringify(toAgentObservationDto(receipt!))).not.toContain(receipt!.accountIdentityWitness!.digest);
+    await new UpdateLoyaltyAccount(f.repos.loyaltyAccounts, f.repos.activity, f.clock, f.eventing).execute({ userId: f.userId, accountId: f.account.id,
+      ...(changeMembership ? { membershipNumber: "new-synthetic-membership" } : { notes: "notes-only control" }),
+    });
+    const before = await f.counts();
+    if (changeMembership) {
+      await expect(f.review.confirm(f.userId, held.reviewId!)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+      expect(await f.counts()).toEqual(before);
+      expect(await f.repos.observations.findById(held.reviewId!)).toEqual(receipt);
+    } else {
+      expect((await f.review.confirm(f.userId, held.reviewId!)).outcome).toBe("recorded");
+      expect((await f.counts()).snapshots).toBe(before.snapshots + 1);
+    }
+  });
+
 });

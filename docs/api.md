@@ -65,7 +65,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `REVIEW_NOT_FOUND` | 404 | Held reading does not exist **or is not yours** |
 | `REVIEW_ALREADY_RESOLVED` | 409 | Held reading was already confirmed or rejected |
 | `REVIEW_EXPIRED` | 410 | Held reading passed its 24 hour review window |
-| `REVIEW_STALE` | 409 | The account's latest balance changed since the reading was held |
+| `REVIEW_STALE` | 409 | The stored account identity or baseline no longer matches, or historical identity evidence is missing |
 | `RATE_LIMITED` | 429 | Per-principal rate limit exceeded (see `Retry-After`) |
 | `INTERNAL` | 500 | Unexpected server error |
 
@@ -450,6 +450,8 @@ Confirmation and rejection remain browser-session-only at
 `POST /api/v1/agent/observations/{id}/confirm` and `/reject`; bodyless requests
 or strict empty JSON are accepted. Confirmation requires an active owned
 account, unchanged baseline and unexpired 24-hour deadline after lock waits
-and write staging. New receipts compare snapshot identity; historical receipts
-with unknown witnesses retain a protected points comparison. Expired readings
-may still be rejected as cleanup. Neither action is exposed as an agent tool.
+and write staging. New held receipts privately bind stored account membership
+and compare snapshot identity. Missing, malformed or changed account identity
+refuses confirmation; older held receipts without that witness require a fresh
+capture. Rejection remains available, including for expired or legacy readings.
+The private witness is never an observation request or public response field. Neither action is exposed as an agent tool.

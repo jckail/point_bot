@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { IssueAccessToken, RevokeAccessToken } from "../src/application/agent/access-tokens";
 import { GrantConsent, RevokeConsent } from "../src/application/agent/consents";
 import { ResolveObservationReview, SubmitObservation } from "../src/application/agent/submit-observation";
+import { toAgentObservationDto, toObservationResultDto } from "../src/contracts/agent";
+import { UpdateLoyaltyAccount } from "../src/application/loyalty/update-loyalty-account";
 import { LinkLoyaltyAccount } from "../src/application/loyalty/link-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { AtomicObservationEventing, InMemoryActivityEventRepository, InMemoryBalanceSnapshotRepository, InMemoryConsents, InMemoryLoyaltyAccountRepository, InMemoryObservations, InMemoryTokens } from "./fakes";
@@ -177,18 +179,18 @@ describe("protected observation application", () => {
     await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
   });
 
-  it.each([false, true])("preserves SQL-shaped legacy NULL provenance fallback; changed baseline=%s", async changed => {
+  it.each([false, true])("fails closed for legacy NULL identity while permitting rejection; changed baseline=%s", async changed => {
     const s = await setup();
     const row = await held(s);
-    const index = s.observations.rows.indexOf(row);
-    s.observations.rows[index] = { ...row, provenanceVersion: 0, payloadHash: null, baselineSnapshotId: null };
+    s.observations.rows[s.observations.rows.indexOf(row)] = { ...row, provenanceVersion: 0, payloadHash: null, baselineSnapshotId: null, accountIdentityWitness: null };
     if (changed) {
       s.advance(1000);
       await s.record.execute({ userId: owner, accountId: row.accountId, points: 51_000 });
-      await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
-    } else {
-      expect((await s.review.confirm(owner, row.id)).outcome).toBe("recorded");
     }
+    const before = counts(s);
+    await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+    expect(counts(s)).toEqual(before);
+    expect((await s.review.reject(owner, row.id)).outcome).toBe("rejected");
   });
 
   it("stores the actual backdated snapshot ID instead of inferring the latest snapshot", async () => {
@@ -219,5 +221,54 @@ describe("protected observation application", () => {
     expect(s.observations.rows[0]).toMatchObject({ provenanceVersion: 0, credentialKind: null, accessTokenId: null });
     const unsupported = new SubmitObservation(s.accounts, s.balances, s.consents, s.observations, s.record, s.link, s.clock);
     await expect(unsupported.execute({ ...base, points: 1000 })).rejects.toThrow("atomic unit of work");
+  });
+});
+
+
+describe("held capture account identity", () => {
+  it("refuses membership reassignment with the same baseline and keeps all receipt effects unchanged", async () => {
+    const s = await setup(); const row = await held(s);
+    Object.assign(s.accounts, { lockById: s.accounts.findById.bind(s.accounts) });
+    await new UpdateLoyaltyAccount(s.accounts, s.activity, s.clock, s.eventing).execute({ userId: owner, accountId: row.accountId, membershipNumber: "M2" });
+    const before = counts(s); const receipt = structuredClone(s.observations.rows.find(value => value.id === row.id));
+    await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+    expect(counts(s)).toEqual(before);
+    expect(s.observations.rows.find(value => value.id === row.id)).toEqual(receipt);
+    expect((await s.accounts.findById(row.accountId))?.membershipNumber).toBe("M2");
+  });
+
+  it("allows metadata-only changes and never exports the salted witness", async () => {
+    const s = await setup(); const row = await held(s);
+    Object.assign(s.accounts, { lockById: s.accounts.findById.bind(s.accounts) });
+    expect(row.accountIdentityWitness).toMatchObject({ version: 1, kind: "manual_balance_account_identity" });
+    await new UpdateLoyaltyAccount(s.accounts, s.activity, s.clock, s.eventing).execute({ userId: owner, accountId: row.accountId, notes: "Private notes control", tags: ["control"] });
+    const result = await s.review.confirm(owner, row.id);
+    expect(result.outcome).toBe("recorded");
+    const publicJson = JSON.stringify([toAgentObservationDto(row), toObservationResultDto(result), s.eventing.events]);
+    for (const secret of ["accountIdentityWitness", row.accountIdentityWitness!.nonce, row.accountIdentityWitness!.digest, "Private notes control"]) expect(publicJson).not.toContain(secret);
+  });
+
+  it("rechecks identity at the actual immutable balance writer after the review precheck", async () => {
+    const s = await setup(); const row = await held(s); const before = counts(s);
+    const execute = s.record.executeWithSnapshotId.bind(s.record);
+    const read = vi.spyOn(s.accounts, "findById");
+    vi.spyOn(s.record, "executeWithSnapshotId").mockImplementationOnce(async (input, reviewed) => {
+      // Model a changed row at the final read, without weakening or replacing the writer guard.
+      read.mockImplementationOnce(async () => ({ ...[...s.accounts.rows.values()][0]!, membershipNumber: "M2" }));
+      return execute(input, reviewed);
+    });
+    await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+    expect(counts(s)).toEqual(before);
+    expect(s.observations.rows.find(value => value.id === row.id)?.outcome).toBe("needs_review");
+  });
+
+  it.each([undefined, null, {}, { version: 1, kind: "manual_balance_account_identity", nonce: "invalid", digest: "invalid" }])("fails closed for missing or malformed historical identity %j", async identity => {
+    const s = await setup(); const row = await held(s);
+    s.observations.rows[s.observations.rows.indexOf(row)] = { ...row, accountIdentityWitness: identity as typeof row.accountIdentityWitness };
+    const before = counts(s);
+    await expect(s.review.confirm(owner, row.id)).rejects.toMatchObject({ code: "REVIEW_STALE" });
+    expect(counts(s)).toEqual(before);
+    expect(toAgentObservationDto(s.observations.rows.find(value => value.id === row.id)!)).not.toHaveProperty("accountIdentityWitness");
+    expect((await s.review.reject(owner, row.id)).outcome).toBe("rejected");
   });
 });
