@@ -63,8 +63,27 @@ The synthetic fetch stub does not prove CORS, TLS, host permissions, actual API
 errors or a production endpoint. In particular, origin validation accepts HTTP
 IPv4/IPv6 loopback. The follow-up manifest fix adds exact `http://127.0.0.1/*`
 and `http://[::1]/*` grants alongside `http://localhost/*`, with 35 focused
-alignment/retry tests passing. Its wrapped rebuild hit the shared verification
-queue timeout (exit 75); native acceptance of the new patterns and real loopback
-fetches remain pending. The earlier native run above used the PR #34 manifest.
+alignment/retry tests passing. Its local wrapped rebuild hit the shared verification
+queue timeout (exit 75); PR #35 CI subsequently built the candidate successfully.
+The earlier native popup run above used the PR #34 manifest. The isolated native
+permission probe below establishes the new patterns independently of that popup.
 See
 [release backlog](release-backlog.md) and [extension guide](extension.md).
+
+## Native loopback permission probe
+
+Root installed a separate minimal Manifest V3 probe using the exact host
+permissions from PR #35 source `c0f6bdd259c0625f236c05855e44c61d6d1c2acb`
+(merged at `95b610e21851bf2356c30277d521fd95f314db1e`). Chrome accepted both
+new patterns. Its actual service worker, without a fetch stub, received HTTP 200
+and the expected fixed JSON fixture through each of `localhost`, `127.0.0.1`
+and `[::1]` on port 55797. The owned Windows Python fixture bound only IPv4/IPv6
+loopback and sent no CORS headers. There were exactly three GET requests and no
+credentials, PointUp API calls, provider visits or model calls.
+
+This proves Chrome pattern acceptance and real cross-origin local fetch permission
+for the isolated probe. It does not establish actual PointUp route authentication,
+server error handling, TLS, provider capture or a native installation of the new
+application build. Root uninstalled only the probe and stopped its identity-checked
+fixture process. Final browser inspection again showed no installed extensions
+and only the untouched original `about:blank` page; the probe opened no tab.

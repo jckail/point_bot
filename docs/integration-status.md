@@ -87,8 +87,10 @@ that result does not certify future advisories. Prior local heavy-check queue
 failures (exit 75) remain accurate resource outcomes; later successful CI supplies
 committed-source aggregate evidence, not a retroactive local pass.
 
-Local AWS authentication is expired and renewal remains pending. The last
-repository deployment-secret inspection found no configured secrets. No production
+Local AWS STS responded on October 2, superseding the earlier expired-session
+result. Read-only us-east-1 inspection found a legacy PointUp Elastic Beanstalk
+environment; it does not establish managed ECS or database lineage. Fresh GitHub
+inspection still found no deployment secrets or production environments. No production
 migration, host activation, DNS change or production deployment is
 claimed. The combined source was merged through PR #16 at
 `cab150cc2eabcf9765350a1a4d39d5bb944ee95b`. All six merged-source verification
@@ -357,7 +359,8 @@ both are fixed. The graph query has no PointUp source coverage, so source was
 inspected directly. Agent Hub refuses this unconfigured worktree scope; curated
 repository docs preserve the verified handoff without hosted transcript uploads.
 
-AWS STS still reports an expired session. No deployment, merge, live provider
+At this earlier checkpoint, AWS STS reported an expired session; the October 2
+read-only check above supersedes that result. No deployment, merge, live provider
 account or new Chrome tab/window was used. Production adoption, standalone
 ChatGPT identity/inference eligibility, public MCP OAuth, live observability
 acceptance, historical data/retention and the full original overhaul remain open.

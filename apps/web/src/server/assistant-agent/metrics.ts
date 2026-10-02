@@ -24,7 +24,7 @@ export function recordAssistantMetrics(metrics: Metrics | undefined, event: Obse
     case "run_completed":
     case "run_failed":
       count("assistant_run_events_total", 1);
-      if (event.event === "run_completed") duration("assistant_run_duration_ms");
+      if (event.event !== "run_started") duration("assistant_run_duration_ms");
       break;
     case "tool_completed":
       count("assistant_tool_calls_total", 1);
