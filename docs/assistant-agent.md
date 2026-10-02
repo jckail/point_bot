@@ -4,7 +4,37 @@ The web dashboard and extension share authenticated `POST /api/v1/assistant/chat
 
 The route retains PR14's shared authentication, rate limiting, CSRF checks, request telemetry and error mapping. Chat requires `portfolio:read`. Cookie sessions and tokens with `portfolio:write` receive proposal tools; read-only tokens receive only read tools. Legacy chat does not propose changes. No model or token can approve a proposal through a chat tool.
 
-The latest merged owner-isolation release is [PR #38](https://github.com/jckail/point_bot/pull/38)
+The latest merged legacy-grounding release is [PR #39](https://github.com/jckail/point_bot/pull/39)
+at master `f88ac067d8c69a5f85d7fd008666f5c1b2a839a2` (source
+`b00e3a41048f08e31b18ec9f1a59e338b19ac324`, tree
+`60826291085bbd372cdcf763ef81ad844432e5e0`). Candidate
+[CI 37045663234](https://github.com/jckail/point_bot/actions/runs/37045663234),
+[CodeQL 37045663440](https://github.com/jckail/point_bot/actions/runs/37045663440)
+and Bugbot passed, with 1,746 workspace tests and one paid live skip.
+All six merged-master verification jobs in
+[Deploy 37046175895](https://github.com/jckail/point_bot/actions/runs/37046175895)
+and [CodeQL 37046173223](https://github.com/jckail/point_bot/actions/runs/37046173223)
+passed. AWS deployment was skipped for missing deployment-role configuration.
+
+The current extension settings fix clears the assistant question draft after every
+successful save and preserves it on failure. Six new regressions produced five
+failures on the original source; all 23 focused popup tests then passed, along
+with extension typecheck and lint. Independent source review approved the fix.
+Root's fresh wrapped extension build and native verification lease completed
+successfully. The current application installed from the approved UNC path with
+its current manifest, including PR #35's exact loopback grants. One owned actual
+popup verified token rotation clears the draft and stores the new token while
+preserving the origin; endpoint rotation clears the draft and stores the canonical
+origin while preserving the token; an unsafe URL preserves the draft and saved
+credentials. The service-worker fetch stub blocked all networking, with zero
+outgoing fetches observed. Owned storage was cleared, the popup closed, the
+extension uninstalled and the loopback verification server stopped; the original
+about:blank tab was untouched. This proves current application installation and
+settings UI/storage behavior only. Worker-busy and storage-write failures remain
+fake-DOM test evidence; live authentication, inference, endpoint/provider behavior
+and MV3 termination remain open. See [native evidence](chrome-extension-acceptance.md).
+
+The preceding owner-isolation release is [PR #38](https://github.com/jckail/point_bot/pull/38)
 at master `371ecfecee42a0a3d57ef05ed5c30bdfbc2e25dc` (source
 `cdd9bc95ce964f6cb00e04a7c8e9f8420b911518`, tree
 `33655c4f8bc7b0673e68bb34ef6785976bac2e7c`). Candidate
@@ -23,7 +53,7 @@ no new native browser or live-auth acceptance is claimed.
 
 Read tools close over the authenticated branded `UserId`; model input cannot select another owner. They expose portfolio totals, balances, goal progress and existing editorial value advice. PR14's optimizer, bonus-aware advice, catalog, readiness and other assistant services remain composed. Balance projections include opaque PointUp account IDs for proposal targeting, program labels, points, capture time, expiry and estimates. They exclude membership numbers, notes and stored credentials. Goal reads exclude notes and account IDs. Messages and selected portfolio data are sent to OpenAI for inference in agents mode.
 
-The current legacy assistant grounding follow-up labels bonus-adjusted hints
+The merged PR #39 legacy assistant grounding fix labels bonus-adjusted hints
 explicitly verified or unverified and uses only bounded `manual`, `scraped`, `user`
 or `unknown` source classifications. Only literal `true` establishes verified
 status; the prompt requires issuer confirmation for an unverified or unknown

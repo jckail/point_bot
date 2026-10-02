@@ -248,3 +248,78 @@ it("ships an always-present non-submitting proposal review control in the popup 
   const html = readFileSync(new URL("../public/popup.html", import.meta.url), "utf8");
   expect(html).toContain('<button id="reviewProposals" type="button">Review proposed changes in PointUp</button>');
 });
+
+
+it.each([
+  { name: "endpoint", baseUrl: "https://other.example/dashboard", token: "pu_original", origin: "https://other.example" },
+  { name: "token", baseUrl: "https://pointup.example/dashboard", token: "pu_rotated", origin: "https://pointup.example" },
+])("clears an unsent draft after successful $name rotation and sends only a new explicit question", async ({ baseUrl, token, origin }) => {
+  elements.question!.value = "Private unsent question from the original scope";
+  elements.baseUrl!.value = baseUrl;
+  elements.token!.value = token;
+  elements.save!.listeners.click!(); await flush();
+  expect(mocks.save).toHaveBeenCalledWith({ baseUrl: origin, token });
+  expect(elements.question!.value).toBe("");
+  expect(send).toHaveBeenCalledWith({ type: "clearChat" });
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
+  expect(elements.latest!.textContent).toContain(capture.points.toLocaleString());
+  expect(elements.status!.textContent).toContain("Pending captures keep their original identity");
+
+  elements.question!.value = "New scope explicit question";
+  const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+  submit({ preventDefault: () => {} }); await flush();
+  expect(send.mock.calls.filter(([message]) => message.type === "ask")).toEqual([
+    [{ type: "ask", message: "New scope explicit question" }],
+  ]);
+});
+
+it("clears a modified uncertain draft after successful settings rotation without replaying it", async () => {
+  const pending = { question: "Original uncertain question", status: "uncertain" as const,
+    message: "Outcome unknown. Check proposed actions before explicitly retrying. Support reference: old-scope-request" };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? { ok: true, message: "", chat: [], pending }
+      : { ok: true, message: "", chat: [] });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  expect(elements.question!.value).toBe(pending.question);
+  elements.question!.value = "Edited private question from the old scope";
+  elements.baseUrl!.value = "https://other.example";
+  elements.token!.value = "pu_rotated";
+  elements.save!.listeners.click!(); await flush();
+  expect(mocks.save).toHaveBeenCalledWith({ baseUrl: "https://other.example", token: "pu_rotated" });
+  expect(elements.question!.value).toBe("");
+  expect(elements.chatStatus!.textContent).not.toContain("old-scope-request");
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
+});
+
+it.each(["busy response", "transport failure"])("clears the old draft after settings save even when clearChat has a %s", async failure => {
+  elements.question!.value = "Private unsent old-scope draft";
+  elements.token!.value = "pu_rotated";
+  send.mockImplementation(async message => {
+    if (message.type === "clearChat") {
+      if (failure === "transport failure") throw new Error("private worker transport details");
+      return { ok: false, message: "The assistant is working. Please wait." };
+    }
+    return message.type === "getLatest" ? capture : { ok: true, message: "", chat: [] };
+  });
+  elements.save!.listeners.click!(); await flush();
+  expect(mocks.save).toHaveBeenCalledWith({ baseUrl: "https://pointup.example", token: "pu_rotated" });
+  expect(elements.question!.value).toBe("");
+  expect(elements.status!.textContent).toContain("Settings saved. Conversation could not be cleared");
+  expect(elements.status!.textContent).not.toContain("private worker transport details");
+  expect(elements.save!.disabled).toBe(false);
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
+});
+
+it("preserves an unsent draft when settings persistence fails without clearing or sending it", async () => {
+  const draft = "Private draft retained after failed Save";
+  elements.question!.value = draft;
+  elements.baseUrl!.value = "https://other.example";
+  elements.token!.value = "pu_rotated";
+  mocks.save.mockRejectedValueOnce(new Error("private storage failure details"));
+  elements.save!.listeners.click!(); await flush();
+  expect(elements.question!.value).toBe(draft);
+  expect(elements.status!.textContent).toContain("Settings could not be saved");
+  expect(elements.status!.textContent).not.toContain("private storage failure details");
+  expect(elements.save!.disabled).toBe(false);
+  expect(send.mock.calls.some(([message]) => message.type === "clearChat" || message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
+});
