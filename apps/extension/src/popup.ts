@@ -178,7 +178,7 @@ async function chatRequest(message: ExtensionMessage): Promise<ChatResult> {
     throw new Error("Extension worker unavailable. Reopen the popup and retry.");
   }
   if (mutation && !result.ok && !result.chat && !result.pending) recoverChatAfterFailure(generation, result.message);
-  if (result.chat || result.pending || message.type === "getChat" || (message.type === "clearChat" && result.ok)) applyChatState(result);
+  if (result.chat || result.pending || ((message.type === "getChat" || message.type === "clearChat") && result.ok)) applyChatState(result);
   if (!result.ok) throw new Error(result.message);
   return result;
 }

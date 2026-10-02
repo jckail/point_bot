@@ -521,3 +521,51 @@ it.each(["ask", "clearChat"])("keeps an authoritative failed %s pending envelope
   expect(elements.ask!.disabled).toBe(false);
   expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
 });
+
+
+it.each(["ask", "clearChat"])("retains uncertain question and support guidance when failed %s recovery returns a bare failure", async action => {
+  const pending = { question: "Saved uncertain question", status: "uncertain" as const,
+    message: "Check proposed actions before retrying. Support reference: saved-request-1234" };
+  let reads = 0;
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? ++reads === 1 ? { ok: true, message: "", chat: [], pending }
+      : { ok: false, message: "Conversation unavailable" }
+      : { ok: false, message: "The assistant is working. Please wait." });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  expect(elements.question!.value).toBe(pending.question);
+  if (action === "ask") {
+    const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+    submit({ preventDefault: () => {} });
+  } else elements.clearChat!.listeners.click!();
+  await flush();
+  expect(reads).toBe(2);
+  expect(elements.question!.value).toBe(pending.question);
+  expect(elements.chatStatus!.textContent).toContain(pending.message);
+  expect(elements.chatStatus!.textContent).toContain("The assistant is working. Please wait.");
+  expect(elements.chatStatus!.textContent).toContain("Reopen the popup to recover your saved question");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(elements.save!.disabled).toBe(false);
+  expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
+});
+
+it("keeps the in-flight question and controls locked when a polling read returns a bare failure", async () => {
+  vi.useFakeTimers();
+  const pending = { question: "Saved in-flight question", status: "in_flight" as const, message: "The assistant is working. Your question is saved." };
+  let reads = 0;
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? ++reads === 1 ? { ok: true, message: "", chat: [], pending }
+      : { ok: false, message: "Conversation unavailable" }
+      : { ok: true, message: "", chat: [] });
+  vi.resetModules(); await import("../src/popup"); await vi.advanceTimersByTimeAsync(0);
+  expect(elements.question!.value).toBe(pending.question);
+  expect(elements.ask!.disabled).toBe(true);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(reads).toBe(2);
+  expect(elements.question!.value).toBe(pending.question);
+  expect(elements.ask!.disabled).toBe(true);
+  expect(elements.save!.disabled).toBe(true);
+  expect(elements.chatStatus!.textContent).toContain("Reopen the popup to recover your saved question");
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(reads).toBe(2);
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "clearChat")).toBe(false);
+});

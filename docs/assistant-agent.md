@@ -24,14 +24,21 @@ The unmerged extension hydration refinement retains the Ask/Clear dispatch
 fence against delayed initial `getChat` results. A bare failure, transport error
 or malformed response starts one asynchronous fresh state-only `getChat` recovery;
 it never resends the mutation. An authoritative failed chat envelope is applied
-directly without an extra read. Current recovered history and pending in-flight
-state restore the appropriate poller and controls. Failed recovery shows the
-primary error with explicit reopen guidance. Successful settings-save fencing
-is unchanged. Nine new regressions produced seven failures on the original
-candidate; all 38 focused popup tests pass with the refinement, with extension
-typecheck, lint and whitespace checks passing. Independent source review approved
-it without blockers. This addresses the historical medium Bugbot comment in
-source; Bugbot had returned a skipped status. Fresh candidate CI is pending, and
+directly without an extra read. A second valid review finding showed that a bare
+structured failed read could clear an existing pending question before reporting
+failure. Such failed reads now preserve the question, guidance and controls;
+a successful empty state still clears them. Failed polling shows explicit reopen
+guidance without automatically repeating failed polls; recovery reads preserve
+an existing pending timer. Failed recovery retains the primary error with reopen
+guidance. Successful settings-save fencing is unchanged.
+
+Nine earlier regressions produced seven failures on the original candidate.
+The second finding adds three regressions that all failed against `281c261`;
+all 41 focused popup tests now pass, with extension typecheck, lint and whitespace
+checks passing and independent source review approved without blockers. Both
+valid Bugbot findings are addressed in source; the earlier skipped review status
+is not an approval. The previous full CI result of 1,775 tests and one paid live
+skip applies to `281c261`, not this refinement. Fresh candidate CI is pending;
 no native browser proof or PR #42 merged-master success is claimed. PR #41's
 completed release evidence remains unchanged.
 
