@@ -21,7 +21,7 @@ class Journal implements AssistantActionRepository {
   async claim(id: string, userId: UserId, at: Date) { const row = await this.findOwned(id, userId); if (!row || row.status !== "pending" || row.expiresAt <= at) return null; const claimed = { ...row, status: "executing" as const, updatedAt: at }; this.rows.set(id, claimed); return structuredClone(claimed); }
   async settlePending(id: string, userId: UserId, status: "expired" | "rejected", at: Date) { const row = await this.findOwned(id, userId); if (row?.status === "pending") this.rows.set(id, { ...row, status, updatedAt: at }); }
   async finish(id: string, userId: UserId, status: "succeeded" | "failed" | "unknown", at: Date, result: Record<string, unknown> | null, failureCode: string | null) { const row = await this.findOwned(id, userId); if (row?.status !== "executing") throw new Error("Claim unavailable"); this.rows.set(id, { ...row, status, updatedAt: at, result, failureCode }); }
-  async expireExecuting() {}
+  async expireExecuting() { return []; }
 }
 class LockedAccounts extends InMemoryLoyaltyAccountRepository {
   readonly locks: LoyaltyAccountId[] = [];

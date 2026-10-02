@@ -10,19 +10,35 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+The claim/identity/goal fixes below are merged at
+`e3e33b5d6a98ffe416af180c98b0b3aca909ff29` through
+[PR #32](https://github.com/jckail/point_bot/pull/32). All six merged-source
+verification jobs in [Deploy 37029520512](https://github.com/jckail/point_bot/actions/runs/37029520512)
+and [CodeQL 37029519862](https://github.com/jckail/point_bot/actions/runs/37029519862)
+passed, including 1,687 workspace tests plus one paid live skip. AWS deployment
+was explicitly skipped for missing deployment-role configuration.
+
 The current follow-up fences outbox completion/retry/dead-letter updates to the
 exact claimed attempt and lease deadline, guards reviewed manual balances against
 changed account membership, locks goal reference mutations and deduplicates goal
 progress. Root verified 14 actual PostgreSQL outbox cases and nine PostgreSQL
 goal/assistant identity cases against the migrated isolated fixture, without
-resetting existing rows. These are focused source checks; the new committed head
-still requires its aggregate CI/release gate.
+resetting existing rows. Those focused checks are supplemented by the exact
+merged-source aggregate evidence above; production adoption remains unverified.
 
 The manual-entry form accepts a real UTC calendar date. Blank means the current
 time; a past day uses noon UTC, while today's reading is capped at the current
 time so entry before noon cannot create a future observation. Malformed and
 future days are rejected. Actual server-action/use-case regressions cover these
 boundaries.
+
+The recovery successor adds a Chrome proposal-review button available even
+after a first uncertain request, preserving its support reference during
+navigation. Stalled assistant executions now emit bounded audit/metric metadata
+only for rows actually recovered to `unknown`. Root passed 17 popup, 31 assistant
+unit and four actual PostgreSQL cases, including repeated/concurrent recovery
+and telemetry failure isolation. The successor requires its own committed-source
+gate; recovery telemetry remains best effort rather than a durable audit journal.
 
 | Source | Verified evidence | Limits |
 | --- | --- | --- |

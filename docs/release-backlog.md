@@ -25,6 +25,17 @@ and [CodeQL 37023993699](https://github.com/jckail/point_bot/actions/runs/370239
 passed, covering 1,608 workspace tests plus one paid live skip. Its AWS job was
 also skipped for missing deployment-role configuration.
 
+The claim/identity/goal safety release is merged at
+`e3e33b5d6a98ffe416af180c98b0b3aca909ff29` through
+[PR #32](https://github.com/jckail/point_bot/pull/32). Its six merged-source
+verification jobs in [Deploy 37029520512](https://github.com/jckail/point_bot/actions/runs/37029520512)
+and [CodeQL 37029519862](https://github.com/jckail/point_bot/actions/runs/37029519862)
+passed, with 1,687 workspace tests plus one paid live skip. AWS remains skipped
+for missing deployment-role configuration. The next recovery polish adds an
+always-available Chrome proposal-review control and bounded observations for
+actual stalled-execution recovery; preserve uncertainty and support references.
+Pending expiry telemetry and durable audit delivery remain separate open work.
+
 ## Immediate release gates
 
 **Deploy the reviewed-action and goal mutation fixes together.** Manual-balance

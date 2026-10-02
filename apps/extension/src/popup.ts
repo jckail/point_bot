@@ -122,6 +122,8 @@ async function init(): Promise<void> {
     });
   });
 
+  $("reviewProposals").addEventListener("click", reviewProposals);
+
   $("record").addEventListener("click", () => {
     void runCapture(async () => {
       if (!selectedCaptureId) return;
@@ -184,22 +186,30 @@ function applyChatState(result: ChatResult): void {
     }, 1000);
   }
 }
-async function runChat(action: () => Promise<void>): Promise<void> {
+function showChatStatus(message: string): void {
+  const recovery = chatPending?.status === "uncertain" ? chatPending.message : undefined;
+  $("chatStatus").textContent = recovery && recovery !== message ? `${recovery} ${message}` : message;
+}
+async function runChat(action: () => Promise<void>, activityMessage = "Thinking…"): Promise<void> {
   if (chatBusy || settingsBusy || chatPending?.status === "in_flight") return;
   chatBusy = true;
-  $("chatStatus").textContent = "Thinking…";
+  showChatStatus(activityMessage);
   updateControls();
   try { await action(); }
-  catch (error) { $("chatStatus").textContent = error instanceof Error ? error.message : "Assistant unavailable. Retry your question."; }
+  catch (error) { showChatStatus(error instanceof Error ? error.message : "Assistant unavailable. Retry your question."); }
   finally {
     chatBusy = false;
     updateControls();
   }
 }
+function reviewProposals(): void {
+  void runChat(async () => {
+    const result = await chatRequest({ type: "openReview" });
+    showChatStatus(result.message);
+  }, "Opening proposed changes…");
+}
 function showChat(chat: readonly ChatEntry[]): void {
-  renderChat($("chat"), chat, () => { void runChat(async () => {
-    const result = await chatRequest({ type: "openReview" }); $("chatStatus").textContent = result.message;
-  }); });
+  renderChat($("chat"), chat, reviewProposals);
 }
 
 void init().catch(() => { $("status").textContent = "Extension settings unavailable. Reopen the popup to retry."; });

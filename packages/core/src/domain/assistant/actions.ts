@@ -62,6 +62,9 @@ export function toAssistantActionDto(action: AssistantAction): AssistantActionDt
   return assistantActionDtoSchema.parse({ id: action.id, kind: action.kind, payload: action.payload, status: action.status, title, summary, createdAt: action.createdAt.toISOString(), updatedAt: action.updatedAt.toISOString(), expiresAt: action.expiresAt.toISOString(), result: action.result, failureCode: action.failureCode });
 }
 
+/** Safe metadata for executions actually transitioned during recovery. */
+export type RecoveredAssistantAction = Pick<AssistantAction, "id" | "kind"> & { readonly status: "unknown" };
+
 export interface AssistantActionRepository {
   /** Insert once; a repeated ID returns the existing immutable proposal. */
   insert(action: AssistantAction): Promise<AssistantAction>;
@@ -71,8 +74,8 @@ export interface AssistantActionRepository {
   claim(id: string, userId: UserId, now: Date): Promise<AssistantAction | null>;
   settlePending(id: string, userId: UserId, status: "rejected" | "expired", now: Date): Promise<void>;
   finish(id: string, userId: UserId, status: "succeeded" | "failed" | "unknown", now: Date, result: Record<string, unknown> | null, failureCode: string | null): Promise<void>;
-  /** Crashed or stalled nontransactional executions cannot be retried safely. */
-  expireExecuting(userId: UserId, cutoff: Date, now: Date): Promise<void>;
+  /** Atomically recover stale executing rows; return only changed rows, with safe audit metadata. */
+  expireExecuting(userId: UserId, cutoff: Date, now: Date): Promise<readonly RecoveredAssistantAction[]>;
 }
 
 /** Untrusted proposal input. Owner, program labels, status, and expiry are server-bound. */
