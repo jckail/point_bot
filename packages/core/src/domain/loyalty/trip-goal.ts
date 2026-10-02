@@ -80,7 +80,7 @@ export function createTripGoal(input: NewTripGoal): TripGoal {
     title: normalizeTitle(input.title),
     targetPoints: input.targetPoints,
     targetDate: input.targetDate ?? null,
-    accountIds: input.accountIds ?? [],
+    accountIds: [...new Set(input.accountIds ?? [])],
     status: "active",
     notes: normalizeNotes(input.notes),
     createdAt: now,
@@ -102,7 +102,7 @@ export function applyTripGoalChanges(
     targetPoints,
     targetDate:
       changes.targetDate !== undefined ? changes.targetDate : goal.targetDate,
-    accountIds: changes.accountIds ?? goal.accountIds,
+    accountIds: [...new Set(changes.accountIds ?? goal.accountIds)],
     status: changes.status ?? goal.status,
     notes:
       changes.notes !== undefined
@@ -125,7 +125,7 @@ export function computeGoalProgress(
   balancesByAccountId: ReadonlyMap<string, number>,
 ): TripGoalProgress {
   const current = checkedPointSum(
-    goal.accountIds.map(accountId => balancesByAccountId.get(accountId) ?? 0),
+    [...new Set(goal.accountIds)].map(accountId => balancesByAccountId.get(accountId) ?? 0),
   );
   const remaining = Math.max(0, goal.targetPoints - current);
   const percentComplete =

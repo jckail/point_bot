@@ -7,6 +7,7 @@ import {
 import type {
   ClaimedEvent,
   ClaimOptions,
+  OutboxClaim,
   OutboxStore,
 } from "../src/application/events/outbox";
 import {
@@ -62,23 +63,35 @@ class InMemoryOutboxStore implements OutboxStore {
       }
       row.attempts += 1;
       row.availableAt = new Date(o.now.getTime() + o.leaseMs);
-      out.push({ event: row.event, attempts: row.attempts });
+      out.push({ event: row.event, attempts: row.attempts, leaseUntil: row.availableAt });
     }
     return out;
   }
-  async markProcessed(id: string, now: Date) {
-    this.rows.get(id)!.processedAt ??= now;
-    this.rows.get(id)!.lastError = null;
+  private current(id: string, claim: OutboxClaim) {
+    const row = this.rows.get(id);
+    return row && !row.processedAt && !row.deadAt && row.attempts === claim.attempts
+      && row.availableAt.getTime() === claim.leaseUntil.getTime() ? row : undefined;
   }
-  async scheduleRetry(id: string, retryAt: Date, error: string) {
-    const row = this.rows.get(id)!;
+  async markProcessed(id: string, now: Date, claim: OutboxClaim) {
+    const row = this.current(id, claim);
+    if (!row) return false;
+    row.processedAt = now;
+    row.lastError = null;
+    return true;
+  }
+  async scheduleRetry(id: string, retryAt: Date, error: string, claim: OutboxClaim) {
+    const row = this.current(id, claim);
+    if (!row) return false;
     row.availableAt = retryAt;
     row.lastError = error;
+    return true;
   }
-  async deadLetter(id: string, now: Date, error: string) {
-    const row = this.rows.get(id)!;
+  async deadLetter(id: string, now: Date, error: string, claim: OutboxClaim) {
+    const row = this.current(id, claim);
+    if (!row) return false;
     row.deadAt = now;
     row.lastError = error;
+    return true;
   }
   async deadLetterExhausted(max: number, now: Date) {
     let n = 0;
@@ -273,6 +286,96 @@ describe("OutboxProcessor", () => {
     expect(outboxBackoffMs(1)).toBe(5000);
     expect(outboxBackoffMs(3)).toBe(20_000);
     expect(outboxBackoffMs(50)).toBe(3_600_000);
+  });
+});
+
+function gate() {
+  let release!: () => void;
+  const promise = new Promise<void>(resolve => { release = resolve; });
+  return { promise, release };
+}
+
+describe("outbox claim generations", () => {
+  it("ignores a late retry without shortening the newer worker's lease", async () => {
+    const store = new InMemoryOutboxStore();
+    const e = event();
+    store.add(e);
+    let now = new Date("2026-07-01T12:00:00Z");
+    const localClock = { now: () => now };
+    const oldEntered = gate(), oldRelease = gate(), currentEntered = gate(), currentRelease = gate();
+    const oldWorker = new OutboxProcessor(store, new EventHandlerRegistry().on("*", {
+      name: "older", handle: async () => { oldEntered.release(); await oldRelease.promise; throw new Error("old failure"); },
+    }), { clock: localClock, leaseMs: 1000 });
+    const currentWorker = new OutboxProcessor(store, new EventHandlerRegistry().on("*", {
+      name: "current", handle: async () => { currentEntered.release(); await currentRelease.promise; },
+    }), { clock: localClock, leaseMs: 60_000 });
+    const oldRun = oldWorker.runOnce();
+    await oldEntered.promise;
+    now = new Date(now.getTime() + 1000);
+    const currentRun = currentWorker.runOnce();
+    await currentEntered.promise;
+    const currentLease = store.rows.get(e.id)!.availableAt;
+    oldRelease.release();
+    expect(await oldRun).toEqual({ claimed: 1, processed: 0, retried: 0, deadLettered: 0 });
+    expect(store.rows.get(e.id)).toMatchObject({ attempts: 2, availableAt: currentLease, lastError: null });
+    now = new Date(now.getTime() + 5000);
+    expect(await store.claim({ limit: 1, now, leaseMs: 60_000, maxAttempts: 8 })).toEqual([]);
+    currentRelease.release();
+    expect(await currentRun).toEqual({ claimed: 1, processed: 1, retried: 0, deadLettered: 0 });
+  });
+
+  it("does not resurrect a dead letter when an older delivery later succeeds", async () => {
+    const store = new InMemoryOutboxStore();
+    const e = event();
+    store.add(e);
+    let now = new Date("2026-07-01T12:00:00Z");
+    const localClock = { now: () => now };
+    const entered = gate(), release = gate();
+    const onDeadLetter = vi.fn();
+    const oldRun = new OutboxProcessor(store, new EventHandlerRegistry().on("*", {
+      name: "older", handle: async () => { entered.release(); await release.promise; },
+    }), { clock: localClock, leaseMs: 1000, maxAttempts: 2, onDeadLetter }).runOnce();
+    await entered.promise;
+    now = new Date(now.getTime() + 1000);
+    expect(await new OutboxProcessor(store, new EventHandlerRegistry().on("*", {
+      name: "current", handle: async () => { throw new Error("current failure"); },
+    }), { clock: localClock, maxAttempts: 2, onDeadLetter }).runOnce())
+      .toEqual({ claimed: 1, processed: 0, retried: 0, deadLettered: 1 });
+    const terminal = { ...store.rows.get(e.id)! };
+    release.release();
+    expect(await oldRun).toEqual({ claimed: 1, processed: 0, retried: 0, deadLettered: 0 });
+    expect(store.rows.get(e.id)).toEqual(terminal);
+    expect(onDeadLetter).toHaveBeenCalledOnce();
+  });
+
+  it("fences an old final attempt after manual replay resets its attempt number", async () => {
+    const store = new InMemoryOutboxStore();
+    const e = event();
+    store.add(e);
+    let now = new Date("2026-07-01T12:00:00Z");
+    const localClock = { now: () => now };
+    const entered = gate(), release = gate();
+    const onDeadLetter = vi.fn();
+    const oldRun = new OutboxProcessor(store, new EventHandlerRegistry().on("*", {
+      name: "older", handle: async () => { entered.release(); await release.promise; throw new Error("old failure"); },
+    }), { clock: localClock, leaseMs: 1000, maxAttempts: 1, onDeadLetter }).runOnce();
+    await entered.promise;
+    now = new Date(now.getTime() + 2000);
+    expect(await store.deadLetterExhausted(1, now)).toBe(1);
+    const row = store.rows.get(e.id)!;
+    row.attempts = 0;
+    row.deadAt = null;
+    row.availableAt = now;
+    const [current] = await store.claim({ limit: 1, now, leaseMs: 60_000, maxAttempts: 1 });
+    expect(current?.attempts).toBe(1);
+    release.release();
+    expect(await oldRun).toEqual({ claimed: 1, processed: 0, retried: 0, deadLettered: 0 });
+    expect(row).toMatchObject({ attempts: 1, deadAt: null, processedAt: null, availableAt: current!.leaseUntil });
+    expect(onDeadLetter).not.toHaveBeenCalled();
+    expect(await store.markProcessed(e.id, now, current!)).toBe(true);
+    expect(await store.scheduleRetry(e.id, now, "must not persist", current!)).toBe(false);
+    expect(await store.deadLetter(e.id, now, "must not persist", current!)).toBe(false);
+    expect(row.lastError).toBeNull();
   });
 });
 

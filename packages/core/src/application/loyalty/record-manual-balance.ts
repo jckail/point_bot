@@ -13,6 +13,8 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import { requireOwnedAccount } from "./access";
 import { recordActivity } from "./list-activity";
+import type { ManualBalanceAccountWitness } from "../../domain/loyalty/account-identity-witness";
+import { AccountIdentityPreconditionError, matchesAccountIdentityWitness } from "./account-identity-witness";
 import { toBalanceReadModel } from "./mappers";
 import type { BalanceReadModel } from "./read-models";
 
@@ -30,6 +32,12 @@ export interface RecordManualBalanceInput {
   readonly source?: Extract<BalanceSource, "manual" | "agent">;
 }
 
+/** Internal execution evidence, separate from every public balance input. */
+export interface ReviewedBalanceExecution {
+  readonly expectedAccountWitness: ManualBalanceAccountWitness;
+  readonly onPreconditionFailure?: (error: AccountIdentityPreconditionError) => void;
+}
+
 /**
  * Users can key in a balance they see on the provider's site - useful for
  * programs without an integration or credentials on file.
@@ -43,18 +51,23 @@ export class RecordManualBalance {
     private readonly eventing: Eventing = noopEventing,
   ) {}
 
-  async execute(input: RecordManualBalanceInput): Promise<BalanceReadModel> {
-    return (await this.executeWithSnapshotId(input)).balance;
+  async execute(input: RecordManualBalanceInput, reviewed?: ReviewedBalanceExecution): Promise<BalanceReadModel> {
+    return (await this.executeWithSnapshotId(input, reviewed)).balance;
   }
 
   /** Internal provenance witness: the exact inserted row, including backfills. */
-  executeWithSnapshotId(input: RecordManualBalanceInput): Promise<{ balance: BalanceReadModel; snapshotId: string }> {
+  executeWithSnapshotId(input: RecordManualBalanceInput, reviewed?: ReviewedBalanceExecution): Promise<{ balance: BalanceReadModel; snapshotId: string }> {
     return this.eventing.unitOfWork.run(async () => {
       const account = this.accounts.lockById
         ? await this.accounts.lockById(input.accountId)
         : await requireOwnedAccount(this.accounts, input.userId, input.accountId);
       if (!account || account.userId !== input.userId || account.deletedAt) {
         throw new LoyaltyAccountNotFoundError(input.accountId);
+      }
+      if (reviewed && !matchesAccountIdentityWitness(reviewed.expectedAccountWitness, account)) {
+        const error = new AccountIdentityPreconditionError();
+        reviewed.onPreconditionFailure?.(error);
+        throw error;
       }
 
       const now = this.clock.now();

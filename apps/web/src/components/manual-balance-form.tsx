@@ -30,15 +30,16 @@ export function ManualBalanceForm({ accountId }: { accountId: string }) {
         </SubmitButton>
       </div>
       <label className="flex items-center gap-2 text-xs text-ink-faint">
-        As of
+        As of (UTC date)
         <input
           name="capturedOn"
           type="date"
           max={new Date().toISOString().slice(0, 10)}
           className="rounded-lg border border-line bg-midnight px-2 py-1 text-xs text-ink-muted outline-none transition focus:border-brand"
         />
-        <span>(optional - defaults to now)</span>
+        <span>(optional — blank uses now)</span>
       </label>
+      <p className="text-xs text-ink-faint">Use a UTC date for a past reading. Leave blank for the current time.</p>
       <FormFeedback result={result} successMessage="Balance recorded." />
     </form>
   );

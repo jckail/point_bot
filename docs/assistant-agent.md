@@ -35,6 +35,24 @@ not verified transfer eligibility, a live redemption price or available inventor
 
 A proposal expires after 15 minutes. Approval atomically claims an unexpired pending row, rechecks account ownership and invokes the existing owner-checked use case with the saved payload. Concurrent approvals cannot claim twice; replay returns the durable outcome. Rejection and expiry never execute. Statuses are `pending`, `executing`, `succeeded`, `rejected`, `expired`, `failed` and `unknown`.
 
+Manual-balance proposals also retain private account-identity evidence: a fresh
+random nonce and digest bound to the owner, account, provider and exact saved
+membership number. Neither the number nor this evidence is returned in proposal
+DTOs or model tools. Approval checks it again under the account mutation lock
+before writing a balance, activity or outbox event. A changed membership requires
+a newly reviewed proposal. Pending legacy proposals without valid evidence fail
+closed; existing terminal outcomes and trip-goal proposals remain readable.
+Only the exact pre-write guard rejection establishes `PRECONDITION_FAILED`;
+wrapped transaction errors and uncertain commit outcomes remain `unknown`.
+
+Trip-goal account references are validated under the same account locks used by
+unlink/import, then the current goal row is locked before applying changes.
+Omitting `accountIds` preserves associations without rewriting their foreign
+keys; an explicit empty array clears them. Repeated account IDs count once,
+preserving their first requested order in storage and progress calculations.
+Database goal locking requires an atomic unit of work; mismatched compositions
+fail closed rather than silently releasing a lock before mutation.
+
 PR14's production composition supplies the shared ambient UnitOfWork to the proposal service and repository. The approved portfolio mutation, its domain-event outbox writes and successful proposal journal update commit in one database transaction. The initial execution claim remains durable outside that transaction. A transaction or commit exception alone cannot prove rollback; recovery marks an executing claim `unknown` without overwriting a success that committed before an acknowledgement was lost. Executions stalled for five minutes become visibly unknown when inspected. Automatic replay is never authorized. Hosts without an atomic UnitOfWork retain the conservative unknown-outcome fallback. Inspect the portfolio before creating a separately reviewed replacement proposal.
 
 Chat preserves `reply` and adds optional `actions` for proposals persisted during the run. The canonical list survives request failure and restart; the review UI refreshes after success or failure. DTOs contain `id`, `kind`, `status`, `title`, `summary`, `payload`, timestamps, `result` and `failureCode`. Browser components render saved values as plain text. Model HTML and executable instructions are not accepted.

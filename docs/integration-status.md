@@ -10,6 +10,20 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+The current follow-up fences outbox completion/retry/dead-letter updates to the
+exact claimed attempt and lease deadline, guards reviewed manual balances against
+changed account membership, locks goal reference mutations and deduplicates goal
+progress. Root verified 14 actual PostgreSQL outbox cases and nine PostgreSQL
+goal/assistant identity cases against the migrated isolated fixture, without
+resetting existing rows. These are focused source checks; the new committed head
+still requires its aggregate CI/release gate.
+
+The manual-entry form accepts a real UTC calendar date. Blank means the current
+time; a past day uses noon UTC, while today's reading is capped at the current
+time so entry before noon cannot create a future observation. Malformed and
+future days are rejected. Actual server-action/use-case regressions cover these
+boundaries.
+
 | Source | Verified evidence | Limits |
 | --- | --- | --- |
 | `977a4d586c269e1a3f34b82a8c5a2fdae9355f45` | All six jobs in [CI 36999223376](https://github.com/jckail/point_bot/actions/runs/36999223376) and [CodeQL 36999223346](https://github.com/jckail/point_bot/actions/runs/36999223346) passed. CI covered 1,243 workspace tests, one skipped paid live evaluation, 30 rollout helper and 26 infrastructure cases, all application bundles, managed migration 0020, PostgreSQL attestation, contracts/HTTP MCP and Docker direct/PgBouncer smoke. | Source/isolated-fixture evidence; no production deployment or live provider/model/exporter proof. |

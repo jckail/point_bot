@@ -115,7 +115,7 @@ describe("worker failure boundaries", () => {
   });
   it.each([1, 2])("outbox attempt %s preserves retry/dead-letter persistence without console leakage", async (attempts) => {
     const event = createDomainEvent("observation.held", { userId, aggregateId: ObservationId.generate(), payload: { accountId: account.id, providerId: "aeroplan", points: 50, previousPoints: 100, reviewExpiresAt: new Date().toISOString() }, occurredAt: new Date() });
-    const outbox: OutboxStore = { claim: vi.fn(async () => [{ event, attempts }]), deadLetterExhausted: async () => 0, markProcessed: vi.fn(async () => {}), scheduleRetry: vi.fn(async () => {}), deadLetter: vi.fn(async () => {}) };
+    const outbox: OutboxStore = { claim: vi.fn(async () => [{ event, attempts, leaseUntil: new Date(Date.now() + 60_000) }]), deadLetterExhausted: async () => 0, markProcessed: vi.fn(async () => true), scheduleRetry: vi.fn(async () => true), deadLetter: vi.fn(async () => true) };
     const result = await processOutbox({ outbox }, notifier, { maxAttempts: 2 });
     expect(result).toMatchObject({ processed: 0, retried: attempts === 1 ? 1 : 0, deadLettered: attempts === 2 ? 1 : 0 });
     expect(attempts === 1 ? outbox.scheduleRetry : outbox.deadLetter).toHaveBeenCalledOnce(); expect(outbox.markProcessed).not.toHaveBeenCalled(); assertPrivate();
@@ -127,8 +127,8 @@ describe("worker failure boundaries", () => {
       payload: { accountId: account.id, providerId: "air-canada-aeroplan", points: 50, previousPoints: 100, reviewExpiresAt: new Date().toISOString() },
     });
     const outbox: OutboxStore = {
-      claim: async () => [{ event, attempts: 1 }], deadLetterExhausted: async () => 0,
-      markProcessed: vi.fn(async () => {}), scheduleRetry: vi.fn(async () => {}), deadLetter: vi.fn(async () => {}),
+      claim: async () => [{ event, attempts: 1, leaseUntil: new Date(Date.now() + 60_000) }], deadLetterExhausted: async () => 0,
+      markProcessed: vi.fn(async () => true), scheduleRetry: vi.fn(async () => true), deadLetter: vi.fn(async () => true),
     };
     const result = await processOutbox({ outbox }, null);
     expect(result).toEqual({ claimed: 1, processed: 1, retried: 0, deadLettered: 0 });

@@ -1,3 +1,5 @@
+import type { ManualBalanceAccountWitness } from "../loyalty/account-identity-witness";
+export { manualBalanceAccountWitnessSchema, type ManualBalanceAccountWitness } from "../loyalty/account-identity-witness";
 import type { UserId } from "../shared/ids";
 import { z } from "zod";
 export { AssistantActionNotFoundError, InvalidAssistantActionError } from "../errors";
@@ -34,6 +36,7 @@ export type AssistantAction = AssistantProposal & {
   readonly expiresAt: Date;
   readonly result: Record<string, unknown> | null;
   readonly failureCode: string | null;
+  readonly executionWitness?: ManualBalanceAccountWitness | null;
 };
 const dtoMetadata = z.object({
   id,

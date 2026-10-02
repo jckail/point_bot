@@ -8,6 +8,8 @@ import { systemClock } from "../ports";
 import type { GetLoyaltyAccount } from "../loyalty/get-loyalty-account";
 import type { RecordManualBalance } from "../loyalty/record-manual-balance";
 import type { CreateTripGoal } from "../loyalty/create-trip-goal";
+import { createAccountIdentityWitness, matchesAccountIdentityWitness, type AccountIdentityPreconditionError } from "../loyalty/account-identity-witness";
+import type { ManualBalanceAccountWitness } from "../../domain/loyalty/account-identity-witness";
 
 export type ActionUseCases = {
   getLoyaltyAccount: Pick<GetLoyaltyAccount, "execute">;
@@ -46,7 +48,8 @@ export class ManageAssistantActions {
     const capturedAt = input.capturedAt ?? this.clock.now().toISOString();
     const proposal = assistantProposalSchema.parse({ kind: "manual_balance", payload: { accountId: account.id, providerId: account.provider.id, providerName: account.provider.displayName, points: input.points, capturedAt } });
     if (new Date(capturedAt) > this.clock.now()) throw new InvalidAssistantActionError("Observation time cannot be in the future.");
-    return this.insert(input.userId, input.requestId, proposal);
+    const witness = createAccountIdentityWitness({ id: account.id, userId: input.userId, providerId: account.provider.id, membershipNumber: account.membershipNumber });
+    return this.insert(input.userId, input.requestId, proposal, witness);
   }
 
   async proposeTripGoal(input: { userId: UserId; requestId: string; title: string; targetPoints: number; targetDate?: string | null; accountIds?: readonly string[]; notes?: string | null }) {
@@ -59,11 +62,11 @@ export class ManageAssistantActions {
     return this.insert(input.userId, input.requestId, proposal);
   }
 
-  private async insert(userId: UserId, requestId: string, proposal: AssistantProposal) {
+  private async insert(userId: UserId, requestId: string, proposal: AssistantProposal, executionWitness?: ManualBalanceAccountWitness) {
     const now = this.clock.now();
     // Request-scoped deterministic identity makes repeated identical tool calls idempotent.
     const id = `action_${createHash("sha256").update(JSON.stringify([userId, requestId, proposal])).digest("hex").slice(0, 40)}`;
-    const action: AssistantAction = { ...proposal, id, userId, status: "pending", createdAt: now, updatedAt: now, expiresAt: new Date(now.getTime() + PROPOSAL_TTL_MS), result: null, failureCode: null };
+    const action: AssistantAction = { ...proposal, ...(executionWitness ? { executionWitness } : {}), id, userId, status: "pending", createdAt: now, updatedAt: now, expiresAt: new Date(now.getTime() + PROPOSAL_TTL_MS), result: null, failureCode: null };
     const stored = await this.repository.insert(action);
     this.record(stored);
     return toAssistantActionDto(stored);
@@ -103,6 +106,7 @@ export class ManageAssistantActions {
       if (action.kind === "manual_balance") {
         const account = await this.useCases.getLoyaltyAccount.execute(userId, LoyaltyAccountId.parse(action.payload.accountId));
         if (account.provider.id !== action.payload.providerId) throw new InvalidAssistantActionError("Account program changed after proposal.");
+        if (!matchesAccountIdentityWitness(action.executionWitness, { id: account.id, userId, providerId: account.provider.id, membershipNumber: account.membershipNumber })) throw new InvalidAssistantActionError("Account identity changed after proposal.");
       } else {
         await Promise.all(action.payload.accountIds.map(accountId => this.useCases.getLoyaltyAccount.execute(userId, LoyaltyAccountId.parse(accountId))));
       }
@@ -112,17 +116,20 @@ export class ManageAssistantActions {
       this.record(failed, Math.round(performance.now() - started));
       return toAssistantActionDto(failed);
     }
+    let guardFailure: AccountIdentityPreconditionError | undefined;
+    const onPreconditionFailure = (error: AccountIdentityPreconditionError) => { guardFailure = error; };
     if (this.unitOfWork?.atomic) {
       try {
         await this.unitOfWork.run(async () => {
-          const result = await this.executeSaved(action, userId);
+          const result = await this.executeSaved(action, userId, onPreconditionFailure);
           await this.repository.finish(id, userId, "succeeded", this.clock.now(), result, null);
         });
-      } catch {
+      } catch (error) {
         // A transaction/commit exception alone cannot prove rollback. A durable
         // executing claim prevents replay; conditional finish also preserves a
         // committed success if its acknowledgement was lost.
-        try { await this.repository.finish(id, userId, "unknown", this.clock.now(), null, "EXECUTION_OUTCOME_UNKNOWN"); }
+        const knownPreconditionFailure = guardFailure !== undefined && error === guardFailure;
+        try { await this.repository.finish(id, userId, knownPreconditionFailure ? "failed" : "unknown", this.clock.now(), null, knownPreconditionFailure ? "PRECONDITION_FAILED" : "EXECUTION_OUTCOME_UNKNOWN"); }
         catch { /* a stale durable claim is later exposed as unknown */ }
       }
       const completed = await this.owned(id, userId);
@@ -130,12 +137,14 @@ export class ManageAssistantActions {
       return toAssistantActionDto(completed);
     }
     // Existing use cases may commit before a later activity/read step fails.
-    // Every exception from this boundary therefore means unknown, never safe-to-retry.
+    // Only the exact witnessed pre-write guard rejection is known not to mutate;
+    // other exceptions mean unknown, never safe-to-retry.
     let result: Record<string, unknown>;
     try {
-      result = await this.executeSaved(action, userId);
-    } catch {
-      await this.repository.finish(id, userId, "unknown", this.clock.now(), null, "EXECUTION_OUTCOME_UNKNOWN");
+      result = await this.executeSaved(action, userId, onPreconditionFailure);
+    } catch (error) {
+      const knownPreconditionFailure = guardFailure !== undefined && error === guardFailure;
+      await this.repository.finish(id, userId, knownPreconditionFailure ? "failed" : "unknown", this.clock.now(), null, knownPreconditionFailure ? "PRECONDITION_FAILED" : "EXECUTION_OUTCOME_UNKNOWN");
       const unknown = await this.owned(id, userId);
       this.record(unknown, Math.round(performance.now() - started));
       return toAssistantActionDto(unknown);
@@ -152,9 +161,10 @@ export class ManageAssistantActions {
     return toAssistantActionDto(completed);
   }
 
-  private async executeSaved(action: AssistantAction, userId: UserId): Promise<Record<string, unknown>> {
+  private async executeSaved(action: AssistantAction, userId: UserId, onPreconditionFailure: (error: AccountIdentityPreconditionError) => void): Promise<Record<string, unknown>> {
     if (action.kind === "manual_balance") {
-      const balance = await this.useCases.recordManualBalance.execute({ userId, accountId: LoyaltyAccountId.parse(action.payload.accountId), points: action.payload.points, capturedAt: new Date(action.payload.capturedAt) });
+      if (!action.executionWitness) throw new InvalidAssistantActionError("Account identity evidence is missing. Review a new proposal.");
+      const balance = await this.useCases.recordManualBalance.execute({ userId, accountId: LoyaltyAccountId.parse(action.payload.accountId), points: action.payload.points, capturedAt: new Date(action.payload.capturedAt) }, { expectedAccountWitness: action.executionWitness, onPreconditionFailure });
       return { points: balance.points, capturedAt: balance.capturedAt.toISOString(), source: balance.source };
     }
     const goal = await this.useCases.createTripGoal.execute({ userId, title: action.payload.title, targetPoints: action.payload.targetPoints, targetDate: action.payload.targetDate, accountIds: action.payload.accountIds.map(value => LoyaltyAccountId.parse(value)), notes: action.payload.notes });

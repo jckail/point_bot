@@ -1,11 +1,17 @@
 import type { DomainEvent } from "../../domain/events";
 import type { EventId } from "../../domain/shared/ids";
 
-/** A claimed outbox row: the event plus delivery bookkeeping. */
-export interface ClaimedEvent {
-  readonly event: DomainEvent;
+/** Persisted claim generation; an older worker cannot finalize a newer claim. */
+export interface OutboxClaim {
   /** Delivery attempts including the current one (incremented at claim). */
   readonly attempts: number;
+  /** Exact available_at written by claim, also fences manual attempt resets. */
+  readonly leaseUntil: Date;
+}
+
+/** A claimed outbox row: the event plus delivery bookkeeping. */
+export interface ClaimedEvent extends OutboxClaim {
+  readonly event: DomainEvent;
 }
 
 export interface ClaimOptions {
@@ -23,16 +29,17 @@ export interface ClaimOptions {
 /**
  * Consumer side of the transactional outbox. Implementations must make
  * `claim` safe under concurrency (Postgres: `FOR UPDATE SKIP LOCKED`), so
- * two workers never hold the same row at once.
+ * two workers never receive the same row within its current lease. A slow
+ * handler can outlive that lease; every outcome must match its claim generation.
  */
 export interface OutboxStore {
   claim(options: ClaimOptions): Promise<ClaimedEvent[]>;
-  /** Idempotent; a row that is already processed stays processed. */
-  markProcessed(id: EventId, now: Date): Promise<void>;
-  /** Releases the row for a later retry. */
-  scheduleRetry(id: EventId, retryAt: Date, error: string): Promise<void>;
-  /** Parks the row for good (kept for inspection, never claimed again). */
-  deadLetter(id: EventId, now: Date, error: string): Promise<void>;
+  /** True only when this claim finalized the row; terminal/stale claims return false. */
+  markProcessed(id: EventId, now: Date, claim: OutboxClaim): Promise<boolean>;
+  /** Releases this claim for retry; false leaves a newer or terminal row untouched. */
+  scheduleRetry(id: EventId, retryAt: Date, error: string, claim: OutboxClaim): Promise<boolean>;
+  /** Parks this claim for good; false leaves a newer or terminal row untouched. */
+  deadLetter(id: EventId, now: Date, error: string, claim: OutboxClaim): Promise<boolean>;
   /**
    * Parks rows that exhausted their attempts without a recorded outcome
    * (e.g. the worker crashed on the final attempt). Returns how many.

@@ -17,7 +17,27 @@ and [CodeQL 37019387403](https://github.com/jckail/point_bot/actions/runs/370193
 AWS deployment was explicitly skipped because `AWS_DEPLOY_ROLE_ARN` is absent.
 This is a verified source release, with production activation still outstanding.
 
+The subsequent polish release is merged at
+`b822241b234be9cee1381863c817f16cf16fff01` through
+[PR #31](https://github.com/jckail/point_bot/pull/31). All six merged-source
+verification jobs in [Deploy 37023995105](https://github.com/jckail/point_bot/actions/runs/37023995105)
+and [CodeQL 37023993699](https://github.com/jckail/point_bot/actions/runs/37023993699)
+passed, covering 1,608 workspace tests plus one paid live skip. Its AWS job was
+also skipped for missing deployment-role configuration.
+
 ## Immediate release gates
+
+**Deploy the reviewed-action and goal mutation fixes together.** Manual-balance
+proposal payloads now store a private identity witness in existing JSONB, removed
+before public DTO validation. Retire old proposal readers/writers before enabling
+new proposals: old strict readers do not understand the reserved private field.
+Pending legacy manual proposals without identity evidence must be replaced with
+a newly reviewed proposal. No schema migration or bulk historical rewrite is
+needed. Keep the atomic production UnitOfWork and account/goal locks composed;
+verify a membership change during review produces no balance/activity/outbox
+write. Goal references now count once and omitted references preserve current
+associations. Focused PostgreSQL evidence covers six goal and three assistant
+identity cases; hosted rollout remains unverified.
 
 **Roll out card-aware transfer eligibility before activation.** Source now persists
 an explicit nullable transfer card, uses the shared dated resolver in rankings,
@@ -100,6 +120,12 @@ eligibility against primary terms before adding their numeric rules.
   with outbox writes. Deleted or changed configurations cannot publish stale hits.
   Root verified four actual PostgreSQL lock barriers; this does not prove production
   scheduling or event delivery. Preserve this atomic composition during rollout.
+  Outbox outcome writes now require the original attempt and lease deadline,
+  preserving newer claims and terminal rows while suppressing stale outcome
+  counts/hooks. Root verified 14 actual PostgreSQL cases. Retire old unfenced
+  consumers before treating production outcome fencing as established. Handler
+  delivery remains at least once; dead-letter retention/replay and historical
+  exception scrubbing are still separate outstanding policies.
   Public-share lifetime now rejects nonempty invalid values consistently in browser,
   HTTP and core callers; snapshot resolution rechecks current token/owner/revocation
   and expiry after loading portfolio data. Redemption funding now reads portfolio,
@@ -224,7 +250,8 @@ CI evidence for the final candidate; an audit alone does not verify compatibilit
 Do not replace these fixes with force-fix downgrades.
 
 The separate infrastructure lock has vulnerable brace-expansion bundled inside
-aws-cdk-lib. The current bundled version matches two high advisories
+aws-cdk-lib. Its current 5.0.6 version matches six advisories (five high and one
+medium). The proposed 5.0.9 version still matches two high advisories
 ([GHSA-6j4f-fj2g-mc7p](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p),
 [GHSA-qhr7-859c-m2p7](https://github.com/advisories/GHSA-qhr7-859c-m2p7))
 and one medium advisory
@@ -236,3 +263,13 @@ a root override does not establish replacement of a bundled dependency. These
 are deployment/development tooling findings, distinct from application production
 dependencies and from GitHub's default-branch count. Container base OS/image
 audit remains separate. This infrastructure finding is still open.
+
+Fresh default-branch reconciliation found 75 open GitHub alerts: 69 belong to
+the discontinued `legacy/python-selenium/Pipfile.lock`, including its sole critical
+finding (Twisted 20.3.0), and six to the infrastructure package above. The application
+lock audit, including development dependencies, remains zero; audited locks match
+merged master. Preserve the archived source/evidence and establish a separate
+reviewed archive/dependency policy. Do not imply that current application traffic
+executes the archived Python stack, or delete the archive to hide alerts. Review
+the new Dependabot candidates for compatibility; major Clerk/ESLint/Node/TypeScript
+updates are not routine patch remediation.
