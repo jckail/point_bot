@@ -11,6 +11,7 @@ import {
   type RedemptionPlan,
 } from "../../domain/loyalty/optimizer";
 import type { SweetSpot } from "../../domain/loyalty/catalog/sweet-spots";
+import { isBonusActive } from "../../domain/loyalty/transfer-bonus";
 import type { AwardAvailabilitySource, Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
@@ -73,11 +74,16 @@ export class PlanRedemption {
   async execute(input: PlanRedemptionInput): Promise<PlanRedemptionResult> {
     const goal: RedemptionGoal = { kind: "any", ...input.goal };
     assertValidGoal(goal);
-    const [accounts, bonuses] = await Promise.all([
+    // External search can outlast a bonus or a card-selection change. Read the
+    // portfolio and bonus window after it finishes, then evaluate once.
+    const found = input.award && goal.kind !== "hotel"
+      ? await this.availability.searchAwards(input.award) : null;
+    const [accounts, listedBonuses] = await Promise.all([
       this.listAccounts.execute(input.userId),
       this.bonuses.execute(input.userId),
     ]);
     const now = this.clock.now();
+    const bonuses = listedBonuses.filter(bonus => isBonusActive(bonus, now));
     const result = optimizeRedemptions({
       holdings: toHoldings(accounts),
       goal,
@@ -87,19 +93,13 @@ export class PlanRedemption {
       maxPlans: input.maxPlans,
     });
 
-    let plans = result.plans;
-    let report: AvailabilityReport | null = null;
-    if (input.award && goal.kind !== "hotel") {
-      const found = await this.availability.searchAwards(input.award);
-      report = {
-        status: found.status,
-        checkedAt: found.checkedAt.toISOString(),
-        message: found.message,
-      };
-      if (found.status === "ok") {
-        plans = plans.map((plan) => annotate(plan, found));
-      }
-    }
+    const report: AvailabilityReport | null = found ? {
+      status: found.status,
+      checkedAt: found.checkedAt.toISOString(),
+      message: found.message,
+    } : null;
+    const plans = found?.status === "ok"
+      ? result.plans.map(plan => annotate(plan, found)) : result.plans;
 
     return {
       ...result,

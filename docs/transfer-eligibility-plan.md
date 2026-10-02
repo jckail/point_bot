@@ -53,7 +53,7 @@ graph with the graph resolved for that run. Apply identical resolution to:
 - Funding allocation, inverse coverage/shortfalls and displayed transfer steps.
 - GetValueAdvice rankings and estimated value.
 - Assistant grounding hints, which must not repeat the unconditional yield.
-- Account→holding mapping in PlanRedemption, which currently drops product context.
+- Account→holding mapping in PlanRedemption, which now carries the persisted product context.
 
 Direct destination-program holdings remain usable without source-card context.
 Transfer bonuses and safe/exact rounding must compose with the resolved ratio.

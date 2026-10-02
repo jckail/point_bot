@@ -92,7 +92,9 @@ eligibility against primary terms before adding their numeric rules.
   scheduling or event delivery. Preserve this atomic composition during rollout.
   Public-share lifetime now rejects nonempty invalid values consistently in browser,
   HTTP and core callers; snapshot resolution rechecks current token/owner/revocation
-  and expiry after loading portfolio data. Exact account deadlines are treated as
+  and expiry after loading portfolio data. Redemption funding now reads portfolio,
+  selected card and owner-visible bonuses after optional award search and filters
+  windows at evaluation time, preventing an expired bonus from funding a plan. Exact account deadlines are treated as
   expired instead of rounded negative zero. Focused gated use-case tests cover these
   changes; production rollout and real concurrent database acceptance remain open.
 

@@ -1,6 +1,7 @@
 import { createDomainEvent } from "../../domain/events";
 import {
   createTransferBonus,
+  isBonusActive,
   type TransferBonus,
   type TransferBonusRepository,
   type TransferBonusSource,
@@ -89,6 +90,7 @@ export class ListActiveTransferBonuses {
 
   async execute(viewerId?: UserId): Promise<TransferBonus[]> {
     const active = await this.bonuses.findActive(this.clock.now());
-    return active.filter((bonus) => isBonusVisibleTo(bonus, viewerId));
+    const now = this.clock.now();
+    return active.filter((bonus) => isBonusActive(bonus, now) && isBonusVisibleTo(bonus, viewerId));
   }
 }

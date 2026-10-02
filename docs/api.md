@@ -234,7 +234,7 @@ Grounded portfolio assistant. Body: `{ "message": "...", "history"?: [{ "role": 
 
 ### `GET /api/v1/value-advice`
 
-Bang-for-buck view: ranked transfer options from the user's balances plus curated (and previously scraped) deals with realized ¢/pt and affordability.
+Bang-for-buck view: ranked transfer options from the user's balances plus curated (and previously scraped) deals with realized ¢/pt and affordability. Transfers use the saved card selection and dated eligibility resolver. Unknown or unverified conditional rules return eligibility warnings rather than numeric yields. Transfer DTOs optionally include `bonusVerified` and `bonusSource` (`manual|scraped|user`); a missing/null verification flag is unknown, not verified. The dashboard marks an applied bonus unverified unless that flag is explicitly true. No-bonus options are separate from unverified bonuses.
 
 ### `GET /api/v1/optimizer/plan`
 
@@ -246,7 +246,7 @@ The curated, **unverified** sweet-spot catalog (typical points ranges, estimated
 
 ### `GET /api/v1/transfer-bonuses` / `POST /api/v1/transfer-bonuses`
 
-Active transfer bonuses; **crowd/manual data, empty by default**. `POST` (scope `portfolio:write`) body `{ fromProviderId, toProviderId, bonusPercent, startsAt, endsAt, sourceUrl? }` records a bonus as `source: "user"`, unverified; it then feeds every user's plans (flagged user-reported). Emits `transfer_bonus.recorded`. Errors: `INVALID_TRANSFER_BONUS`.
+Active transfer bonuses; **crowd/manual data, empty by default**. `GET` requires `portfolio:read` and returns shared manual/scraped or verified entries plus the caller's own unverified user reports. `POST` (scope `portfolio:write`) body `{ fromProviderId, toProviderId, bonusPercent, startsAt, endsAt, sourceUrl? }` records a bonus as `source: "user"`, unverified and attributed to the caller. That report affects only the reporter's advice and plans until trusted verification; the public request cannot set source or verification. There is no public verification endpoint. Emits `transfer_bonus.recorded`. Errors: `INVALID_TRANSFER_BONUS`.
 
 ### `POST /api/v1/deals/scrape`
 
@@ -289,7 +289,7 @@ Link a program membership. Returns `201` with `{ "accountId": "..." }`.
 }
 ```
 
-`credentialRef` is optional — a pointer into a credential vault (e.g. a 1Password reference), never a password.
+`credentialRef` is optional — a pointer into a credential vault (e.g. a 1Password reference), never a password. `cardProductId` is an optional nullable explicit transfer-card selection, validated against the program; omission/null leaves a new account unknown. It does not establish card ownership or issuer access. The currently supported choices belong to Chase Ultimate Rewards; see [dated rule behavior](transfer-eligibility-plan.md).
 
 ### `GET /api/v1/loyalty-accounts/{id}`
 
@@ -297,7 +297,7 @@ One account (same shape as the list entries). `404` if the account does not exis
 
 ### `PATCH /api/v1/loyalty-accounts/{id}`
 
-Partial update; omitted fields are unchanged, `"credentialRef": null` clears the stored reference. Returns the updated account.
+Partial update; omitted fields are unchanged, `"credentialRef": null` clears the stored reference. `cardProductId` omission preserves the current selection; explicit null clears it to unknown. Returns the updated account.
 
 ```json
 { "membershipNumber": "MP999999", "credentialRef": null }

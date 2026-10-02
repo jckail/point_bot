@@ -20,6 +20,16 @@ flowchart LR
     R --> W[REST /api/v1/optimizer/plan<br/>MCP pointup_plan_redemption<br/>dashboard, plugins]
 ```
 
+Optional flight award search completes before portfolio and owner-visible bonus
+reads. Funding is then evaluated once with the fresh clock, balances and saved
+card selection, so a bonus that ended during the search cannot make a shortfall
+look fundable. A bonus that started during the search can be included by the new
+read. The bonus-list use case filters returned windows again after its repository
+await; plans filter once more at their evaluation time so activeBonusCount agrees
+with the applied windows. Existing inclusive start/end bonus boundaries remain.
+Search checkedAt and plan generatedAt describe separate observations; returned
+availability still needs provider confirmation.
+
 ## Model
 
 A plan books one **sweet spot** (a typical redemption at a program, such as
@@ -35,7 +45,14 @@ points can come from
 
 Transfers may be **split** across several currencies.
 
-Conversion is one function, `convertPoints(edge, sourcePoints, bonusPermille)`:
+Saved card selection passes into the shared dated eligibility resolver before
+using transfer edges. Known implemented card/date rules determine the ratio;
+unknown or unsupported cards on conditional routes produce eligibility warnings
+and no numeric transfer yield. No card is inferred from notes or membership data.
+See [transfer eligibility](transfer-eligibility-plan.md) for the implemented
+Chase→Hyatt rule and remaining card/product gaps.
+
+Conversion uses the resolved edge in `convertPoints(edge, sourcePoints, bonusPermille)`:
 `floor(floor(source * num / den) * permille / 1000)`. The optimizer calls it for
 every source, so a plan can never disagree with it. Bonuses are stored as
 integer permille (1300 = +30%).
@@ -89,14 +106,15 @@ Each plan carries `steps`, `sources` (points used per source program),
 - **Transfer bonuses are real data, empty by default.** Nothing is shown unless
   someone recorded it (`manual`, `scraped` or `user`). A bonus that is not
   verified caps the plan's confidence at medium and adds a caveat. Any
-  `portfolio:write` caller can report one (stored as `user`, unverified) and it
-  then affects every user's plans: this is a crowd-data trust trade-off, there
-  is no moderation workflow yet.
+  `portfolio:write` caller can report one (stored as `user`, unverified), but it
+  affects only that reporter's own plans until a trusted verifier marks it.
+  Manual/scraped and verified user entries remain shared reference data. The
+  public mutation cannot choose a trusted source or verification timestamp.
 - **Value is relative to the user's own valuations** (custom cents-per-point if
   set). "Net gain" means "better than what those points are worth to you".
 - Not modelled: taxes/fees, point expiry resets from transfers, transfer
-  delays, card-specific ratios beyond the notes on each edge, taxes on partner
-  awards, and multi-passenger awards. Transfers are irreversible; the plan
+  delays, remaining card/product rules outside the implemented dated resolver,
+  taxes on partner awards, and multi-passenger awards. Transfers are irreversible; the plan
   repeats this and the plugins instruct agents to relay it.
 
 ## Transfer bonuses

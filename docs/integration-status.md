@@ -41,8 +41,8 @@ external and production gates.
 ## Preserved source and capabilities
 
 The combined branch is `codex/pointup-integrate-20261001`, worktree
-`/home/jkail/projects/point_bot-integration`, stacked [PR #16](https://github.com/jckail/point_bot/pull/16)
-on [PR #14](https://github.com/jckail/point_bot/pull/14), originally refreshed from
+`/home/jkail/projects/point_bot-integration`. [PR #16](https://github.com/jckail/point_bot/pull/16)
+now targets `master` directly and includes [PR #14](https://github.com/jckail/point_bot/pull/14), refreshed from
 `e04725fd01df49ce02ac3e0b14f4da96640ded41`. [PR #15](https://github.com/jckail/point_bot/pull/15)
 preserves the native overhaul in `/home/jkail/projects/point_bot-release`;
 the original checkout remains intact. Preserve those histories and avoid publishing
@@ -103,6 +103,13 @@ Root's settled successor workspace suite passed 1,568 tests plus one paid live
 skip against retained managed-0021 PostgreSQL, with workspace lint/types and
 whitespace checks. Focused and fresh committed-source CI evidence is recorded on
 PR #16; earlier commit-specific evidence above remains scoped to those commits.
+
+The redemption follow-up performs optional award search before reading current
+portfolio/card context and owner-visible bonuses, then evaluates at a fresh clock.
+It removes expired-window funding and includes bonuses that started during search.
+The active-bonus read filters again after its repository wait. Focused gated tests
+and fresh committed-source CI evidence are recorded on PR #16; these source changes
+do not establish current provider award availability.
 
 ## Data integrity and migration lineage
 
