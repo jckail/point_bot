@@ -156,6 +156,11 @@ CSV responses set `Content-Disposition: attachment` and flatten one row per snap
 
 Rehydrate accounts and balances from a PointUp CSV export (the same shape as `GET /api/v1/export?format=csv`). Existing provider links are reused; missing programs are linked; rows with `points` + `capturedAt` become manual snapshots.
 
+Quoted fields may contain commas, doubled quotes and LF, CRLF or CR line breaks.
+Import treats those line breaks as field content rather than separate accounts
+or balance rows. Malformed quoting is rejected before any account or balance
+mutation. Export also quotes carriage returns so its output remains portable.
+
 ```json
 { "csv": "accountId,providerId,...\n..." }
 ```

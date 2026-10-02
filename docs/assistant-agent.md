@@ -59,6 +59,11 @@ Chat preserves `reply` and adds optional `actions` for proposals persisted durin
 
 ## Bounds and diagnostics
 
+The deadline helper observes already-started work even if cancellation occurs
+before the helper is entered. A late adapter rejection is handled without waiting
+for completion or exposing its private error. This does not cancel storage work
+that has already started or establish that a proposal was never persisted.
+
 The entire UTF-8 JSON chat body is limited to 32 KiB, including serialized history. Within that aggregate bound, limits are 4,000 message characters, 16 history entries, five proposal attempts per run, 64 KB of serialized tool output, 50 balance accounts, 30 goals, 10 advice entries per category and 1,200 model output tokens per request. `ASSISTANT_MAX_TURNS` defaults to 5 (range 1–12); `ASSISTANT_TIMEOUT_MS` defaults to 30,000 (range 1,000–120,000). Extension calls cap the configured deadline at 20 seconds to leave margin before Chrome's service-worker fetch response limit; a surface header can only shorten the deadline. A storage operation or provider request already in flight may outlive cancellation. Failures return a generic `ASSISTANT_UNAVAILABLE`; agents mode never silently switches providers or invents a successful result.
 
 Process-local admission allows ten requests per sliding minute and two concurrent requests per authenticated owner, with sixteen concurrent runs per web process. Cookie and token requests for the same owner share these bounds. Rejections return private HTTP 429 with `Retry-After` before loading portfolio services. Leases release on success, failure and cancellation. Replicas enforce separate limits; this is not a distributed or monetary quota.

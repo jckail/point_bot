@@ -550,7 +550,7 @@ export function toPortfolioExportCsv(
 }
 
 function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
+  if (/[",\r\n]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
   return value;
 }
 

@@ -170,8 +170,7 @@ export function parseImportedPoints(input: string): number | null {
 }
 
 function parseExportCsv(csv: string): CsvRow[] {
-  const lines = csv
-    .split(/\r?\n/)
+  const lines = parseCsvRecords(csv)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
@@ -206,11 +205,33 @@ function parseExportCsv(csv: string): CsvRow[] {
   return rows;
 }
 
-/** Minimal RFC-4180-ish CSV line parser (handles quoted fields). */
+/** Record separators are significant only outside quoted fields. */
+function parseCsvRecords(csv: string): string[] {
+  const records: string[] = [];
+  let start = 0;
+  let inQuotes = false;
+  for (let i = 0; i < csv.length; i += 1) {
+    const ch = csv[i]!;
+    if (ch === '"') {
+      if (inQuotes && csv[i + 1] === '"') i += 1;
+      else inQuotes = !inQuotes;
+    } else if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      records.push(csv.slice(start, i));
+      if (ch === "\r" && csv[i + 1] === "\n") i += 1;
+      start = i + 1;
+    }
+  }
+  if (inQuotes) throw new InvalidImportError("unterminated quoted field");
+  records.push(csv.slice(start));
+  return records;
+}
+
+/** Parse one logical CSV record, preserving quoted newlines and escaped quotes. */
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
   let inQuotes = false;
+  let closedQuote = false;
 
   for (let i = 0; i < line.length; i += 1) {
     const ch = line[i]!;
@@ -221,19 +242,28 @@ function parseCsvLine(line: string): string[] {
           i += 1;
         } else {
           inQuotes = false;
+          closedQuote = true;
         }
       } else {
         current += ch;
       }
     } else if (ch === '"') {
+      if (closedQuote || current.trim().length > 0) {
+        throw new InvalidImportError("invalid quote in field");
+      }
       inQuotes = true;
     } else if (ch === ",") {
       fields.push(current);
       current = "";
+      closedQuote = false;
     } else {
+      if (closedQuote && ch.trim().length > 0) {
+        throw new InvalidImportError("unexpected text after quoted field");
+      }
       current += ch;
     }
   }
+  if (inQuotes) throw new InvalidImportError("unterminated quoted field");
   fields.push(current);
   return fields;
 }
