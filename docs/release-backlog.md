@@ -92,7 +92,8 @@ and Drizzle metadata showed zero drift. The full workspace suite passed 708 test
 with one paid live evaluation skipped **before** the OAuth callback CSRF fix;
 53 focused callback/policy checks now pass, including 11 through the real shared
 HTTP/authentication boundary. Final full lint and workspace types also pass;
-final-source aggregate CI follows the source commit.
+exact runtime7c7cd11 then passed all six CI jobs36979098872 and CodeQL36979098961,
+including721 workspace tests,13 infrastructure tests, all builds and Docker smoke.
 These checks verify their source checkpoints and fixtures only.
 SIWC is account linking for a signed-in Clerk user, not independent sign-in.
 See [integration-status.md](integration-status.md) for the workflow run evidence.

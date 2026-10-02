@@ -195,11 +195,11 @@ TypeScript checks passed, and installed Drizzle metadata validation reported
 paid live evaluation skipped, **before the OAuth callback CSRF correction**.
 The callback fix then passed 53 focused checks, including 11 through the real
 shared HTTP/authentication boundary. Final full lint and all workspace types
-passed; final-source aggregate CI follows the source commit. These are
+passed. Final-source aggregate CI is recorded below. These are
 fixture and source checks; they do not establish staging/production journals,
 backup recoverability, hosted callback routing or live OIDC authorization.
-The root-owned PostgreSQL fixture will be stopped after root's final checks;
-no fixture cleanup is delegated to other agents.
+The root-owned PostgreSQL fixture is stopped with data retained after final
+checks; no unrelated processes, development servers or browser tabs were touched.
 
 ## Production verification gate and deployment state
 
@@ -223,3 +223,30 @@ public HTTPS canonical origin, Clerk session handling and SIWC callback/config
 wiring before enabling linking. Observation migration 0019 is a plan, not an
 applied migration. Original live SDK/exporter/Chrome/OAuth/provider and data-audit
 work remains in [release-backlog.md](release-backlog.md).
+
+## Verified identity and goal milestone
+
+Runtime `7c7cd118f0cb4d15f4892ec21c68c6b99a05296d` passed all six jobs in
+[CI 36979098872](https://github.com/jckail/point_bot/actions/runs/36979098872) and
+[CodeQL 36979098961](https://github.com/jckail/point_bot/actions/runs/36979098961).
+Fresh installs, lint, hygiene, workspace types, full managed migrations,
+**721 workspace tests** (one paid live evaluation skipped), all five application
+bundles, plugin/23-operation Action validation, HTTP MCP smoke, Docker direct
+and transaction-pooler smoke, default/MCP CDK synthesis, TLS guard and
+**13 infrastructure tests** passed. The application production audit reported
+zero vulnerabilities; existing development/infra advisories remain separate.
+
+This validates the callback correction and quarantine locking on the committed
+combined source. It does not prove live approved-client authorization, standalone
+ChatGPT sign-in, browser extension behavior or production database adoption.
+A fresh deployment access check still found no GitHub repository secrets and
+an expired local AWS session requiring `aws login`. No production deployment
+or branch merge occurred. Root-owned PostgreSQL data is retained in the stopped
+fixture. Shared Graphify refresh was requested for the whole corpus; PointUp
+code coverage remains absent, so current source remains authoritative.
+
+Next implement additive observation migration0019 with its authorization, replay
+and retention guarantees, using [observation-integration-plan.md](observation-integration-plan.md)
+and [observation-client-plan.md](observation-client-plan.md). Also complete the
+migration-before-host production rollout, numeric constraints, approved-client
+sign-in policy and live verification gates in [release-backlog.md](release-backlog.md).
