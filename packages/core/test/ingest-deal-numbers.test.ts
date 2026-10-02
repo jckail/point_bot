@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CheckAwardWatches } from "../src/application/loyalty/award-watches";
 import { createAwardWatch } from "../src/domain/loyalty/award-watch";
 import { InMemoryAwardWatchRepository } from "./fakes";
@@ -41,6 +41,73 @@ describe("scraped deal numeric tokens", () => {
     const result = await ingest(line);
     expect(result.deals).toHaveLength(1);
     expect(result.deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+  });
+});
+
+describe("scraped signed amounts", () => {
+  it.each(["-$300", "−$300", "- US$300", "− US $300", "-USD 300", "−USD$300", "USD -300", "USD −300", "USD$ -300", "US$ −300", "$ −300", "− $300 USD", "($300)", "(USD 300)"])("keeps signed or accounting cash unstructured in both layouts: %s", async cash => {
+    for (const line of [`Hyatt 10,000 points or ${cash}`, `Hyatt ${cash} or 10,000 points`]) {
+      expect((await ingest(line)).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+    }
+  });
+  it.each(["−10,000 points", "− 10,000 points", "- 10,000 points", "−12.5k miles"])("never extracts an unsigned fragment of signed points: %s", async points => {
+    for (const line of [`Hyatt ${points} or $300`, `Hyatt $300 or ${points}`]) {
+      expect((await ingest(line)).deals[0]).toMatchObject({ pointsCost: null, cashEquivalentCents: null });
+    }
+  });
+  it("preserves unsigned values with prose separators and independent valid lines", async () => {
+    expect((await ingest("Hyatt 10,000 points - equivalent to $300")).deals[0]).toMatchObject({ pointsCost: 10000, cashEquivalentCents: 30000 });
+    expect((await ingest("Hyatt $300 - equivalent to 10,000 points")).deals[0]).toMatchObject({ pointsCost: 10000, cashEquivalentCents: 30000 });
+    expect((await ingest("Hyatt 10,000 points or $300; unrelated adjustment -$25")).deals[0]).toMatchObject({ pointsCost: 10000, cashEquivalentCents: 30000 });
+    const result = await ingest("Hyatt 10,000 points or −US$500\nHyatt 20,000 points or USD 400");
+    expect(result.deals).toHaveLength(1);
+    expect(result.deals[0]).toMatchObject({ pointsCost: 20000, cashEquivalentCents: 40000 });
+  });
+  it("never publishes or raises a watch best from negative cash, while accepting a positive hit", async () => {
+    const repo = new InMemoryAwardWatchRepository();
+    const watch = createAwardWatch({ userId: asUserId("signed-cash"), url: "https://synthetic.example/deals", label: "Signed cash", minCentsPerPoint: 2.5 });
+    await repo.insert(watch);
+    let markdown = "Hyatt 10,000 points or -$500";
+    let now = new Date("2026-10-02T12:00:00Z");
+    const clock = { now: () => now };
+    const page = new IngestDealPage({ scrape: async url => ({ url, title: "Synthetic", markdown, fetchedAt: now }) }, clock);
+    const publish = vi.fn(async () => {});
+    const check = new CheckAwardWatches(repo, page, clock, { unitOfWork: { atomic: false, run: work => work() }, publisher: { publish } });
+    expect(await check.execute()).toEqual({ checked: 1, failed: 0, hits: [] });
+    expect(await repo.findById(watch.id)).toMatchObject({ bestSeenCentsPerPoint: null, lastNotifiedAt: null, lastCheckedAt: now });
+    expect(publish).not.toHaveBeenCalled();
+    markdown = "Hyatt USD 300 or 10,000 points";
+    now = new Date("2026-10-02T12:01:00Z");
+    expect((await check.execute()).hits).toHaveLength(1);
+    expect(publish).toHaveBeenCalledWith([expect.objectContaining({ type: "watch.triggered" })]);
+    const notifiedAt = now;
+    markdown = "Hyatt −US$500 or 10,000 points";
+    now = new Date("2026-10-02T12:02:00Z");
+    expect(await check.execute()).toEqual({ checked: 1, failed: 0, hits: [] });
+    expect(await repo.findById(watch.id)).toMatchObject({ bestSeenCentsPerPoint: 3, lastNotifiedAt: notifiedAt, lastCheckedAt: now });
+    expect(publish).toHaveBeenCalledOnce();
+  });
+});
+
+describe("scraped program identity", () => {
+  it.each(["American Express Membership Rewards", "American Express: Membership Rewards", "Amex Membership Rewards", "AMEX"])("keeps explicit card labels out of American Airlines: %s", async label => {
+    expect((await ingest(`${label}: 10,000 points or $300`)).deals[0]).toMatchObject({ providerId: "amex-membership-rewards", pointsCost: 10000, cashEquivalentCents: 30000 });
+  });
+  it.each(["American AAdvantage", "American Airlines"])("preserves American airline labels: %s", async label => {
+    expect((await ingest(`${label}: 10,000 miles or $300`)).deals[0]?.providerId).toBe("american");
+  });
+  it("does not infer Membership Rewards or airline miles from American Express cash back", async () => {
+    expect((await ingest("American Express cash back: 10,000 points or $300")).deals[0]?.providerId).toBeNull();
+  });
+  it.each([
+    ["Hilton: 80,000 points or $550; transfer Amex points to Hilton", "hilton"],
+    ["Hyatt: 10,000 points or $300. American Express Membership Rewards article.", "hyatt"],
+    ["American AAdvantage: 10,000 miles or $300; transfer Amex points", "american"],
+  ])("preserves an explicit redemption program despite card context: %s", async (line, providerId) => {
+    expect((await ingest(line)).deals[0]?.providerId).toBe(providerId);
+  });
+  it.each(["Amex cash back", "AMEX cashback", "Amex cash-back"])("does not manufacture a Membership Rewards target from %s", async label => {
+    expect((await ingest(`${label}: 10,000 points or $300`)).deals[0]?.providerId).toBeNull();
   });
 });
 

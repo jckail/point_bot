@@ -214,7 +214,13 @@ export class GetValueAdvice {
       [...CATALOG_DEALS, ...extraDeals],
       balances,
       editorial,
+      { now, bonuses, accountContexts: new Map(accounts.map(account => [account.provider.id, { cardProductId: account.cardProductId ?? null }])) },
     );
+    for (const warning of deals.flatMap(deal => deal.eligibilityWarnings ?? [])) {
+      if (!eligibilityWarnings.some(existing => existing.fromProviderId === warning.fromProviderId
+        && existing.toProviderId === warning.toProviderId && existing.code === warning.code
+        && existing.cardProductId === warning.cardProductId)) eligibilityWarnings.push(warning);
+    }
 
     return { transfers, deals, eligibilityWarnings };
   }

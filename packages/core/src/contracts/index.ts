@@ -822,14 +822,6 @@ export const dealCandidateDtoSchema = z.object({
   transferFromProviderId: z.string().nullable(),
 });
 
-export const rankedDealDtoSchema = z.object({
-  deal: dealCandidateDtoSchema,
-  realizedCentsPerPoint: z.number().nullable(),
-  affordable: z.boolean(),
-  affordabilityNote: z.string(),
-  score: z.number(),
-});
-
 export const transferEligibilityWarningDtoSchema = z.object({
   code: z.enum(["CARD_PRODUCT_REQUIRED", "CARD_PRODUCT_UNVERIFIED", "TRANSFER_RULE_NOT_EFFECTIVE"]),
   fromProviderId: z.string(), toProviderId: z.string(),
@@ -838,6 +830,30 @@ export const transferEligibilityWarningDtoSchema = z.object({
 export const transferEligibilityDtoSchema = z.object({
   ruleId: z.string(), sourceUrl: z.string().nullable(), effectiveFrom: z.string().nullable(),
   evaluatedAt: isoDateTimeSchema, cardProductId: cardProductIdSchema.nullable(),
+});
+
+export const dealTransferRequirementDtoSchema = z.object({
+  fromProviderId: z.string(), toProviderId: z.string(),
+  sourcePointsRequired: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  sourcePointsAvailable: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  destinationPointsNeeded: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  destinationPointsProduced: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  ratioFrom: z.number().positive(), ratioTo: z.number().positive(),
+  bonusPermille: z.number().int().positive(), bonusVerified: z.boolean().nullable(), bonusLabel: z.string().nullable(),
+  eligibility: transferEligibilityDtoSchema,
+  minimumSourcePoints: z.number().int().positive().nullable(), incrementSourcePoints: z.number().int().positive().nullable(),
+  limitsVerified: z.literal(false), caveats: z.array(z.string()),
+});
+export const rankedDealDtoSchema = z.object({
+  deal: dealCandidateDtoSchema,
+  realizedCentsPerPoint: z.number().nullable(),
+  affordable: z.boolean(),
+  affordabilityNote: z.string(),
+  score: z.number(),
+  transferRequirement: dealTransferRequirementDtoSchema.nullable().optional(),
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema).optional(),
+  transferUnavailableReason: z.enum(["CARD_PRODUCT_REQUIRED", "CARD_PRODUCT_UNVERIFIED", "TRANSFER_RULE_NOT_EFFECTIVE",
+    "NO_TRANSFER_ROUTE", "SOURCE_ACCOUNT_REQUIRED", "AMOUNT_OUT_OF_RANGE"]).nullable().optional(),
 });
 
 export const transferOptionDtoSchema = z.object({
@@ -905,6 +921,9 @@ export function toRankedDealDto(
     affordable: ranked.affordable,
     affordabilityNote: ranked.affordabilityNote,
     score: ranked.score,
+    transferRequirement: ranked.transferRequirement ? { ...ranked.transferRequirement, caveats: [...ranked.transferRequirement.caveats] } : null,
+    eligibilityWarnings: [...(ranked.eligibilityWarnings ?? [])],
+    transferUnavailableReason: ranked.transferUnavailableReason ?? null,
   };
 }
 

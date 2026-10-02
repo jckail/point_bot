@@ -92,7 +92,9 @@ function extractDealsFromMarkdown(
 
   // Capture whole numeric tokens before validating grammar; never numeric fragments.
   const numeric = String.raw`\d(?:[\d,]*\d)?(?:\.\d+)?`;
-  const pointsToken = String.raw`(?<![\w.,+-])(${numeric}\s*k?)\s*(?:points?|miles?|pts\.?)(?!\w)`;
+  // Capture signs as part of the selected token. Skipping a sign and retrying
+  // at the unsigned numeric/currency fragment would fabricate positive value.
+  const pointsToken = String.raw`(?<![\w.,+−-])(?<points>[-−+]?\s*${numeric}\s*k?)\s*(?:points?|miles?|pts\.?)(?!\w)`;
   const foreignPageCurrency = lines.some(line =>
     /\b(?:prices?|rates?|amounts?|costs?|fares?)\s+(?:(?:are|shown|displayed|quoted|listed|denominated)\s+)*(?:in|as)\b|\bcurrency\s*[:=]/i.test(line)
       && hasForeignCashCurrency(line));
@@ -101,7 +103,7 @@ function extractDealsFromMarkdown(
   const currencyToken = foreignPageCurrency
     ? String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$(?=\s*${numeric}\s*USD\b))`
     : String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$)`;
-  const cashToken = String.raw`${currencyToken}\s*(${numeric})(?!\w|[.,][\d.,])`;
+  const cashToken = String.raw`(?<![\w$+−-])(?<cash>\(?[-−+]?\s*${currencyToken}\s*[-−+]?\s*${numeric}\s*\)?)(?!\w|[.,][\d.,])`;
   const pointCash = new RegExp(`${pointsToken}.*?${cashToken}`, "i");
   const cashPoint = new RegExp(`${cashToken}.*?${pointsToken}`, "i");
 
@@ -115,13 +117,13 @@ function extractDealsFromMarkdown(
 
     const m1 = line.match(pointCash);
     if (m1) {
-      points = parsePoints(m1[1]!);
-      cashCents = parseScaledInteger(m1[2]!, 2);
+      points = parsePoints(m1.groups!.points!);
+      cashCents = parseCash(m1.groups!.cash!);
     } else {
       const m2 = line.match(cashPoint);
       if (m2) {
-        cashCents = parseScaledInteger(m2[1]!, 2);
-        points = parsePoints(m2[2]!);
+        cashCents = parseCash(m2.groups!.cash!);
+        points = parsePoints(m2.groups!.points!);
       }
     }
 
@@ -183,6 +185,14 @@ function parsePoints(raw: string): number | null {
     : parseScaledInteger(cleaned, 0);
 }
 
+function parseCash(raw: string): number | null {
+  // Accounting parentheses and either minus character cannot establish a
+  // nonnegative cash equivalent. Keep the existing unstructured fallback.
+  if (/[-−()]/u.test(raw)) return null;
+  const amount = raw.trim().replace(/^(?:USD\s*\$?|US\s*\$|\$)\s*/i, "");
+  return parseScaledInteger(amount, 2);
+}
+
 function detectProviderId(text: string): ProviderId | null {
   const lower = text.toLowerCase();
   const needles: Array<[string, ProviderId]> = [
@@ -198,6 +208,15 @@ function detectProviderId(text: string): ProviderId | null {
     ["bilt", "bilt"],
   ];
   for (const [needle, id] of needles) {
+    if (needle === "american" && !/\bamerican\b(?!\s+express\b)/.test(lower)) continue;
+    if (needle === "amex") {
+      // Keep redemption destinations ahead of card context. Recognize the full
+      // Membership Rewards name without treating American Express as an airline
+      // or treating an Amex cash-back label as a Membership Rewards currency.
+      if (/\bcash[\s-]*back\b/.test(lower)) continue;
+      if (/\b(?:amex|american\s+express[\s:®™–—-]+membership\s+rewards)\b/.test(lower)) return id;
+      continue;
+    }
     if (lower.includes(needle) && findProvider(id)) return id;
   }
   return null;

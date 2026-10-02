@@ -22,6 +22,13 @@ unverified bonuses are identified separately; saved points do not establish issu
 access, card-combining permission or live award inventory. This read tool executes
 no transfer or booking. Legacy chat does not expose this exact-route tool.
 
+Deal affordability also resolves the saved source card and visible bonuses. Its
+advice DTO includes the exact required source points, resolved ratio and rule
+metadata or a missing-route/eligibility reason. Direct destination points remain
+usable; partial destination points reduce the amount that would need transferring.
+Unknown issuer limits stay unknown. A sufficient saved balance is an estimate,
+not verified transfer eligibility, a live redemption price or available inventory.
+
 `POST /api/v1/assistant/actions` requires `portfolio:write` and accepts either `{kind:"manual_balance",accountId,points,capturedAt?}` or `{kind:"trip_goal",title,targetPoints,targetDate?,accountIds?,notes?}`. Server services establish ownership, program labels, status, expiry and identifiers. `GET /api/v1/assistant/actions` requires `portfolio:read` and lists at most 50 recent owned proposals. Missing and foreign proposals receive the same 404.
 
 `POST /api/v1/assistant/actions/:id/approve` and `/reject` require a browser cookie session and reject personal-token and Clerk-bearer credentials. Their request body is empty or `{}`; payload overrides are rejected. The existing CSRF boundary protects cookie mutations. These endpoints return `{action: AssistantActionDto}` and use private, uncached responses.

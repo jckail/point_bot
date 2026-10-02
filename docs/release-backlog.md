@@ -15,6 +15,13 @@ funding, inverse coverage and assistant grounding, and exposes selection/warning
 in the web UI. Verified affected Preferred/Ink/Corporate products use 4:3 from
 October 1, 2026; unknown and Reserve rules remain unavailable. Do not infer
 selection from notes or capture text. See [implementation and evidence](transfer-eligibility-plan.md).
+Deal affordability must use the same resolver and visible bonuses rather than
+compare source points directly to a destination cost or assume a route exists.
+The current follow-up returns exact source requirements, missing-route/card
+warnings and unverified-limit caveats through the advice contract. Scraped signed
+or accounting prices must remain unstructured and cannot raise award-watch values;
+provider-label heuristics must preserve explicit redemption destinations. Retain
+the new actual-use-case regressions and verify the follow-up's exact committed head.
 Apply additive migration 0021 before writers and retire old advice/worker versions
 that calculate an unconditional 1:1. Source/fixture verification does not prove
 production has adopted this fix. Verify remaining card variants and Amex checking-only
