@@ -329,3 +329,19 @@ SDK tracing/exporter/Chrome/provider checks, legacy numeric/data repair, backup/
 restore evidence and AWS migration-gated activation. Renewed AWS identity and
 repository deployment configuration remain prerequisites. Preserve PR14/15/16;
 iOS deferred. No production deployment or merge has occurred.
+
+Provider/worker source977a4d586c269e1a3f34b82a8c5a2fdae9355f45 is now
+verified by all6 CI36999223376 and CodeQL36999223346:1243workspace cases plus
+one paid live skip,30rollout,26infra, all bundles/migrations/attestation and Docker
+direct/PgBouncer smoke. Graph refresh164478nodes exit0; coverage gap unchanged.
+The next candidate fixes capture ambiguity and upstream/private persisted failure
+boundaries. Historical outbox raw text persists until a reviewed scrub, finite
+dead-letter retention/replay window and backup-retention policy are implemented.
+Do not infer these new fixes or actual deployment from runtime977a4d5 CI.
+
+The next candidate now implements safe new outbox diagnostics and redirect-safe
+webhooks, conservative capture extraction and private-safe bounded scraper/award/
+legacy-LLM transport. Root130 core +50 extension +11 actual PostgreSQL cases,
+workspace lint/types and infra types pass; fresh CI is required after commit.
+Historical errors/dead-letter retention are not changed. Owned database stopped,
+synthetic redirect servers closed; no browser/live-provider/AWS mutation.

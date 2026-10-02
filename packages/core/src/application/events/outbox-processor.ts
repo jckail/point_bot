@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { DomainEvent, EventType } from "../../domain/events";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
@@ -13,7 +15,7 @@ export type DispatchOutcome = (typeof DISPATCH_OUTCOMES)[number];
  * naturally repeatable).
  */
 export interface EventHandler {
-  /** Stable name, used in logs and failure messages. */
+  /** Stable internal handler name; never persisted as diagnostic text. */
   readonly name: string;
   handle(event: DomainEvent): Promise<void>;
 }
@@ -74,9 +76,9 @@ export function outboxBackoffMs(
   return Math.min(maxMs, baseMs * 2 ** Math.max(0, attempts - 1));
 }
 
-function errorMessage(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error);
-  return text.slice(0, 1000);
+/** Independent reference: thrown values are deliberately never inspected. */
+function failureReference(): string {
+  return `OUTBOX_DELIVERY_FAILED:${randomUUID()}`;
 }
 
 /**
@@ -148,16 +150,12 @@ export class OutboxProcessor {
     const { event, attempts } = item;
     try {
       for (const handler of this.registry.handlersFor(event.type)) {
-        try {
-          await handler.handle(event);
-        } catch (error) {
-          throw new Error(`${handler.name}: ${errorMessage(error)}`);
-        }
+        await handler.handle(event);
       }
       await this.store.markProcessed(event.id, this.clock.now());
       return "processed";
-    } catch (error) {
-      const message = errorMessage(error);
+    } catch {
+      const message = failureReference();
       const now = this.clock.now();
       if (attempts >= this.maxAttempts) {
         await this.store.deadLetter(event.id, now, message);

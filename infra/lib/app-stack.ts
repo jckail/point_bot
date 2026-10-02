@@ -126,6 +126,20 @@ export class AppStack extends cdk.Stack {
     //   -c enableFirecrawl=true  -c firecrawlBaseUrl=https://api.firecrawl.dev
     const ctx = (key: string): string | undefined =>
       (this.node.tryGetContext(key) as string | undefined) || undefined;
+    const upstreamUrl = (key: string, label: string): string | undefined => {
+      const value = ctx(key);
+      if (!value) return undefined;
+      let url: URL;
+      try { url = new URL(value); } catch { throw new Error(`${label} API URL is invalid.`); }
+      if (typeof value !== "string" || url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
+          /[\s\\]/.test(value) || value.includes("?") || value.includes("#")) {
+        throw new Error(`${label} API URL requires HTTPS without credentials, query or fragment.`);
+      }
+      return value;
+    };
+    const llmBaseUrl = upstreamUrl("llmBaseUrl", "LLM");
+    const firecrawlBaseUrl = upstreamUrl("firecrawlBaseUrl", "Firecrawl");
+    const aggregatorApiUrl = upstreamUrl("aggregatorApiUrl", "Aggregator");
     const placeholderSecret = (id: string, description: string) =>
       new secretsmanager.Secret(this, id, {
         description,
@@ -193,9 +207,9 @@ export class AppStack extends cdk.Stack {
           ? { LLM_PROVIDER: "openai" }
           : {}),
       ...(ctx("llmModel") ? { LLM_MODEL: ctx("llmModel")! } : {}),
-      ...(ctx("llmBaseUrl") ? { LLM_BASE_URL: ctx("llmBaseUrl")! } : {}),
-      ...(ctx("firecrawlBaseUrl")
-        ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+      ...(llmBaseUrl ? { LLM_BASE_URL: llmBaseUrl } : {}),
+      ...(firecrawlBaseUrl
+        ? { FIRECRAWL_BASE_URL: firecrawlBaseUrl }
         : {}),
     };
     const assistantSecrets: Record<string, ecs.Secret> = {
@@ -211,15 +225,6 @@ export class AppStack extends cdk.Stack {
     // a Secrets Manager placeholder gated by `-c enableAggregator=true`; the
     // base URL is plain config:
     //   -c enableAggregator=true -c aggregatorApiUrl=https://api.vendor.example
-    const aggregatorApiUrl = ctx("aggregatorApiUrl");
-    if (aggregatorApiUrl) {
-      let url: URL;
-      try { url = new URL(aggregatorApiUrl); } catch { throw new Error("Aggregator API URL is invalid."); }
-      if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
-          /[\s\\]/.test(aggregatorApiUrl) || aggregatorApiUrl.includes("?") || aggregatorApiUrl.includes("#")) {
-        throw new Error("Aggregator API URL requires HTTPS without credentials, query or fragment.");
-      }
-    }
     const aggregatorSecret = this.node.tryGetContext("enableAggregator")
       ? placeholderSecret(
           "AggregatorApiKey",
@@ -711,8 +716,8 @@ export class AppStack extends cdk.Stack {
           NODE_ENV: "production",
           MAILER: digestFromEmail ? "ses" : "console",
           ...(digestFromEmail ? { DIGEST_FROM_EMAIL: digestFromEmail } : {}),
-          ...(ctx("firecrawlBaseUrl")
-            ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+          ...(firecrawlBaseUrl
+            ? { FIRECRAWL_BASE_URL: firecrawlBaseUrl }
             : {}),
           ...chatWebhookEnv,
         },

@@ -217,3 +217,18 @@ default when Agents is disabled.
 it defaults off. SDK tracing excludes sensitive data and uses the private
 sanitizing exporter. Keep the existing OTel request correlation and JSON support
 references when choosing whether to enable this separate export path.
+
+## Worker and persisted failures
+
+Worker operational failures use fixed categories, bounded job names, validated
+public codes and generated support references. Exception text, event payloads,
+owner identifiers and webhook/provider bodies do not enter those diagnostics.
+Best-effort logging cannot change delivery, retry or terminal exit behavior.
+
+New outbox failures persist `OUTBOX_DELIVERY_FAILED:<generated UUID>` and pass
+the same sanitized string to the internal dead-letter hook. Retry timing, attempts
+and successful error clearing remain unchanged. Hooks still receive internal
+event context; that context must not be serialized into operational reporting.
+This does not scrub historical rows or shorten dead-letter/event retention. A
+reviewed historical scrub, finite replay window and backup-retention policy remain
+release backlog items. Never classify historical rows solely by diagnostic text.

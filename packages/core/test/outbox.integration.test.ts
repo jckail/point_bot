@@ -23,6 +23,8 @@ import { StubPageScraper } from "../src/infrastructure/scraper/firecrawl-page-sc
 import { NullCredentialVault } from "../src/infrastructure/vault/null-credential-vault";
 import { StaticFxRateSource } from "../src/infrastructure/fx/fx-rate-sources";
 
+import { SlackWebhookNotifier } from "../src/infrastructure/notify/webhook-notifiers";
+
 import { asAccountId, asUserId } from "./ids";
 import type { UserId } from "../src/domain/shared/ids";
 /**
@@ -118,34 +120,42 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     expect(row?.correlationId).toBe("req-42");
   });
 
-  it("retries with backoff, then dead-letters and keeps the error", async () => {
+  it("retries notifier failures and persists only safe references through dead-lettering", async () => {
     const userId = user("retry");
     const e = ev(userId);
     await publisher.publish([e]);
     let now = new Date();
     const seen: string[] = [];
+    const secret = "private-notification-and-webhook-sentinel";
+    let bodyReads = 0;
+    const notifier = new SlackWebhookNotifier(`https://hooks.slack/${secret}`, async () => ({
+      ok: false, status: 500, text: async () => { bodyReads += 1; return secret; },
+    }));
     const registry = new EventHandlerRegistry().on("*", {
       name: "always-fails",
       handle: async (event) => {
         if (event.userId === userId) {
           seen.push(event.id);
-          throw new Error("downstream 500");
+          await notifier.notify({ text: secret });
         }
       },
     });
     const dead: string[] = [];
+    const failures: string[] = [];
     const processor = new OutboxProcessor(store, registry, {
       clock: { now: () => now },
       maxAttempts: 3,
       baseBackoffMs: 1000,
       onDeadLetter: (info) => {
-        if (info.event.userId === userId) dead.push(info.event.id);
+        if (info.event.userId === userId) { dead.push(info.event.id); failures.push(info.error); }
       },
     });
 
     await processor.runOnce();
     let [row] = await rowsFor(userId);
-    expect(row).toMatchObject({ attempts: 1, lastError: "always-fails: downstream 500" });
+    expect(row).toMatchObject({ attempts: 1, lastError: expect.stringMatching(/^OUTBOX_DELIVERY_FAILED:[0-9a-f-]{36}$/) });
+    const retryFailure = row!.lastError;
+    expect(row!.lastError).not.toContain(secret);
     expect(row!.availableAt.getTime()).toBe(now.getTime() + 1000);
     expect(row!.processedAt).toBeNull();
 
@@ -158,9 +168,13 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     await processor.runOnce();
     expect(seen).toHaveLength(3);
     [row] = await rowsFor(userId);
-    expect(row).toMatchObject({ attempts: 3, lastError: "always-fails: downstream 500" });
+    expect(row).toMatchObject({ attempts: 3, lastError: expect.stringMatching(/^OUTBOX_DELIVERY_FAILED:[0-9a-f-]{36}$/) });
     expect(row!.deadLetteredAt).toBeInstanceOf(Date);
     expect(dead).toEqual([e.id]);
+    expect(failures).toEqual([row!.lastError]);
+    expect(row!.lastError).not.toBe(retryFailure);
+    expect(JSON.stringify([row!.lastError, failures])).not.toContain(secret);
+    expect(bodyReads).toBe(0);
 
     now = new Date(now.getTime() + 86_400_000);
     await processor.runOnce();

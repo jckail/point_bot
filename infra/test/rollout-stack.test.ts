@@ -19,6 +19,22 @@ test("rejects unsafe aggregator configuration before publishing task environment
       { env: { account: "111111111111", region: "us-east-1" } }), /Aggregator API URL/);
   }
 });
+test("rejects unsafe scraper and LLM configuration before publishing task environments", () => {
+  for (const key of ["firecrawlBaseUrl", "llmBaseUrl"]) {
+    for (const value of ["bad", "http://provider.test", "https://user:secret@provider.test", "https://provider.test?token=secret", "https://provider.test?", "https://provider.test#", "https://provider.test\\path"]) {
+      assert.throws(() => new AppStack(new App({ context: { ...context, [key]: value } }), "InvalidUpstream",
+        { env: { account: "111111111111", region: "us-east-1" } }), /(?:Firecrawl|LLM) API URL/);
+    }
+  }
+});
+test("preserves encrypted scraper and LLM endpoint paths in task environments", () => {
+  const stack = Template.fromStack(new AppStack(new App({ context: { ...context,
+    llmBaseUrl: "https://llm.test/prefix/v1", firecrawlBaseUrl: "https://scraper.test/prefix" } }), "ConfiguredUpstreams",
+    { env: { account: "111111111111", region: "us-east-1" } }));
+  const containers = Object.values(stack.findResources("AWS::ECS::TaskDefinition")).flatMap(task => task.Properties.ContainerDefinitions);
+  assert.ok(containers.some(container => container.Environment?.some((entry: { Name: string; Value: string }) => entry.Name === "LLM_BASE_URL" && entry.Value === "https://llm.test/prefix/v1")));
+  assert.ok(containers.some(container => container.Environment?.some((entry: { Name: string; Value: string }) => entry.Name === "FIRECRAWL_BASE_URL" && entry.Value === "https://scraper.test/prefix")));
+});
 test("inactive first creation preserves all resource IDs while preventing any workload activation", () => {
   const active = template(false);
   const inactive = template(true);

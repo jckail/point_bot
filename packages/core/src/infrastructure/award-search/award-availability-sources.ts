@@ -1,3 +1,5 @@
+import { upstreamBaseUrl, boundedUpstreamJson, discardUpstreamBody } from "../http/upstream-transport";
+
 import { z } from "zod";
 
 import type { AwardAvailabilitySource } from "../../application/ports";
@@ -36,15 +38,15 @@ export interface HttpAwardAvailabilityOptions {
 const responseSchema = z.object({
   options: z.array(
     z.object({
-      program: z.string(),
-      carrier: z.string().nullish(),
+      program: z.string().max(200),
+      carrier: z.string().max(200).nullish(),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       cabin: z.enum(AWARD_CABINS),
       points: z.number().int().positive(),
       taxes_cents: z.number().int().nonnegative().nullish(),
       seats: z.number().int().nonnegative().nullish(),
     }),
-  ),
+  ).max(1000),
 });
 
 /**
@@ -58,8 +60,10 @@ const responseSchema = z.object({
 export class HttpAwardAvailabilitySource implements AwardAvailabilitySource {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly baseUrl: string;
 
   constructor(private readonly options: HttpAwardAvailabilityOptions) {
+    this.baseUrl = upstreamBaseUrl(options.baseUrl);
     this.fetchImpl = options.fetch ?? fetch;
     this.now = options.now ?? (() => new Date());
   }
@@ -72,7 +76,7 @@ export class HttpAwardAvailabilitySource implements AwardAvailabilitySource {
     const normalized = normalizeAwardQuery(raw);
     if (!normalized.ok) return this.fail(normalized.reason);
     const q = normalized.query;
-    const url = new URL("/awards", this.options.baseUrl);
+    const url = new URL("/awards", this.baseUrl);
     url.searchParams.set("origin", q.origin);
     url.searchParams.set("destination", q.destination);
     url.searchParams.set("from", q.dateFrom);
@@ -87,15 +91,15 @@ export class HttpAwardAvailabilitySource implements AwardAvailabilitySource {
           accept: "application/json",
         },
         signal: AbortSignal.timeout(this.options.timeoutMs ?? 8_000),
+        redirect: "error",
       });
       if (!response.ok) {
+        await discardUpstreamBody(response);
         return this.fail(`Award search backend returned HTTP ${response.status}`);
       }
-      body = await response.json();
-    } catch (error) {
-      return this.fail(
-        `Award search request failed: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
+      body = await boundedUpstreamJson(response, 256 * 1024);
+    } catch {
+      return this.fail("Award search request failed. Retry later; availability is not verified.");
     }
 
     const parsed = responseSchema.safeParse(body);

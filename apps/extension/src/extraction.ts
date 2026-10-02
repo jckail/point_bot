@@ -4,15 +4,15 @@
  * out of it — no DOM, no chrome APIs — so it can be unit-tested exhaustively.
  *
  * These are best-effort heuristics keyed on each program's balance wording;
- * they're intentionally conservative (a keyword must be present) to avoid
- * grabbing an unrelated number. Tune the patterns per provider over time.
+ * they require balance context or an isolated unit value and refuse conflicting
+ * readings or offers. Tune the patterns per provider over time.
  */
 
 export interface ProviderPageRule {
   readonly providerId: string;
   /** Hostname substrings that identify this provider's site. */
   readonly hosts: readonly string[];
-  /** Ordered regexes; first one whose capture group holds a number wins. */
+  /** Numeric unit patterns; conflicting readings are refused. */
   readonly patterns: readonly RegExp[];
 }
 
@@ -72,8 +72,8 @@ export function detectProvider(hostname: string): ProviderPageRule | null {
 
 /** Parse "1,234,567" → 1234567; returns null for non-numbers. */
 export function parsePoints(raw: string): number | null {
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(raw)) return null;
   const digits = raw.replace(/,/g, "");
-  if (!/^\d+$/.test(digits)) return null;
   const value = Number(digits);
   return Number.isSafeInteger(value) ? value : null;
 }
@@ -82,12 +82,30 @@ export function extractPointsWithRule(
   rule: ProviderPageRule,
   text: string,
 ): number | null {
+  const candidates = new Set<number>();
+  let hasBalanceContext = false;
+  let hasOfferContext = false;
   for (const pattern of rule.patterns) {
-    const match = pattern.exec(text);
-    const points = match?.[1] ? parsePoints(match[1]) : null;
-    if (points !== null) return points;
+    // Examine every reading, including later conflicting offers or balances.
+    const all = new RegExp(pattern.source, "gi");
+    for (const match of text.matchAll(all)) {
+      const index = match.index ?? 0;
+      const before = text.slice(Math.max(0, index - 120), index);
+      const after = text.slice(index + match[0].length, index + match[0].length + 60);
+      // A suffix of a decimal, negative, exponent or space-grouped value is
+      // not a whole balance, even when the suffix itself is a safe integer.
+      if (/[\p{L}\p{N}.,_+\-−]$/u.test(before) || /(?:\d|[+\-−])\s+$/.test(before)) continue;
+      const points = match[1] ? parsePoints(match[1]) : null;
+      if (points === null) continue;
+      candidates.add(points);
+      hasBalanceContext ||= text.trim() === match[0].trim()
+        || /\b(?:balance|(?:available|current|total)(?:\s+(?:points|miles))?|you\s+have|your\s+(?:bonvoy\s+)?points)\s*[:–-]?\s*$/i.test(before)
+        || /^\s*(?:available|remaining|balance)\b/i.test(after);
+      hasOfferContext ||= /\b(?:earn|redeem|bonus|welcome\s+offer|up\s+to|starting\s+at|from|spend|win)\b[^\n.!?]{0,32}$/i.test(before)
+        || /^\s*(?:bonus|per\s+(?:dollar|night|stay|flight|purchase))\b/i.test(after);
+    }
   }
-  return null;
+  return candidates.size === 1 && hasBalanceContext && !hasOfferContext ? [...candidates][0]! : null;
 }
 
 export interface ExtractedBalance {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createLogHandler,
@@ -19,6 +19,8 @@ import {
   createDomainEvent,
   type DomainEvent,
 } from "../src/domain/events";
+
+import { SlackWebhookNotifier } from "../src/infrastructure/notify/webhook-notifiers";
 
 import { asAccountId, asEventId, asObservationId, asUserId } from "./ids";
 /** Single-process fake with the same claim/lease semantics as Postgres. */
@@ -66,6 +68,7 @@ class InMemoryOutboxStore implements OutboxStore {
   }
   async markProcessed(id: string, now: Date) {
     this.rows.get(id)!.processedAt ??= now;
+    this.rows.get(id)!.lastError = null;
   }
   async scheduleRetry(id: string, retryAt: Date, error: string) {
     const row = this.rows.get(id)!;
@@ -151,7 +154,8 @@ describe("OutboxProcessor", () => {
 
     expect(await processor.runOnce()).toMatchObject({ retried: 1 });
     const row = store.rows.get(e.id)!;
-    expect(row.lastError).toBe("flaky: boom");
+    expect(row.lastError).toMatch(/^OUTBOX_DELIVERY_FAILED:[0-9a-f-]{36}$/);
+    const firstFailure = row.lastError;
     expect(row.availableAt.getTime() - t.getTime()).toBe(1000);
 
     // Not claimable before the backoff elapses.
@@ -166,7 +170,8 @@ describe("OutboxProcessor", () => {
     expect(row.deadAt).not.toBeNull();
     expect(row.attempts).toBe(3);
     expect(calls).toBe(3);
-    expect(dead).toEqual([{ event: e, attempts: 3, error: "flaky: boom" }]);
+    expect(dead).toEqual([{ event: e, attempts: 3, error: row.lastError }]);
+    expect(row.lastError).not.toBe(firstFailure);
 
     t = new Date(t.getTime() + 10 * 3_600_000);
     expect((await processor.runOnce()).claimed).toBe(0);
@@ -189,6 +194,63 @@ describe("OutboxProcessor", () => {
     fail = false;
     t = new Date(t.getTime() + 100);
     expect(await processor.runOnce()).toMatchObject({ processed: 1 });
+    expect(store.rows.get(e.id)!.lastError).toBeNull();
+    expect(store.rows.get(e.id)!.attempts).toBe(2);
+  });
+
+  it("keeps webhook secrets and upstream bodies out of persisted failures and hooks", async () => {
+    t = new Date("2026-07-01T12:00:00Z");
+    const secret = "private-webhook-token-and-notification";
+    const readBody = vi.fn(async () => secret);
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 500, text: readBody }));
+    const notifier = new SlackWebhookNotifier(`https://hooks.slack/${secret}`, fetchImpl);
+    const registry = new EventHandlerRegistry().on("*", {
+      name: secret,
+      handle: async () => notifier.notify({ text: secret }),
+    });
+    const store = new InMemoryOutboxStore();
+    const e = event();
+    store.add(e);
+    const dead: DeadLetterInfo[] = [];
+    const processor = new OutboxProcessor(store, registry, {
+      clock, maxAttempts: 2, baseBackoffMs: 100, onDeadLetter: info => dead.push(info),
+    });
+    expect(await processor.runOnce()).toMatchObject({ retried: 1 });
+    const retryFailure = store.rows.get(e.id)!.lastError;
+    t = new Date(t.getTime() + 100);
+    expect(await processor.runOnce()).toMatchObject({ deadLettered: 1 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(readBody).not.toHaveBeenCalled();
+    expect(dead).toHaveLength(1);
+    expect(dead[0]).toMatchObject({ event: e, attempts: 2 });
+    expect(JSON.stringify([retryFailure, store.rows.get(e.id)!.lastError, dead])).not.toContain(secret);
+    expect(dead[0]!.error).not.toBe(retryFailure);
+  });
+
+  it.each(["message", "string", "proxy"])("retries hostile %s exceptions without inspecting them", async kind => {
+    t = new Date("2026-07-01T12:00:00Z");
+    const inspect = vi.fn(() => { throw new Error("private hostile content"); });
+    const hostile = kind === "message"
+      ? Object.defineProperty(new Error(), "message", { get: inspect })
+      : kind === "string" ? { toString: inspect }
+      : new Proxy({}, { get: inspect, getOwnPropertyDescriptor: inspect, getPrototypeOf: inspect });
+    const store = new InMemoryOutboxStore();
+    const e = event();
+    store.add(e);
+    const dead: DeadLetterInfo[] = [];
+    const registry = new EventHandlerRegistry().on("*", {
+      name: "hostile", handle: async () => { throw hostile; },
+    });
+    const processor = new OutboxProcessor(store, registry, {
+      clock, maxAttempts: 2, baseBackoffMs: 100, onDeadLetter: info => dead.push(info),
+    });
+    expect(await processor.runOnce()).toMatchObject({ retried: 1 });
+    t = new Date(t.getTime() + 100);
+    expect(await processor.runOnce()).toMatchObject({ deadLettered: 1 });
+    expect(inspect).not.toHaveBeenCalled();
+    expect(dead).toHaveLength(1);
+    expect(store.rows.get(e.id)!.attempts).toBe(2);
+    expect(dead[0]!.error).toMatch(/^OUTBOX_DELIVERY_FAILED:[0-9a-f-]{36}$/);
   });
 
   it("dead-letters rows whose last attempt crashed without an outcome", async () => {

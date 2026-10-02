@@ -55,10 +55,8 @@ export class IngestDealPage {
     let page;
     try {
       page = await this.scraper.scrape(url);
-    } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : "unknown scrape error";
-      throw new ScrapeFailedError(reason);
+    } catch {
+      throw new ScrapeFailedError("Could not load this page. Retry later.");
     }
 
     const deals = extractDealsFromMarkdown(page.markdown, page.url, {

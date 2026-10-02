@@ -111,15 +111,15 @@ To support another server-side vault (e.g. HashiCorp Vault, AWS Secrets Manager 
 
 ### 2. Device-bound vaults (Apple Keychain, Chrome password manager)
 
-Apple Keychain and Chrome's password manager are intentionally **not readable by any server** — that is their security model. PointUp supports them through **transient credentials**: the surface resolves the credential locally and submits it with the sync request for one-time use.
+The API supports **transient credentials** supplied by an authorized client for one-time sync. This API capability does not establish a device vault integration. The current Chrome extension captures visible loyalty balances after consent; it does not collect provider passwords or read the browser password manager.
 
 ```
 POST /api/v1/loyalty-accounts/{id}/sync
 { "transientCredential": { "username": "...", "secret": "..." } }
 ```
 
-- **iOS/macOS app**: store the loyalty-program login in Apple Keychain (Keychain Services / `expo-secure-store`), read it at sync time, send it as `transientCredential`.
-- **Chrome extension**: capture credentials with user consent (content script on the provider's login page, or the extension's own storage), then submit the same way.
+- **iOS/macOS app**: deferred. A future device vault integration needs its own credential lifecycle and client verification.
+- **Chrome extension**: consented balance extraction and reviewed write-back are implemented. Device vault access and transient-credential submission are not implemented.
 
 `SyncLoyaltyAccount` prefers a transient credential over a stored `credentialRef`, and never persists it. See `packages/core/src/application/loyalty/sync-loyalty-account.ts`.
 
@@ -187,3 +187,26 @@ The redemption optimizer attaches real award space to flight plans only through 
 | `StubAwardAvailabilitySource` | Otherwise - returns `status: "not_configured"` and no options |
 
 HTTP contract (our own; put a gateway in front of your data vendor): `GET {AWARD_SEARCH_API_URL}/awards?origin=&destination=&from=&to=&cabin=` with `Authorization: Bearer <key>`, returning `{ "options": [{ "program", "carrier?", "date", "cabin", "points", "taxes_cents?", "seats?" }] }`. Failures never throw; they surface as `status: "error"`. See [optimizer.md](optimizer.md).
+
+## Upstream transport and capture boundaries
+
+Firecrawl, the legacy OpenAI-compatible assistant and HTTP award search require
+HTTPS upstreams, with HTTP allowed only on loopback for explicit local fixtures.
+Configured base URLs cannot contain userinfo, query, fragment, whitespace or
+backslashes. Requests refuse redirects; provider error bodies and original
+exceptions are not copied into public guidance. Responses are bounded before
+parsing (1MiB scraper,256KiB assistant/award); unavailable results do not establish
+verified award availability. Production CDK also validates scraper/LLM URLs.
+
+Slack/Discord webhook path/query tokens remain supported with HTTPS or explicit
+loopback HTTP. Redirects are disabled, response bodies are discarded, and failure
+diagnostics omit token-bearing URLs and notification content.
+
+The Chrome extractor requires balance context or an isolated unit reading, strict
+integer grouping and a unique value. It refuses conflicting/promotional readings
+and partial decimal, negative or exponent suffixes. This is conservative synthetic
+fixture coverage, not live provider-page verification. Seven airline/hotel rules
+remain; Chase, Amex, Capital One and Bilt have unverified core playbooks but no
+extension extraction rules, manifest matches or card fixtures. Expand these only
+with program-specific balance labels, approved hosts, negative offer fixtures and
+separate live consented validation.

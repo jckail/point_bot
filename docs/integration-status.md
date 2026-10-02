@@ -564,3 +564,43 @@ verify this candidate; the runtime05 evidence does not cover these new changes.
 AWS login renewal remains pending; no production mutation, browser tab or server
 was created. Agent Hub still refuses the unconfigured project memory scope;
 these curated repository documents preserve continuity. Original goal active.
+
+## Verified provider/worker runtime977a4d5
+
+Exact source977a4d586c269e1a3f34b82a8c5a2fdae9355f45 passes all six
+[CI36999223376](https://github.com/jckail/point_bot/actions/runs/36999223376) jobs
+and [CodeQL36999223346](https://github.com/jckail/point_bot/actions/runs/36999223346).
+CI confirms1243 workspace tests plus one paid live skip,30 rollout helper and26
+infrastructure cases, all bundles, managed migration20, PostgreSQL attestation,
+contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root workspace lint/types
+and infrastructure types pass. Final shared Graphify refresh completed164478
+nodes with exit0; PointUp corpus coverage remains absent. Logs are retained in
+/tmp/pointup-provider-final-{ci,types,lint,worker,graph}.log.
+
+Next owned candidate addresses conservative extension extraction, upstream
+scraper/award/legacy-LLM privacy and redirect boundaries, and safe new outbox
+failure persistence. Its checks must be verified separately. Historical outbox
+error scrubbing, finite dead-letter retention and backup policy remain follow-ups.
+No new browser tab, live upstream request, production deployment or merge. AWS
+renewal remains pending. The original full goal remains active.
+
+## Upstream, capture and persisted-error candidate
+
+Implemented conservative extension numeric/context extraction, shared bounded
+HTTPS/loopback upstream transport for scraper/award/legacy LLM, fixed public
+IngestDealPage failures for arbitrary scraper implementations, redirect-safe
+webhooks and generated-reference-only new outbox failure persistence. Matching
+production CDK guards reject unsafe scraper/LLM URLs while retaining valid paths.
+
+Root verification:130 focused core cases,50 extension extraction/record/state
+cases and11 actual migrated PostgreSQL outbox cases, including private notifier
+text across retry/dead-letter persistence; workspace lint/types, infrastructure
+types and whitespace checks pass. Synthetic redirect servers are closed; the
+owned PostgreSQL fixture is stopped with data retained. Fresh committed-head CI
+must cover this candidate. Last runtime977a4d5 proof remains separate.
+
+Historical outbox error scrubbing and finite dead-letter/replay/backup retention
+remain unimplemented. Bank-program capture, live Chrome/provider/model/exporter
+proof, genuine standalone sign-in, eligible plan usage, public OAuth MCP, legacy
+data recovery and actual AWS activation remain original-scope next work. AWS
+renewal is still pending; no live upstream, browser tab, merge or deploy occurred.

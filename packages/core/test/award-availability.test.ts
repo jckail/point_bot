@@ -80,7 +80,8 @@ describe("HttpAwardAvailabilitySource", () => {
     }) as unknown as typeof fetch;
     const result = await new HttpAwardAvailabilitySource({ baseUrl: "https://a.example", apiKey: "sekret", fetch: impl, now: () => now }).searchAwards(query);
     expect(result.status).toBe("error");
-    expect(result.message).toContain("ECONNRESET");
+    expect(result.message).not.toContain("ECONNRESET");
+    expect(result.message).toContain("Retry later");
     expect(JSON.stringify(result)).not.toContain("sekret");
   });
 
