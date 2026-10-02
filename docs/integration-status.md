@@ -285,8 +285,9 @@ TypeScript checks passed on the current source.
 The first gated workspace run found one documentation-contract failure: the
 replay-conflict 409 row was missing from `docs/api.md`. Root corrected the row,
 seven focused error-code checks passed, and the subsequent gated full workspace
-run passed **834 tests**, with one paid live evaluation skipped. Fresh aggregate
-CI after commit remains pending. The earlier verified identity/goal milestone
+run passed **834 tests**, with one paid live evaluation skipped. Exact runtime `d9ffc381169c4287458d402fdf43c576e4956617` now passes all six jobs in
+[CI 36983533954](https://github.com/jckail/point_bot/actions/runs/36983533954) and
+[CodeQL 36983533965](https://github.com/jckail/point_bot/actions/runs/36983533965). The earlier verified identity/goal milestone
 above remains valid for its own committed source. The whole shared Graphify corpus
 refresh completed (164,478 nodes); PointUp coverage remains absent, so live source
 remains authoritative. The root-owned PostgreSQL fixture is stopped with data
@@ -302,3 +303,13 @@ formed a type import cycle. Shared RecordResult now lives in a leaf module,
 preserving existing re-exports without disabling the hygiene rule. Eighteen
 focused capture tests, extension types and changed-file lint pass; fresh
 aggregate CI follows the fix commit.
+
+## Next bounded work, underway
+
+Numeric domain/adapters and additive 0020 adoption, backfill metadata preservation,
+and the travel frontend port are assigned to five agents with exclusive file ownership.
+Root retains aggregate verification, PostgreSQL and release operations. Plans:
+[numeric integrity](numeric-integrity-plan.md), [frontend integration](frontend-integration-plan.md),
+[production rollout](production-rollout-plan.md). These plans are not completed runtime claims.
+Migration-first deployment, real standalone ChatGPT sign-in, live assistant/exporter and
+extension checks, remaining arithmetic limits and access-screen visual integration remain open.

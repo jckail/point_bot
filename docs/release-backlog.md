@@ -110,7 +110,7 @@ races, three retained integration). Nine focused sync/host checks and full root
 lint/all workspace types passed. The initial gated workspace run found a missing
 replay 409 documentation row; root corrected it and seven focused error-code tests
 passed. The subsequent full gated workspace suite passed **834 tests**, with one
-paid live evaluation skipped. Fresh aggregate CI after commit remains pending;
+paid live evaluation skipped. Exact runtime `d9ffc38` passes all six CI jobs36983533954 and CodeQL36983533965;
 these source/fixture checks are not a production deployment claim. The earlier
 verified identity milestone above is preserved.
 
@@ -132,3 +132,13 @@ Agent Hub cannot map these worktrees to a memory scope, so curated repository
 notes carry continuity. Shared Graphify currently lacks PointUp code coverage;
 query it first and inspect current source. The whole-corpus refresh completed
 (164,478 nodes), with the PointUp coverage gap still present.
+
+## Next bounded work, underway
+
+Numeric domain/adapters and additive 0020 adoption, backfill metadata preservation,
+and the travel frontend port are assigned to five agents with exclusive file ownership.
+Root retains aggregate verification, PostgreSQL and release operations. Plans:
+[numeric integrity](numeric-integrity-plan.md), [frontend integration](frontend-integration-plan.md),
+[production rollout](production-rollout-plan.md). These plans are not completed runtime claims.
+Migration-first deployment, real standalone ChatGPT sign-in, live assistant/exporter and
+extension checks, remaining arithmetic limits and access-screen visual integration remain open.
