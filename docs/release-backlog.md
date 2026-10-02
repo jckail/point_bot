@@ -7,7 +7,21 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
+The latest merged proposal-transition release is [PR #37](https://github.com/jckail/point_bot/pull/37)
+at master `26643eccf2087f19df36e3299ed577627387263b` (source
+`b65afd58c8f8862198e4fd57e9c96e8c7683c097`, tree
+`bb774ef7501810d354feca0c733d8a32f427d44f`). All six candidate verification jobs
+in [CI 37042066067](https://github.com/jckail/point_bot/actions/runs/37042066067),
+[CodeQL 37042066082](https://github.com/jckail/point_bot/actions/runs/37042066082)
+and Bugbot passed. All six merged-master verification jobs in
+[Deploy 37042811100](https://github.com/jckail/point_bot/actions/runs/37042811100)
+and [CodeQL 37042810552](https://github.com/jckail/point_bot/actions/runs/37042810552)
+passed with 1,739 workspace tests and one paid live skip, including 17 actual
+PostgreSQL assistant-action cases. The local PostgreSQL check did not execute:
+the shared heavy-check gate returned exit 75. Database evidence comes from CI.
+AWS deployment remained skipped for missing deployment-role configuration.
+
+The preceding observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
 at `dd6a9701b55df0ddcdfe3ab5bf6857c360153cf9` (source
 `b97413645630a6205d05781c2cf28e71137d2486`). All six merged-source verification
 jobs in [Deploy 37038650269](https://github.com/jckail/point_bot/actions/runs/37038650269)
@@ -82,6 +96,13 @@ both new patterns and fetched a real no-CORS-header fixture over all three hosts
 see [bounded probe evidence](chrome-extension-acceptance.md#native-loopback-permission-probe).
 Actual PointUp endpoint authentication and native candidate application installation
 remain open.
+
+The current owner-change UI follow-up keys both `/dashboard/agents` management
+and proposal-review panels by the authoritative owner, remounting on owner change
+and preserving local state for same-owner refresh. Source review and focused
+lint/types passed; controlled native fixture execution was blocked by the shared
+verification queue (exit 75), without an unchanged retry. Native lifecycle and
+live Clerk owner switching remain acceptance gates.
 
 ## Immediate release gates
 
