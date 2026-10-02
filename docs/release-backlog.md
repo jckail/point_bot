@@ -13,7 +13,8 @@ See [integration-status.md](integration-status.md) for verified evidence and
   establish a recoverable backup and compatible adoption plan before applying
   this lineage. The integration history is preserved PR #14 migrations
   0000–0015, proposal 0016, SIWC storage/adoption 0017 and tenant-qualified
-  goal membership 0018. Observation 0019 remains proposed. Neither source
+  goal membership 0018 and observation provenance/replay 0019. Migration 0019
+  passed in isolated managed fixtures; production adoption remains unverified. Neither source
   branch nor fixture proves the deployed schema. Apply managed migrations
   before activating hosts that require their tables; the current workflow
   still deploys CDK hosts before its ECS migration step, so ordering remains
@@ -28,7 +29,8 @@ See [integration-status.md](integration-status.md) for verified evidence and
   separate opt-ins. Prove inference and exporter/dashboard delivery with
   controlled fixtures before claiming live behavior.
 - Complete final review fixes and their focused regressions, then await the
-  full suite and aggregate CI for the new SIWC/goal source. Workflow commit `350ccc9`
+  fresh aggregate CI for the new observation source. The earlier SIWC/goal
+  committed milestone already passed its complete gate. Workflow commit `350ccc9`
   already closes the earlier verifier gap by reusing the complete six-job
   gate: [CI 36976573470](https://github.com/jckail/point_bot/actions/runs/36976573470)
   and [verification-only Deploy 36976965575](https://github.com/jckail/point_bot/actions/runs/36976965575)
@@ -53,12 +55,13 @@ See [integration-status.md](integration-status.md) for verified evidence and
   is implemented and six real PostgreSQL goal cases pass, including concurrent
   membership-write blocking after the lock correction; deployment adoption
   remains unverified.
-- Implement [observation-integration-plan.md](observation-integration-plan.md)
-  as additive migration 0019 and tightly scoped source changes. Retain existing
-  observation IDs/outcomes, provider consent, auto-link scopes, `agent` balance
-  source, outbox and retention behavior. Fix authorization/review checks at the
-  write boundary, stable replay/provenance, and review cache invalidation;
-  do not fabricate historical token/consent/snapshot provenance.
+- Complete fresh aggregate CI and production adoption for the implemented
+  [observation migration/protocol](observation-integration-plan.md) and
+  [client recovery behavior](observation-client-plan.md). Current credential/grant
+  locks, stable replay, exact snapshot witnesses and cache invalidation are in
+  source, preserving IDs/outcomes, auto-link scopes, `agent` balance source,
+  outbox and retention. Inspect retained legacy owner/provider mismatches before
+  separately validating the NOT VALID FK; historical witnesses remain unknown.
 - Add staged numeric constraints and complete remaining atomicity/RLS review;
   preserve account tags, the agent balance source, outbox and retention behavior.
 - Verify the actual dashboard/chat/review UI and unpacked Chrome extension with
@@ -98,14 +101,34 @@ These checks verify their source checkpoints and fixtures only.
 SIWC is account linking for a signed-in Clerk user, not independent sign-in.
 See [integration-status.md](integration-status.md) for the workflow run evidence.
 
+## Current observation checkpoint
+
+Migration 0019 and protected submission/review transactions are implemented;
+managed migration through 0019 passed. Root's actual PostgreSQL checks passed
+**44 cases** (18 migration/adoption, 23 production observation including five new
+races, three retained integration). Nine focused sync/host checks and full root
+lint/all workspace types passed. The initial gated workspace run found a missing
+replay 409 documentation row; root corrected it and seven focused error-code tests
+passed. The subsequent full gated workspace suite passed **834 tests**, with one
+paid live evaluation skipped. Fresh aggregate CI after commit remains pending;
+these source/fixture checks are not a production deployment claim. The earlier
+verified identity milestone above is preserved.
+
+Current same-owner replay revalidates live credential/consent and preserves original
+witnesses. Reviews use exact known snapshot baselines, retain legacy SQL NULL points
+fallback and roll back expiry/outbox failures atomically. Extension frozen requests,
+25-second uncertainty recovery and bounded tombstones are source-tested; live Chrome
+lifecycle/provider behavior remains a separate gate. The owned-account FK remains
+NOT VALID for legacy rows, and broader numeric/RLS review is still required.
+
 ## Working constraints
 
 Root owns aggregate verification and all release operations. Expensive local
 checks use `agent-heavy-check`, two workers, and a single owner; lock exit 75
 is recorded without unchanged retries. Preserve other worktrees and processes.
-The prior isolated proposal fixture is stopped. The current SIWC/goal PostgreSQL
-fixture remains root-owned and will be stopped after root's final checks; other
-agents must not clean up that fixture.
+The root-owned proposal, identity and observation PostgreSQL fixtures are stopped
+with data retained after their checks; other agents must not clean up those fixtures.
 Agent Hub cannot map these worktrees to a memory scope, so curated repository
 notes carry continuity. Shared Graphify currently lacks PointUp code coverage;
-query it first, inspect current source, and refresh the whole shared corpus.
+query it first and inspect current source. The whole-corpus refresh completed
+(164,478 nodes), with the PointUp coverage gap still present.

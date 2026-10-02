@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { DuplicateLoyaltyAccountError, TripGoalNotFoundError } from "../../domain/errors";
+import { DuplicateLoyaltyAccountError, LoyaltyAccountNotFoundError, TripGoalNotFoundError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { parseProviderId } from "../../domain/loyalty/provider";
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
@@ -15,6 +15,7 @@ import type {
 import type { ActivityEvent } from "../../domain/loyalty/activity";
 import type { PortfolioShare } from "../../domain/loyalty/portfolio-share";
 import type { Database } from "../db/client";
+import { lockAccountForWrite } from "../db/account-write-lock";
 import {
   accountTags,
   activityEvents,
@@ -130,6 +131,11 @@ async function replaceTags(
 
 export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository {
   constructor(private readonly db: Database) {}
+
+  async lockById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
+    const row = await lockAccountForWrite(this.db, id);
+    return row ? this.findById(id) : null;
+  }
 
   async findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
     const row = await this.db.query.loyaltyAccounts.findFirst({
@@ -247,12 +253,16 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   constructor(private readonly db: Database) {}
 
   async insert(snapshot: BalanceSnapshot): Promise<void> {
-    await this.db.insert(balanceSnapshots).values({
-      id: snapshot.id,
-      loyaltyAccountId: snapshot.loyaltyAccountId,
-      points: snapshot.points,
-      source: snapshot.source,
-      capturedAt: snapshot.capturedAt,
+    await this.db.transaction(async tx => {
+      const account = await lockAccountForWrite(tx, snapshot.loyaltyAccountId);
+      if (!account || account.deletedAt) throw new LoyaltyAccountNotFoundError(snapshot.loyaltyAccountId);
+      await tx.insert(balanceSnapshots).values({
+        id: snapshot.id,
+        loyaltyAccountId: snapshot.loyaltyAccountId,
+        points: snapshot.points,
+        source: snapshot.source,
+        capturedAt: snapshot.capturedAt,
+      });
     });
   }
 

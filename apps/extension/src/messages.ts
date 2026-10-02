@@ -1,14 +1,15 @@
-import type { ExtractedBalance } from "./extraction";
+import type { ReviewedCapture } from "./capture-state";
 
 /** content script → background: a balance was scraped from a provider page. */
 export interface CaptureMessage {
   readonly type: "capture";
-  readonly capture: ExtractedBalance;
+  readonly capture: ReviewedCapture;
 }
 
 /** popup → background: record the latest capture against the user's account. */
 export interface RecordMessage {
   readonly type: "record";
+  readonly captureId?: string;
 }
 
 /** popup → background: fetch the latest capture to display. */
@@ -18,7 +19,7 @@ export interface GetLatestMessage {
 
 export type ExtensionMessage = CaptureMessage | RecordMessage | GetLatestMessage
   | { readonly type: "ask"; readonly message: string }
-  | { readonly type: "getChat" | "clearChat" | "openReview" };
+  | { readonly type: "getChat" | "clearChat" | "openReview" | "discardCapture" | "openObservationReview" };
 
 export interface ActionReview {
   readonly id: string; readonly kind: string; readonly status: string;
@@ -34,4 +35,7 @@ export interface ChatResult extends RecordResult { readonly chat?: readonly Chat
 export interface RecordResult {
   readonly ok: boolean;
   readonly message: string;
+  readonly outcome?: "recorded" | "unchanged" | "needs_review" | "rejected";
+  readonly observationId?: string;
+  readonly reviewId?: string | null;
 }

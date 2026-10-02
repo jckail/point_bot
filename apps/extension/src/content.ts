@@ -1,3 +1,4 @@
+import { pageCandidate, type ReviewedCapture } from "./capture-state";
 import { extractBalance } from "./extraction";
 import type { CaptureMessage } from "./messages";
 
@@ -6,6 +7,7 @@ import type { CaptureMessage } from "./messages";
  * loyalty balance, and hands it to the background worker. No credentials are
  * ever read — only the balance number the page already shows the signed-in user.
  */
+let candidate: ReviewedCapture | null = null;
 function capture(): void {
   const capture = extractBalance({
     url: location.href,
@@ -13,7 +15,8 @@ function capture(): void {
   });
   if (!capture) return;
 
-  const message: CaptureMessage = { type: "capture", capture };
+  candidate = pageCandidate(candidate, capture);
+  const message: CaptureMessage = { type: "capture", capture: candidate };
   void chrome.runtime.sendMessage(message);
 }
 

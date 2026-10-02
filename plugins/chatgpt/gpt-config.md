@@ -24,6 +24,9 @@ Writing
 - Balances you read from a provider website (agent/browser mode) go through submitObservation, never recordBalance.
 - Before submitObservation: call listAgentSkills for the provider. If consentActive is false, STOP and tell the user to grant consent in the PointUp dashboard (Agents page). Never attempt it yourself.
 - Only read from the skill's allowedHosts, only in the user's own signed-in session. Never ask for or type passwords or one-time codes; if a login/MFA/CAPTCHA appears, ask the user to complete it.
+- Retain one random capture UUID and original observed time with each reviewed website reading. Send captureId, observedAt and sourceMethod=page_capture. A timeout or lost response retries the identical retained UUID/payload; a genuinely new reading gets a new UUID. Never drop the replay key to retry a rejected request.
+- On OBSERVATION_REPLAY_CONFLICT, stop and direct the user to dashboard receipts; do not generate a new key to bypass it. Current token and consent authority is still required for receipt recovery.
+- If submitObservation returns rejected, report rejection and preserve its receipt for recovery.
 - If submitObservation returns needs_review, the value was NOT saved. Show it and tell the user to open the PointUp dashboard (Agents page) to Confirm or Reject it. You cannot confirm it; do not resubmit to force it through.
 - Auto-linking a program needs portfolio:write; otherwise ask the user to link the program first.
 

@@ -108,7 +108,8 @@ client request-budget and observation-type refactors passed their focused checks
 Full aggregate CI/build evidence for this second stage is recorded after its source commit.
 
 The later SIWC/goal milestone below adds 0017/0018 to this lineage. Versioned
-observation token/consent/idempotency provenance remains proposed as 0019 in
+observation token/consent/idempotency provenance is implemented in the later 0019
+source/fixture checkpoint below, documented in
 [observation-integration-plan.md](observation-integration-plan.md); staged numeric
 constraints and remaining atomicity/RLS review also remain. Preserve historical
 observations without inventing missing provenance, existing review IDs/outcomes,
@@ -216,12 +217,12 @@ Real deployment remains blocked by expired local AWS authentication and absent
 GitHub deployment role/Clerk secrets. Before activating schema-dependent hosts,
 inspect the actual production journal/tables, establish and verify a recoverable
 backup, choose the compatible adoption path, and apply managed migrations through
-0018. The current deployment workflow still runs CDK deployment before its ECS
+0019. The current deployment workflow still runs CDK deployment before its ECS
 migration task; resolve migration-before-host-activation ordering rather than
 letting new hosts serve against missing tables. Confirm the chosen hosting route,
 public HTTPS canonical origin, Clerk session handling and SIWC callback/config
-wiring before enabling linking. Observation migration 0019 is a plan, not an
-applied migration. Original live SDK/exporter/Chrome/OAuth/provider and data-audit
+wiring before enabling linking. Observation migration 0019 is implemented and
+applied only in isolated verification fixtures; production adoption is unverified. Original live SDK/exporter/Chrome/OAuth/provider and data-audit
 work remains in [release-backlog.md](release-backlog.md).
 
 ## Verified identity and goal milestone
@@ -245,8 +246,50 @@ or branch merge occurred. Root-owned PostgreSQL data is retained in the stopped
 fixture. Shared Graphify refresh was requested for the whole corpus; PointUp
 code coverage remains absent, so current source remains authoritative.
 
-Next implement additive observation migration0019 with its authorization, replay
-and retention guarantees, using [observation-integration-plan.md](observation-integration-plan.md)
+The subsequent observation source/fixture checkpoint below implements additive
+migration 0019 and its authorization, replay and retention guarantees, documented in [observation-integration-plan.md](observation-integration-plan.md)
 and [observation-client-plan.md](observation-client-plan.md). Also complete the
 migration-before-host production rollout, numeric constraints, approved-client
 sign-in policy and live verification gates in [release-backlog.md](release-backlog.md).
+
+
+## Observation provenance and replay milestone (source/fixture checkpoint)
+
+Additive managed migration `0019_observation_provenance_replay` and its backend,
+HTTP, extension and MCP protocol are implemented in the integration source.
+Protected atomic transactions serialize owner/capture keys, current PAT/grant
+authorization and account/review writes. Authorization is rechecked after waits
+and before commit; exact replay under rotated same-owner credentials preserves
+the original receipt witnesses. Human resolution remains authoritative on replay.
+Exact generated snapshot IDs support backdated captures; new known baselines use
+snapshot identity, while historical version-0 SQL NULL witnesses retain the prior
+points comparison. Existing review IDs/outcomes, `agent` balance source, activity,
+outbox, consent and retention behavior remain intact.
+
+The composite owned-account FK is **NOT VALID**: new references are enforced,
+while retained legacy ownership/provider mismatches still require inspection and
+separate validation. Missing historical provenance is not invented. Extension PAT
+submissions freeze one request/key/time before sending, retain it through the
+25-second timeout, and use bounded completion/discard tombstones; MCP forwards
+caller keys without creating cross-user state or adding approval tools. Detailed
+source anchors and limits are in [observation-integration-plan.md](observation-integration-plan.md)
+and [observation-client-plan.md](observation-client-plan.md).
+
+Root-owned actual PostgreSQL verification passed **44 cases**: 18 migration/adoption,
+23 production-composed observation cases (including five additional authorization/
+review races) and three retained integration cases. Managed migration through 0019
+passed. Nine sync/host checks passed: three new shared-boundary regressions, four
+existing sync cases and two exact-host policy cases. Full root lint and all workspace
+TypeScript checks passed on the current source.
+
+The first gated workspace run found one documentation-contract failure: the
+replay-conflict 409 row was missing from `docs/api.md`. Root corrected the row,
+seven focused error-code checks passed, and the subsequent gated full workspace
+run passed **834 tests**, with one paid live evaluation skipped. Fresh aggregate
+CI after commit remains pending. The earlier verified identity/goal milestone
+above remains valid for its own committed source. The whole shared Graphify corpus
+refresh completed (164,478 nodes); PointUp coverage remains absent, so live source
+remains authoritative. The root-owned PostgreSQL fixture is stopped with data
+retained after final checks. No production migration, host activation, live Chrome/provider
+capture, approved OIDC client or exporter delivery is established here.
+Migration-before-host rollout and the broader original scope remain release gates.

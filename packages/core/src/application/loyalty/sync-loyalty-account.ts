@@ -2,6 +2,7 @@ import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
 import {
   CredentialUnavailableError,
+  LoyaltyAccountNotFoundError,
   ProviderNotSupportedError,
 } from "../../domain/errors";
 import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
@@ -70,13 +71,25 @@ export class SyncLoyaltyAccount {
     const provider = getProviderOrThrow(account.providerId);
 
     await this.eventing.unitOfWork.run(async () => {
+      // Provider IO stays outside the transaction; refresh the account under
+      // the same serialization boundary as manual and observation writers.
+      const current = this.accounts.lockById
+        ? await this.accounts.lockById(input.accountId)
+        : await requireOwnedAccount(this.accounts, input.userId, input.accountId);
+      if (!current || current.userId !== input.userId || current.deletedAt) {
+        throw new LoyaltyAccountNotFoundError(input.accountId);
+      }
+      if (current.providerId !== account.providerId || current.membershipNumber !== account.membershipNumber
+          || current.credentialRef !== account.credentialRef) {
+        throw new CredentialUnavailableError("Account details changed while syncing; retry with the current account.");
+      }
       const previous = (await this.balances.findLatestByAccountIds([account.id])).get(
         account.id,
       );
       await this.balances.insert(snapshot);
 
       // Activity resets the inactivity clock for programs that expire.
-      await this.accounts.update(refreshExpiryFromActivity(account, now));
+      await this.accounts.update(refreshExpiryFromActivity(current, now));
 
       await recordActivity(this.activity, {
         userId: input.userId,

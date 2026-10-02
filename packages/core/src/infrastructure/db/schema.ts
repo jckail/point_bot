@@ -8,6 +8,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   timestamp,
   text,
   unique,
@@ -77,6 +78,7 @@ export const loyaltyAccounts = pgTable(
     // One account per provider per user, enforced at the storage layer so
     // concurrent link requests cannot race past the application check.
     uniqueIndex("loyalty_account_id_user_unique").on(account.id, account.userId),
+    uniqueIndex("loyalty_account_id_user_provider_unique").on(account.id, account.userId, account.providerId),
     uniqueIndex("loyalty_account_user_provider_unique").on(
       account.userId,
       account.providerId,
@@ -356,9 +358,60 @@ export const agentObservations = pgTable(
       .notNull(),
     observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    /** Version zero retains unknown historical provenance; server writers use one. */
+    provenanceVersion: smallint("provenance_version").notNull().default(0),
+    credentialKind: varchar("credential_kind", { length: 24 }).$type<"session" | "clerk_bearer" | "personal_access_token">(),
+    /** Durable scalar witnesses: credential/consent retention never erases them. */
+    accessTokenId: varchar("access_token_id", { length: 255 }),
+    consentId: varchar("consent_id", { length: 255 }),
+    consentGrantedAt: timestamp("consent_granted_at", { withTimezone: true }),
+    consentExpiresAt: timestamp("consent_expires_at", { withTimezone: true }),
+    skillVersion: integer("skill_version"),
+    sourceMethod: varchar("source_method", { length: 24 }).$type<"page_capture" | "manual_entry" | "unknown">(),
+    captureId: varchar("capture_id", { length: 36 }),
+    payloadHash: varchar("payload_hash", { length: 64 }),
+    baselineSnapshotId: varchar("baseline_snapshot_id", { length: 255 }),
+    recordedSnapshotId: varchar("recorded_snapshot_id", { length: 255 }),
+    reviewExpiresAt: timestamp("review_expires_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewDecision: varchar("review_decision", { length: 16 }).$type<"confirm" | "reject">(),
   },
   (row) => [
     index("agent_observation_user_created_idx").on(row.userId, row.createdAt),
+    uniqueIndex("agent_observation_owner_capture_unique").on(row.userId, row.captureId).where(sql`${row.captureId} is not null`),
+    // SQL installs this NOT VALID: retained legacy owner/provider mismatches
+    // are not silently reassigned or erased; new/changed references are constrained.
+    foreignKey({ name: "agent_observation_owned_account_fk", columns: [row.accountId, row.userId, row.providerId], foreignColumns: [loyaltyAccounts.id, loyaltyAccounts.userId, loyaltyAccounts.providerId] }).onDelete("cascade"),
+    check("agent_observation_provenance_version_check", sql`${row.provenanceVersion} IN (0, 1)`),
+    check("agent_observation_v1_provenance_check", sql`${row.provenanceVersion} = 0 OR (
+      ${row.credentialKind} IS NOT NULL AND ${row.credentialKind} IN ('session', 'clerk_bearer', 'personal_access_token') AND
+      ((${row.credentialKind} = 'personal_access_token' AND ${row.accessTokenId} IS NOT NULL) OR (${row.credentialKind} <> 'personal_access_token' AND ${row.accessTokenId} IS NULL)) AND
+      ${row.consentId} IS NOT NULL AND ${row.consentGrantedAt} IS NOT NULL AND ${row.consentExpiresAt} IS NOT NULL AND
+      isfinite(${row.consentGrantedAt}) AND isfinite(${row.consentExpiresAt}) AND ${row.consentExpiresAt} > ${row.consentGrantedAt} AND
+      ${row.createdAt} >= ${row.consentGrantedAt} AND ${row.createdAt} < ${row.consentExpiresAt} AND
+      ${row.skillVersion} IS NOT NULL AND ${row.skillVersion} >= 0 AND
+      ${row.sourceMethod} IS NOT NULL AND ${row.sourceMethod} IN ('page_capture', 'manual_entry', 'unknown') AND
+      ${row.payloadHash} IS NOT NULL AND ${row.payloadHash} ~ '^[0-9a-f]{64}$' AND
+      (${row.captureId} IS NULL OR ${row.captureId} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    )`),
+    check("agent_observation_v1_reading_check", sql`${row.provenanceVersion} = 0 OR (
+      ${row.points} BETWEEN 0 AND 9007199254740991 AND (${row.previousPoints} IS NULL OR ${row.previousPoints} BETWEEN 0 AND 9007199254740991) AND
+      ${row.outcome} IN ('recorded', 'unchanged', 'needs_review', 'rejected') AND
+      isfinite(${row.observedAt}) AND isfinite(${row.createdAt}) AND ${row.observedAt} <= ${row.createdAt}
+    )`),
+    check("agent_observation_v1_review_check", sql`${row.provenanceVersion} = 0 OR (
+      (${row.reviewExpiresAt} IS NULL OR (isfinite(${row.reviewExpiresAt}) AND ${row.reviewExpiresAt} = ${row.createdAt} + interval '24 hours')) AND
+      (${row.reviewedAt} IS NULL OR (isfinite(${row.reviewedAt}) AND ${row.reviewedAt} >= ${row.createdAt})) AND
+      COALESCE(CASE ${row.outcome}
+        WHEN 'needs_review' THEN ${row.reviewExpiresAt} IS NOT NULL AND ${row.reviewedAt} IS NULL AND ${row.reviewDecision} IS NULL AND ${row.recordedSnapshotId} IS NULL
+        WHEN 'rejected' THEN ${row.reviewExpiresAt} IS NOT NULL AND ${row.reviewedAt} IS NOT NULL AND ${row.reviewDecision} = 'reject' AND ${row.recordedSnapshotId} IS NULL
+        WHEN 'recorded' THEN ${row.recordedSnapshotId} IS NOT NULL AND (
+          (${row.reviewExpiresAt} IS NULL AND ${row.reviewedAt} IS NULL AND ${row.reviewDecision} IS NULL) OR
+          (${row.reviewExpiresAt} IS NOT NULL AND ${row.reviewedAt} IS NOT NULL AND ${row.reviewDecision} = 'confirm' AND ${row.reviewedAt} < ${row.reviewExpiresAt}))
+        WHEN 'unchanged' THEN ${row.reviewExpiresAt} IS NULL AND ${row.reviewedAt} IS NULL AND ${row.reviewDecision} IS NULL AND ${row.recordedSnapshotId} IS NULL
+        ELSE false
+      END, false)
+    )`),
   ],
 );
 

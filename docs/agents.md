@@ -38,8 +38,8 @@ flowchart LR
 | `AccessToken` | aggregate | SHA-256 hash stored only; plaintext shown once; scoped; expiring; revocable |
 | `ConsentGrant` | aggregate | Per provider, 1–90 days, revocable; **no consent → no write-back** |
 | `AgentSkill` | catalog (data) | Allowed hosts, start URL, steps, `version`, `verifiedAt`, `notes`; one browser + one computer-use skill per provider |
-| `SubmitObservation` | use case | skill → https + host allow-list → consent → account ownership → plausibility → write → audit |
-| `AgentObservation` | audit log | Append-only; stores the host only, never the URL |
+| `SubmitObservation` | use case | skill/source checks → protected current credential/consent + owner locks → replay/plausibility → atomic balance + receipt + events |
+| `AgentObservation` | audit log | Durable capture receipt with guarded review transitions; stores host/digest, not full URL; private versioned witnesses |
 
 Ports/adapters follow the existing pattern: repositories are interfaces in the
 domain, Drizzle adapters live in `infrastructure/repositories/drizzle-agent-repositories.ts`,
@@ -70,17 +70,23 @@ and tests run against in-memory fakes *and* a real Postgres
    display name. There is intentionally no grant tool and no elicitation grant,
    because elicitation answers are attested by the client, which a hostile or
    prompt-injected agent controls.
-4. **Allow-listed hosts.** `sourceUrl` must be https on the skill's hosts (suffix match
-   on a dot boundary: `united.com.evil.example` is rejected).
+4. **Allow-listed hosts.** `sourceUrl` requires HTTPS without userinfo or
+   nondefault ports, on an exact catalog host: apex, www or the seeded start-URL
+   host. Arbitrary subdomains and lookalike suffixes are rejected. Catalog skills
+   remain unverified until checked against the actual provider.
 5. **Plausibility guard with a human gate.** A reading is held as `needs_review`
    (and **not written**) when it jumps ≥10× from the last balance, or exceeds the
    skill's sanity cap (`maxPoints`, default 5,000,000) — including a first reading.
    The response carries a server-issued, single-use `reviewId`. Only the signed-in
    user can release it (`POST /api/v1/agent/observations/{id}/confirm`, or
    *Reject*, session-only; the *Pending review* section of *Dashboard → Agents*).
-   Reviews expire after 24 hours, and confirming is refused if the account's
-   latest balance changed since the hold. There is no agent-supplied `confirmed`
-   flag.
+   Reviews expire after 24 hours. Confirmation locks the owned account/receipt
+   and checks live expiry and the exact baseline snapshot ID before commit; a
+   different snapshot with equal points is still stale. Legacy rows without a
+   known snapshot witness retain the points comparison, including SQL NULL
+   provenance fields. Expiry after blocking/writing rolls back the full effect;
+   owner rejection remains available after expiry for cleanup. There is no
+   agent-supplied `confirmed` flag.
    **Limitation:** `sourceUrl` and the reported value are self-reported by the
    agent. The host allow-list proves what the agent *claims* it read, not that it
    read it, and anything below the guards above is accepted. Treat agent-written
@@ -88,11 +94,39 @@ and tests run against in-memory fakes *and* a real Postgres
 6. **Account creation.** `observations:write` alone cannot create accounts: passing
    `membershipNumber` to auto-link needs `portfolio:write` (or a session);
    otherwise the write fails with `LOYALTY_ACCOUNT_NOT_FOUND` and the user links
-   the program first.
-7. **Audit.** Every attempt that reaches an account is recorded and visible at
-   *Dashboard → Agents*.
+   the program first. The locked current PAT scopes are checked again at the
+   write boundary; an earlier HTTP permission flag cannot authorize auto-linking.
+7. **Audit.** Accepted recorded/unchanged/held/rejected submissions create durable
+   receipts visible at *Dashboard → Agents*. Denied or rolled-back attempts do
+   not fabricate committed receipts. New authenticated receipts preserve trusted
+   credential and consent witnesses, catalog version, method/hash and exact
+   baseline/recorded snapshot IDs. Agent labels and source claims are self-reported.
+   Public DTOs omit private witnesses. Balance, receipt and outbox effects share
+   one atomic transaction, retaining `source: agent` and existing retention rules.
 8. **Database.** RLS is enabled on every table with no policies (migration `0009`),
    so Supabase's auto-generated REST API exposes nothing.
+
+## Observation replay and recovery
+
+Optional caller UUID `captureId` and `sourceMethod` are additive to the existing
+capture contract; optional result `observationId` identifies the server receipt.
+The caller key is distinct from server review/receipt IDs. Under the owner/key
+lock, identical claims return the current receipt without another effect; changed
+claims return `OBSERVATION_REPLAY_CONFLICT` (409). Omitted capture times have a
+stable omission marker. Same-owner credential rotation still requires current
+credential and active provider consent; the receipt keeps its original witnesses.
+A resolved held receipt stays resolved on replay, with no actionable review ID.
+Calls without a key preserve legacy admission and lack stable replay recovery.
+
+The extension freezes the exact PAT request before sending, retains it through
+its 25-second timeout/restarts, and binds retry to the configured endpoint/token.
+It keeps newer candidates separate and stores 16 completion/discard tombstones
+against late hydration messages. Held, rejected and uncertain results retain
+recovery context. It opens its own reused dashboard tab and cannot approve.
+The existing session-token manual-write path remains separate from replay safety.
+MCP forwards caller keys/times unchanged, keeps per-request PAT authority and
+adds no consent-grant or review tool. See [client protocol](observation-client-plan.md)
+and [backend/migration record](observation-integration-plan.md).
 
 ## Surfaces
 

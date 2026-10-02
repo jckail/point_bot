@@ -25,6 +25,8 @@ export interface BalanceTrendContext {
 
 export interface LoyaltyAccountRepository {
   findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null>;
+  /** Provider/account serialization; call inside an atomic UOW. */
+  lockById?(id: LoyaltyAccountId): Promise<LoyaltyAccount | null>;
   /** Active (non-deleted) accounts for a user, pinned first then createdAt. */
   findByUserId(userId: UserId): Promise<LoyaltyAccount[]>;
   /** Soft-deleted accounts still inside the restore window. */

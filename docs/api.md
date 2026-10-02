@@ -59,6 +59,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_CONSENT` | 422 | Consent lifetime outside 1-90 days |
 | `SKILL_NOT_FOUND` | 404 | No agent skill for that id |
 | `INVALID_OBSERVATION` | 422 | Agent observation rejected (bad value, non-https or off-allow-list source) |
+| `OBSERVATION_REPLAY_CONFLICT` | 409 | Capture UUID already belongs to a different canonical payload; recover its receipt before making a new capture |
 | `REVIEW_NOT_FOUND` | 404 | Held reading does not exist **or is not yours** |
 | `REVIEW_ALREADY_RESOLVED` | 409 | Held reading was already confirmed or rejected |
 | `REVIEW_EXPIRED` | 410 | Held reading passed its 24 hour review window |
@@ -412,3 +413,36 @@ await client.syncAllLoyaltyAccounts();
 ```
 
 All methods throw `PointUpApiError` (with `status` and `code`) on non-2xx responses.
+
+### `POST /api/v1/agent/observations`
+
+Submit a consented balance reading with `observations:write`; creating a missing
+account additionally requires `portfolio:write` and a membership number. JSON
+requests are limited to 32 KiB. Optional `captureId` is a UUID retained before
+submission; optional `sourceMethod` is `page_capture` or `manual_entry`. Retain
+the original `observedAt`, reviewed points, exact `sourceUrl`, agent label and
+auto-link input across retries. Sources require HTTPS, an exact skill-listed
+host, no credentials and the default TLS port. Capture time must be finite
+and nonfuture for every outcome. Source/method remain claims, not proof of a
+provider visit. Trusted credential and consent provenance cannot be supplied
+in JSON and remains private.
+
+The result retains `outcome`, `accountId`, `points`, `previousPoints`, `message`
+and nullable `reviewId`, and adds `observationId` for receipt recovery. Outcomes
+remain `recorded`, `unchanged`, `needs_review`, and `rejected`. For a timeout or
+lost response, retry the same capture UUID and canonical payload. Exact retries
+recover the same owner's current receipt without another balance or event,
+even after an intervening balance or human resolution. Current token scopes
+and provider consent must still authorize recovery; credential rotation does
+not rewrite the receipt's original witnesses. Changed claims under the same
+UUID return `OBSERVATION_REPLAY_CONFLICT` (409); do not automatically replace or
+drop the key to bypass this. Legacy requests without a UUID retain their
+existing admission semantics without stable replay recovery.
+
+Confirmation and rejection remain browser-session-only at
+`POST /api/v1/agent/observations/{id}/confirm` and `/reject`; bodyless requests
+or strict empty JSON are accepted. Confirmation requires an active owned
+account, unchanged baseline and unexpired 24-hour deadline after lock waits
+and write staging. New receipts compare snapshot identity; historical receipts
+with unknown witnesses retain a protected points comparison. Expired readings
+may still be rejected as cleanup. Neither action is exposed as an agent tool.

@@ -83,8 +83,12 @@
     <div id="latest">Open a provider page to capture a balance.</div>
 
     <div class="row">
-      <button id="record">Record balance</button>
+      <button id="record">Record / retry balance</button>
+      <button id="discardCapture">Discard review</button>
     </div>
+
+    <button id="openObservationReview">Review observations in PointUp</button>
+    <div class="hint">PAT retries retain the same capture. A session token uses manual recording; check PointUp before retrying an uncertain manual write. Discarding a review does not undo a submission.</div>
 
     <label for="baseUrl">API URL</label>
     <input id="baseUrl" type="url" placeholder="https://app.example.com" />

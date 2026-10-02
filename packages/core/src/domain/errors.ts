@@ -311,6 +311,13 @@ export class InvalidObservationError extends DomainError {
   }
 }
 
+export class ObservationReplayConflictError extends DomainError {
+  readonly code = "OBSERVATION_REPLAY_CONFLICT" as const;
+  constructor() {
+    super("Capture ID already belongs to a different observation payload");
+  }
+}
+
 export class ObservationReviewNotFoundError extends DomainError {
   readonly code = "REVIEW_NOT_FOUND" as const;
 
@@ -411,6 +418,7 @@ export const DOMAIN_ERROR_CLASSES = [
   InvalidConsentError,
   SkillNotFoundError,
   InvalidObservationError,
+  ObservationReplayConflictError,
   ObservationReviewNotFoundError,
   ObservationReviewResolvedError,
   ObservationReviewExpiredError,

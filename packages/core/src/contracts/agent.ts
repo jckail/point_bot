@@ -95,12 +95,18 @@ export const submitObservationRequestSchema = z
     /** Agent identity for the audit trail, e.g. "claude-code". */
     agent: z.string().min(1).max(64).default("unknown"),
     observedAt: isoDateTime.optional(),
+    /** Stable caller key for retries of this exact capture. */
+    captureId: z.uuid().optional(),
+    /** Self-reported capture method, not proof of provider access. */
+    sourceMethod: z.enum(["page_capture", "manual_entry"]).optional(),
     /** Only used to auto-link a program that is not linked yet; needs portfolio:write (or a session), otherwise link the program first. */
     membershipNumber: z.string().min(1).optional(),
   })
   .strict();
 
 export const observationResultDtoSchema = z.object({
+  /** Server-issued receipt identity; distinct from the caller capture key. */
+  observationId: z.string().optional(),
   outcome: z.enum(OBSERVATION_OUTCOMES),
   accountId: z.string(),
   points: z.number().int(),
@@ -188,7 +194,15 @@ export function toAgentSkillDto(skill: AgentSkillReadModel): AgentSkillDto {
 export function toObservationResultDto(
   result: SubmitObservationResult,
 ): ObservationResultDto {
-  return { ...result };
+  return {
+    outcome: result.outcome,
+    accountId: result.accountId,
+    points: result.points,
+    previousPoints: result.previousPoints,
+    message: result.message,
+    reviewId: result.reviewId,
+    ...(result.observationId === undefined ? {} : { observationId: result.observationId }),
+  };
 }
 
 export function toAgentObservationDto(

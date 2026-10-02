@@ -1,6 +1,6 @@
 import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
-import { InvalidCaptureTimeError } from "../../domain/errors";
+import { InvalidCaptureTimeError, LoyaltyAccountNotFoundError } from "../../domain/errors";
 import { createBalanceSnapshot, type BalanceSource } from "../../domain/loyalty/balance-snapshot";
 import { refreshExpiryFromActivity } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
@@ -44,28 +44,34 @@ export class RecordManualBalance {
   ) {}
 
   async execute(input: RecordManualBalanceInput): Promise<BalanceReadModel> {
-    const account = await requireOwnedAccount(
-      this.accounts,
-      input.userId,
-      input.accountId,
-    );
+    return (await this.executeWithSnapshotId(input)).balance;
+  }
 
-    const now = this.clock.now();
-    if (input.capturedAt && input.capturedAt.getTime() > now.getTime()) {
-      throw new InvalidCaptureTimeError("capture time is in the future");
-    }
+  /** Internal provenance witness: the exact inserted row, including backfills. */
+  executeWithSnapshotId(input: RecordManualBalanceInput): Promise<{ balance: BalanceReadModel; snapshotId: string }> {
+    return this.eventing.unitOfWork.run(async () => {
+      const account = this.accounts.lockById
+        ? await this.accounts.lockById(input.accountId)
+        : await requireOwnedAccount(this.accounts, input.userId, input.accountId);
+      if (!account || account.userId !== input.userId || account.deletedAt) {
+        throw new LoyaltyAccountNotFoundError(input.accountId);
+      }
 
-    const capturedAt = input.capturedAt ?? now;
-    const snapshot = createBalanceSnapshot({
-      loyaltyAccountId: account.id,
-      points: input.points,
-      source: input.source ?? "manual",
-      capturedAt,
-    });
-    const provider = getProviderOrThrow(account.providerId);
-    const viaAgent = input.source === "agent";
+      const now = this.clock.now();
+      if (input.capturedAt && input.capturedAt.getTime() > now.getTime()) {
+        throw new InvalidCaptureTimeError("capture time is in the future");
+      }
 
-    await this.eventing.unitOfWork.run(async () => {
+      const capturedAt = input.capturedAt ?? now;
+      const snapshot = createBalanceSnapshot({
+        loyaltyAccountId: account.id,
+        points: input.points,
+        source: input.source ?? "manual",
+        capturedAt,
+      });
+      const provider = getProviderOrThrow(account.providerId);
+      const viaAgent = input.source === "agent";
+
       const previous = (await this.balances.findLatestByAccountIds([account.id])).get(
         account.id,
       );
@@ -97,8 +103,8 @@ export class RecordManualBalance {
           },
         }),
       ]);
-    });
 
-    return toBalanceReadModel(snapshot);
+      return { balance: toBalanceReadModel(snapshot), snapshotId: snapshot.id };
+    });
   }
 }

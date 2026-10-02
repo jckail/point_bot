@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { AuthenticateAccessToken, IssueAccessToken } from "../src/application/agent/access-tokens";
 import { GrantConsent, RevokeConsent } from "../src/application/agent/consents";
@@ -6,13 +6,8 @@ import { ResolveObservationReview, SubmitObservation } from "../src/application/
 import { LinkLoyaltyAccount } from "../src/application/loyalty/link-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { createDb } from "../src/infrastructure/db/client";
-import { DrizzleLoyaltyAccountRepository } from "../src/infrastructure/repositories/drizzle-loyalty-account-repository";
-import {
-  DrizzleAccessTokenRepository,
-  DrizzleAgentObservationRepository,
-  DrizzleConsentGrantRepository,
-} from "../src/infrastructure/repositories/drizzle-agent-repositories";
-import { DrizzleBalanceSnapshotRepository } from "../src/infrastructure/repositories/drizzle-loyalty-account-repository";
+import { buildDrizzleRepositories } from "../src/composition/repositories";
+import { assertMigrationConnectionString } from "../src/infrastructure/db/migrations";
 import { asUserId } from "./ids";
 
 /**
@@ -23,13 +18,31 @@ import { asUserId } from "./ids";
 const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
-  const db = createDb(url ?? "postgresql://unused");
+  let db: ReturnType<typeof createDb>;
+  let repos: ReturnType<typeof buildDrizzleRepositories>;
+  const clock = { now: () => new Date() };
+  beforeAll(() => {
+    assertMigrationConnectionString(url!);
+    const parsed = new URL(url!);
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) || parsed.pathname !== "/app" || parsed.username !== "postgres") {
+      throw new Error("Agent integration tests require the dedicated loopback postgres/app fixture.");
+    }
+    db = createDb(url!, { max: 6 });
+    repos = buildDrizzleRepositories(db);
+  });
+  function eventing() {
+    if (!repos.eventing) throw new Error("Missing production eventing.");
+    return repos.eventing;
+  }
   const userId = asUserId(`it-${crypto.randomUUID()}`);
 
   afterAll(async () => {
+    if (!db) return;
     const { sql } = await import("drizzle-orm");
+    try {
     for (const table of [
       "agent_observation",
+      "domain_event_outbox",
       "consent_grant",
       "access_token",
       "balance_snapshot",
@@ -38,14 +51,15 @@ describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
     ]) {
       await db.execute(
         table === "balance_snapshot"
-          ? sql.raw(`delete from balance_snapshot where loyalty_account_id in (select id from loyalty_account where user_id='${userId}')`)
-          : sql.raw(`delete from ${table} where user_id='${userId}'`),
+          ? sql`delete from balance_snapshot where loyalty_account_id in (select id from loyalty_account where user_id=${userId})`
+          : sql`delete from ${sql.identifier(table)} where user_id=${userId}`,
       );
     }
+    } finally { await db.$client.end({ timeout: 5 }); }
   });
 
   it("round-trips tokens, consent, write-back, and the audit trail", async () => {
-    const tokens = new DrizzleAccessTokenRepository(db);
+    const tokens = repos.accessTokens;
     const issued = await new IssueAccessToken(tokens).execute({
       userId,
       name: "integration",
@@ -58,18 +72,20 @@ describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
       expect((await tokens.findByUserId(userId))[0]?.lastUsedAt).toBeInstanceOf(Date),
     );
 
-    const accounts = new DrizzleLoyaltyAccountRepository(db);
-    const balances = new DrizzleBalanceSnapshotRepository(db);
-    const consents = new DrizzleConsentGrantRepository(db);
-    const observations = new DrizzleAgentObservationRepository(db);
-    const link = new LinkLoyaltyAccount(accounts);
+    const accounts = repos.loyaltyAccounts;
+    const balances = repos.balanceSnapshots;
+    const consents = repos.consents;
+    const observations = repos.observations;
+    const link = new LinkLoyaltyAccount(accounts, repos.activity, clock, eventing());
     const submit = new SubmitObservation(
       accounts,
       balances,
       consents,
       observations,
-      new RecordManualBalance(accounts, balances),
+      new RecordManualBalance(accounts, balances, repos.activity, clock, eventing()),
       link,
+      clock,
+      eventing(),
     );
     const input = {
       userId,
@@ -98,7 +114,7 @@ describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
   });
 
   it("concurrent grants leave exactly one open consent, and revoke clears it", async () => {
-    const consents = new DrizzleConsentGrantRepository(db);
+    const consents = repos.consents;
     const grant = new GrantConsent(consents);
     const results = await Promise.all(
       Array.from({ length: 8 }, () =>
@@ -118,20 +134,22 @@ describe.skipIf(!url)("agent context on Postgres (Drizzle)", () => {
   });
 
   it("holds an implausible reading, then a single-use review confirms it", async () => {
-    const accounts = new DrizzleLoyaltyAccountRepository(db);
-    const balances = new DrizzleBalanceSnapshotRepository(db);
-    const consents = new DrizzleConsentGrantRepository(db);
-    const observations = new DrizzleAgentObservationRepository(db);
-    const record = new RecordManualBalance(accounts, balances);
+    const accounts = repos.loyaltyAccounts;
+    const balances = repos.balanceSnapshots;
+    const consents = repos.consents;
+    const observations = repos.observations;
+    const record = new RecordManualBalance(accounts, balances, repos.activity, clock, eventing());
     const submit = new SubmitObservation(
       accounts,
       balances,
       consents,
       observations,
       record,
-      new LinkLoyaltyAccount(accounts),
+      new LinkLoyaltyAccount(accounts, repos.activity, clock, eventing()),
+      clock,
+      eventing(),
     );
-    const review = new ResolveObservationReview(accounts, balances, observations, record);
+    const review = new ResolveObservationReview(accounts, balances, observations, record, clock, eventing());
     // Account/consent for "united" exist from the first test (balance 12,345).
     const held = await submit.execute({
       userId,

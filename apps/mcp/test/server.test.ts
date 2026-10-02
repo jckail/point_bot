@@ -96,6 +96,23 @@ describe("pointup MCP server", () => {
     expect(calls[0]?.body).toMatchObject({ agent: "vitest", points: 100 });
   });
 
+  it("forwards stable capture identity on retries without exposing review tools", async () => {
+    const { client, calls } = await connect(() => ({ json: { outcome: "needs_review", reviewId: "review_1", observationId: "receipt_1" } }));
+    const input = { skillId: "united.capture-balance", points: 100, sourceUrl: "https://www.united.com/x",
+      captureId: "00000000-0000-4000-8000-000000000001", observedAt: "2026-10-02T01:00:00.000Z", sourceMethod: "page_capture" };
+    for (let i = 0; i < 2; i++) {
+      const result = await client.callTool({ name: "pointup_submit_balance", arguments: input });
+      expect(JSON.parse(text(result))).toMatchObject({ outcome: "needs_review", reviewId: "review_1", observationId: "receipt_1" });
+    }
+    expect(calls[0]?.body).toEqual({ ...input, agent: "vitest" });
+    expect(calls[1]?.body).toEqual(calls[0]?.body);
+    const names = (await client.listTools()).tools.map(tool => tool.name);
+    expect(names.some(name => /confirm|reject|approve/.test(name))).toBe(false);
+    const invalid = await client.callTool({ name: "pointup_submit_balance", arguments: { ...input, captureId: "not-a-uuid" } });
+    expect(invalid.isError).toBe(true);
+    expect(calls).toHaveLength(2);
+  });
+
   it("never grants consent: it returns the dashboard link and provider name", async () => {
     // Even a client that supports elicitation and would say yes gets no grant.
     for (const capabilities of [undefined, { elicitation: {} }]) {

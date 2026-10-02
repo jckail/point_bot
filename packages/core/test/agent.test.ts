@@ -16,6 +16,7 @@ import { RecordManualBalance } from "../src/application/loyalty/record-manual-ba
 import { AGENT_SKILL_CATALOG } from "../src/domain/agent/skill";
 import { PROVIDER_CATALOG } from "../src/domain/loyalty/provider";
 import {
+  AtomicObservationEventing,
   InMemoryActivityEventRepository,
   InMemoryBalanceSnapshotRepository,
   InMemoryConsents,
@@ -34,9 +35,10 @@ function setup() {
   const balances = new InMemoryBalanceSnapshotRepository();
   const activity = new InMemoryActivityEventRepository();
   const consents = new InMemoryConsents();
-  const observations = new InMemoryObservations();
-  const link = new LinkLoyaltyAccount(accounts, activity, clock);
-  const record = new RecordManualBalance(accounts, balances, activity, clock);
+  const observations = new InMemoryObservations({ accounts, consents });
+  const eventing = new AtomicObservationEventing({ accounts, balances, activity, observations, consents });
+  const link = new LinkLoyaltyAccount(accounts, activity, clock, eventing);
+  const record = new RecordManualBalance(accounts, balances, activity, clock, eventing);
   const submit = new SubmitObservation(
     accounts,
     balances,
@@ -45,9 +47,10 @@ function setup() {
     record,
     link,
     clock,
+    eventing,
   );
   const grant = new GrantConsent(consents, clock);
-  const review = new ResolveObservationReview(accounts, balances, observations, record, clock);
+  const review = new ResolveObservationReview(accounts, balances, observations, record, clock, eventing);
   return { review, accounts, balances, activity, consents, observations, submit, grant, link, record };
 }
 

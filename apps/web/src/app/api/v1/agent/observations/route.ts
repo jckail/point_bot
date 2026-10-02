@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import { mayWritePortfolio } from "@/server/access-policy";
 import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody } from "@/server/request-body";
 
 export function GET() {
   return withAuthenticatedUser(
@@ -28,9 +29,14 @@ export function GET() {
 export function POST(request: Request) {
   return withAuthenticatedUser(
     async (userId, principal) => {
-      const body = submitObservationRequestSchema.parse(await request.json());
+      const body = submitObservationRequestSchema.parse(await readJsonBody(request, false, 32 * 1024));
       const result = await getContainer().useCases.submitObservation.execute({
         userId,
+        credential: principal.tokenId
+          ? { kind: "personal_access_token", tokenId: principal.tokenId }
+          : { kind: principal.credential === "clerk-bearer" ? "clerk_bearer" : "session" },
+        captureId: body.captureId,
+        sourceMethod: body.sourceMethod,
         skillId: body.skillId,
         points: body.points,
         sourceUrl: body.sourceUrl,

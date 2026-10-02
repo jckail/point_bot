@@ -39,7 +39,11 @@ import type {
 import type {
   AgentObservation,
   AgentObservationRepository,
+  ObservationCredential,
 } from "../src/domain/agent/observation";
+import { AccessTokenInvalidError, ConsentRequiredError, InsufficientScopeError, LoyaltyAccountNotFoundError } from "../src/domain/errors";
+import { isConsentActive } from "../src/domain/agent/consent";
+import { isTokenUsable } from "../src/domain/agent/access-token";
 import type { DomainEvent } from "../src/domain/events";
 import type { Eventing } from "../src/application/events/ports";
 import { buildTrendContext } from "../src/application/loyalty/balance-trend";
@@ -375,6 +379,41 @@ export class InMemoryConsents implements ConsentGrantRepository {
 
 export class InMemoryObservations implements AgentObservationRepository {
   readonly rows: AgentObservation[] = [];
+  constructor(private readonly protectedStores?: {
+    accounts: InMemoryLoyaltyAccountRepository;
+    consents: InMemoryConsents;
+    tokens?: InMemoryTokens;
+  }) {}
+
+  async lockSubmission(input: { userId: UserId; providerId: string; credential?: ObservationCredential; captureId?: string; canLinkAccount?: boolean }, now: () => Date) {
+    const stores = this.protectedStores;
+    if (!stores) throw new Error("Observation fake requires explicit protected stores");
+    const account = await stores.accounts.findByUserAndProvider(input.userId, input.providerId);
+    if (account?.deletedAt) throw new LoyaltyAccountNotFoundError(input.providerId);
+    const consent = [...stores.consents.rows.values()].find(row => row.userId === input.userId && row.providerId === input.providerId && isConsentActive(row, now()));
+    if (!consent) throw new ConsentRequiredError(input.providerId);
+    const token = input.credential?.kind === "personal_access_token" ? stores.tokens?.rows.get(input.credential.tokenId) : undefined;
+    const assertAuthorized = () => {
+      if (input.credential?.kind === "personal_access_token") {
+        if (!token || token.userId !== input.userId || !isTokenUsable(token, now())) throw new AccessTokenInvalidError();
+        if (!token.scopes.includes("observations:write")) throw new InsufficientScopeError("observations:write");
+        if (!account && input.canLinkAccount && !token.scopes.includes("portfolio:write")) throw new InsufficientScopeError("portfolio:write");
+      }
+      if (!isConsentActive(consent, now())) throw new ConsentRequiredError(input.providerId);
+    };
+    assertAuthorized();
+    return { account, consent, assertAuthorized };
+  }
+  async findByCaptureId(userId: UserId, captureId: string) {
+    return this.rows.find(row => row.userId === userId && row.captureId === captureId) ?? null;
+  }
+  async lockReview(id: ObservationId, userId: UserId) {
+    const row = this.rows.find(observation => observation.id === id && observation.userId === userId);
+    if (!row) return null;
+    const account = await this.protectedStores?.accounts.findById(row.accountId);
+    if (!account || account.userId !== userId || account.providerId !== row.providerId || account.deletedAt) throw new LoyaltyAccountNotFoundError(row.accountId);
+    return row;
+  }
   async insert(o: AgentObservation) {
     this.rows.push(o);
   }
@@ -389,12 +428,13 @@ export class InMemoryObservations implements AgentObservationRepository {
     userId: UserId,
     from: AgentObservation["outcome"],
     to: AgentObservation["outcome"],
+    metadata?: { reviewedAt: Date; reviewDecision: "confirm" | "reject"; recordedSnapshotId?: string },
   ) {
     const index = this.rows.findIndex(
       (o) => o.id === id && o.userId === userId && o.outcome === from,
     );
     if (index < 0) return null;
-    this.rows[index] = { ...this.rows[index]!, outcome: to };
+    this.rows[index] = { ...this.rows[index]!, outcome: to, ...metadata };
     return this.rows[index];
   }
 }
@@ -428,4 +468,53 @@ export class RecordingEventing implements Eventing {
   types(): string[] {
     return this.events.map((event) => event.type);
   }
+}
+
+
+/** Atomic rollback fixture for sequential observation unit tests, not a database-lock simulator. */
+export class AtomicObservationEventing implements Eventing {
+  readonly events: DomainEvent[] = [];
+  private active = false;
+  constructor(private readonly stores: {
+    accounts: InMemoryLoyaltyAccountRepository;
+    balances: InMemoryBalanceSnapshotRepository;
+    activity: InMemoryActivityEventRepository;
+    observations: InMemoryObservations;
+    consents?: InMemoryConsents;
+    tokens?: InMemoryTokens;
+  }) {}
+  types(): string[] { return this.events.map(event => event.type); }
+  readonly publisher = { publish: async (events: readonly DomainEvent[]) => { this.events.push(...events); } };
+  readonly unitOfWork = {
+    atomic: true,
+    run: async <T>(work: () => Promise<T>): Promise<T> => {
+      if (this.active) return work();
+      this.active = true;
+      const accounts = structuredClone(this.stores.accounts.rows);
+      const balances = structuredClone(this.stores.balances.rows);
+      const activity = structuredClone(this.stores.activity.rows);
+      const observations = structuredClone(this.stores.observations.rows);
+      const events = structuredClone(this.events);
+      const consents = this.stores.consents ? structuredClone(this.stores.consents.rows) : undefined;
+      const tokens = this.stores.tokens ? structuredClone(this.stores.tokens.rows) : undefined;
+      try { return await work(); }
+      catch (error) {
+        this.stores.accounts.rows.clear();
+        for (const [id, row] of accounts) this.stores.accounts.rows.set(id, row);
+        this.stores.balances.rows.splice(0, this.stores.balances.rows.length, ...balances);
+        this.stores.activity.rows.splice(0, this.stores.activity.rows.length, ...activity);
+        this.stores.observations.rows.splice(0, this.stores.observations.rows.length, ...observations);
+        this.events.splice(0, this.events.length, ...events);
+        if (consents && this.stores.consents) {
+          this.stores.consents.rows.clear();
+          for (const [id, row] of consents) this.stores.consents.rows.set(id, row);
+        }
+        if (tokens && this.stores.tokens) {
+          this.stores.tokens.rows.clear();
+          for (const [id, row] of tokens) this.stores.tokens.rows.set(id, row);
+        }
+        throw error;
+      } finally { this.active = false; }
+    },
+  };
 }

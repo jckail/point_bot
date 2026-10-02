@@ -133,7 +133,7 @@ export function renderSkillPlaybook(skill: AgentSkillDto): string {
     ...(caveats.length ? ["Caveats:", ...caveats.map((c) => `- ${c}`)] : []),
     "Steps:",
     ...skill.steps.map((step, i) => `${i + 1}. ${step}`),
-    "Finish with pointup_submit_balance.",
+    "Before submitting, retain one capture UUID, the original ISO observedAt, points, sourceUrl and sourceMethod: page_capture for a page reading or manual_entry for a user-provided value. Finish with pointup_submit_balance using that captureId and observedAt. If the response is lost, retry the same immutable capture; a new reading gets a new UUID. A replay conflict requires dashboard recovery, not automatic UUID replacement. A held receipt requires the user's dashboard review; a retry cannot confirm it.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -529,7 +529,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
     {
       title: "Write back a balance read from a provider site",
       description:
-        "Submit the points balance you read from the user's own signed-in provider page. Requires an active consent for the program (see pointup_request_consent) and a sourceUrl on the skill's allowed hosts. Outcome 'needs_review' means the value looks implausible and was NOT saved: the result carries a reviewId, and the user must confirm or reject it on the dashboard (Dashboard > Agents). You cannot confirm it; resubmitting does not help. Auto-linking an unlinked program (membershipNumber) needs a token with portfolio:write.",
+        "Submit the points balance you read from the user's own signed-in provider page. Requires an active consent for the program (see pointup_request_consent) and a sourceUrl on the skill's allowed hosts. Outcome 'needs_review' means the value looks implausible and was NOT saved: the result carries a reviewId, and the user must confirm or reject it on the dashboard (Dashboard > Agents). You cannot confirm it. Reusing a captureId can recover a lost receipt but cannot approve a held value. Keep the UUID and original observedAt for retries; a changed capture needs a new UUID. Auto-linking an unlinked program (membershipNumber) needs a token with portfolio:write.",
       inputSchema: {
         skillId: idSchema.describe("e.g. united.capture-balance"),
         points: pointsSchema,
@@ -537,6 +537,8 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
           .url({ protocol: /^https$/, error: "sourceUrl must be an https URL" })
           .max(2048)
           .describe("Exact https page the value was read from"),
+        captureId: z.uuid().optional().describe("Generate once for a new capture; reuse unchanged UUID, observedAt, points and source for a lost-response retry. Omit only for legacy submissions without replay recovery."),
+        sourceMethod: z.enum(["page_capture", "manual_entry"]).optional().describe("Self-reported capture method, not proof of a provider visit"),
         observedAt: z.iso.datetime().optional(),
         membershipNumber: z
           .string()

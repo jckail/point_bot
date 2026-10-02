@@ -783,9 +783,11 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           summary: "Write back a balance an agent read from the user's own browser (requires active consent)",
           requestBody: body("SubmitObservationRequest"),
           responses: {
-            "200": jsonResponse("Outcome (recorded, unchanged, or needs_review with a reviewId only the signed-in user can resolve)", ref("ObservationResultDto")),
-            "403": jsonResponse("Missing scope or no active consent", ref("ApiError")),
+            "200": jsonResponse("Outcome (recorded, unchanged, needs_review, rejected) with an optional server receipt ID; only the signed-in user resolves reviews", ref("ObservationResultDto")),
             ...ERROR_RESPONSES,
+            "403": jsonResponse("Missing scope or no active consent", ref("ApiError")),
+            "409": jsonResponse("OBSERVATION_REPLAY_CONFLICT: capture key reused with different claims", ref("ApiError")),
+            "413": jsonResponse("Observation JSON exceeds 32 KiB", ref("ApiError")),
           },
         },
       },

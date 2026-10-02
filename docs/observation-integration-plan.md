@@ -1,87 +1,182 @@
 # Observation provenance, replay, review, and retention integration
 
-Status: implementation proposal; no schema or runtime changes made by this audit. Integration source inspected at `6a72b1b` on 2026-10-02, with the root's goal/SIWC work ongoing. Reference source: `/home/jkail/projects/point_bot-release`. Reserve additive migration `0019_observation_provenance_replay.sql` after the root's planned 0017/0018 migrations; confirm the final migration journal order before implementation.
+Status: implemented in the integration source, with additive managed migration
+`0019_observation_provenance_replay`; production adoption and final aggregate CI
+remain pending. This records the implementation following the earlier audit at
+`6a72b1b`. It does not replace the original release scope or the separately verified
+identity/goal milestone. [Client behavior](observation-client-plan.md) and
+[release gates](release-backlog.md) remain part of this stage.
 
-Graphify was queried first for PointBot/SubmitAgentObservation. It returned no relevant PointUp code paths, so all findings below come from live source inspection. Agent Hub could not resolve the integration worktree's project context. No provider calls, database runs, or test suites were performed for this documentation audit.
+Graphify was queried first during the audit and lacked relevant PointUp code
+coverage. Findings and this implementation record use live source. Agent Hub
+cannot resolve these worktrees to a configured project scope. No provider or
+browser execution is claimed by local fixtures.
 
-## Preserve these existing capabilities and contracts
+## Preserved behavior
 
-- Keep skill-based capture, per-user/per-provider consent, `observations:write`, optional auto-linking only with `portfolio:write`, browser/computer skills, MCP submission, extension recording, and human review. Do not replace observation write-back with read-only tools or assistant proposals.
-- Keep outcomes `recorded`, `unchanged`, `needs_review`, `rejected`; server-issued observation/review IDs; existing result fields `accountId`, `points`, `previousPoints`, `message`, `reviewId`; DTO timestamp conventions; existing review error codes and owner-hiding 404 behavior. Add fields compatibly rather than adopting native `accepted`/`held` status names.
-- Preserve first-reading sanity caps, 10×/zero-boundary plausibility behavior, the 24-hour confirmation window, stale-baseline protection, and original observed time. Native parity must not weaken these PR14 guarantees.
-- Preserve `balance_snapshot.source = 'agent'`, `balance_agent` activity, inactivity-expiry updates, and `balance.recorded`/`observation.held`/`observation.confirmed`/`observation.rejected` outbox events. Reusing `RecordManualBalance` with `source: 'agent'` currently supplies these effects.
-- Keep PAT and verified Clerk bearer capture, and cookie-session capture. Confirm/reject remain session-only with same-origin protection, rejecting every Authorization header. Never put review capabilities into agent tools.
-- Retain balance history and observation audit records under the existing retention policy. Token/consent retention must continue to purge stale credentials/grants without destroying observation provenance.
+The skill-based capture path retains per-user/provider consent,
+`observations:write`, browser/computer skills, MCP submission, extension recording,
+and human review. Auto-linking still additionally requires `portfolio:write` or
+session authority. Existing outcomes remain `recorded`, `unchanged`, `needs_review`
+and `rejected`; server-issued observation/review IDs and all existing required
+response fields are preserved. Optional `observationId` identifies the same
+server-issued receipt even when no review is needed.
 
-Source anchors: [wire contracts](../packages/core/src/contracts/agent.ts#L89), [outcomes and TTL](../packages/core/src/domain/agent/observation.ts#L7), [submission](../packages/core/src/application/agent/submit-observation.ts#L82), [agent balance effects](../packages/core/src/application/loyalty/record-manual-balance.ts#L62), [capture route](../apps/web/src/app/api/v1/agent/observations/route.ts#L24), [review route](../apps/web/src/app/api/v1/agent/observations/[id]/confirm/route.ts#L15).
+First-reading caps and the existing 10×/zero-boundary guard remain. Confirmation
+expires after 24 hours and rejects stale baselines; owner rejection remains
+available after expiry as harmless cleanup. A retry cannot confirm a held value.
+Confirm/reject require a browser cookie session, reject every Authorization header,
+and retain same-origin protection and bodyless compatibility.
 
-## Verified current gaps and required corrections
+Balance effects still use `RecordManualBalance` with `source: 'agent'`, producing
+`balance_agent` activity, inactivity-expiry updates and the existing `balance.recorded`
+outbox event. Held/confirmed/rejected events remain in the same ambient transaction.
+No native standalone snapshot/activity writes or replacement native status names
+were introduced. Direct manual/sync and existing scoped agent capabilities remain.
 
-| Area | Current evidence and consequence | Required change |
-| --- | --- | --- |
-| Consent/token authorization at commit | `SubmitObservation` reads active consent before `unitOfWork.run` (104–113). It neither locks that grant nor rechecks after blocking calls. The HTTP route forwards user ID but drops `principal.tokenId` (32–41). A request admitted before revocation/expiry can finish writing afterward; audit cannot identify the actual token/grant. | Pass trusted credential metadata from the resolver; lock/revalidate PAT, owned account and selected provider consent inside the same transaction, including current time after lock waits and before commit. Session/Clerk captures must remain supported. |
-| Concurrent baseline and owner/deletion state | Submission reads latest balance without account serialization (137). Confirmation checks account state and latest points outside its transaction (250–263). The repository transition checks owner/outcome but not account state or baseline (196–212). A concurrent balance writer can make a checked baseline stale before the confirmed write; a concurrent soft-delete can invalidate admission. | Establish one account write serialization contract; perform owner/provider/deleted checks and baseline reads under it, within the ambient UOW. Confirm against a baseline snapshot identity, not only equal point values for version-1 rows. Legacy rows retain the existing points comparison, moved inside the protected transaction; do not fabricate a baseline snapshot ID. Keep existing foreign-owner rejection; this is a commit-boundary race, not evidence that today's ordinary foreign-owner review succeeds. |
-| Review expiry after waiting | Confirmation captures `now` and checks TTL before the potentially blocking transition (246–264). Crossing the expiry boundary while waiting does not stop its write. | Recheck server time after acquiring review/account locks and at the write/commit boundary; expiry must roll back snapshot, audit transition and events. Use an injected clock. |
-| Replay identity | Every submission generates a new observation ID (143); no caller replay key or fingerprint exists. An unchanged retry avoids a snapshot only while that balance remains latest, and held retries create distinct review IDs (unit test 239–246). A network retry after an intervening write can create another snapshot or review. | Optional stable caller `captureId`, owner-scoped unique replay key and canonical payload fingerprint. Exact retries return the existing canonical receipt without new snapshots/events; changed payload under the same key conflicts. Keep legacy requests functional while upgrading first-party callers to stable keys. |
-| Provenance claims | `agent` is free text; persistence records only skill ID and host (169–179). No authenticated credential kind/token ID, consent ID, skill version or capture-method provenance survives. Host validation accepts arbitrary subdomains; HTTPS URLs with userinfo or a nonstandard port also pass the current host check (90–102; skill.ts 120). | Keep the display agent label but distinguish it from authenticated identity. Persist bounded server-selected provenance and explicit self-reported capture method. Require HTTPS, no userinfo and default TLS port; use a reviewed exact host list per skill. Treat source URLs/methods as submitted claims, not proof a provider page was visited. Review legitimate subdomain coverage before tightening the list. |
-| Time validation across outcomes | `observedAt` defaults to `now` (141), but future-time validation occurs only when `RecordManualBalance` executes. Held and unchanged rows skip that check. A future capture can therefore be accepted as a receipt/review. | Validate a finite, nonfuture capture time before outcome selection for every outcome. Preserve PR14 backfill capability; native's 30-day maximum is a separate product-policy decision, not an automatic port requirement. |
-| Read cache after review | The web container wraps services with `invalidateOnWrite`, which wraps only `.execute`; `ResolveObservationReview` exposes `.confirm`/`.reject` (read-cache.ts 66–82). Confirmation therefore bypasses portfolio invalidation. | Invalidate the owner's cache tag in confirmation's `finally`, as for assistant approval, with a focused regression. Rejection has no portfolio write and need not invalidate portfolio reads. |
-| Nontransactional adapters | Confirmation can reset `recorded` to `needs_review` after an error when `unitOfWork.atomic` is false (296–304). If the balance already committed, the receipt no longer reflects that effect and becomes retryable. | Require an atomic adapter for production write/review paths. Fake hosts should model rollback or explicitly reject unsupported atomic operations. Do not compensate a possibly committed write into an actionable pending state. This is conditional on non-atomic adapters, not a claim of current production partial commits. |
+## Protected authorization and transaction
 
-Production composition already uses one ambient `DrizzleUnitOfWork` proxy for repositories and publisher: [repositories.ts 74](../packages/core/src/composition/repositories.ts#L74), [drizzle-outbox.ts 24](../packages/core/src/infrastructure/outbox/drizzle-outbox.ts#L24). Keep that architecture and test it; do not insert native standalone snapshot/activity writes that bypass the outbox.
+`SubmitObservation` requires an atomic UOW and the repository's protected ports.
+Production composition shares one ambient `DrizzleUnitOfWork` handle across
+repositories and the publisher. Unsupported non-atomic hosts fail before writes;
+unit fixtures explicitly roll back account, balance, activity, receipt and event
+state rather than advertising an unimplemented atomic flag.
 
-Rejection currently permits cleanup after expiry (`reject` 316–350), while the domain comment says both actions expire. Proposed policy: expired captures cannot be confirmed, but the owner may still reject them as cleanup. Clarify this behavior in docs/UI and test it rather than removing cleanup. If strict expiry of rejection is required, decide that explicitly before implementation.
+The protected submission port serializes the owner/capture replay key, locks the
+PAT when applicable, takes the owner/provider advisory lock, locks the active
+owned account and selected provider consent, and rechecks authorization after
+blocking reads and before commit. Current PAT owner, revocation, expiry and scopes
+are authoritative; an old HTTP `canLinkAccount` flag cannot bypass the current
+`portfolio:write` check for auto-linking. Session/verified Clerk bearer captures
+remain admitted through trusted resolver metadata. Every replay passes current
+route authentication and current locked PAT/grant authorization first.
 
-## Native mechanisms to adapt, and differences not to copy
+The shared account write boundary serializes observation, manual and sync snapshot
+writers. Manual ownership/baseline reads move inside the UOW; sync refreshes account
+state under the shared lock. Reviews lock the owned account and receipt, then check
+live expiry and baseline inside the transaction. Expiry after a wait or write
+rolls back the snapshot, transition and events. A failed outbox write also rolls
+back the complete effect; the old compensation that reopened a possibly committed
+review is removed.
 
-Native anchors below refer to the reference worktree, not integration files:
+Source: [service](../packages/core/src/application/agent/submit-observation.ts),
+[protected repository](../packages/core/src/infrastructure/repositories/drizzle-agent-repositories.ts),
+[shared balance/account adapter](../packages/core/src/infrastructure/repositories/drizzle-loyalty-account-repository.ts),
+[manual balance](../packages/core/src/application/loyalty/record-manual-balance.ts),
+[sync balance](../packages/core/src/application/loyalty/sync-loyalty-account.ts),
+[ambient UOW](../packages/core/src/infrastructure/outbox/drizzle-outbox.ts).
 
-- `packages/core/src/domain/agents/models.ts:74` (`prepareObservation`): validates capture identity/time/source and hashes the normalized payload; metadata omits owner/token/hash/consent/snapshot internals.
-- `packages/core/src/infrastructure/repositories/drizzle-agent-repositories.ts:14`: owned account `FOR UPDATE` lock; `:66` ingest locks token/account/consent, repeatedly authorizes against the live clock, returns identical replay receipts, and persists state atomically; `:115` review serializes the account and receipt and handles repeated same-decision calls.
-- `packages/core/src/infrastructure/db/schema.ts:280`: receipt includes credential, consent, method, fingerprint, snapshot and review references, with ownership constraints.
+## Canonical replay and receipt resolution
 
-Adapt the locking, canonical replay and private metadata mechanisms. Native review has neither PR14's 24-hour expiry check nor its stale-baseline check; do not substitute it wholesale. Native `persistSnapshot` at repository line 20 writes `source: 'manual'`/`balance_manual` directly and emits no PR14 outbox event; that would lose retained provenance and event behavior. Native consent is account-specific while PR14 consent is provider-wide; keep provider consent and bind each receipt to the actual selected grant. Native foreign keys require retaining tokens and cascade receipt deletion with consent deletion; copying them would conflict with PR14's credential/grant purge policy.
+The strict wire contract adds optional caller UUID `captureId` and optional
+`sourceMethod` (`page_capture`, `manual_entry`). A caller key is distinct from the
+server receipt/review ID. Omitted keys keep legacy admission semantics and do not
+promise stable replay recovery.
 
-## Additive migration 0019 proposal
+A partial unique index qualifies capture keys by owner. Under that key's lock,
+exact retries return the existing receipt without another snapshot, audit row or
+event. Changed claims conflict with the closed `OBSERVATION_REPLAY_CONFLICT` 409.
+The versioned canonical hash includes the resolved account/provider, skill/version,
+points, source claim, agent label, method, observed-time claim and membership-number
+claim or its omission. It excludes credential identity and authority flags.
+Omitted `observedAt` uses a stable omission marker; the original receipt time stays
+unchanged when the server clock advances. Full URLs and membership numbers are
+not persisted in the observation row; only the digest and bounded host remain.
 
-Do not rewrite old migrations, native schemas, enums or branded IDs. Extend the existing `agent_observation` table; existing ID remains the public receipt/review ID. Generate and inspect the Drizzle snapshot/journal for the final schema. Deploy schema before writers begin using new fields.
+Same-owner exact replay may use a rotated credential only after current
+credential/grant authorization. The receipt retains its original credential,
+consent and capture witnesses. Revoked/expired credentials or absent active consent
+cannot obtain a replay success by bypassing authorization.
 
-| New column/constraint | Purpose and legacy treatment |
-| --- | --- |
-| `provenance_version smallint NOT NULL DEFAULT 0` | Distinguish legacy rows with unknown provenance from new version-1 records; never fabricate historical token, consent, method or snapshot associations. |
-| `credential_kind varchar(24)`, `access_token_id varchar(255)` | Trusted server-selected `session`, `clerk_bearer`, `personal_access_token`; token ID present only for PAT. Nullable for legacy rows. Never store plaintext credentials. |
-| `consent_id varchar(255)`, `consent_granted_at timestamptz`, `consent_expires_at timestamptz` | Preserve selected grant identity and authorization-time witness independently of later retention purges. Nullable for legacy rows. Provider and owner already remain on the receipt. |
-| `skill_version integer`, `source_method varchar(24)` | Server-selected catalog version plus bounded caller claim (`page_capture`, `manual_entry`, optionally a documented legacy/unknown value). Legacy rows remain unknown; do not infer method from the agent label. |
-| `capture_id varchar(36)`, `payload_hash varchar(64)` | Optional canonical caller UUID and versioned SHA-256 fingerprint; unique partial index `(user_id, capture_id) WHERE capture_id IS NOT NULL`. Preserve distinct owners' key namespaces. Existing callers without a key retain existing admission semantics. |
-| `baseline_snapshot_id varchar(255)`, `recorded_snapshot_id varchar(255)` | Bind held validation to the exact prior snapshot and identify the one accepted snapshot. Nullable legacy values are not reconstructed from coincidentally equal points/timestamps. |
-| `review_expires_at timestamptz`, `reviewed_at timestamptz`, `review_decision varchar(16)` | Store explicit new-row deadline/resolution. Backfill legacy `needs_review` deadline as `created_at + interval '24 hours'`; legacy resolution time remains unknown. Keep wire outcomes unchanged. |
-| Version-aware checks | Validate kind/method/decision enums, hash format, safe nonnegative integer points, nonnegative skill version, PAT-token association and paired replay fields for new rows. Audit existing data before validating any constraint that also covers legacy rows. |
-| Owned account constraint | Add/reuse unique account `(id,user_id,provider_id)` identity and composite receipt FK where feasible. Audit existing mismatches before validation; no silent dropping/reassigning audit rows. Coordinate existing owned-account indexes from 0017. |
+A held receipt can later become recorded or rejected through human resolution.
+Replay returns that **current authoritative outcome**, with `reviewId: null` after
+resolution; it does not regenerate actionable pending state. The original capture
+claims/fingerprint remain unchanged. Repeat review calls retain the existing
+`REVIEW_ALREADY_RESOLVED` error contract.
 
-Token/consent ID columns should be durable scalar witnesses without cascading/restricting FKs into tables purged by retention. Atomic ingestion verifies their ownership before writing. If relational FKs are required later, move purgeable credentials/grants into a separate durable tombstone design first; `SET NULL` alone would erase the provenance this milestone is adding. Snapshot/account deletion policy must be explicit: current account FK cascades observation deletion on physical account deletion (schema.ts 321–328); scheduled retention does not delete observations. Preserve intended account-erasure behavior rather than claiming the audit survives deliberate physical erasure.
+Source: [domain](../packages/core/src/domain/agent/observation.ts),
+[wire contracts and safe DTO projection](../packages/core/src/contracts/agent.ts),
+[capture HTTP route](../apps/web/src/app/api/v1/agent/observations/route.ts),
+[error registry](../packages/core/src/domain/errors.ts).
 
-Replay hash v1 should include owner, trusted credential identity/kind, resolved account/provider, skill/version, capture time, points, canonical source claim and capture method. Store only the digest and bounded host, never full URLs, membership numbers, page content, cookies or request headers. Normalize times/UUIDs consistently; server-selected catalog versions and omitted capture-method defaults must be frozen for exact replay comparison, and an omitted capture timestamp must be frozen by the first receipt so an exact retry does not conflict merely because the server clock advanced. Decide and test same-key behavior when a caller changes credentials. Resolve an existing owner/key receipt before auto-link effects, then reauthorize and compare its immutable canonical payload. The digest detects changed claims; it does not authenticate provider data.
+## Provenance, baseline and legacy boundaries
 
-## Transaction and retry implementation sequence
+The HTTP resolver supplies trusted `credentialKind`/PAT ID; caller JSON cannot
+supply those fields. `agent` remains a display label, not authenticated provenance.
+New authenticated receipts record version 1, credential/grant witnesses, catalog
+version, self-reported method (`unknown` when omitted), hash/key, baseline and
+recorded snapshot IDs, and review deadline/decision/time. Capture times must be
+finite and nonfuture for every outcome; points must be nonnegative safe integers.
+Existing backfill policy is preserved rather than imposing native's 30-day limit.
 
-1. Add trusted credential metadata to `SubmitObservationInput`, supplied solely by the HTTP resolver; preserve browser/PAT/Clerk paths and current auto-link scope check. Add optional request `captureId`/`sourceMethod` and optional result `observationId` (the existing server-issued receipt ID) additively; `reviewId` remains set only for needs_review and all existing required fields remain unchanged. Omit credential/grant/hash internals from DTOs. Add a specific `OBSERVATION_REPLAY_CONFLICT` 409 to the closed domain error registry, HTTP map and API docs instead of overloading a review error or accepting arbitrary exception codes. Reject unknown override fields as today.
-2. Keep `eventing.unitOfWork.run` as the outer transaction. Serialize the owner/provider when auto-linking; lock token when applicable, account, selected consent, and replay receipt in a documented consistent order. Use the same account write lock contract for manual/sync/agent writers involved in baseline checks. Revalidate owner/provider/deleted state and live grant/token expiry after waits; use a fresh server time at the commit boundary.
-3. Resolve exact replay or conflict before new effects. Select authoritative latest snapshot deterministically and record its identity. Choose unchanged/held/recorded with existing guardrails. Reuse `RecordManualBalance(...source:'agent')` inside the ambient UOW and capture its returned snapshot ID; insert receipt and publish events inside that same transaction. Reauthorize before commit. Race losers reload the same owner/key receipt, compare fingerprint and return it rather than translating every unique violation into a generic success/conflict.
-4. Review locks owned account and receipt in the same order, reloads state inside the UOW, and checks live expiry plus baseline snapshot identity. Transition and snapshot/events commit together. Preserve existing repeat-decision `REVIEW_ALREADY_RESOLVED` semantics for current endpoints; receipt GET provides recovery after a lost response. Any future idempotent review response must be an explicit contract change. No-op/expired/rejected/conflicting requests create no second balance/event.
-5. Add confirmation cache invalidation in `finally`. Bind legacy review requests to their persisted original points; replacement values and auth provenance remain server-owned. Add bounded JSON parsing to capture (currently `request.json()`), retain bodyless review compatibility, and avoid requiring a new body to use existing IDs.
-6. Upgrade extension and MCP callers to retain one capture UUID for retries of the same capture, replacing it for a genuinely new capture. Preserve current MCP schemas/tool names/consent flow and extension review display. Advertise new optional fields in API client/OpenAPI/ChatGPT schemas; approval remains excluded.
-7. Verify retention with referenced old tokens/consents, processed versus dead-lettered outbox rows, receipts and balance history. Keep the existing four retention targets and policy limits; no new observation purge.
+Skill hosts are exact reviewed catalog values: apex, www and the seeded start-URL
+host; arbitrary subdomains no longer pass. Source claims require HTTPS without
+userinfo or nondefault ports. Host/time/method claims still do not prove a provider
+page was visited or that the value is correct. Catalog entries remain visibly
+unverified until reviewed against the actual provider.
 
-## Bounded ownership and acceptance tests for the next phase
+`executeWithSnapshotId` returns the exact generated snapshot ID while existing
+`execute` keeps its public balance response. Backdated captures therefore never
+infer the recorded snapshot from whichever row is latest. Version-1 reviews and
+new internal receipts with known hashes compare the exact baseline snapshot ID,
+including the absence of a prior baseline. Legacy version-0 rows with SQL NULL
+hash/baseline fields keep the prior points comparison inside the protected
+transaction. Historical credential/consent/snapshot provenance is not invented.
 
-| Owner/work area | Files | Focused acceptance evidence |
-| --- | --- | --- |
-| Domain/service owner | `domain/agent/observation.ts`, `application/agent/submit-observation.ts`, `composition/agent-module.ts`, exact account-write locking seam | Clock-injected expiry at equality/after lock wait; valid owner/provider binding; foreign receipt returns existing 404; future capture denied for unchanged/held/recorded; same point value with a different baseline snapshot is stale; retained cap/zero/10×/auto-link behavior. Non-atomic host cannot reset a possibly committed write to pending. |
-| Database/migration owner | `infrastructure/db/schema.ts`, migration0019 + snapshot/journal, `infrastructure/repositories/drizzle-agent-repositories.ts`, minimal loyalty lock support | Real Postgres barriers for token revoke/expiry, consent revoke/expiry, account soft-delete, competing submission/balance write, confirm versus reject, expiry during wait; each yields defined linearization and zero unauthorized snapshots/events. Same capture parallel retries produce one receipt and at most one snapshot; changed payload conflicts; same key for another owner never leaks/reuses a receipt. Inject failures after snapshot/audit/outbox writes to prove full rollback. |
-| HTTP/contracts owner | `contracts/agent.ts`, capture/confirm/reject routes, focused new route tests, API client types/methods, OpenAPI/plugin schemas | Resolver metadata cannot be spoofed in JSON. Cookie confirm passes; PAT, Clerk bearer and cross-origin cookie requests fail before service calls. Legacy bodyless review and unchanged v1 result shape remain compatible. Stable optional capture ID survives retries; bounded parser rejects oversized/non-JSON input. Confirmation invalidates owner cache on success and failure; rejection does not write a balance. |
-| Caller owner | `apps/extension/src/record.ts`, MCP `server.ts` submit tool + targeted tests | Retry same capture preserves UUID/time/method; new capture gets a new UUID; no direct agent review tool introduced; scopes/consent/auto-link permissions unchanged. |
-| Event/retention owner | Existing outbox/retention tests and optional minimal retention adapter changes | One accepted observation produces expected `balance_agent` activity and event; exact replay creates neither duplicate event nor snapshot. Held/confirmed/rejected event schemas stay valid. Token/consent purge succeeds while receipt witnesses remain; snapshots/receipts/dead letters remain retained. |
+Confirmation invalidates the owner's read-cache tag in `finally`. Response DTOs
+explicitly whitelist public result fields and optional receipt ID; private
+credential, consent and hash witnesses remain server-only.
 
-Existing tests cover sequential owner/stale/24h/single-use checks (`test/agent.test.ts:260`) and concurrent same-ID confirm (`test/drizzle-agent.integration.test.ts:132`), but the latter constructs raw repositories/default non-atomic eventing (`:57`) rather than production composition. Extend with fresh production-composed fixtures and deterministic barriers; do not treat that old test as proof of snapshot+outbox rollback or authorization after lock waits. Root remains the single owner of broad validation and database/Docker runs.
+## Managed migration 0019 and retention
 
-Completion gate: migration applies to a populated PR14 database without losing existing IDs/outcomes; existing features and focused contracts pass; race/rollback/replay/retention tests above pass through the real ambient UOW; generated agent specs still exclude browser review; root runs the full project checks once after the phase settles. No live-provider capture is required to validate these local invariants.
+Migration 0019 appends 17 provenance/replay/review columns to `agent_observation`,
+owner-qualified replay uniqueness, a reusable account identity index and
+version-aware checks. Existing rows retain `provenance_version = 0` and unknown
+witnesses; pending legacy review deadlines are backfilled from creation plus
+24 hours. Migrations 0000–0018 and existing outcomes/IDs remain intact.
+
+The composite `(account_id,user_id,provider_id)` owned-account FK is installed
+**NOT VALID**. It enforces new/changed references but does not establish that every
+retained historical row is owner/provider-consistent. Legacy mismatches are retained
+rather than silently reassigned/deleted. Inspect and resolve them before separately
+validating the constraint; neither metadata checks nor a fresh database proves a
+populated production database has no such legacy rows.
+
+Token, consent and snapshot witness IDs are durable scalars without FKs to the
+purged credential/grant tables. Existing token/consent retention therefore continues
+without erasing observation witnesses or causing purge failures. Scheduled retention
+still omits balance snapshots and observation receipts and preserves dead-lettered
+outbox rows. Account physical erasure retains its existing cascading behavior;
+this audit does not promise survival across deliberate account deletion.
+
+Source: [migration 0019](../packages/core/drizzle/0019_observation_provenance_replay.sql),
+[schema](../packages/core/src/infrastructure/db/schema.ts),
+[retention policy](../packages/core/src/infrastructure/retention/retention.ts).
+
+## Verification checkpoint and remaining gates
+
+Root's actual PostgreSQL runs passed **44 cases**: 18 migration/adoption, 23
+production-composed observation cases and three retained integration cases. Managed
+migration through 0019 passed. Nine focused sync/host checks passed: three new
+shared-boundary regressions, four retained sync cases and two new exact-host policy
+cases. Full root lint and all workspace TypeScript checks passed on the current
+source. Backend unit tests cover replay/rotation/resolution, SQL-shaped legacy NULL
+fallback, exact backdated snapshot IDs, expiry after waits/writes and rollback.
+Caller mocks verify request/state behavior, not database atomicity or Chrome execution.
+
+The production run includes all five additional authorization/review race cases.
+The first gated suite found only a missing replay-conflict 409 documentation row;
+root corrected it and seven focused error-code checks passed. The subsequent full
+gated workspace run passed **834 tests**, with one paid live evaluation skipped.
+Fresh aggregate CI after the source commit remains pending. This verifies current
+source and isolated fixtures, not production state. Root remains the sole owner
+of aggregate checks, PostgreSQL fixtures, Graphify refresh, commits and deployment.
+The root-owned fixture is stopped with data retained after checks. Do not rerun
+broad checks from another agent.
+
+Before activating schema-dependent hosts, inspect the real deployment journal and
+legacy data, verify a recoverable backup, adopt/apply migration 0019 and resolve
+migration-before-host activation. Valid AWS/GitHub credentials, live Clerk/OpenAI
+and Chrome checks, exporter delivery, approved-client sign-in policy, public OAuth
+MCP/plugin publishing, staged broader numeric/RLS work and provider partnerships
+remain in [release-backlog.md](release-backlog.md). iOS remains deferred.

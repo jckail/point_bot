@@ -1,6 +1,6 @@
 import { renderChat } from "./chat-view";
 import { loadConfig, saveConfig } from "./config";
-import type { ExtractedBalance } from "./extraction";
+import type { ReviewedCapture } from "./capture-state";
 import type { ChatEntry, ChatResult, ExtensionMessage, RecordResult } from "./messages";
 
 function $(id: string): HTMLElement {
@@ -9,15 +9,18 @@ function $(id: string): HTMLElement {
   return el;
 }
 
+let selectedCaptureId: string | undefined;
 async function refreshLatest(): Promise<void> {
   // The background worker answers `getLatest` with the last capture or null.
-  const capture: ExtractedBalance | null = await chrome.runtime.sendMessage({
+  const capture: (ReviewedCapture & { retryLocked?: boolean; receipt?: RecordResult }) | null = await chrome.runtime.sendMessage({
     type: "getLatest",
   });
   const box = $("latest");
   const recordBtn = $("record") as HTMLButtonElement;
+  selectedCaptureId = capture?.captureId;
+  ($( "discardCapture") as HTMLButtonElement).disabled = !capture;
   if (capture) {
-    box.textContent = `${capture.providerId}: ${capture.points.toLocaleString("en-US")}`;
+    box.textContent = `${capture.providerId}: ${capture.points.toLocaleString("en-US")} • ${new Date(capture.observedAt).toLocaleTimeString()}${capture.retryLocked ? " • retry locked" : ""}${capture.receipt?.reviewId ? ` • Review ${capture.receipt.reviewId}` : ""}`;
     recordBtn.disabled = false;
   } else {
     box.textContent = "Open a provider page to capture a balance.";
@@ -62,13 +65,21 @@ async function init(): Promise<void> {
   $("record").addEventListener("click", () => {
     $("status").textContent = "Recording…";
     void chrome.runtime
-      .sendMessage({ type: "record" })
+      .sendMessage({ type: "record", captureId: selectedCaptureId })
       .then((result: RecordResult) => {
         $("status").textContent = result.message;
         return refreshLatest();
       });
   });
 
+  for (const type of ["discardCapture", "openObservationReview"] as const) {
+    $(type).addEventListener("click", () => {
+      void chrome.runtime.sendMessage<ExtensionMessage, RecordResult>({ type }).then(async result => {
+        $("status").textContent = result.message;
+        await refreshLatest();
+      }).catch(() => { $("status").textContent = "Extension worker unavailable. Keep your capture and retry."; });
+    });
+  }
   await refreshLatest();
   try { const result = await chatRequest({ type: "getChat" }); showChat(result.chat ?? []); }
   catch { $("chatStatus").textContent = "Conversation unavailable. Reopen the popup to retry."; }

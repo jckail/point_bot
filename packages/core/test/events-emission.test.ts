@@ -30,6 +30,7 @@ import type { PageScraper } from "../src/application/ports";
 import { createAwardWatch } from "../src/domain/loyalty/award-watch";
 import { SimulatedTravelProviderGateway } from "../src/infrastructure/providers/simulated-travel-provider-gateway";
 import {
+  AtomicObservationEventing,
   InMemoryActivityEventRepository,
   InMemoryAwardWatchRepository,
   InMemoryBalanceSnapshotRepository,
@@ -53,7 +54,7 @@ function setup() {
   const balances = new InMemoryBalanceSnapshotRepository();
   const activity = new InMemoryActivityEventRepository();
   const consents = new InMemoryConsents();
-  const observations = new InMemoryObservations();
+  const observations = new InMemoryObservations({ accounts, consents });
   const link = new LinkLoyaltyAccount(accounts, activity, clock, eventing);
   const record = new RecordManualBalance(accounts, balances, activity, clock, eventing);
   return { eventing, accounts, balances, activity, consents, observations, link, record };
@@ -205,7 +206,12 @@ describe("event emission", () => {
     };
 
     function agentSetup() {
-      const s = setup();
+      const original = setup();
+      const eventing = new AtomicObservationEventing(original);
+      const s = { ...original, eventing,
+        link: new LinkLoyaltyAccount(original.accounts, original.activity, clock, eventing),
+        record: new RecordManualBalance(original.accounts, original.balances, original.activity, clock, eventing),
+      };
       const submit = new SubmitObservation(
         s.accounts,
         s.balances,

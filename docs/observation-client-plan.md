@@ -1,59 +1,127 @@
-# Observation replay changes for extension and MCP callers
+# Observation replay protocol for extension and MCP callers
 
-Planning only, inspected 2026-10-02 in `/home/jkail/projects/point_bot-integration`. This document complements [the observation integration plan](observation-integration-plan.md); it does not authorize runtime or migration changes before the current release is committed. Graphify was queried first and returned unrelated shared-corpus paths, with no relevant PointUp caller implementation. Findings below were verified against live source. No runtime files, dependencies, provider sessions, or database state were changed.
+Status: implemented in the integration source alongside managed observation
+migration 0019. Final aggregate CI, live Chrome/provider execution and production
+adoption remain pending. This replaces the earlier planning-only checkpoint;
+[backend invariants](observation-integration-plan.md) and
+[release gates](release-backlog.md) still apply.
 
-## Current caller contracts
+The caller UUID `captureId` identifies one immutable capture submission; the
+server-issued observation/review ID identifies its durable receipt. Do not swap
+these IDs or use assistant proposal IDs for observation review. Optional
+`captureId`/`sourceMethod` and result `observationId` are additive to existing strict
+contracts and outcomes. Deploy the compatible schema/server before upgraded callers;
+do not silently remove the key after an uncertain result or validation failure.
 
-There is no `apps/extension/src/capture.ts` in the integration tree. Capture is split across `extraction.ts`, `content.ts`, `config.ts`, and `background.ts`; write-back is in `record.ts`.
+## Extension capture and frozen state
 
-| Surface | Verified current behavior | Replay gap |
-| --- | --- | --- |
-| Extension extraction/content | `ExtractedBalance` has provider, points and optional query/hash-free source URL. The content script reads immediately and five more times at two-second intervals, sending each successful extraction to the background. | No capture UUID, original capture time or method; repeated hydration reads overwrite local storage. |
-| Extension storage/background | `latestCapture` is in local storage. Record loads it and calls `recordCapture`; any `ok` result clears it without checking whether a newer capture arrived during the request. | A failed request keeps the capture, but a retry has no replay key. Concurrent captures can replace the request being retried, or be cleared by an older response. |
-| Extension PAT record | `pu_` selects `submitObservation({skillId, points, sourceUrl, agent})`, with skill ID `${providerId}.capture-balance`. A `needs_review` response returns `ok:false` and retains the capture. Other outcomes currently return `ok:true`. | No immutable submission envelope, original `observedAt`, caller identity or receipt ID. `rejected` falls through as success today; the upgrade should present it as rejection explicitly. |
-| Extension Clerk/session record | Non-`pu_` tokens list linked accounts, choose the first provider match and call `recordManualBalance`. | This manual endpoint has no observation replay guarantee. Keep this path compatible; do not claim UUID deduplication protects it. |
-| MCP | `pointup_submit_balance` forwards skill, points, HTTPS source URL, optional observed time/membership, plus the trusted adapter label `ctx.agentName`. It is a stateless per-request adapter. | No capture key in its input schema; generating a UUID inside each tool invocation would give every retry a new identity. |
-| API client/contracts | `PointUpClient.submitObservation` forwards `SubmitObservationRequest` unchanged. The strict request schema supports existing fields only; result preserves `recorded`, `unchanged`, `needs_review`, `rejected` and server `reviewId`. | New fields must land in server contracts before either caller sends them. An API client rebuild alone does not make an older strict server accept them. |
+Capture is split across `extraction.ts`, `content.ts`, `capture-state.ts`, `config.ts`
+and `background.ts`; submission is in `record.ts`. Pure extraction still supplies
+provider/points and a query/hash-free source URL. A reviewed page candidate adds
+one UUID, original ISO `observedAt` and `sourceMethod: 'page_capture'`.
 
-Source anchors: [extension extraction](../apps/extension/src/extraction.ts), [content capture](../apps/extension/src/content.ts), [storage](../apps/extension/src/config.ts), [background](../apps/extension/src/background.ts), [record adapter](../apps/extension/src/record.ts), [MCP tool definitions](../apps/mcp/src/server.ts), [wire schema](../packages/core/src/contracts/agent.ts), [API client](../packages/api-client/src/index.ts).
+Repeated hydration delivery of the same provider/source/points within one document
+keeps the UUID/time. A changed reading or new document gets a new identity, even
+when its points equal an earlier observation. Equal balances are not globally
+deduplicated. Old stored captures without a trustworthy envelope require a fresh
+page reading; their missing historical time is not invented during upgrade.
 
-## Additive wire changes and rollout
+Before the first PAT POST, background storage freezes the exact request and a
+SHA-256 identity of the configured API URL/token. The pending envelope survives
+popup reopening and service-worker restart. New content candidates are stored
+separately and cannot replace the displayed pending review or its retry payload.
+Capture-state actions are serialized through the worker's queue. Capture requests
+use a **25-second timeout**; a timeout retains the frozen request for recovery.
 
-Land the migration/server semantics described in the integration plan first. Add optional `captureId` (canonical UUID) and `sourceMethod` (`page_capture` or `manual_entry`) to `submitObservationRequestSchema`; retain existing optional `observedAt` and membership fields. Add optional `observationId` to the result, using the existing server-issued receipt ID. Keep required result fields and nullable `reviewId` unchanged. The capture UUID is a caller replay key, never a replacement for a server observation/review ID.
+Retry sends the original key/time/method/skill/points/source/agent fields. A settings
+or token change does not silently retry the pending request under another identity:
+restore the original settings to retry, or inspect Dashboard → Agents before
+explicitly discarding. The backend supports authorized same-owner credential
+rotation, but this client deliberately requires recovery instead of assuming a
+replacement token belongs to that owner.
 
-The client already imports these contracts, so its existing `submitObservation` method needs no alternate endpoint or native `submitAgentObservation` name. Add transport tests showing the optional fields are forwarded unchanged and legacy payloads still work. Advertise the additions in OpenAPI and generated agent schemas only once the backend accepts them. New callers must not catch a validation error and silently resubmit without `captureId`: the first response may be uncertain, and dropping the key loses the replay guarantee. Require a compatible server for the upgraded capture flow, or use an explicit preflight capability/version signal approved by the HTTP owner.
+Completion clears only state matching the capture UUID. A bounded persisted list
+of the last **16 completed/discarded IDs** acts as tombstones, so queued hydration
+messages cannot immediately resurrect a cleared capture. A newer candidate is not
+removed by an older response. These tombstones are local delivery protection,
+not permanent server replay storage. Explicit discard clears local review only;
+it cannot undo a committed observation and instructs dashboard recovery first.
 
-Do not copy native `accepted`/`held` outcomes, native account-specific consent, native observation IDs, or native skill names. Keep `observations:write`, provider consent, current PAT/Clerk/browser admission, and `portfolio:write` only for permitted auto-linking. Browser confirmation/rejection stays outside extension and MCP tools.
+Source: [state protocol](../apps/extension/src/capture-state.ts),
+[storage validation](../apps/extension/src/config.ts),
+[content candidate](../apps/extension/src/content.ts),
+[serialized worker and timeout](../apps/extension/src/background.ts).
 
-## Extension changes to implement after the release
+## Outcomes and human review
 
-1. Introduce a reviewed capture envelope separate from the pure `ExtractedBalance`: `captureId`, original ISO `observedAt`, literal `sourceMethod:'page_capture'`, and existing provider/points/source URL. Keep extraction deterministic and free of clock/random APIs. Generate one UUID/time when a page reading becomes a new capture, persist it before network submission, and retain it across popup reopen/service-worker restart and retries. Migrate a legacy stored capture by assigning and persisting one envelope before its first upgraded submission; require a fresh capture if source/time validation cannot be established. Do not regenerate identity in `recordCapture` on every call.
-2. Treat the content script's hydration timer as repeated delivery of a candidate, not six new user submissions. A per-document candidate keeps its UUID/time while provider, source URL and points remain equal; a changed reading or a genuinely new capture creates a new UUID/time. A new navigation starts a new document candidate, even when its points equal an earlier reading. Do not derive UUIDs from points or globally deduplicate equal balances: equal readings at different times are distinct captures.
-3. Freeze the exact observation request before the first POST: capture key/time/method, skill ID, points, source URL, agent label and any auto-link input. Retain it separately as a pending submission so asynchronous content messages cannot replace a retry payload. Preserve the backend's existing auto-link behavior; do not add an account ID override unsupported by the wire contract. For a settings/token change, mark the pending review as requiring recovery or a deliberate new capture; never silently submit it as another identity. The backend owner must settle same-key credential-rotation semantics before the caller promises retry with a replacement token.
-4. Keep incoming page candidates separate while a pending submission exists. Show the frozen review in the popup until resolved or explicitly discarded; add a clear user action for discarding/replacing that review. A page reload or later content message must not silently unlock an uncertain submission. Discarding does not undo a potentially committed observation; instruct the user to check the dashboard receipt/audit before making a new capture. Do not automatically create a new key after a replay conflict.
-5. Send `captureId`, unchanged `observedAt`, and `sourceMethod` on the PAT observation path. Keep the existing non-PAT manual path until a separately reviewed migration moves it through the observation endpoint; manual writes do not acquire replay safety merely by storing a capture envelope. Make that limitation explicit in implementation notes and tests.
-6. Handle all four outcomes explicitly. `recorded` and `unchanged` are completed receipts; clear only the matching pending capture. `needs_review` retains the server `reviewId`/optional `observationId`, says the balance was not saved, and opens the web Agents page for human review. `rejected` says rejected rather than successful recording, and preserves receipt/recovery context. For transport timeout or lost response, retain the frozen UUID and exact payload so Retry recovers the same receipt. `OBSERVATION_REPLAY_CONFLICT` (409) asks for dashboard recovery or a deliberate new capture; automatic key replacement is forbidden.
-7. Compare the completed capture UUID before clearing local state, preventing a slow successful response from deleting a newer capture. Carry optional outcome/receipt fields additively in `RecordResult` if the popup needs them; preserve `ok` and `message` for existing call sites. Do not reuse assistant action IDs or assistant approval links as observation review IDs.
+| Result | Extension behavior |
+| --- | --- |
+| `recorded` / `unchanged` | Completed receipt; clear only matching pending capture, retain unrelated/newer candidates. |
+| `needs_review` | Not saved; retain frozen request, review/receipt IDs and explicit held state. Open Dashboard → Agents for the user's decision. |
+| `rejected` | Explain rejection and retain recovery context; do not report recording success or create a replacement UUID automatically. |
+| Timeout/network uncertainty | Keep the exact frozen PAT request; retry recovers its canonical receipt. |
+| `OBSERVATION_REPLAY_CONFLICT` 409 | Explain conflicting claims and require dashboard recovery or deliberate discard/new capture. Never replace the key automatically. |
+| API settings changed | Refuse silent retry under another endpoint/token; preserve pending capture for recovery. |
 
-Changing trusted-context storage access, token persistence, host permissions, extraction heuristics or consent screens is outside this bounded replay port. If any is required by a separate security correction, give it separate ownership and tests. Source claims remain claims: a UUID does not prove the provider was visited, and timestamps/method must not be inferred from a display agent label.
+The extension opens/reuses its own review tab and never invokes browser-only
+confirm/reject endpoints. A replay before human resolution retains the same held
+review ID; a replay afterward returns the current recorded/rejected receipt with
+no actionable review ID. It cannot reverse or retrigger the user's decision.
 
-## MCP changes to implement after the release
+The existing non-PAT Clerk/session-token path remains a manual balance write to an
+already-linked account. It does **not** gain observation replay safety from this
+capture envelope. After an uncertain manual write, inspect PointUp before retrying;
+a caller UUID on a different endpoint does not establish idempotency.
 
-Keep the name `pointup_submit_balance`, WRITE annotations, consent guidance, HTTPS/bounded source URL, agent label override, membership auto-link scope and read-only audit tool. Add optional UUID `captureId` and optional method enum to its input schema; retain optional `observedAt`. Describe the capture protocol: before submitting, the calling browser/computer agent records one UUID and original observed time alongside the reviewed points/source/method, and reuses those exact values for an uncertain-result retry. A genuinely new reading gets a new UUID. `manual_entry` means a user-supplied value, not an authenticated claim the adapter inspected a provider page.
+Source: [record adapter](../apps/extension/src/record.ts),
+[popup](../apps/extension/src/popup.ts),
+[messages](../apps/extension/src/messages.ts).
 
-The stateless MCP server must forward the supplied identity, not generate a fresh UUID per invocation, cache captures globally, or share replay data between users. Keep omitted `captureId` accepted for legacy clients with their current admission semantics; explain that legacy calls do not have stable replay recovery. Where an orchestrating first-party agent can retain capture context, upgrade that caller to supply a stable key rather than pretending an optional tool field guarantees every external MCP client has adopted it.
+## Stateless MCP protocol
 
-Return the existing outcome/result object with additive receipt fields. An exact retry of a held observation returns the same `needs_review`/review ID and creates no second review. Preserve the guidance that resubmitting cannot confirm a held value; retry only recovers a lost receipt. A replay conflict is a tool error with the closed domain error code, never a success or request to generate another UUID. Retain `pointup_list_observations` for recovery; if the HTTP owner adds an owned receipt lookup, add its API-client/MCP read-only adapter separately, with owner-hiding behavior and no confirmation capability.
+`pointup_submit_balance` keeps its name, WRITE annotations, consent guidance,
+HTTPS source claim, adapter-controlled agent label, optional membership auto-link
+input and existing outcomes. Its input schema now accepts optional UUID `captureId`
+and optional method (`page_capture`, `manual_entry`) alongside optional `observedAt`.
+The stateless adapter forwards them unchanged rather than minting a new key per
+invocation or caching captures across users.
 
-## Focused acceptance checks and ownership
+The playbook instructs the caller to retain one UUID, original time and exact
+capture claims before submitting; uncertain-result retries reuse those fields.
+A genuinely new capture gets a new UUID. `manual_entry` is a self-reported method,
+not authenticated evidence that the adapter visited a provider page. Legacy calls
+without keys remain accepted with their existing admission semantics and lack
+stable replay recovery.
 
-| Owner | Files/seam | Required evidence |
-| --- | --- | --- |
-| HTTP/contracts | `contracts/agent.ts`, capture route, OpenAPI/plugin generation | Legacy body accepted; new UUID/method accepted; invalid UUID/method rejected; resolver-selected token/grant identity cannot be supplied in JSON; existing outcomes/nullable review ID preserved. Backend migration and replay support deploy before callers. |
-| API client | `packages/api-client/src/index.ts` and transport tests | Existing method forwards UUID, original time and method exactly; result exposes optional receipt ID; 409 remains `PointUpApiError` with `OBSERVATION_REPLAY_CONFLICT`; no transparent retry that changes keys. |
-| Extension capture owner | extraction/content/config/background and a pure capture-state helper | Equal hydration delivery keeps UUID/time; changed reading/new navigation creates new identity; legacy stored candidate gets one persisted UUID before POST; pending request survives restart; fresh content cannot overwrite a frozen request; settings change cannot replay under another identity; slow completion cannot clear a different UUID. |
-| Extension record/UI owner | `record.ts`, messages/popup, record and state tests | Lost response followed by retry sends byte-equivalent canonical fields; held retry has the same review ID; explicit rejected/conflict display; terminal clear only for matching capture; normal manual-token behavior unchanged and not falsely described as idempotent. No browser approval API from the extension. |
-| MCP owner | `apps/mcp/src/server.ts`, `server.test.ts`, isolation tests | New optional inputs appear in schemas and reach the API unchanged across retries; omitted fields stay compatible; malformed keys fail before API calls; adapter continues to override agent label; two authenticated users do not share retained state; no grant/confirm/reject tool appears. |
-| Backend/replay owner | Production-composed service/repository tests | Exact retries create one receipt and at most one snapshot/event; payload changes conflict; owner namespaces and same-key credential policy enforced; held receipt ID stays stable; token/consent revoke/expiry still enforced during replay. Caller mocks alone do not prove atomic idempotency. |
+`observations:write` and current provider consent still gate submission;
+auto-link additionally requires current `portfolio:write` or session authority.
+Each HTTP MCP request forwards its own PAT. Exact replay is authorized against
+current token/grant state, while the original receipt preserves its witnesses.
+The read-only audit tool remains available for recovery. No consent-grant or
+confirmation/rejection tool is added. Replay conflicts remain tool errors with
+the closed backend code rather than instructions to generate another key.
 
-Run focused caller/state/transport tests during implementation. Root remains the sole owner of broad verification, real Postgres races, migration validation, final Graphify refresh, commits and deployment. This planning change requires only source review and documentation inspection; none of those expensive checks were run here.
+Source: [MCP tools/playbook](../apps/mcp/src/server.ts),
+[per-request adapter](../apps/mcp/src/http.ts),
+[wire schema](../packages/core/src/contracts/agent.ts),
+[API client](../packages/api-client/src/index.ts).
+
+## Verification and rollout boundaries
+
+Focused caller/state/transport tests exercise stable hydration identity, frozen
+payloads, restart-safe storage, settings binding, matching completion/tombstones,
+held/rejected/conflict behavior and preserved manual-session behavior. MCP tests
+exercise optional field validation/forwarding, adapter labels and existing tool
+boundaries. These mocks do not prove Chrome lifecycle behavior or provider data.
+The production-composed backend and migration checks are recorded in
+[observation-integration-plan.md](observation-integration-plan.md).
+
+Root's gated full workspace suite passed 834 tests, with one paid live evaluation
+skipped; fresh aggregate CI after commit remains pending. Root owns aggregate
+verification and release operations. Preserve the
+compatible server-before-caller and migration-before-host activation gates. Live
+Chrome tests should still cover popup reopening, service-worker lifetime, account
+changes, timeout/retry, focus and reused review-tab behavior with Clerk and synthetic
+portfolios; do not take over unrelated tabs. No provider passwords/page contents
+are added to receipt storage. Tokens retain the existing configuration policy;
+this stage does not claim a separate token-persistence or host-permissions redesign.

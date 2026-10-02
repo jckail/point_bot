@@ -1,4 +1,6 @@
-import type { LoyaltyAccountId, ObservationId, UserId } from "../shared/ids";
+import type { AccessTokenId, LoyaltyAccountId, ObservationId, UserId } from "../shared/ids";
+import type { ConsentGrant } from "./consent";
+import type { LoyaltyAccount } from "../loyalty/loyalty-account";
 /**
  * Audit record of everything an agent wrote (or tried to write) back. Kept
  * append-only so users can see exactly what an agent did on their behalf.
@@ -12,6 +14,12 @@ export const OBSERVATION_OUTCOMES = [
 ] as const;
 
 export type ObservationOutcome = (typeof OBSERVATION_OUTCOMES)[number];
+
+/** Supplied by the authenticated adapter, never by observation JSON or agent labels. */
+export type ObservationCredential =
+  | { readonly kind: "session" | "clerk_bearer"; readonly tokenId?: never }
+  | { readonly kind: "personal_access_token"; readonly tokenId: AccessTokenId };
+export type ObservationSourceMethod = "page_capture" | "manual_entry" | "unknown";
 
 export interface AgentObservation {
   readonly id: ObservationId;
@@ -29,9 +37,41 @@ export interface AgentObservation {
   readonly outcome: ObservationOutcome;
   readonly observedAt: Date;
   readonly createdAt: Date;
+  /** Optional fields keep historical/fake rows readable without inventing provenance. */
+  readonly provenanceVersion?: 0 | 1;
+  readonly credentialKind?: ObservationCredential["kind"] | null;
+  readonly accessTokenId?: string | null;
+  readonly consentId?: string | null;
+  readonly consentGrantedAt?: Date | null;
+  readonly consentExpiresAt?: Date | null;
+  readonly skillVersion?: number | null;
+  readonly sourceMethod?: ObservationSourceMethod | null;
+  readonly captureId?: string | null;
+  readonly payloadHash?: string | null;
+  readonly baselineSnapshotId?: string | null;
+  readonly recordedSnapshotId?: string | null;
+  readonly reviewExpiresAt?: Date | null;
+  readonly reviewedAt?: Date | null;
+  readonly reviewDecision?: "confirm" | "reject" | null;
 }
 
 export interface AgentObservationRepository {
+  /** Call only inside an atomic UOW; returned witnesses stay locked until commit. */
+  lockSubmission?(input: {
+    userId: UserId;
+    providerId: string;
+    credential?: ObservationCredential;
+    captureId?: string;
+    canLinkAccount?: boolean;
+  }, now: () => Date): Promise<{
+    consent: ConsentGrant;
+    account: LoyaltyAccount | null;
+    assertAuthorized: () => void;
+  }>;
+  /** Read under the submission's owner/capture lock, before auto-link effects. */
+  findByCaptureId?(userId: UserId, captureId: string): Promise<AgentObservation | null>;
+  /** Serializes the provider/account and then the owned receipt. */
+  lockReview?(id: ObservationId, userId: UserId): Promise<AgentObservation | null>;
   insert(observation: AgentObservation): Promise<void>;
   findById(id: ObservationId): Promise<AgentObservation | null>;
   /** Newest first. */
@@ -46,14 +86,19 @@ export interface AgentObservationRepository {
     userId: UserId,
     from: ObservationOutcome,
     to: ObservationOutcome,
+    metadata?: {
+      reviewedAt: Date;
+      reviewDecision: "confirm" | "reject";
+      recordedSnapshotId?: string;
+    },
   ): Promise<AgentObservation | null>;
 }
 
-/** A held reading can be confirmed or rejected for this long. */
+/** Confirmation expires after this window; owner rejection remains available for cleanup. */
 export const REVIEW_TTL_MS = 24 * 3_600_000;
 
 export function reviewExpiresAt(observation: AgentObservation): Date {
-  return new Date(observation.createdAt.getTime() + REVIEW_TTL_MS);
+  return observation.reviewExpiresAt ?? new Date(observation.createdAt.getTime() + REVIEW_TTL_MS);
 }
 
 /**

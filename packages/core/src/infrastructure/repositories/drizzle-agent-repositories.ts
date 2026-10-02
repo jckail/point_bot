@@ -2,9 +2,11 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import {
   isScope,
+  isTokenUsable,
   type AccessToken,
   type AccessTokenRepository,
 } from "../../domain/agent/access-token";
+import { isConsentActive } from "../../domain/agent/consent";
 import type {
   ConsentGrant,
   ConsentGrantRepository,
@@ -13,10 +15,13 @@ import type {
   AgentObservation,
   AgentObservationRepository,
   ObservationOutcome,
+  ObservationCredential,
 } from "../../domain/agent/observation";
+import { AccessTokenInvalidError, ConsentRequiredError, InsufficientScopeError, LoyaltyAccountNotFoundError } from "../../domain/errors";
 import { AccessTokenId, ConsentId, LoyaltyAccountId, ObservationId, UserId } from "../../domain/shared/ids";
 import type { Database } from "../db/client";
-import { accessTokens, agentObservations, consentGrants } from "../db/schema";
+import { accessTokens, agentObservations, consentGrants, loyaltyAccounts } from "../db/schema";
+import { DrizzleLoyaltyAccountRepository } from "./drizzle-loyalty-account-repository";
 
 type TokenRow = typeof accessTokens.$inferSelect;
 
@@ -46,8 +51,10 @@ function consentToDomain(row: ConsentRow): ConsentGrant {
 type ObservationRow = typeof agentObservations.$inferSelect;
 
 function observationToDomain(row: ObservationRow): AgentObservation {
+  if (row.provenanceVersion !== 0 && row.provenanceVersion !== 1) throw new Error("Invalid observation provenance version");
   return {
     ...row,
+    provenanceVersion: row.provenanceVersion,
     id: ObservationId.parse(row.id),
     userId: UserId.parse(row.userId),
     accountId: LoyaltyAccountId.parse(row.accountId),
@@ -180,6 +187,75 @@ export class DrizzleAgentObservationRepository
 {
   constructor(private readonly db: Database) {}
 
+  async lockSubmission(input: {
+    userId: UserId;
+    providerId: string;
+    credential?: ObservationCredential;
+    captureId?: string;
+    canLinkAccount?: boolean;
+  }, now: () => Date) {
+    // An owner/capture key serializes replay even across different providers.
+    // All these locks require the production composition's ambient atomic UOW.
+    if (input.captureId) await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`observation-capture:${input.userId}:${input.captureId}`}, 0))`);
+    let token: AccessToken | null = null;
+    if (input.credential?.kind === "personal_access_token") {
+      const [row] = await this.db.select().from(accessTokens).where(and(
+        eq(accessTokens.id, input.credential.tokenId), eq(accessTokens.userId, input.userId),
+      )).for("update");
+      token = row ? tokenToDomain(row) : null;
+      if (!token) throw new AccessTokenInvalidError();
+    }
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`consent:${input.userId}:${input.providerId}`}, 0))`);
+    const [accountRow] = await this.db.select().from(loyaltyAccounts).where(and(
+      eq(loyaltyAccounts.userId, input.userId), eq(loyaltyAccounts.providerId, input.providerId),
+    )).for("update");
+    const account = accountRow
+      ? await new DrizzleLoyaltyAccountRepository(this.db).findById(LoyaltyAccountId.parse(accountRow.id))
+      : null;
+    const [consentRow] = await this.db.select().from(consentGrants).where(and(
+      eq(consentGrants.userId, input.userId), eq(consentGrants.providerId, input.providerId), isNull(consentGrants.revokedAt),
+    )).orderBy(desc(consentGrants.grantedAt)).limit(1).for("update");
+    if (!consentRow) throw new ConsentRequiredError(input.providerId);
+    const consent = consentToDomain(consentRow);
+    const assertAuthorized = () => {
+      const current = now();
+      if (token) {
+        if (!isTokenUsable(token, current)) throw new AccessTokenInvalidError();
+        if (!token.scopes.includes("observations:write")) throw new InsufficientScopeError("observations:write");
+        if (!account && input.canLinkAccount && !token.scopes.includes("portfolio:write")) throw new InsufficientScopeError("portfolio:write");
+      }
+      if (!isConsentActive(consent, current)) throw new ConsentRequiredError(input.providerId);
+      if (account && (account.userId !== input.userId || account.providerId !== input.providerId || account.deletedAt)) {
+        throw new LoyaltyAccountNotFoundError(input.providerId);
+      }
+    };
+    assertAuthorized();
+    return { consent, account, assertAuthorized };
+  }
+
+  async findByCaptureId(userId: UserId, captureId: string): Promise<AgentObservation | null> {
+    const [row] = await this.db.select().from(agentObservations).where(and(
+      eq(agentObservations.userId, userId), eq(agentObservations.captureId, captureId),
+    )).limit(1);
+    return row ? observationToDomain(row) : null;
+  }
+
+  async lockReview(id: ObservationId, userId: UserId): Promise<AgentObservation | null> {
+    const [initial] = await this.db.select().from(agentObservations).where(and(
+      eq(agentObservations.id, id), eq(agentObservations.userId, userId),
+    )).limit(1);
+    if (!initial) return null;
+    // Same provider -> account -> receipt ordering as capture and balance writers.
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`consent:${userId}:${initial.providerId}`}, 0))`);
+    await this.db.select().from(loyaltyAccounts).where(and(
+      eq(loyaltyAccounts.id, initial.accountId), eq(loyaltyAccounts.userId, userId), eq(loyaltyAccounts.providerId, initial.providerId),
+    )).for("update");
+    const [row] = await this.db.select().from(agentObservations).where(and(
+      eq(agentObservations.id, id), eq(agentObservations.userId, userId),
+    )).for("update");
+    return row ? observationToDomain(row) : null;
+  }
+
   async insert(observation: AgentObservation) {
     await this.db.insert(agentObservations).values(observation);
   }
@@ -198,10 +274,11 @@ export class DrizzleAgentObservationRepository
     userId: UserId,
     from: ObservationOutcome,
     to: ObservationOutcome,
+    metadata?: { reviewedAt: Date; reviewDecision: "confirm" | "reject"; recordedSnapshotId?: string },
   ): Promise<AgentObservation | null> {
     const rows = await this.db
       .update(agentObservations)
-      .set({ outcome: to })
+      .set({ outcome: to, ...metadata })
       .where(
         and(
           eq(agentObservations.id, id),
