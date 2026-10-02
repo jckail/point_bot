@@ -154,7 +154,7 @@ Resources: `pointup://portfolio/summary` (JSON) and `pointup://skills/{skillId}`
 The main read tools declare an `outputSchema` and return `structuredContent`
 (list results are wrapped as `{ "items": [...] }`, since MCP structured output
 must be an object); the JSON text content is kept for older clients. Inputs are
-validated before any API call (trimmed ids, points <= 2^31-1, https-only
+validated before any API call (trimmed ids, shared-contract nonnegative safe-integer points, https-only
 `sourceUrl`, `YYYY-MM-DD` goal dates).
 
 ### Remote HTTP transport (`apps/mcp/src/http.ts`)
@@ -164,7 +164,9 @@ validated before any API call (trimmed ids, points <= 2^31-1, https-only
 - Missing/non-`pu_` token returns 401 with
   `WWW-Authenticate: Bearer realm="pointup", resource_metadata="<public>/.well-known/oauth-protected-resource"`;
   that document lists no authorization servers yet (PAT only, see below).
-- CORS for browser-based clients: `MCP_ALLOWED_ORIGINS` (comma list, default `*`; tokens are bearer headers, never cookies), preflight on OPTIONS. `MCP_PUBLIC_URL` sets the public URL used in the metadata hint.
+- CORS for browser-based clients: `MCP_ALLOWED_ORIGINS` (comma list, default `*` outside production and no origins in production; tokens are bearer headers, never cookies), preflight on OPTIONS. Public production hosts require canonical HTTPS `MCP_PUBLIC_URL`; CDK supplies it. Origin and `/mcp` forms normalize to the same resource. Both root and resource-specific protected-resource metadata paths are available.
+- Upstream URL/transport configuration is validated before listening. Malformed request targets return400 while the listener remains available. Unknown method/path labels are bounded, and request failures use fixed telemetry categories. Startup logs omit upstream configuration.
+- Tool, resource and prompt errors omit raw upstream exception/API text and caller-controlled skill identifiers. Fixed public guidance retains validated request references for support.
 - SIGTERM/SIGINT drain the listener, then drop lingering connections after 10 s.
 - Covered by `apps/mcp/test/http.test.ts` (real HTTP server, fake upstream API, SDK `StreamableHTTPClientTransport`).
 

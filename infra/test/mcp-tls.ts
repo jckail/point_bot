@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import * as cdk from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { Match, Template } from "aws-cdk-lib/assertions";
 
 import { webTlsContext } from "./rollout-fixture.js";
 import { AppStack } from "../lib/app-stack.js";
@@ -28,5 +28,12 @@ assert.equal(JSON.stringify(off.toJSON()).includes("McpService"), false);
 const on = synth({ enableMcp: true, mcpCertificateArn: CERT, mcpDomainName: "mcp.example.com" });
 on.hasResourceProperties("AWS::ElasticLoadBalancingV2::Listener", { Protocol: "HTTPS" });
 assert.match(JSON.stringify(on.toJSON()), /MCP_ALLOWED_HOSTS/);
+on.hasResourceProperties("AWS::ECS::TaskDefinition", {
+  ContainerDefinitions: Match.arrayWith([
+    Match.objectLike({ Environment: Match.arrayWith([
+      { Name: "MCP_PUBLIC_URL", Value: "https://mcp.example.com" },
+    ]) }),
+  ]),
+});
 
 console.log("mcp-tls synth checks passed");

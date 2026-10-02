@@ -52,6 +52,52 @@ afterAll(async () => {
 });
 
 describe("MCP over HTTP", () => {
+  it("rejects unsafe upstream configuration before opening a listener", () => {
+    for (const baseUrl of ["bad", "https://user:secret@pointup.example", "http://pointup.example", "https://pointup.example?secret=x"]) {
+      expect(() => createHttpServer({ baseUrl })).toThrow();
+    }
+    expect(() => createHttpServer({ baseUrl: "http://web:3000", trustedHttpOrigin: "http://different:3000" })).toThrow();
+    expect(() => createHttpServer({ baseUrl: "http://127.0.0.1:1", trustedHttpOrigin: "http://user:secret@web:3000" })).toThrow();
+  });
+  it("rejects malformed request targets without stopping the listener", async () => {
+    const status = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest(`${mcpUrl}/`, { path: "http://[", method: "GET" }, response => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode!));
+      });
+      request.on("error", reject);
+      request.end();
+    });
+    expect(status).toBe(400);
+    expect((await fetch(`${mcpUrl}/healthz`)).status).toBe(200);
+  });
+
+  it("uses configured HTTPS discovery for both metadata paths regardless of forwarded headers", async () => {
+    const canonical = createHttpServer({ baseUrl: "http://127.0.0.1:1", publicUrl: "https://mcp.example.com/mcp" });
+    const url = await listen(canonical);
+    try {
+      const headers = { "X-Forwarded-Host": "evil.example", "X-Forwarded-Proto": "http" };
+      const denied = await fetch(`${url}/mcp`, { method: "POST", headers });
+      expect(denied.headers.get("www-authenticate")).toContain('resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"');
+      for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"]) {
+        const response = await fetch(`${url}${path}`, { headers });
+        expect(await response.json()).toMatchObject({ resource: "https://mcp.example.com/mcp", authorization_servers: [] });
+      }
+    } finally { await shutdown(canonical, 200); }
+  });
+
+  it("requires canonical discovery for public production hosts and rejects unsafe URLs", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(() => createHttpServer({ baseUrl: "http://127.0.0.1:1", allowedHosts: ["mcp.example.com"] })).toThrow("MCP_PUBLIC_URL");
+      expect(() => createHttpServer({ baseUrl: "http://127.0.0.1:1", allowedHosts: ["*"] })).toThrow("MCP_PUBLIC_URL");
+      expect(() => createHttpServer({ baseUrl: "http://127.0.0.1:1", allowedHosts: ["mcp.example.com"], publicUrl: "http://127.0.0.1:8787" })).toThrow("MCP_PUBLIC_URL");
+    } finally { vi.unstubAllEnvs(); }
+    for (const publicUrl of ["http://mcp.example.com", "https://user:secret@mcp.example.com", "https://mcp.example.com/path", "https://mcp.example.com?secret=x", "https://mcp.example.com#x", "bad"]) {
+      expect(() => createHttpServer({ baseUrl: "http://127.0.0.1:1", publicUrl })).toThrow("MCP_PUBLIC_URL");
+    }
+  });
+
   it("serves /healthz without auth", async () => {
     const res = await fetch(`${mcpUrl}/healthz`);
     expect(res.status).toBe(200);
@@ -177,6 +223,7 @@ describe("MCP over HTTP", () => {
     const prod = createHttpServer({
       baseUrl: "http://127.0.0.1:1",
       allowedHosts: ["mcp.example.com"],
+      publicUrl: "https://mcp.example.com",
     });
     vi.unstubAllEnvs();
     const url = await listen(prod);

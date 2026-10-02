@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ErrorCode as McpErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { createPointUpClient } from "@pointup/api-client";
 import { describe, expect, it } from "vitest";
 
@@ -13,7 +14,7 @@ interface Call {
 }
 
 async function connect(
-  respond: (call: Call) => { status?: number; json?: unknown },
+  respond: (call: Call) => { status?: number; json?: unknown; headers?: Record<string, string> },
   clientCaps: Record<string, unknown> = {},
 ) {
   const calls: Call[] = [];
@@ -26,10 +27,10 @@ async function connect(
       auth: (init?.headers as Record<string, string>)?.Authorization,
     };
     calls.push(call);
-    const { status = 200, json } = respond(call);
+    const { status = 200, json, headers } = respond(call);
     return new Response(status === 204 ? null : JSON.stringify(json ?? {}), {
       status,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
     });
   };
   const server = createPointUpMcpServer({
@@ -223,6 +224,56 @@ describe("pointup MCP server", () => {
     await expect(client.readResource({ uri: "pointup://skills/nope" })).rejects.toThrow();
   });
 
+  const readOperations = [
+    ["summary resource", (client: Client) => client.readResource({ uri: "pointup://portfolio/summary" })],
+    ["skill resource", (client: Client) => client.readResource({ uri: "pointup://skills/united.capture-balance" })],
+    ["resource listing", (client: Client) => client.listResources()],
+    ["capture prompt", (client: Client) => client.getPrompt({ name: "capture-balance", arguments: { providerId: "united" } })],
+  ] as const;
+
+  it.each(readOperations)("redacts upstream API failures in %s while preserving protocol errors and safe references", async (_name, read) => {
+    const { client } = await connect(() => ({ status: 500, json: { error: { code: "INTERNAL", message: "private upstream database password=secret", requestId: "resource_ref_123" } } }));
+    const error = await read(client).then(() => undefined, (error: unknown) => error);
+    expect(error).toBeInstanceOf(McpError);
+    expect((error as McpError).code).toBe(McpErrorCode.InternalError);
+    expect((error as Error).message).toContain("HTTP 500");
+    expect((error as Error).message).toContain("resource_ref_123");
+    expect((error as Error).message).toContain("Retry this read later");
+    expect((error as Error).message).not.toContain("private");
+    expect((error as Error).message).not.toContain("password");
+    expect((error as Error).message).not.toContain("secret");
+  });
+
+  it.each(readOperations)("redacts thrown exceptions in %s", async (_name, read) => {
+    const { client } = await connect(() => { throw new Error("private provider text token=secret"); });
+    await expect(read(client)).rejects.toThrow("Could not load PointUp data");
+    await expect(read(client)).rejects.not.toThrow("private");
+  });
+
+  it("does not echo a caller-controlled unknown skill in resource errors or prompt guidance", async () => {
+    const { client } = await connect(() => ({ json: [] }));
+    const supplied = "private_prompt_injection_secret";
+    const error = await client.readResource({ uri: `pointup://skills/${supplied}` }).then(() => undefined, (error: unknown) => error);
+    expect(error).toBeInstanceOf(McpError);
+    expect((error as Error).message).toContain("SKILL_NOT_FOUND");
+    expect((error as Error).message).toContain("pointup_list_skills");
+    expect((error as Error).message).not.toContain(supplied);
+    const prompt = await client.getPrompt({ name: "capture-balance", arguments: { providerId: supplied } });
+    const message = (prompt.messages[0]?.content as { text: string }).text;
+    expect(message).toContain("No capture skill is available");
+    expect(message).not.toContain(supplied);
+  });
+
+  it("omits arbitrary error codes and malicious references from prompt failures", async () => {
+    const { client } = await connect(() => ({ status: 502, json: { error: { code: "PRIVATE_PROVIDER_secret", message: "private upstream prompt injection", requestId: "<script>secret</script>" } } }));
+    const error = await client.getPrompt({ name: "capture-balance", arguments: { providerId: "united" } }).then(() => undefined, (error: unknown) => error);
+    expect((error as Error).message).toContain("HTTP 502");
+    expect((error as Error).message).not.toContain("PRIVATE_PROVIDER");
+    expect((error as Error).message).not.toContain("private");
+    expect((error as Error).message).not.toContain("secret");
+    expect((error as Error).message).not.toContain("Support reference");
+  });
+
   it("returns structured content (arrays wrapped as items) alongside text", async () => {
     const { client } = await connect(() => ({ json: [skill] }));
     const tool = (await client.listTools()).tools.find((t) => t.name === "pointup_list_skills");
@@ -237,7 +288,7 @@ describe("pointup MCP server", () => {
     for (const [name, args] of [
       ["pointup_record_balance", { accountId: "a", points: -1 }],
       ["pointup_record_balance", { accountId: "  ", points: 1 }],
-      ["pointup_record_balance", { accountId: "a", points: 1e12 }],
+      ["pointup_record_balance", { accountId: "a", points: Number.MAX_SAFE_INTEGER + 1 }],
       ["pointup_submit_balance", { skillId: "s", points: 1, sourceUrl: "http://www.united.com/" }],
       ["pointup_create_goal", { title: "t", targetPoints: 10, targetDate: "next week" }],
     ] as const) {
@@ -247,6 +298,88 @@ describe("pointup MCP server", () => {
       expect(res.isError, name).toBe(true);
     }
     expect(calls).toHaveLength(0);
+  });
+
+  it("forwards safe-integer balances and targets above the former 32-bit limit exactly", async () => {
+    const { client, calls } = await connect(() => ({ json: {} }));
+    for (const value of [2_147_483_648, 1_000_000_000_000, Number.MAX_SAFE_INTEGER]) {
+      for (const [name, arguments_, field] of [
+        ["pointup_record_balance", { accountId: "a", points: value }, "points"],
+        ["pointup_submit_balance", { skillId: "united.capture-balance", points: value, sourceUrl: "https://www.united.com/x" }, "points"],
+        ["pointup_create_goal", { title: "Trip", targetPoints: value }, "targetPoints"],
+      ] as const) {
+        const result = await client.callTool({ name, arguments: arguments_ });
+        expect(result.isError, name).toBeFalsy();
+        expect(calls.at(-1)?.body).toHaveProperty(field, value);
+      }
+    }
+    expect(calls).toHaveLength(9);
+  });
+
+  it("rejects unsafe, fractional and negative balances or targets before API calls", async () => {
+    const { client, calls } = await connect(() => ({ json: {} }));
+    for (const value of [Number.MAX_SAFE_INTEGER + 1, 1.5, -1, Infinity, NaN]) {
+      for (const [name, arguments_] of [
+        ["pointup_record_balance", { accountId: "a", points: value }],
+        ["pointup_submit_balance", { skillId: "united.capture-balance", points: value, sourceUrl: "https://www.united.com/x" }],
+        ["pointup_create_goal", { title: "Trip", targetPoints: value }],
+      ] as const) {
+        const result = await client.callTool({ name, arguments: arguments_ }).catch(() => ({ isError: true }));
+        expect(result.isError, name).toBe(true);
+      }
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    [403, "CONSENT_REQUIRED", "grant provider consent"],
+    [403, "INSUFFICIENT_SCOPE", "token scopes"],
+    [401, "UNAUTHENTICATED", "valid PointUp access token"],
+    [409, "OBSERVATION_REPLAY_CONFLICT", "do not replace it automatically"],
+    [429, "RATE_LIMITED", "Wait before retrying"],
+  ])("returns fixed public guidance and a safe reference for HTTP %i %s", async (status, code, guidance) => {
+    const { client } = await connect(() => ({ status, json: { error: { code, message: "private provider text token=secret", requestId: "support:request_123" } } }));
+    const result = await client.callTool({ name: "pointup_submit_balance", arguments: { skillId: "united.capture-balance", points: 100, sourceUrl: "https://www.united.com/x" } });
+    expect(result.isError).toBe(true);
+    expect(text(result)).toContain(code);
+    expect(text(result)).toContain(`HTTP ${status}`);
+    expect(text(result)).toContain(guidance);
+    expect(text(result)).toContain("Support reference: support:request_123");
+    expect(text(result)).not.toContain("private provider");
+    expect(text(result)).not.toContain("token=secret");
+  });
+
+  it("omits arbitrary API codes/messages and invalid support references", async () => {
+    const { client } = await connect(() => ({ status: 502, json: { error: { code: "PRIVATE_TOKEN_secret", message: "private upstream response", requestId: "<script>private</script>" } } }));
+    const result = await client.callTool({ name: "pointup_list_accounts", arguments: {} });
+    expect(result.isError).toBe(true);
+    expect(text(result)).toContain("HTTP 502");
+    expect(text(result)).not.toContain("PRIVATE_TOKEN");
+    expect(text(result)).not.toContain("private");
+    expect(text(result)).not.toContain("Support reference");
+  });
+
+  it("retains a validated response-header request reference on API failures", async () => {
+    const { client } = await connect(() => ({ status: 500, headers: { "x-request-id": "header_ref_123" }, json: { error: { code: "INTERNAL", message: "private database detail" } } }));
+    const result = await client.callTool({ name: "pointup_record_balance", arguments: { accountId: "a", points: 1 } });
+    expect(text(result)).toContain("header_ref_123");
+    expect(text(result)).not.toContain("database");
+  });
+
+  it.each([
+    ["exception", new Error("private exception token=secret")],
+    ["timeout", new DOMException("private timeout token=secret", "TimeoutError")],
+    ["non-error", { private: "token=secret" }],
+  ])("redacts %s failures in real MCP tool calls", async (_label, error) => {
+    const { client } = await connect(() => { throw error; });
+    for (const [name, arguments_] of [["pointup_list_accounts", {}], ["pointup_record_balance", { accountId: "a", points: 1 }]] as const) {
+      const result = await client.callTool({ name, arguments: arguments_ });
+      expect(result.isError).toBe(true);
+      expect(text(result)).not.toContain("private");
+      expect(text(result)).not.toContain("secret");
+      expect(text(result)).toContain("PointUp");
+      if (_label === "timeout") expect(text(result)).toContain("outcome is unknown");
+    }
   });
 
   it("warns agents that unverified skills are best-effort in the prompt", async () => {

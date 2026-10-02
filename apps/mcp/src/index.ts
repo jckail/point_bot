@@ -89,7 +89,7 @@ async function main() {
     });
     const host = process.env.HOST ?? "127.0.0.1";
     server.listen(port, host, () => {
-      console.error(`pointup-mcp listening on ${host}:${port}/mcp -> ${baseUrl}`);
+      console.error(`pointup-mcp listening on ${host}:${port}/mcp`);
     });
     const stop = () => {
       console.error("pointup-mcp shutting down");
@@ -122,4 +122,8 @@ async function main() {
   await server.connect(new StdioServerTransport());
 }
 
-void main();
+void main().catch(() => {
+  // Invalid URLs and transport diagnostics may retain private configuration.
+  console.error("PointUp MCP could not start. Check its configuration and transport.");
+  process.exitCode = 1;
+});

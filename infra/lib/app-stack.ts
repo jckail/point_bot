@@ -520,6 +520,7 @@ export class AppStack extends cdk.Stack {
               HOST: "0.0.0.0",
               MCP_TRANSPORT: "http",
               MCP_ALLOWED_HOSTS: mcpDomainName,
+              MCP_PUBLIC_URL: `https://${mcpDomainName}`,
               // Browser origins allowed to call the server (comma-separated); none by default.
               ...(ctx("mcpAllowedOrigins")
                 ? { MCP_ALLOWED_ORIGINS: ctx("mcpAllowedOrigins")! }

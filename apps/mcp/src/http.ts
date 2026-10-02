@@ -73,6 +73,7 @@ function hostName(value: string): string {
 
 /** Bounded route label: unknown paths must not become metric labels. */
 function routeLabel(pathname: string): string {
+  if (pathname === "/.well-known/oauth-protected-resource/mcp") return "/.well-known/oauth-protected-resource";
   return ["/mcp", "/healthz", "/readyz", "/.well-known/oauth-protected-resource"].includes(pathname)
     ? pathname
     : "other";
@@ -117,6 +118,17 @@ function rpcError(code: number, message: string) {
   return { jsonrpc: "2.0", error: { code, message }, id: null };
 }
 
+function publicOrigin(value: string): string {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("MCP_PUBLIC_URL must be an HTTPS origin."); }
+  const loopback = LOOPBACK_HOSTS.includes(url.hostname.replace(/^\[|\]$/g, ""));
+  if ((url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
+      url.username || url.password || url.search || url.hash || !["/", "/mcp"].includes(url.pathname)) {
+    throw new Error("MCP_PUBLIC_URL must be an HTTPS origin or /mcp URL (HTTP is allowed only on loopback).");
+  }
+  return url.origin;
+}
+
 export function createHttpServer(options: HttpServerOptions): Server {
   const {
     baseUrl,
@@ -124,16 +136,29 @@ export function createHttpServer(options: HttpServerOptions): Server {
     maxBodyBytes = DEFAULT_MAX_BODY,
     maxInFlight = DEFAULT_MAX_IN_FLIGHT,
   } = options;
+  // Validate private/public upstream transport before listening, without storing
+  // a caller credential or making a network request. Every call gets its own client.
+  try {
+    createPointUpClient({ baseUrl,
+      ...(options.trustedHttpOrigin !== undefined ? { trustedHttpOrigin: options.trustedHttpOrigin } : {}),
+    });
+  } catch { throw new TypeError("Invalid PointUp upstream configuration."); }
   const allowedOrigins =
     options.allowedOrigins ?? (process.env.NODE_ENV === "production" ? [] : ["*"]);
   const allowedHosts = new Set(
     (options.allowedHosts?.length ? options.allowedHosts : LOOPBACK_HOSTS).map(hostName),
   );
   const anyHost = (options.allowedHosts ?? []).includes("*");
+  const canonicalOrigin = options.publicUrl === undefined ? undefined : publicOrigin(options.publicUrl);
+  if (process.env.NODE_ENV === "production" &&
+      (anyHost || [...allowedHosts].some(host => !LOOPBACK_HOSTS.includes(host))) &&
+      (canonicalOrigin === undefined || !canonicalOrigin.startsWith("https://"))) {
+    throw new Error("Public production MCP requires MCP_PUBLIC_URL for canonical HTTPS discovery.");
+  }
   let inFlight = 0;
 
   const publicBase = (request: IncomingMessage) =>
-    (options.publicUrl ?? `http://${request.headers.host ?? "localhost"}`).replace(/\/$/, "");
+    canonicalOrigin ?? `http://${request.headers.host ?? "localhost"}`;
 
   function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
     const origin = request.headers.origin;
@@ -154,36 +179,49 @@ export function createHttpServer(options: HttpServerOptions): Server {
     response.setHeader("X-Request-Id", requestId);
     const obs = options.observability ?? getObservability();
     const started = performance.now();
-    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
-    const route = routeLabel(pathname);
+    let url: URL;
+    let invalidTarget = false;
+    try { url = new URL(request.url ?? "/", "http://localhost"); }
+    catch {
+      invalidTarget = true;
+      url = new URL("/", "http://localhost");
+    }
+    const pathname = url.pathname;
+    const route = invalidTarget ? "other" : routeLabel(pathname);
+    const method = ["GET", "POST", "OPTIONS", "DELETE", "PUT", "PATCH", "HEAD", "CONNECT", "TRACE"].includes(request.method ?? "")
+      ? request.method! : "OTHER";
     response.once("finish", () => {
       const status = response.statusCode;
       obs.metrics.counter(METRIC_NAMES.http_requests_total, {
         route,
-        method: request.method ?? "UNKNOWN",
+        method,
         status_class: statusClass(status),
       });
       obs.metrics.histogram(METRIC_NAMES.http_request_duration_ms, performance.now() - started, {
         route,
-        method: request.method ?? "UNKNOWN",
+        method,
       });
       const probe = route === "/healthz" || route === "/readyz";
       obs.logger[status >= 500 ? "error" : probe ? "debug" : "info"]("http_request", {
         requestId,
-        method: request.method,
+        method,
         route,
         status,
         durationMs: Math.round((performance.now() - started) * 100) / 100,
       });
     });
+    if (invalidTarget) {
+      json(response, 400, rpcError(-32600, "invalid request target"));
+      return;
+    }
     void runWithRequestContext({ requestId }, () =>
       obs.tracer.withSpan(
-        `${request.method ?? "UNKNOWN"} ${route}`,
-        { "http.request.method": request.method ?? "UNKNOWN", "http.route": route, "request.id": requestId },
-        () => handle(request, response, requestId, obs),
+        `${method} ${route}`,
+        { "http.request.method": method, "http.route": route, "request.id": requestId },
+        () => handle(request, response, requestId, obs, url),
       ),
-    ).catch((error: unknown) => {
-      obs.logger.error("mcp_request_failed", { requestId, error });
+    ).catch(() => {
+      obs.logger.error("mcp_request_failed", { requestId, category: "request_failed" });
       if (!response.headersSent) json(response, 500, rpcError(-32603, "internal error"));
       else response.end();
     });
@@ -194,8 +232,8 @@ export function createHttpServer(options: HttpServerOptions): Server {
     response: ServerResponse,
     requestId: string,
     obs: Observability,
+    url: URL,
   ): Promise<void> {
-    const url = new URL(request.url ?? "/", "http://localhost");
 
     if (url.pathname === "/healthz") {
       response.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
@@ -238,7 +276,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
       return;
     }
 
-    if (url.pathname === "/.well-known/oauth-protected-resource") {
+    if (["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"].includes(url.pathname)) {
       json(response, 200, {
         resource: `${publicBase(request)}/mcp`,
         bearer_methods_supported: ["header"],
@@ -313,7 +351,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
         }
         return;
       }
-      obs.logger.error("mcp_request_failed", { requestId, error });
+      obs.logger.error("mcp_request_failed", { requestId, category: "request_failed" });
       if (!response.headersSent) json(response, 500, rpcError(-32603, "internal error"));
     } finally {
       inFlight--;

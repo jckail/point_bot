@@ -123,3 +123,25 @@ Implementation can begin with disabled discovery/tool-policy/auth seams and
 focused refusal/isolation tests. Provider settings, public hosting and submission
 remain explicit external gates. A PAT-only endpoint or passing existing MCP tests
 does not establish public OAuth onboarding or plugin approval.
+
+## Implemented offline verification seam
+
+[oauth-access-token.ts](../apps/web/src/server/oauth-access-token.ts) now implements
+a disabled-by-default JWT verifier without wiring it into any route or metadata.
+The default path calls installed Clerk `verifyToken`, requires OAuth `at+jwt` or
+`application/at+jwt` headers and independently requires explicit configured issuer,
+resource audience, allowed client, user subject, valid times and portfolio:read.
+Its distinct clerk-oauth principal grants only that read scope; extra token grants
+cannot acquire write authority. Opaque tokens remain unsupported.
+
+Installed Clerk verification permits absent aud and does not compare issuer; the
+adapter closes both gaps. Its auth-object projection omits those claims, so that
+projection alone cannot establish resource binding.46 focused tests include real
+RSA-signed tokens through the default SDK, session-header and signature rejection,
+missing/foreign claims, and no network calls. Verification is offline and
+expiry-bound, not instant revocation. Real resource issuance, chosen callback
+mode, provider policy and protected backend integration remain unverified.
+
+Current PAT HTTP discovery now validates canonical HTTPS configuration and CDK
+supplies MCP_PUBLIC_URL. This does not advertise an OAuth issuer or enable OAuth
+login: authorization_servers remains empty until the complete path is ready.

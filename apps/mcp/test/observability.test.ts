@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -140,5 +140,23 @@ describe("MCP request correlation", () => {
     const text = metrics.render();
     expect(text).toContain('http_requests_total{method="GET",route="other"');
     expect(text).not.toContain("12345");
+  });
+
+  it("records malformed targets and bounds nonstandard method labels", async () => {
+    const call = (method: string, path: string) => new Promise<number>((resolve, reject) => {
+      const request = httpRequest(mcpUrl, { method, path }, response => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode!));
+      });
+      request.on("error", reject);
+      request.end();
+    });
+    expect(await call("GET", "http://[")).toBe(400);
+    expect(await call("PROPFIND", "/healthz")).toBe(200);
+    const text = metrics.render();
+    expect(text).toContain('http_requests_total{method="GET",route="other",status_class="4xx"');
+    expect(text).toContain('http_requests_total{method="OTHER",route="/healthz",status_class="2xx"');
+    expect(text).not.toContain("PROPFIND");
+    expect(raw.join("\n")).not.toContain("http://[");
   });
 });

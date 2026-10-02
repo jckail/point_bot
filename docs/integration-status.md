@@ -511,3 +511,29 @@ successfully. PointUp graph coverage remains absent; live source supplied contex
 Agent Hub checkpoint creation explicitly refused this unconfigured memory scope;
 no hosted memory upload occurred. Fresh AWS STS still reports expired login.
 No new browser tab, development server, production deploy or merge occurred.
+
+## MCP/privacy and web uncertainty candidate
+
+Implemented MCP safe-integer validation from shared contracts and fixed public
+tool/resource/prompt errors with validated support references. HTTP validates its
+upstream before listening, handles malformed targets without crashing, bounds
+method/path telemetry and requires canonical HTTPS discovery for public production
+hosts; CDK injects MCP_PUBLIC_URL. Startup failures omit private configuration.
+The web assistant retains request correlation and gives explicit proposal review/
+refresh guidance because a proposal can persist after the response deadline.
+
+The disabled, unwired JWT-only OAuth read-principal adapter is implemented with
+actual Clerk signature/header verification and mandatory explicit issuer, audience,
+client, owner, time and read-scope checks. It rejects opaque tokens and grants no
+write/session/PAT authority.46 tests include real signed-token default-SDK calls
+without network. Provider resource issuance and live revocation remain unverified;
+this does not enable public OAuth or standalone ChatGPT sign-in.
+
+Root57 MCP plus59 web focused cases and workspace lint/types pass. Two actual
+source CLI startup checks reject malformed/private upstreams with exit1 and fixed
+public output. Local CDK synth did not acquire the shared verification queue
+(exit75); its preserved log is /tmp/pointup-mcp-tls-synth.log. Fresh committed-head
+CI must cover the new template check. Previous docs1522aac passes all6 CI36995394518
+and CodeQL36995394448. AWS login remains expired; no production mutation occurred.
+Continue provider/account compatibility, live inference/exporter/Chrome, numeric/
+legacy-data and deployment work from the existing backlog. Original goal active.

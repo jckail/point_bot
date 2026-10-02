@@ -4,17 +4,22 @@ import {
   McpServer,
   ResourceTemplate,
 } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ErrorCode as McpErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
   activityEventDtoSchema,
   agentObservationDtoSchema,
   agentSkillDtoSchema,
+  createTripGoalRequestSchema,
+  isErrorCode,
   loyaltyAccountDtoSchema,
   planRedemptionResultDtoSchema,
   portfolioSummaryDtoSchema,
   providerDtoSchema,
+  recordManualBalanceRequestSchema,
   REDEMPTION_GOAL_KINDS,
   SWEET_SPOT_KINDS,
   sweetSpotDtoSchema,
+  submitObservationRequestSchema,
   transferBonusDtoSchema,
   tripGoalDtoSchema,
   valueAdviceDtoSchema,
@@ -56,8 +61,6 @@ type ToolResult = {
 
 /** Ids are opaque strings; reject blanks and absurd lengths before any API call. */
 const idSchema = z.string().trim().min(1).max(200);
-/** Points fit a 32-bit integer column; larger values are always a misread. */
-const pointsSchema = z.number().int().nonnegative().max(2_147_483_647);
 
 export const TOOL_OUTCOMES = ["ok", "error"] as const;
 type ToolOutcome = (typeof TOOL_OUTCOMES)[number];
@@ -73,14 +76,40 @@ function ok(value: unknown): ToolResult {
   };
 }
 
+function publicFailureMessage(error: unknown, readOnly = false): string {
+  let message = error instanceof Error && error.name === "TimeoutError"
+    ? readOnly ? "The PointUp read timed out. Retry this read later." : "The PointUp request timed out. Its outcome is unknown; check PointUp before retrying a write."
+    : readOnly ? "Could not load PointUp data. Retry this read later." : "Could not complete the PointUp request. Check PointUp before retrying an uncertain write.";
+  if (error instanceof PointUpApiError) {
+    const code = isErrorCode(error.code) ? error.code : undefined;
+    const status = Number.isInteger(error.status) && error.status >= 100 && error.status <= 599 ? error.status : undefined;
+    const guidance = code === "CONSENT_REQUIRED"
+      ? "Ask the user to grant provider consent in Dashboard > Agents. This tool cannot grant consent."
+      : code === "OBSERVATION_REPLAY_CONFLICT"
+        ? "Check Dashboard > Agents before retrying. Keep the original capture identity; do not replace it automatically."
+        : code === "SKILL_NOT_FOUND"
+          ? "Check available capture skills with pointup_list_skills."
+          : status === 401 ? "Provide a valid PointUp access token."
+            : status === 403 ? "Check the caller's token scopes and current authorization."
+              : status === 404 ? "The requested PointUp resource was not found."
+                : status === 429 ? "Wait before retrying the PointUp request."
+                  : status === 400 || status === 422 ? "Check the request inputs before retrying."
+                    : readOnly ? "Retry this read later." : "Check PointUp before retrying an uncertain write.";
+    message = `PointUp request failed${status ? ` (HTTP ${status})` : ""}${code ? `: ${code}` : "."} ${guidance}`;
+    if (typeof error.requestId === "string" && /^[A-Za-z0-9._:-]{8,128}$/.test(error.requestId)) {
+      message += ` Support reference: ${error.requestId}`;
+    }
+  }
+  return message;
+}
 function fail(error: unknown): ToolResult {
-  const message =
-    error instanceof PointUpApiError
-      ? `${error.code}: ${error.message}`
-      : error instanceof Error
-        ? error.message
-        : String(error);
-  return { content: [{ type: "text", text: message }], isError: true };
+  return { content: [{ type: "text", text: publicFailureMessage(error) }], isError: true };
+}
+
+/** Resources/prompts retain protocol errors, exposing only fixed public details. */
+async function readPublic<T>(fn: () => Promise<T>): Promise<T> {
+  try { return await fn(); }
+  catch (error) { throw new McpError(McpErrorCode.InternalError, publicFailureMessage(error, true)); }
 }
 
 /** Wraps a handler so API errors become MCP tool errors, not protocol errors. */
@@ -432,7 +461,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
         "Record a balance the USER stated (source=manual). For balances you read from a website, use pointup_submit_balance instead so consent and audit apply.",
       inputSchema: {
         accountId: idSchema,
-        points: pointsSchema,
+        points: recordManualBalanceRequestSchema.shape.points,
         capturedAt: z.iso.datetime().optional(),
       },
       annotations: WRITE,
@@ -469,7 +498,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
       title: "Create a trip goal",
       inputSchema: {
         title: z.string().trim().min(1).max(120),
-        targetPoints: z.number().int().positive().max(2_147_483_647),
+        targetPoints: createTripGoalRequestSchema.shape.targetPoints,
         targetDate: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD")
@@ -532,7 +561,7 @@ const RAW_TOOL_DEFS: readonly ToolDef[] = [
         "Submit the points balance you read from the user's own signed-in provider page. Requires an active consent for the program (see pointup_request_consent) and a sourceUrl on the skill's allowed hosts. Outcome 'needs_review' means the value looks implausible and was NOT saved: the result carries a reviewId, and the user must confirm or reject it on the dashboard (Dashboard > Agents). You cannot confirm it. Reusing a captureId can recover a lost receipt but cannot approve a held value. Keep the UUID and original observedAt for retries; a changed capture needs a new UUID. Auto-linking an unlinked program (membershipNumber) needs a token with portfolio:write.",
       inputSchema: {
         skillId: idSchema.describe("e.g. united.capture-balance"),
-        points: pointsSchema,
+        points: submitObservationRequestSchema.shape.points,
         sourceUrl: z
           .url({ protocol: /^https$/, error: "sourceUrl must be an https URL" })
           .max(2048)
@@ -637,7 +666,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
       description: "Current totals and per-kind breakdown (JSON).",
       mimeType: "application/json",
     },
-    async (uri) => ({
+    (uri) => readPublic(async () => ({
       contents: [
         {
           uri: uri.href,
@@ -645,13 +674,13 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
           text: JSON.stringify(await client.getPortfolioSummary(), null, 2),
         },
       ],
-    }),
+    })),
   );
 
   server.registerResource(
     "skill-playbook",
     new ResourceTemplate("pointup://skills/{skillId}", {
-      list: async () => {
+      list: () => readPublic(async () => {
         const skills = await client.listAgentSkills();
         return {
           resources: skills.map((skill) => ({
@@ -661,7 +690,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
             mimeType: "text/markdown",
           })),
         };
-      },
+      }),
     }),
     {
       title: "Balance-capture playbook",
@@ -669,12 +698,12 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
         "Step-by-step playbook for reading one program's balance (mode browser or computer), including the verification status of its start URL.",
       mimeType: "text/markdown",
     },
-    async (uri, variables) => {
+    (uri, variables) => readPublic(async () => {
       const skillId = decodeURIComponent(String(variables.skillId));
       const skill = (await client.listAgentSkills()).find(
         (s) => s.id === skillId,
       );
-      if (!skill) throw new Error(`Unknown skill "${skillId}"`);
+      if (!skill) throw new PointUpApiError(404, "SKILL_NOT_FOUND", "Capture skill unavailable");
       return {
         contents: [
           {
@@ -684,7 +713,7 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
           },
         ],
       };
-    },
+    }),
   );
 
   // ─── Prompts: reusable playbooks ─────────────────────────────────────────
@@ -697,18 +726,18 @@ export function createPointUpMcpServer(options: ServerOptions): McpServer {
         "Step-by-step playbook for a browser/computer agent to read one program's balance with the user's consent and write it back.",
       argsSchema: CAPTURE_BALANCE_ARGS,
     },
-    async ({ providerId }) => {
+    ({ providerId }) => readPublic(async () => {
       const skills = await client.listAgentSkills(providerId);
       const skill = skills.find((s) => s.mode === "browser") ?? skills[0];
       const text = skill
         ? renderSkillPlaybook(skill)
-        : `No skill exists for "${providerId}". Use pointup_list_providers to check the id.`;
+        : "No capture skill is available. Use pointup_list_providers to check the program and pointup_list_skills for available skills.";
       return {
         messages: [
           { role: "user" as const, content: { type: "text" as const, text } },
         ],
       };
-    },
+    }),
   );
 
   server.registerPrompt(

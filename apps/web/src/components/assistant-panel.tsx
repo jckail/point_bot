@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { assistantChatFailure, requestAssistantChat } from "./assistant-chat-outcome";
 import { serializeAssistantChatRequest } from "./assistant-chat-request";
 
 import { ReviewedAssistantActions } from "@/components/reviewed-assistant-actions";
@@ -94,36 +95,16 @@ export function AssistantPanel() {
     setError(null);
 
     startTransition(async () => {
-      let requestId: string | undefined;
+      const clientRequestId = crypto.randomUUID();
       let timedOut = false;
       const timeout = window.setTimeout(() => {
         timedOut = true;
         controller.abort();
       }, REQUEST_TIMEOUT_MS);
       try {
-        const response = await fetch("/api/v1/assistant/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-PointUp-Surface": "web",
-          },
-          signal: controller.signal,
-          body: serializeAssistantChatRequest(trimmed, history),
-        });
-        requestId = response.headers.get("x-request-id") ?? response.headers.get("X-PointUp-Request-Id") ?? undefined;
-        const payload = (await response.json().catch(() => null)) as {
-          reply?: string;
-          error?: { message?: string };
-        } | null;
-        if (!response.ok) {
-          throw new Error(
-            payload?.error?.message ??
-              "The assistant could not answer. Try again.",
-          );
-        }
-        if (typeof payload?.reply !== "string" || !payload.reply.trim())
-          throw new Error("The assistant returned an empty answer. Try again.");
-        const reply = payload.reply;
+        const { reply } = await requestAssistantChat(
+          serializeAssistantChatRequest(trimmed, history), controller.signal, clientRequestId,
+        );
         setTurns((prev) =>
           [
             ...prev,
@@ -136,16 +117,8 @@ export function AssistantPanel() {
         );
       } catch (err) {
         setInput(trimmed);
-        setError({
-          message: controller.signal.aborted
-            ? timedOut
-              ? "The assistant took too long to respond. Your message is ready to try again."
-              : "Request stopped. Your message is ready to send again."
-            : err instanceof Error && err.message !== "Failed to fetch"
-              ? err.message
-              : "The assistant could not be reached. Check your connection and try again.",
-          requestId,
-        });
+        const failure = assistantChatFailure(err, controller.signal.aborted, timedOut);
+        setError({ ...failure, requestId: failure.requestId ?? clientRequestId });
       } finally {
         setActionsVersion((value) => value + 1);
         window.clearTimeout(timeout);
@@ -255,6 +228,19 @@ export function AssistantPanel() {
                 className="rounded-lg border border-danger/20 p-3 text-xs text-danger"
               >
                 <p>{error.message}</p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setActionsVersion(value => value + 1)}
+                    className="rounded-lg border border-line px-3 py-2 font-semibold text-ink-muted disabled:opacity-50"
+                  >
+                    Refresh proposed changes
+                  </button>
+                  <a href="/dashboard/agents#review-actions" className="self-center font-semibold text-brand underline">
+                    Review changes in PointUp
+                  </a>
+                </div>
                 {error.requestId && (
                   <p className="mt-2 break-all text-ink-muted">
                     Support reference: {error.requestId}

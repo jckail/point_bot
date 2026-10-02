@@ -42,4 +42,13 @@ Export is asynchronous; a returned trace ID is not delivery evidence. Chat reque
 
 See [observability.md](observability.md) for existing application telemetry and the assistant CloudWatch configuration. Runtime activation requires an explicitly configured model and a web-only OpenAI secret; tracing is a separate opt-in. Source and template changes do not deploy the runtime.
 
+The web panel generates a diagnostic request UUID before sending chat and prefers
+validated server support references. A failed, stopped or timed-out response does
+not prove that a pending proposal was never saved: persistence can finish after
+the response deadline. The panel retains the question and tells the user to check
+proposed changes before explicitly retrying. Refresh proposed changes reloads the
+existing review list; the dashboard review link remains available. No failure
+automatically resends or approves a proposal. This covers uncertain response
+recovery within the current page, not persisted conversation after page reload.
+
 References: [SDK tools](https://openai.github.io/openai-agents-js/guides/tools/), [running agents](https://openai.github.io/openai-agents-js/guides/running-agents/), [tracing](https://openai.github.io/openai-agents-js/guides/tracing/), and [Chrome service-worker lifetime](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).

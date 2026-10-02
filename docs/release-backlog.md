@@ -291,3 +291,17 @@ Root180 focusedpass. Logs: /tmp/pointup-recovery-ci.log and
 standalone/plan-funded ChatGPT, public OAuth MCP and actual AWS activation remain
 uncompleted. Final shared graph refresh completed164478nodes, exit0, log
 /tmp/pointup-recovery-final-graph.log; Agent Hub rejected unconfigured scope.
+
+## MCP and assistant recovery continuation
+
+New source implements canonical MCP discovery/upfront URL validation, malformed
+target handling, bounded HTTP telemetry, shared numeric contracts and private
+tool/resource/prompt failures. Web chat now warns about late proposal persistence
+and offers explicit review/refresh with diagnostic support IDs. Disabled OAuth
+JWT read-principal verification is implemented but unwired; opaque tokens, live
+revocation, provider resource/callback compatibility and actual backend integration
+remain unresolved. Root116 focused cases +workspace lint/types pass; two CLI
+configuration failures exit1 without private markers. Local CDK queue75 preserved,
+fresh candidate CI required. No browser/server/AWS mutation. AWS session remains
+expired. Preserve full standalone/plan-funded ChatGPT, public OAuth MCP, provider
+access and live observability scope; these source seams do not complete them.
