@@ -79,10 +79,16 @@ work, not a request to remove capabilities or substitute read-only features.
   refresh, popup reopening during inference, account changes, service-worker lifetime,
   frozen capture retries, displayed-ID discard, review-tab reuse, focus and accessibility.
   Source tests and bounded layout checks do not prove browser/provider lifecycle behavior.
-- Complete guided capture/extractor coverage for Chase, Amex, Capital One and Bilt.
-  Catalog/playbook presence does not establish extraction support or logged-in provider
-  behavior. Validate actual balances/award space; do not infer them from demo adapters.
-- Pursue provider APIs/developer partnerships where available. Verify configured
+- Verify the new program-specific bank capture candidate for Chase, US Amex,
+  Capital One Miles and Bilt against controlled logged-in pages. Synthetic
+  product/unit/region fixtures and exact hosts are implemented; current Capital
+  One rewards-host compatibility remains unresolved. Extend regional Amex mapping
+  explicitly rather than assigning international points to the US program.
+  Catalog/rule presence does not prove live balances or award space.
+- Pursue the documented issuer API partnership leads in [integrations.md](integrations.md).
+  Amex merchant inquiry, Capital One dollar rewards and Bilt partner-point callbacks
+  are not verified portfolio-balance readers; establish eligibility and actual
+  balance/consent contracts before implementing those adapters. Verify configured
   aggregator access and truthful capabilities; retain consented manual/guided capture
   where no API is available. Review upstream currency/rate and remaining parsing bounds
   against real provider formats without exposing credentials or private response bodies.

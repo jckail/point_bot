@@ -205,8 +205,38 @@ diagnostics omit token-bearing URLs and notification content.
 The Chrome extractor requires balance context or an isolated unit reading, strict
 integer grouping and a unique value. It refuses conflicting/promotional readings
 and partial decimal, negative or exponent suffixes. This is conservative synthetic
-fixture coverage, not live provider-page verification. Seven airline/hotel rules
-remain; Chase, Amex, Capital One and Bilt have unverified core playbooks but no
-extension extraction rules, manifest matches or card fixtures. Expand these only
-with program-specific balance labels, approved hosts, negative offer fixtures and
-separate live consented validation.
+fixture coverage, not live provider-page verification. The bank candidate adds program-specific Chase, US Amex, Capital One Miles and
+Bilt rules alongside seven airline/hotel rules, with exact bank hosts and negative
+offer/region fixtures. These are unverified against logged-in pages; controlled
+live consented validation remains required. Capital One rewards-host compatibility
+needs separate verification before claiming a working connection.
+
+## Official bank navigation evidence
+
+Public navigation evidence establishes provider-owned starting points, not logged-in
+balance markup or API access. No provider partnership, credential use or live account
+connection is claimed. The current core playbooks remain unverified.
+
+| Program | Primary evidence | Remaining limitation |
+| --- | --- | --- |
+| Chase Ultimate Rewards | [Chase rewards portal guide](https://www.chase.com/personal/credit-cards/education/rewards-benefits/beginners-guide-to-chase-online-shopping-portal) names `ultimaterewardspoints.chase.com`. | A shopping/rewards portal link does not verify the signed-in balance label. |
+| Amex Membership Rewards (US) | [Amex balance FAQ](https://www.americanexpress.com/us/customer-service/faq.how-to-see-mr-points-for-my-card.html) describes the Home dashboard and Points Summary; [official rewards navigation](https://global.americanexpress.com/rewards/calculator) is on the shared global host. | Shared hosts also serve international products. Capture needs US identity plus the MR points label. |
+| Capital One Miles | [Capital One rewards](https://www.capitalone.com/credit-cards/rewards/) links Sign In to Redeem to `verified.capitalone.com/auth/signin/`. | The existing `myrewards.capitalone.com` seed has no current public primary-source confirmation. A failed tool open does not prove retirement; the new login host does not prove a balance reader. |
+| Bilt | [Bilt](https://www.bilt.com/) and [official account setup](https://support.biltrewards.com/hc/en-us/articles/15802772321933-How-to-create-a-Bilt-account) establish current and legacy provider-owned navigation. | Authenticated balance layout and region/product compatibility remain unverified. |
+
+Provider/developer API discovery must establish actual loyalty-balance permissions
+and onboarding; general issuer APIs or public pages do not establish that access.
+Use consented capture/manual recording until a contracted real adapter is verified.
+
+### API partnership opportunities and contract mismatches
+
+| Provider | Official API evidence | PointUp implication |
+| --- | --- | --- |
+| Capital One | [Shop with Rewards engineering](https://www.capitalone.com/tech/software-engineering/inside-shop-with-rewards/) describes balance/redeem/refund endpoints for approved co-branded retail partners and a rewards balance expressed in dollars. | A partnership inquiry may be useful. It does not establish Venture/Miles portfolio access; dollar balances must not be ingested as miles. |
+| Bilt | [Partner documentation](https://developers.bilt.com/docs/) and [partner OpenAPI](https://developers.bilt.com/docs/specs/partner-api.yml) describe pay-with-points against the partner's own loyalty program: Bilt calls a partner-hosted `pointsBalanceUrl`. | This direction is the inverse of PointUp reading a Bilt member balance. Payment SDK onboarding/client credentials do not establish that read access. |
+| Amex | [Merchant balance-inquiry documentation](https://gateway-na.americanexpress.com/api/documentation/documentation/apiDocumentation/rest-json/version/47/operation/Transaction%3A%20%20Balance%20Inquiry.html?locale=en_US) names Membership Rewards and `availableBalance.reward.points`, using payment-provider-issued merchant credentials and reward-redemption balance identifiers. | This older version47 payment-partner contract is an inquiry lead, not established general US-card portfolio access or permission to use it for PointUp. |
+| Chase | [Official developer registration](https://developer.jpmorgan.com/register/) requires an invitation/relationship for Chase Developer access. | Establish eligibility and the actual loyalty-balance contract before adapter implementation. General account/payment APIs do not prove points access. |
+
+No self-serve loyalty-balance connection or partnership was established by this
+research. These are concrete onboarding leads and contract boundaries, not
+configured integrations. Retain manual/consented capture for unsupported programs.

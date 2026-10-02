@@ -113,7 +113,9 @@ through their 25-second timeout, and use bounded completion/discard tombstones.
 Discard binds the displayed capture ID; shared review-tab creation is serialized.
 Scoped pending questions and support references survive popup reopening. Conservative
 numeric/context extraction and explicit foreign-currency rejection avoid silently
-inventing a reading; bank-program and live Chrome/provider coverage remain open.
+inventing a reading. The new bank candidate adds four program-specific readers
+with exact hosts, correct units and US Amex region evidence. Live Chrome/provider
+coverage remains open; Capital One rewards-host compatibility is unverified.
 
 Updated worker/MCP and upstream failure boundaries omit raw exceptions, identities and payloads.
 Aggregator/upstream transports validate targets, bound responses and reject unsafe
@@ -168,3 +170,24 @@ The final whole-corpus Graphify refresh completed 164,478 nodes with exit 0
 PointUp coverage remains absent: query first, then inspect current source. Agent Hub
 refuses this worktree's unconfigured memory scope; curated repository documents carry
 continuity without uploading private investigation material.
+
+## Bank capture continuation
+
+The new candidate adds synthetic Chase Ultimate Rewards, US Amex Membership
+Rewards, Capital One Miles and Bilt extraction coverage and matching exact bank
+content-script hosts. It preserves seven airline/hotel rules and current replay/
+review behavior. Product/unit/region guards reject cash, status, offers, malformed
+or conflicting readings, including the separately reproduced Bilt Cash case.
+All captures now mirror backend HTTPS/no-userinfo/standard-port admission. The
+popup supplies program coverage and consent/sign-in/review steps.
+
+Root84 composed extraction/record/state/popup cases, workspace lint/types and
+whitespace checks pass; fresh committed-head CI is required. Official
+navigation/API research is recorded in [integrations.md](integrations.md). It
+establishes partnership leads, not API access or logged-in extraction proof.
+The existing Capital One rewards seed remains unverified; its current public
+login link is insufficient evidence to broaden capture authorization.
+
+Docs-only83d59b1 passes all six CI37000871611 jobs and CodeQL37000871596.
+AWS renewal remains pending; no live account, provider credentials, Chrome tab,
+production mutation or merge occurred. Full original goal remains active.

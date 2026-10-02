@@ -65,6 +65,10 @@
         color: #9aa5cb;
         margin-top: 4px;
       }
+      details { margin-top: 10px; font-size: 12px; color: #c6cee8; }
+      summary { cursor: pointer; }
+      details ol { padding-left: 20px; line-height: 1.5; }
+      details p { line-height: 1.5; }
       .row {
         display: flex;
         gap: 8px;
@@ -83,6 +87,17 @@
     <h1>PointUp — capture balance</h1>
 
     <div id="latest">Open a provider page to capture a balance.</div>
+
+    <details>
+      <summary>Supported programs and capture steps</summary>
+      <p>Chase Ultimate Rewards, Amex Membership Rewards (US), Capital One Miles, Bilt, United, Delta, American, Southwest, Marriott, Hyatt and Hilton.</p>
+      <ol>
+        <li>In PointUp, open Dashboard &gt; Agents, grant consent for your program and create a token with <code>observations:write</code>. Save it below.</li>
+        <li>Sign in to your program yourself and open its rewards balance page. Complete any sign-in or verification prompts yourself.</li>
+        <li>Return here, check the captured program and points, then record. Unusual balances may need review in PointUp.</li>
+      </ol>
+      <p>Page layouts vary. If no clear reading appears, record the balance manually in PointUp. The extension sends the detected balance and page reference, without your provider password.</p>
+    </details>
 
     <div class="row">
       <button id="record">Record / retry balance</button>

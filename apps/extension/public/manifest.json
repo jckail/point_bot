@@ -16,7 +16,12 @@
         "https://*.southwest.com/*",
         "https://*.marriott.com/*",
         "https://*.hyatt.com/*",
-        "https://*.hilton.com/*"
+        "https://*.hilton.com/*",
+        "https://ultimaterewardspoints.chase.com/*",
+        "https://global.americanexpress.com/*",
+        "https://myrewards.capitalone.com/*",
+        "https://www.bilt.com/*",
+        "https://www.biltrewards.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
