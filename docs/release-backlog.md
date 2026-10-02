@@ -7,7 +7,38 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged retention-bounds release is [PR #41](https://github.com/jckail/point_bot/pull/41)
+The latest merged hydration-recovery release is [PR #42](https://github.com/jckail/point_bot/pull/42)
+from source `fd59f2008ce92024f18d3f8cf1f6ef687490bcdf` (tree
+`4c325ad38778c0eae7001ee1f7251a2f1eb05bd5`). Its prospective and actual merged
+master `c1293b580dbc07ed88cd241f91ade3e26680c2fb` have tree
+`ba03fee7e4a19348b5e23c910c88c28266f8ed5a`. The source and master trees differ
+only by two additive `docs/design-audit/{current-source,development}.mdx` files
+from concurrent PR #43 at `4aafcb7521940432b7785cbaef66e9a5354d8b8e`;
+there is no runtime delta, but the three trees are not all identical. All six
+candidate jobs in [CI 37054067412](https://github.com/jckail/point_bot/actions/runs/37054067412),
+[CodeQL 37054067371](https://github.com/jckail/point_bot/actions/runs/37054067371)
+and Bugbot passed after both valid earlier review findings were fixed. The 1,778
+workspace tests and one paid live skip include 41 popup and 12 actual PostgreSQL
+retention cases. Merged-master [Deploy 37054589006](https://github.com/jckail/point_bot/actions/runs/37054589006)
+passed all six release verification jobs and configuration verification, with
+1,778 workspace tests and one paid live skip, including 41 popup and 12 actual
+PostgreSQL retention cases. [Master CodeQL 37054588607](https://github.com/jckail/point_bot/actions/runs/37054588607)
+also passed. AWS deployment was skipped for missing deployment-role configuration.
+
+The current SDK tracing correction shares one effective-readiness predicate
+across runtime trace-ID allocation, emitted events, runner configuration and the
+HTTP trace header. It respects tracing opt-in, the environment kill switch and
+SDK provider disabling. The existing evaluation helper delegates to that predicate;
+CLI override semantics and the HTTP support request ID are unchanged. Six new
+runtime/route regressions failed against the original source; all 66 focused tests
+across four files and one actual private-exporter bootstrap test now pass (67 total).
+Web typecheck, eight-file lint and whitespace checks passed; independent source
+review approved the proposal; committed candidate CI remains pending. An allocated
+trace ID proves neither trace creation
+nor exporter delivery. No paid inference, cloud exporter delivery or production
+activation is established by these checks.
+
+The preceding retention-bounds release is [PR #41](https://github.com/jckail/point_bot/pull/41)
 at master `5c52f47ba5a0e8d9e37ead82fa8e549bc73317e2` (source
 `92c3d07333e42dbb2e7a407019152ed6c9cb332d`). Both have the same tree,
 `1f316ace91178aac457bef22b4b605023f560183`. All six candidate verification jobs
@@ -23,7 +54,7 @@ also passed. AWS deployment was skipped for missing deployment-role configuratio
 Production rollout
 and the broader identity, model/provider and native acceptance gates remain open.
 
-The unmerged extension hydration refinement retains the Ask/Clear dispatch
+The merged PR #42 extension hydration refinement retains the Ask/Clear dispatch
 fence against delayed initial `getChat` results. A bare failure, transport error
 or malformed response starts one asynchronous fresh state-only `getChat` recovery;
 it never resends the mutation. An authoritative failed chat envelope is applied
@@ -41,9 +72,10 @@ all 41 focused popup tests now pass, with extension typecheck, lint and whitespa
 checks passing and independent source review approved without blockers. Both
 valid Bugbot findings are addressed in source; the earlier skipped review status
 is not an approval. The previous full CI result of 1,775 tests and one paid live
-skip applies to `281c261`, not this refinement. Fresh candidate CI is pending;
-no native browser proof or PR #42 merged-master success is claimed. PR #41's
-completed release evidence remains unchanged.
+skip applies to `281c261`; the final candidate passed with 1,778 tests and one
+paid live skip as recorded above. No native browser proof of this race is claimed.
+The merged-master verification also passed as recorded above; PR #41's completed
+release evidence remains unchanged.
 
 The preceding extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
 at master `464cb0ec0c7de73403c5aaf5fb24fd5495a78a81` (source

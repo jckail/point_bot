@@ -1,9 +1,9 @@
 import { UserId } from "@pointup/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as sdk from "@openai/agents";
 import { OpenAIResponsesModel, Span, type TracingProcessor } from "@openai/agents";
 import OpenAI from "openai";
-import { initializePrivateTracing, privateTracingProcessor } from "../private-tracing";
+import { initializePrivateTracing, privateTracingProcessor, isSdkTracingEnabled } from "../private-tracing";
 import { runPortfolioAssistant, type AgentUseCases } from "../index";
 import { assistantConfig } from "../config";
 
@@ -23,6 +23,8 @@ function recordingProcessor() {
   return { captured, processor };
 }
 
+beforeEach(() => { vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0"); });
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -31,6 +33,31 @@ afterEach(() => {
 });
 
 describe("private SDK trace errors", () => {
+  it("probes actual provider enablement without dispatching any lifecycle or flush", () => {
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0");
+    const processor: TracingProcessor = { onTraceStart: vi.fn(async () => {}), onTraceEnd: vi.fn(async () => {}),
+      onSpanStart: vi.fn(async () => {}), onSpanEnd: vi.fn(async () => {}), forceFlush: vi.fn(async () => {}), shutdown: vi.fn(async () => {}) };
+    sdk.setTraceProcessors([processor]);
+    sdk.setTracingDisabled(true);
+    expect(isSdkTracingEnabled()).toBe(false);
+    sdk.setTracingDisabled(false);
+    expect(isSdkTracingEnabled()).toBe(true);
+    expect(isSdkTracingEnabled()).toBe(true);
+    for (const callback of Object.values(processor)) expect(callback).not.toHaveBeenCalled();
+  });
+  it.each(["1", "true"])("honors environment disable %s even when the provider was enabled", flag => {
+    sdk.setTracingDisabled(false);
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", flag);
+    const create = vi.spyOn(sdk.getGlobalTraceProvider(), "createTrace");
+    expect(isSdkTracingEnabled()).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+  it("contains readiness observation failure without enabling or exporting", () => {
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0");
+    const create = vi.spyOn(sdk.getGlobalTraceProvider(), "createTrace").mockImplementation(() => { throw new Error("Synthetic private probe failure"); });
+    expect(isSdkTracingEnabled()).toBe(false);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
   it.each(["thrown_error", "http_400"] as const)("redacts real Responses model %s errors after the SDK captures them", async kind => {
     const recording = recordingProcessor();
     sdk.setTraceProcessors([privateTracingProcessor(recording.processor)]);

@@ -9,6 +9,7 @@ import { readJsonBody } from "@/server/request-body";
 import { webObservability } from "@/server/observability";
 import { mayWritePortfolio } from "@/server/access-policy";
 import { assistantConfig } from "@/server/assistant-agent/config";
+import { isSdkTracingEnabled } from "@/server/assistant-agent/private-tracing";
 import { getAssistantActions } from "@/server/assistant-agent/actions";
 import { runPortfolioAssistant } from "@/server/assistant-agent";
 import { assistantAdmission } from "@/server/assistant-agent/admission";
@@ -30,7 +31,10 @@ export async function POST(request: Request) {
     try {
       const configured = assistantConfig(env);
       // Chrome MV3 can stop a worker after fetch waits 30s; leave response margin.
-      const config = source === "extension" ? { ...configured, timeoutMs: Math.min(configured.timeoutMs, 20_000) } : configured;
+      const config = { ...configured,
+        tracing: configured.runtime === "agents" && configured.tracing && isSdkTracingEnabled(),
+        timeoutMs: source === "extension" ? Math.min(configured.timeoutMs, 20_000) : configured.timeoutMs,
+      };
       mode = config.runtime === "agents" ? "agents" : "fallback";
       // Correlation supplied by the caller must never determine an SDK trace ID.
       if (mode === "agents" && config.tracing) traceId = generateTraceId();

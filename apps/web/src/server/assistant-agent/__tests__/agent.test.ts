@@ -1,5 +1,5 @@
 import { UserId } from "@pointup/core";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Usage, setTraceProcessors, setTracingDisabled, type TracingProcessor, type Model, type ModelRequest, type ModelResponse, type AgentOutputItem } from "@openai/agents";
 import { runPortfolioAssistant, type Observation } from "../index";
 import { assistantConfig } from "../config";
@@ -34,7 +34,27 @@ function scriptedModel(outputs: AgentOutputItem[][]) {
 const call: AgentOutputItem = { type: "function_call", callId: "test-call", name: "loyalty_balances", arguments: "{}" };
 const answer: AgentOutputItem = { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "You have 500 miles." }] };
 
+beforeEach(() => { vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0"); setTracingDisabled(true); });
+afterEach(() => { setTracingDisabled(true); setTraceProcessors([]); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
 describe("OpenAI Agents portfolio runtime", () => {
+  it.each(["provider_disabled", "env_1", "env_true", "opt_in_off"])("omits SDK correlation and dispatch for %s despite a supplied trace ID", async disabled => {
+    const f = fixture(), { model, requests } = scriptedModel([[call], [answer]]);
+    const processor: TracingProcessor = { onTraceStart: vi.fn(async () => {}), onTraceEnd: vi.fn(async () => {}),
+      onSpanStart: vi.fn(async () => {}), onSpanEnd: vi.fn(async () => {}), forceFlush: vi.fn(async () => {}), shutdown: vi.fn(async () => {}) };
+    setTraceProcessors([privateTracingProcessor(processor)]);
+    setTracingDisabled(disabled === "provider_disabled");
+    if (disabled === "env_1" || disabled === "env_true") vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", disabled === "env_1" ? "1" : "true");
+    const result = await runPortfolioAssistant({ userId: UserId.parse("private-user"), body: { message: "private-message" },
+      useCases: f.useCases, config: { ...config, tracing: disabled !== "opt_in_off" }, model, observe: f.observe,
+      requestId: "http-support-reference", traceId: `trace_${"a".repeat(32)}` });
+    expect(result.reply).toBe("You have 500 miles.");
+    expect(result.requestId).toBe("http-support-reference");
+    expect(result.traceId).toBeUndefined();
+    expect(requests[0]?.tracing).toBe(false);
+    expect(f.events.every(event => !Object.hasOwn(event, "sdkTraceId"))).toBe(true);
+    for (const callback of Object.values(processor)) expect(callback).not.toHaveBeenCalled();
+  });
   it("runs a real SDK tool loop with authenticated scope and sanitized telemetry", async () => {
     const { useCases, events, observe } = fixture();
     const { model, requests } = scriptedModel([[call], [answer]]);
@@ -117,6 +137,8 @@ describe("OpenAI Agents portfolio runtime", () => {
     try {
       const result = await runPortfolioAssistant({ userId: UserId.parse("private-user"), body: { message: "private-message" }, useCases: f.useCases, config: { ...config, tracing: true }, model, observe: f.observe, requestId: "trace-test-request", source: "extension" });
       expect(result.traceId).toMatch(/^trace_[a-zA-Z0-9]{32}$/);
+      expect(exported).toContainEqual(expect.objectContaining({ object: "trace", id: result.traceId }));
+      expect(f.events.every(event => event.sdkTraceId === result.traceId)).toBe(true);
       expect(requests[0]?.tracing).toBe("enabled_without_data");
       const traces = JSON.stringify(exported);
       expect(traces).not.toContain("trace-test-request");

@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { setTracingDisabled, setTraceProcessors } from "@openai/agents";
 import { RequestBodyError } from "../../../../../server/request-body";
 
 type AssistantRunner = typeof import("../../../../../server/assistant-agent").runPortfolioAssistant;
@@ -60,6 +61,9 @@ function request(surface = "web") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0");
+  setTraceProcessors([]);
+  setTracingDisabled(false);
   state.denial = undefined;
   state.principal = { scopes: "session", userId: "private-user-id" };
   state.admission.mockReturnValue({ release: state.release });
@@ -69,7 +73,7 @@ beforeEach(() => {
   state.run.mockResolvedValue({ reply: "private-assistant-reply", requestId: "canonical-request-id", mode: "agents", traceId: undefined });
 
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { setTracingDisabled(true); setTraceProcessors([]); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 function observation(response: Response) {
   const calls = state.logger.mock.calls;
@@ -130,6 +134,34 @@ describe("assistant HTTP support correlation", () => {
     expect(response.headers.get("x-request-id")).toBe("canonical-request-id");
     expect(response.headers.get("X-PointUp-Request-Id")).toBe("canonical-request-id");
     expect(response.headers.get("X-PointUp-Trace-Id")).toBe(traceId);
+  });
+  it.each(["provider_disabled", "env_1", "env_true"])("keeps HTTP support correlation without SDK headers under %s on success and failure", async disabled => {
+    if (disabled === "provider_disabled") setTracingDisabled(true);
+    else vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", disabled === "env_1" ? "1" : "true");
+    state.config.mockReturnValue({ runtime: "agents", tracing: true, timeoutMs: 30000 });
+    state.run.mockImplementationOnce(async input => ({ reply: "ok", requestId: input.requestId ?? "canonical-request-id", mode: "agents", traceId: input.traceId }));
+    const success = await POST(request());
+    expect(success.status).toBe(200);
+    expect(success.headers.get("X-PointUp-Trace-Id")).toBeNull();
+    expect(success.headers.get("x-request-id")).toBe("canonical-request-id");
+    expect(state.run).toHaveBeenLastCalledWith(expect.objectContaining({ traceId: undefined, config: expect.objectContaining({ tracing: false }) }));
+    state.run.mockRejectedValueOnce(new Error("Synthetic private runtime failure"));
+    const failure = await POST(request());
+    expect(failure.status).toBe(500);
+    expect(failure.headers.get("X-PointUp-Trace-Id")).toBeNull();
+    expect(failure.headers.get("X-PointUp-Request-Id")).toBe("canonical-request-id");
+    expect(JSON.stringify(state.logger.mock.calls)).not.toContain("Synthetic private");
+    expect(state.release).toHaveBeenCalledTimes(2);
+  });
+  it("retains allocated SDK correlation on an enabled runtime failure without claiming delivery", async () => {
+    state.config.mockReturnValueOnce({ runtime: "agents", tracing: true, timeoutMs: 30000 });
+    state.run.mockRejectedValueOnce(new Error("Synthetic private runtime failure"));
+    const response = await POST(request());
+    const allocated = state.run.mock.calls[0]?.[0].traceId;
+    expect(allocated).toMatch(/^trace_[a-zA-Z0-9]{32}$/);
+    expect(response.status).toBe(500);
+    expect(response.headers.get("X-PointUp-Trace-Id")).toBe(allocated);
+    expect(response.headers.get("x-request-id")).toBe("canonical-request-id");
   });
   it("rejects saturation before loading runtime dependencies and correlates the private 429", async () => {
     state.admission.mockReturnValueOnce({ retryAfter: 17 });

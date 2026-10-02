@@ -5,6 +5,7 @@ import { runPortfolioAssistant, type Observation } from "../index";
 import { assistantConfig } from "../config";
 import { evaluationCases } from "../evaluation/cases";
 import { createEvaluationFixture, privateCanaries, syntheticOwner } from "../evaluation/fixture";
+import { isSdkTracingEnabled } from "../private-tracing";
 import { enableLiveEvaluationTracing, evaluationTracingEnabled, flushEvaluationTraces, runEvaluationCase, runEvaluationSuite, scoreEvaluation } from "../evaluation/run";
 
 const config = assistantConfig({ ASSISTANT_RUNTIME: "agents", ASSISTANT_MODEL: "injected", OPENAI_API_KEY: "no-network" });
@@ -235,6 +236,7 @@ describe("evaluation tracing readiness", () => {
 
   it("reads the actual disabled SDK state in tests rather than assuming trace intent enables it", () => {
     expect(process.env.NODE_ENV).toBe("test");
+    expect(evaluationTracingEnabled()).toBe(isSdkTracingEnabled());
     expect(evaluationTracingEnabled()).toBe(false);
     setTracingDisabled(false);
     expect(evaluationTracingEnabled()).toBe(true);
