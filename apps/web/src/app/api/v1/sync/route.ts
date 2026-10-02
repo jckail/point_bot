@@ -5,10 +5,10 @@ import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
 /** Best-effort sync of every linked account; reports per-account outcomes. */
-export function POST() {
+export function POST(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const outcomes =
       await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
     return NextResponse.json(outcomes.map(toSyncOutcomeDto));
-  });
+  }, { request: request, scope: "sync:execute", browserOnly: true });
 }

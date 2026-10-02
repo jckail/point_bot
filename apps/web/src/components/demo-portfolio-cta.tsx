@@ -1,5 +1,5 @@
 import { seedDemoPortfolioAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 
 export function DemoPortfolioCta() {
   return (
@@ -14,9 +14,9 @@ export function DemoPortfolioCta() {
         </p>
       </div>
       <form action={seedDemoPortfolioAction}>
-        <Button type="submit" size="sm">
+        <SubmitButton pendingLabel="Loading sample…" size="sm">
           Load sample data
-        </Button>
+        </SubmitButton>
       </form>
     </section>
   );

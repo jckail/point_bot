@@ -8,7 +8,7 @@ import { withAuthenticatedUser } from "@/server/http";
  * iCalendar feed of account expiration dates. Subscribe from Apple Calendar,
  * Google Calendar, or Outlook via the authenticated URL.
  */
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     // Wide window so the feed includes anything still on the books.
     const expiring =
@@ -23,5 +23,5 @@ export function GET() {
         "Cache-Control": "private, max-age=300",
       },
     });
-  });
+  }, { request: request, scope: "portfolio:read" });
 }

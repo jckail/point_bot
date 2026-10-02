@@ -7,7 +7,7 @@ import {
 } from "@/app/actions";
 import { BalanceTrendChips } from "@/components/balance-trend";
 import { ProviderBadge } from "@/components/provider-badge";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 
 export function AccountCard({
@@ -16,7 +16,7 @@ export function AccountCard({
   account: LoyaltyAccountReadModel;
 }) {
   return (
-    <section className="card-surface group flex flex-col gap-4 p-6 transition hover:border-brand/40">
+    <section className="card-surface account-card group flex flex-col gap-4 p-6 transition hover:border-brand/40">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-lg font-semibold text-ink">
@@ -90,7 +90,7 @@ export function AccountCard({
           </>
         ) : (
           <p className="text-sm text-ink-muted">
-            No balance yet - run your first sync.
+            No balance recorded. Add one in details or sync where supported.
           </p>
         )}
         {account.tags.length > 0 && (
@@ -98,7 +98,7 @@ export function AccountCard({
             {account.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-line px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-faint"
+                className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-faint"
               >
                 {tag}
               </span>
@@ -115,15 +115,15 @@ export function AccountCard({
       <div className="mt-auto flex items-center gap-2">
         <form action={syncLoyaltyAccountAction}>
           <input type="hidden" name="accountId" value={account.id} />
-          <Button variant="secondary" size="sm" type="submit">
+          <SubmitButton pendingLabel="Syncing…" variant="secondary" size="sm">
             Sync balance
-          </Button>
+          </SubmitButton>
         </form>
         <Link
           href={`/dashboard/accounts/${account.id}`}
           className="rounded-full px-3 py-1.5 text-sm font-semibold text-ink-faint no-underline transition hover:text-ink"
         >
-          Details &rarr;
+          View details
         </Link>
       </div>
     </section>

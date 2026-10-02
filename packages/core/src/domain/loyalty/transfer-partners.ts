@@ -51,30 +51,12 @@ export const TRANSFER_EDGES: readonly TransferEdge[] = [
   { fromProviderId: "bilt", toProviderId: "american", ratioFrom: 1, ratioTo: 1 },
 ];
 
-/**
- * Sample / evergreen bonus windows. Dates are illustrative so the ranking
- * engine always has something interesting to show in demos.
- */
-export function activeTransferBonuses(now: Date = new Date()): TransferBonus[] {
-  const year = now.getUTCFullYear();
-  return [
-    {
-      fromProviderId: "chase-ultimate-rewards",
-      toProviderId: "hyatt",
-      multiplier: 1.3,
-      startsAt: new Date(Date.UTC(year, 0, 1)),
-      endsAt: new Date(Date.UTC(year, 11, 31, 23, 59, 59)),
-      label: "Hyatt transfer bonus (demo)",
-    },
-    {
-      fromProviderId: "amex-membership-rewards",
-      toProviderId: "hilton",
-      multiplier: 1.25,
-      startsAt: new Date(Date.UTC(year, 0, 1)),
-      endsAt: new Date(Date.UTC(year, 11, 31, 23, 59, 59)),
-      label: "Hilton transfer bonus (demo)",
-    },
-  ].filter(
+/** Only supplied, verified bonus windows participate in ranking. */
+export function activeTransferBonuses(
+  now: Date = new Date(),
+  bonuses: readonly TransferBonus[] = [],
+): TransferBonus[] {
+  return bonuses.filter(
     (bonus) =>
       bonus.startsAt.getTime() <= now.getTime() &&
       bonus.endsAt.getTime() >= now.getTime(),

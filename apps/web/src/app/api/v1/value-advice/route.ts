@@ -5,10 +5,10 @@ import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
 /** Bang-for-buck transfers + curated deals for the signed-in portfolio. */
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const advice =
       await getContainer().useCases.getValueAdvice.execute(userId);
     return NextResponse.json(toValueAdviceDto(advice));
-  });
+  }, { request: request, scope: "portfolio:read" });
 }

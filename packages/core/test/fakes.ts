@@ -153,7 +153,8 @@ export class FakeCredentialVault implements CredentialVault {
     private readonly entries: Record<string, ProviderCredential> = {},
   ) {}
 
-  async resolve(credentialRef: string): Promise<ProviderCredential | null> {
+  async resolve(credentialRef: string, _userId: string): Promise<ProviderCredential | null> {
+    void _userId;
     return this.entries[credentialRef] ?? null;
   }
 }

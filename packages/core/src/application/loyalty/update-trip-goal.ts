@@ -85,7 +85,7 @@ export class UpdateTripGoal {
     if (input.accountIds) {
       for (const accountId of input.accountIds) {
         const account = await this.accounts.findById(accountId);
-        if (!account || account.userId !== input.userId) {
+        if (!account || account.userId !== input.userId || account.deletedAt) {
           throw new LoyaltyAccountNotFoundError(accountId);
         }
       }

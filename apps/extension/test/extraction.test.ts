@@ -8,7 +8,6 @@ import {
   extractPointsWithRule,
   parsePoints,
   PROVIDER_PAGE_RULES,
-  providerHostGlobs,
 } from "../src/extraction";
 
 describe("parsePoints", () => {
@@ -80,15 +79,20 @@ describe("extractPointsWithRule", () => {
   });
 });
 
-describe("manifest stays in sync with the rules", () => {
-  it("content_scripts matches equal providerHostGlobs()", () => {
-    const manifestPath = fileURLToPath(
-      new URL("../public/manifest.json", import.meta.url),
-    );
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-      content_scripts: { matches: string[] }[];
-    };
-    const matches = manifest.content_scripts[0]!.matches;
-    expect([...matches].sort()).toEqual([...providerHostGlobs()].sort());
+describe("consent and conservative extraction", () => {
+  it("has no automatic scripts or install-time provider/API host access", () => {
+    const manifest = JSON.parse(readFileSync(fileURLToPath(new URL("../public/manifest.json", import.meta.url)), "utf8"));
+    expect(manifest.content_scripts).toBeUndefined();
+    expect(manifest.host_permissions).toBeUndefined();
+    expect(manifest.permissions).toEqual(["storage", "activeTab", "scripting"]);
+  });
+  it("rejects promotions, ambiguous balances and insecure pages", () => {
+    const url = "https://united.com/account";
+    expect(extractBalance({ url, text: "Earn 50,000 miles today" })).toBeNull();
+    expect(extractBalance({ url, text: "Balance 50,000 miles, upgrade costs 20,000 miles" })).toBeNull();
+    expect(extractBalance({ url: "http://united.com", text: "Balance 50,000 miles" })).toBeNull();
+    expect(extractBalance({ url, text: "Balance -50 miles" })).toBeNull();
+    expect(extractBalance({ url, text: "Balance 12.5 miles" })).toBeNull();
+    expect(extractBalance({ url, text: "Balance 1,23 miles" })).toBeNull();
   });
 });

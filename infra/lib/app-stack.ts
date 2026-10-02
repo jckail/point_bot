@@ -10,6 +10,8 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
+import { MigrationGate } from "./migration-gate.js";
+import { AssistantObservability } from "./assistant-observability.js";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 
@@ -118,6 +120,14 @@ export class AppStack extends cdk.Stack {
           "OpenAI-compatible LLM API key (set the real value after deploy)",
         )
       : undefined;
+    const agentsEnabled = this.node.tryGetContext("enableAgents") === true || this.node.tryGetContext("enableAgents") === "true";
+    const agentsModel = ctx("assistantModel");
+    if (agentsEnabled && !agentsModel) throw new Error("enableAgents requires an explicit assistantModel context value");
+    const agentsSecret = agentsEnabled ? placeholderSecret("OpenAiAgentsApiKey", "OpenAI Agents SDK API key; populate before enabling live inference") : undefined;
+    const agentsEnvironment: Record<string, string> = agentsEnabled ? {
+      ASSISTANT_RUNTIME: "agents", ASSISTANT_MODEL: agentsModel!,
+      ASSISTANT_TRACING_ENABLED: this.node.tryGetContext("assistantTracing") === true || this.node.tryGetContext("assistantTracing") === "true" ? "true" : "false",
+    } : {};
     const firecrawlSecret = this.node.tryGetContext("enableFirecrawl")
       ? placeholderSecret(
           "FirecrawlApiKey",
@@ -182,6 +192,7 @@ export class AppStack extends cdk.Stack {
       containerInsightsV2: ecs.ContainerInsights.ENABLED,
     });
 
+    const appLogs = new logs.LogGroup(this, "AppLogs", { retention: logs.RetentionDays.ONE_MONTH, removalPolicy: cdk.RemovalPolicy.RETAIN });
     const service = new ecsPatterns.ApplicationLoadBalancedFargateService(
       this,
       "Service",
@@ -202,6 +213,7 @@ export class AppStack extends cdk.Stack {
             // src/env.ts composes DATABASE_URL from the DB_* variables below.
             // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
             ...assistantEnvironment,
+            ...agentsEnvironment,
             ...aggregatorEnvironment,
           },
           secrets: {
@@ -212,11 +224,12 @@ export class AppStack extends cdk.Stack {
             DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
             CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
             ...assistantSecrets,
+            ...(agentsSecret ? { OPENAI_API_KEY: ecs.Secret.fromSecretsManager(agentsSecret) } : {}),
             ...aggregatorSecrets,
           },
           logDriver: ecs.LogDrivers.awsLogs({
             streamPrefix: "app",
-            logRetention: logs.RetentionDays.ONE_MONTH,
+            logGroup: appLogs,
           }),
         },
         circuitBreaker: { rollback: true },
@@ -266,6 +279,8 @@ export class AppStack extends cdk.Stack {
     if (bedrockModelId) {
       grantBedrockInvoke(service.taskDefinition.taskRole);
     }
+
+    const migrationConsumers: cdk.CfnResource[] = [service.service.node.defaultChild as cdk.CfnResource];
 
     // ─── PointBot chat surface (optional) ──────────────────────────────────
     // A public HTTP(S) service handling Slack/Discord commands. Opt in with
@@ -350,6 +365,7 @@ export class AppStack extends cdk.Stack {
         },
       );
 
+      migrationConsumers.push(botService.service.node.defaultChild as cdk.CfnResource);
       botService.targetGroup.configureHealthCheck({
         path: "/health",
         healthyThresholdCount: 2,
@@ -558,16 +574,15 @@ export class AppStack extends cdk.Stack {
       );
     }
 
-    // ─── One-off migration task (invoked by CI after each deploy) ──────────
-    // Same worker image, `migrate` command: applies pending drizzle
-    // migrations under an advisory lock. CI runs it via `aws ecs run-task`
-    // using the outputs below.
+    // ─── Migration task and deployment gate ───────────────────────────────
+    // CloudFormation runs the worker migration job before schema consumers
+    // update. Keep task/network outputs for explicit operator recovery.
     const migrationTaskDef = new ecs.FargateTaskDefinition(
       this,
       "MigrationTaskDef",
       { cpu: 256, memoryLimitMiB: 512 },
     );
-    migrationTaskDef.addContainer("Migrate", {
+    const migrationContainer = migrationTaskDef.addContainer("Migrate", {
       image: ecs.ContainerImage.fromDockerImageAsset(workerImage),
       command: ["migrate"],
       environment: { NODE_ENV: "production" },
@@ -587,6 +602,26 @@ export class AppStack extends cdk.Stack {
       migrationSecurityGroup,
       "Migration task to PostgreSQL",
     );
+
+    const migrationGate = new MigrationGate(this, "MigrationGate", {
+      cluster,
+      taskDefinition: migrationTaskDef,
+      securityGroup: migrationSecurityGroup,
+      imageHash: workerImage.assetHash,
+      essentialContainerNames: [migrationContainer.containerName],
+    });
+    migrationGate.resource.node.addDependency(database);
+    const gateResource = migrationGate.resource.node.defaultChild as cdk.CfnResource;
+    // Depend on the ECS service resources, not their construct subtrees: gating
+    // service security groups would cycle through database ingress prerequisites.
+    for (const consumer of migrationConsumers) consumer.addResourceDependency(gateResource);
+    for (const task of [syncTask, digestTask, alertsTask, watchTask]) {
+      (task.eventRule.node.defaultChild as cdk.CfnResource).addResourceDependency(gateResource);
+    }
+
+    const assistantMonitoring = new AssistantObservability(this, "AssistantMonitoring", appLogs);
+    new cdk.CfnOutput(this, "AssistantDashboardName", { value: assistantMonitoring.dashboard.dashboardName });
+    if (agentsSecret) new cdk.CfnOutput(this, "OpenAiAgentsSecretArn", { value: agentsSecret.secretArn, description: "Populate with an approved OpenAI API key before using the agents runtime" });
 
     // ─── Monitoring ────────────────────────────────────────────────────────
     new cloudwatch.Alarm(this, "Alb5xxAlarm", {

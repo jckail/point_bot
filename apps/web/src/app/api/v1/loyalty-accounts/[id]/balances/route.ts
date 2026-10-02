@@ -6,7 +6,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -24,14 +24,14 @@ export function GET(request: Request, context: Context) {
       limit,
     );
     return NextResponse.json(history.map(toBalanceDto));
-  });
+  }, { request: request, scope: "portfolio:read" });
 }
 
 /** Record a manually observed balance. */
 export function POST(request: Request, context: Context) {
   return withAuthenticatedUser(async (userId) => {
     const { id } = await context.params;
-    const body = recordManualBalanceRequestSchema.parse(await request.json());
+    const body = recordManualBalanceRequestSchema.parse(await readJsonBody(request));
 
     const balance = await getContainer().useCases.recordManualBalance.execute({
       userId,
@@ -40,5 +40,5 @@ export function POST(request: Request, context: Context) {
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
     });
     return NextResponse.json(toBalanceDto(balance), { status: 201 });
-  });
+  }, { request: request, scope: "portfolio:write", browserOnly: true });
 }

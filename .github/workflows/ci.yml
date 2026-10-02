@@ -47,8 +47,14 @@ jobs:
       - name: Build extension
         run: npm run build --workspace @pointup/extension
 
+      - name: Build MCP server
+        run: npm run build --workspace @pointup/mcp
+
+  postgres:
+    uses: ./.github/workflows/postgres.yml
+
   infra:
-    name: Typecheck & synth infrastructure
+    name: Typecheck, test & synth infrastructure
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -67,6 +73,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Infrastructure contract tests
+        run: npm test
 
       - name: Synth
         run: npx cdk synth --quiet

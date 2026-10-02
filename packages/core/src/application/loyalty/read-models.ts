@@ -1,3 +1,4 @@
+import type { ProviderCapabilities } from "../../domain/loyalty/provider-capabilities";
 import type { BalanceSource } from "../../domain/loyalty/balance-snapshot";
 import type { ProviderKind } from "../../domain/loyalty/provider";
 import type { BalanceTrend } from "./balance-trend";
@@ -17,6 +18,7 @@ export interface ProviderReadModel {
   readonly estimatedCentsPerPoint: number;
   /** Months of inactivity before expiry; null if the program never expires. */
   readonly inactivityExpiryMonths: number | null;
+  readonly capabilities?: ProviderCapabilities;
 }
 
 export interface BalanceReadModel {

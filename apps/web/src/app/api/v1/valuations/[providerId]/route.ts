@@ -5,7 +5,7 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
 type Context = { params: Promise<{ providerId: string }> };
 
@@ -13,14 +13,14 @@ type Context = { params: Promise<{ providerId: string }> };
 export function PUT(request: Request, context: Context) {
   return withAuthenticatedUser(async (userId) => {
     const { providerId } = await context.params;
-    const body = setCustomValuationRequestSchema.parse(await request.json());
+    const body = setCustomValuationRequestSchema.parse(await readJsonBody(request));
     const valuation = await getContainer().useCases.setCustomValuation.execute({
       userId,
       providerId,
       centsPerPoint: body.centsPerPoint,
     });
     return NextResponse.json(toCustomValuationDto(valuation));
-  });
+  }, { request: request, scope: "portfolio:write" });
 }
 
 /** Clear the override, reverting the provider to its editorial valuation. */
@@ -32,5 +32,5 @@ export function DELETE(_request: Request, context: Context) {
       providerId,
     );
     return new NextResponse(null, { status: 204 });
-  });
+  }, { request: _request, scope: "portfolio:write" });
 }

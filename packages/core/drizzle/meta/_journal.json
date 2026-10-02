@@ -57,6 +57,20 @@
       "when": 1783638907053,
       "tag": "0007_spotty_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790907932735,
+      "tag": "0008_agents_and_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790911424021,
+      "tag": "0009_portfolio_integrity",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,59 @@
+name: PostgreSQL regression checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    name: PostgreSQL (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [agents-and-baseline, portfolio-integrity]
+    # Every matrix leg gets an empty database. Portfolio must seed legacy data
+    # before 0009; it cannot share the fully migrated agent/baseline fixture.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pointup_integration
+          POSTGRES_USER: pointup_fixture
+          # Disposable CI service credential; never an application secret.
+          POSTGRES_PASSWORD: pointup_ci_fixture_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pointup_fixture -d pointup_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Agent adoption and baseline PostgreSQL tests
+        if: matrix.suite == 'agents-and-baseline'
+        env:
+          DATABASE_INTEGRATION_URL: postgres://pointup_fixture:pointup_ci_fixture_only@127.0.0.1:5432/pointup_integration
+        # Run adoption first, before baseline applies managed migrations.
+        run: |
+          npm run test --workspace @pointup/core -- test/agents-postgres-integration.test.ts --maxWorkers=2
+          npm run test --workspace @pointup/core -- test/postgres-integration.test.ts --maxWorkers=2
+
+      - name: Legacy portfolio migration and atomicity PostgreSQL tests
+        if: matrix.suite == 'portfolio-integrity'
+        env:
+          PORTFOLIO_INTEGRATION_URL: postgres://pointup_fixture:pointup_ci_fixture_only@127.0.0.1:5432/pointup_integration
+        run: npm run test --workspace @pointup/core -- test/portfolio-integrity-postgres.test.ts --maxWorkers=2

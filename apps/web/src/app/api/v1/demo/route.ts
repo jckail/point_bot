@@ -4,10 +4,10 @@ import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
 /** Seed a sample portfolio when the user has no linked accounts. */
-export function POST() {
+export function POST(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const result =
       await getContainer().useCases.seedDemoPortfolio.execute(userId);
     return NextResponse.json(result, { status: 201 });
-  });
+  }, { request: request, scope: "portfolio:write", browserOnly: true });
 }

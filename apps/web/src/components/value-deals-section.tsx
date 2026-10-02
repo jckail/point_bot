@@ -11,7 +11,7 @@ export function ValueDealsSection({
   initialAdvice: ValueAdviceDto;
 }) {
   const [advice, setAdvice] = useState(initialAdvice);
-  const [url, setUrl] = useState("https://example.com/hyatt-award-chart");
+  const [url, setUrl] = useState("");
   const [scrapeNote, setScrapeNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -51,15 +51,14 @@ export function ValueDealsSection({
           Value &amp; deals
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Best bang-for-buck transfers from your balances, plus curated sweet
-          spots. Paste a deal URL to scrape award charts (Firecrawl when
-          configured).
+          Compare transfers and curated redemptions against your balances. Estimates
+          are a guide; confirm availability and terms with the provider.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-line bg-midnight/40 p-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-faint">
+          <h3 className="text-sm font-semibold text-ink-faint">
             Top transfers
           </h3>
           {advice.transfers.length === 0 ? (
@@ -76,7 +75,7 @@ export function ValueDealsSection({
         </div>
 
         <div className="rounded-2xl border border-line bg-midnight/40 p-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-faint">
+          <h3 className="text-sm font-semibold text-ink-faint">
             Ranked redemptions
           </h3>
           <ul className="mt-3 flex flex-col gap-2">
@@ -95,8 +94,10 @@ export function ValueDealsSection({
         }}
       >
         <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium text-ink-muted">
-          Scrape a deal or award-chart URL
+          Import a deal or award-chart URL
           <input
+            type="url"
+            required
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://…"
@@ -108,11 +109,11 @@ export function ValueDealsSection({
           disabled={pending || url.trim().length === 0}
           className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {pending ? "Scraping…" : "Scrape & rank"}
+          {pending ? "Importing…" : "Import & rank"}
         </button>
       </form>
-      {scrapeNote && <p className="text-xs text-ink-faint">{scrapeNote}</p>}
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {scrapeNote && <p role="status" className="text-xs text-ink-faint">{scrapeNote}</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </section>
   );
 }

@@ -60,7 +60,7 @@ export function SharePortfolioSection({
                   </p>
                   <a
                     href={url}
-                    className="truncate text-xs text-brand-soft no-underline hover:underline"
+                    className="block max-w-full break-all text-xs text-brand-soft no-underline hover:underline"
                   >
                     {url}
                   </a>

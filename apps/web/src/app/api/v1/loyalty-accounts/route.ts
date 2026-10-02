@@ -6,19 +6,19 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const accounts =
       await getContainer().useCases.listLoyaltyAccounts.execute(userId);
     return NextResponse.json(accounts.map(toLoyaltyAccountDto));
-  });
+  }, { request: request, scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
   return withAuthenticatedUser(async (userId) => {
-    const body = linkLoyaltyAccountRequestSchema.parse(await request.json());
+    const body = linkLoyaltyAccountRequestSchema.parse(await readJsonBody(request));
     const result = await getContainer().useCases.linkLoyaltyAccount.execute({
       userId,
       providerId: body.providerId,
@@ -26,7 +26,7 @@ export function POST(request: Request) {
       credentialRef: body.credentialRef,
     });
     return NextResponse.json(result, { status: 201 });
-  });
+  }, { request: request, scope: "portfolio:write" });
 }
 
 /**
@@ -36,12 +36,12 @@ export function POST(request: Request) {
  */
 export function PATCH(request: Request) {
   return withAuthenticatedUser(async (userId) => {
-    const body = bulkUpdateMembershipRequestSchema.parse(await request.json());
+    const body = bulkUpdateMembershipRequestSchema.parse(await readJsonBody(request));
     const result =
       await getContainer().useCases.bulkUpdateMembershipNumbers.execute({
         userId,
         updates: body.updates,
       });
     return NextResponse.json(result);
-  });
+  }, { request: request, scope: "portfolio:write" });
 }

@@ -82,7 +82,10 @@ describe("SeedDemoPortfolio", () => {
 
     expect(result.accountIds.length).toBe(5);
     expect(result.goalId).not.toBeNull();
-    expect(await accounts.findByUserId("user-1")).toHaveLength(5);
+    const seeded = await accounts.findByUserId("user-1");
+    expect(seeded).toHaveLength(5);
+    expect(seeded.every((account) => account.tags.includes("demo"))).toBe(true);
+    expect(seeded.every((account) => account.expiresAt === null)).toBe(true);
   });
 
   it("refuses to seed when the portfolio is not empty", async () => {

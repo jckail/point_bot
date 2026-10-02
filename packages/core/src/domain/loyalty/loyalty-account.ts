@@ -26,8 +26,8 @@ export interface LoyaltyAccount {
   readonly membershipNumber: string;
   readonly credentialRef: string | null;
   /**
-   * Projected date the balance expires for inactivity. Null when the program
-   * does not expire, or when the user has not set/synced a reference date.
+   * Provider/user supplied expiry date. Null when the expiry is unknown or
+   * the program does not expire; observing a balance never establishes it.
    */
   readonly expiresAt: Date | null;
   /** Free-text note the user attaches to this membership. */
@@ -50,7 +50,7 @@ export interface NewLoyaltyAccount {
   readonly providerId: string;
   readonly membershipNumber: string;
   readonly credentialRef?: string | null;
-  /** Override the catalog-projected expiry; omit to project from `now`. */
+  /** Provider/user supplied expiry; omit when the last qualifying activity is unknown. */
   readonly expiresAt?: Date | null;
   readonly notes?: string | null;
   readonly tags?: readonly string[];
@@ -112,11 +112,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
   }
 
   const now = input.now ?? new Date();
-  const provider = getProviderOrThrow(input.providerId);
-  const expiresAt =
-    input.expiresAt !== undefined
-      ? input.expiresAt
-      : projectExpiryDate(provider, now);
+  const expiresAt = input.expiresAt ?? null;
 
   return {
     id: input.id ?? crypto.randomUUID(),

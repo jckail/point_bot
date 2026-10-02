@@ -6,8 +6,6 @@ import { ListExpiringAccounts } from "../src/application/loyalty/list-expiring-a
 import { ListLoyaltyAccounts } from "../src/application/loyalty/list-loyalty-accounts";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
-import { projectExpiryDate } from "../src/domain/loyalty/provider";
-import { findProvider } from "../src/domain/loyalty/provider";
 import {
   InMemoryActivityEventRepository,
   InMemoryBalanceSnapshotRepository,
@@ -18,7 +16,7 @@ const NOW = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => NOW };
 
 describe("expiration tracking", () => {
-  it("projects expiry from the catalog policy on link", async () => {
+  it("leaves expiry unknown until provider/user supplies a date", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const activity = new InMemoryActivityEventRepository();
     const result = await new LinkLoyaltyAccount(
@@ -32,8 +30,7 @@ describe("expiration tracking", () => {
     });
 
     const stored = await accounts.findById(result.accountId);
-    const united = findProvider("united")!;
-    expect(stored?.expiresAt).toEqual(projectExpiryDate(united, NOW));
+    expect(stored?.expiresAt).toBeNull();
     expect(activity.rows[0]?.type).toBe("account_linked");
   });
 
@@ -83,7 +80,7 @@ describe("expiration tracking", () => {
     expect(expiring[0]?.daysUntilExpiry).toBeGreaterThan(0);
   });
 
-  it("refreshes expiry when a manual balance is recorded", async () => {
+  it("preserves expiry when a manual balance is recorded", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const balances = new InMemoryBalanceSnapshotRepository();
     const activity = new InMemoryActivityEventRepository();
@@ -108,8 +105,8 @@ describe("expiration tracking", () => {
     });
 
     const updated = await accounts.findById(account.id);
-    const hyatt = findProvider("hyatt")!;
-    expect(updated?.expiresAt).toEqual(projectExpiryDate(hyatt, NOW));
+    expect(updated?.expiresAt).toEqual(account.expiresAt);
+    expect(updated?.updatedAt).toEqual(account.updatedAt);
     expect(activity.rows[0]?.type).toBe("balance_manual");
   });
 });

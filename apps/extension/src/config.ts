@@ -1,33 +1,31 @@
-import type { ExtractedBalance } from "./extraction";
-
-/** User settings, stored in chrome.storage.local. */
-export interface ExtensionConfig {
-  /** PointUp API base URL, e.g. https://app.example.com */
-  readonly baseUrl: string;
-  /** Clerk session token (bearer). See docs/multi-surface.md. */
-  readonly token: string;
-}
-
+import { apiOrigin, isReviewedCapture, type ReviewedCapture } from "./security";
+export interface ExtensionConfig { readonly baseUrl: string; readonly token: string; readonly rememberToken?: boolean; }
 export async function loadConfig(): Promise<ExtensionConfig> {
-  const stored = await chrome.storage.local.get(["baseUrl", "token"]);
-  return {
-    baseUrl: typeof stored.baseUrl === "string" ? stored.baseUrl : "",
-    token: typeof stored.token === "string" ? stored.token : "",
-  };
+  await chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+  // Migrate older versions' unconditionally persisted credentials.
+  await chrome.storage.local.remove(["token", "latestCapture"]);
+  const stored = await chrome.storage.local.get(["baseUrl", "agentToken"]);
+  const session = await chrome.storage.session.get("token");
+  const durable = typeof stored.agentToken === "string" && stored.agentToken.startsWith("pu_") ? stored.agentToken : "";
+  return { baseUrl: typeof stored.baseUrl === "string" ? stored.baseUrl : "",
+    token: typeof session.token === "string" ? session.token : durable, rememberToken: Boolean(durable) };
 }
-
 export async function saveConfig(config: ExtensionConfig): Promise<void> {
-  await chrome.storage.local.set(config);
+  const baseUrl = apiOrigin(config.baseUrl);
+  if (config.rememberToken && !config.token.startsWith("pu_")) throw new Error("Only PointUp personal access tokens (pu_) can be remembered. Session tokens remain temporary.");
+  await chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+  await chrome.storage.local.set({ baseUrl });
+  if (config.rememberToken) await chrome.storage.local.set({ agentToken: config.token });
+  else await chrome.storage.local.remove("agentToken");
+  await chrome.storage.session.set({ token: config.token });
+  await saveLatestCapture(null);
+  await chrome.storage.session.remove("assistantChat");
 }
-
-/** The most recently captured balance (persisted so the popup can show it). */
-export async function saveLatestCapture(
-  capture: ExtractedBalance | null,
-): Promise<void> {
-  await chrome.storage.local.set({ latestCapture: capture });
+export async function saveLatestCapture(capture: ReviewedCapture | null): Promise<void> {
+  await chrome.storage.session.remove("pendingObservation");
+  await chrome.storage.session.set({ latestCapture: capture });
 }
-
-export async function loadLatestCapture(): Promise<ExtractedBalance | null> {
-  const stored = await chrome.storage.local.get("latestCapture");
-  return (stored.latestCapture as ExtractedBalance | null) ?? null;
+export async function loadLatestCapture(): Promise<ReviewedCapture | null> {
+  const stored = await chrome.storage.session.get("latestCapture");
+  return isReviewedCapture(stored.latestCapture) ? stored.latestCapture : null;
 }

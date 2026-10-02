@@ -8,8 +8,8 @@ export function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="card-surface flex flex-col gap-1 p-5">
-      <span className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+    <div className="stat-cell flex flex-col gap-2">
+      <span className="text-sm font-medium text-ink-muted">
         {label}
       </span>
       <span className="font-display text-3xl font-bold text-ink">{value}</span>

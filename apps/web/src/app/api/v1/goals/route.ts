@@ -5,18 +5,18 @@ import {
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
-import { withAuthenticatedUser } from "@/server/http";
+import { readJsonBody, withAuthenticatedUser } from "@/server/http";
 
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const goals = await getContainer().useCases.listTripGoals.execute(userId);
     return NextResponse.json(goals.map(toTripGoalDto));
-  });
+  }, { request: request, scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
   return withAuthenticatedUser(async (userId) => {
-    const body = createTripGoalRequestSchema.parse(await request.json());
+    const body = createTripGoalRequestSchema.parse(await readJsonBody(request));
     const goal = await getContainer().useCases.createTripGoal.execute({
       userId,
       title: body.title,
@@ -26,5 +26,5 @@ export function POST(request: Request) {
       notes: body.notes,
     });
     return NextResponse.json(toTripGoalDto(goal), { status: 201 });
-  });
+  }, { request: request, scope: "portfolio:write" });
 }

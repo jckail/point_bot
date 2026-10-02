@@ -86,7 +86,7 @@ export class HeuristicAssistant implements LlmAssistant {
 
     if (/expir|lapse|forfeit/.test(lower)) {
       return [
-        "Focus on programs with inactivity expiry first — sync or redeem something small to reset the clock.",
+        "Focus on programs with inactivity expiry first — confirm the deadline with the provider and its qualifying earn/redeem activity rules. Syncing only observes the balance.",
         balanceLines[0]
           ? `Start with: ${balanceLines[0].replace(/^- /, "")}.`
           : "Open Expiring soon on your dashboard for the tightest deadlines.",

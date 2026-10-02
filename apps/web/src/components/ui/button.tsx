@@ -1,6 +1,6 @@
 const VARIANTS = {
   primary:
-    "bg-brand text-white shadow-lg shadow-brand/30 hover:bg-brand-strong",
+    "bg-brand text-white hover:bg-brand-strong",
   secondary:
     "border border-brand/40 bg-brand/10 text-brand-soft hover:bg-brand/20",
   ghost: "border border-line text-ink-muted hover:border-ink-faint hover:text-ink",
@@ -28,7 +28,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`cursor-pointer rounded-full font-semibold transition ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`cursor-pointer disabled:cursor-wait disabled:opacity-50 rounded-xl font-semibold transition ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
     />
   );
 }

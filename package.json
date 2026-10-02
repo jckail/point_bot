@@ -13,7 +13,7 @@
     "start": "npm run start --workspace @pointup/web",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present -- --maxWorkers=2 --minWorkers=1",
     "db:generate": "npm run db:generate --workspace @pointup/core",
     "db:migrate": "npm run db:migrate --workspace @pointup/core",
     "db:push": "npm run db:push --workspace @pointup/core",
@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.2.10",
+    "eslint-config-next": "^16.3.6",
     "typescript": "^5.9.0"
   },
   "engines": {

@@ -2,30 +2,18 @@ import "@/styles/globals.css";
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { type Metadata } from "next";
-import { Inter, Sora } from "next/font/google";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
-const sora = Sora({
-  subsets: ["latin"],
-  variable: "--font-sora",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.pointup.io"),
   title: {
     default: "PointUp - all your points, one clear view",
     template: "%s | PointUp",
   },
   description:
-    "Track airline miles and hotel points in one place - on the web, on your phone, or right in your browser.",
+    "Track loyalty balances, plan trip goals, and compare estimated redemption value in one place.",
 };
 
 export default function RootLayout({
@@ -35,21 +23,22 @@ export default function RootLayout({
     <ClerkProvider
       appearance={{
         variables: {
-          colorPrimary: "#7c5cff",
-          colorBackground: "#121a30",
-          colorForeground: "#f4f6ff",
-          colorMutedForeground: "#9aa5cb",
-          colorInput: "#0b1020",
-          colorInputForeground: "#f4f6ff",
-          colorBorder: "rgba(148, 163, 216, 0.14)",
+          colorPrimary: "#215bcc",
+          colorBackground: "#ffffff",
+          colorForeground: "#152b46",
+          colorMutedForeground: "#4b6077",
+          colorInput: "#f3f7fb",
+          colorInputForeground: "#152b46",
+          colorBorder: "#d4deea",
           borderRadius: "0.75rem",
         },
       }}
     >
-      <html lang="en" className={`${sora.variable} ${inter.variable}`}>
+      <html lang="en" >
         <body className="flex min-h-screen flex-col font-sans antialiased">
+          <a href="#main-content" className="skip-link">Skip to content</a>
           <SiteHeader />
-          <div className="flex-1">{children}</div>
+          <div id="main-content" className="flex-1">{children}</div>
           <SiteFooter />
         </body>
       </html>

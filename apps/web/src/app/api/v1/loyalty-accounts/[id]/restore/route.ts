@@ -12,5 +12,5 @@ export function POST(_request: Request, context: Context) {
     const account =
       await getContainer().useCases.restoreLoyaltyAccount.execute(userId, id);
     return NextResponse.json(toLoyaltyAccountDto(account));
-  });
+  }, { request: _request, scope: "portfolio:write" });
 }

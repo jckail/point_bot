@@ -209,11 +209,7 @@ After the first deploy:
    npx cdk deploy -c clerkPublishableKey=pk_live_...
    ```
 
-3. Run the database migrations against RDS (e.g. from a bastion host or an ECS one-off task):
-
-   ```bash
-   DATABASE_URL="postgresql://..." npm run db:migrate
-   ```
+3. The stack migration gate runs the worker migration task and waits for success before updating web, bot and scheduled-worker consumers. Inspect the migration task logs if the stack fails; do not force new consumers past a failed migration. Database changes are forward migrations and remain applied if a later service update rolls back.
 
 4. Add `http://<LoadBalancerUrl>` (or your domain) to the allowed origins in the Clerk dashboard.
 
@@ -227,7 +223,7 @@ For production, add an ACM certificate and a Route 53 hosted zone to `Applicatio
 
 ### Continuous deployment
 
-Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full verification (lint, typecheck, tests, builds) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
+Every push to `master` uses [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): verification → `cdk deploy` → a stack-owned migration gate → new web, bot and scheduled-worker consumers. The worker explicitly takes the shared advisory lock before Drizzle reads its journal. Source and local mocks are implemented; live AWS provisioning remains unverified.
 
 Authentication uses GitHub OIDC federation — no long-lived AWS keys are stored in the repository. One-time setup:
 
@@ -242,7 +238,7 @@ npx cdk deploy GithubOidc -c githubRepo=<owner>/<repo>
 #    Variable DIGEST_FROM_EMAIL     = verified SES sender (optional)
 ```
 
-The deploy role's permissions are minimal: it can only assume the CDK bootstrap roles and run the migration task. Until `AWS_DEPLOY_ROLE_ARN` is configured, the workflow verifies the build and skips deployment. Pull requests run the [CI workflow](./.github/workflows/ci.yml) (checks only, no AWS access).
+The deploy role can assume only the configured CDK bootstrap roles in the stack account/region; migration task execution belongs to the stack-owned gate. Its OIDC trust requires the repository's `production` environment. Configure that GitHub environment to allow deployment from `master` and apply the desired protection rules. If the repository uses GitHub's immutable owner/repository IDs in its OIDC subject, supply the exact production subject through CDK context `githubOidcSubject`. See [GitHub OIDC environment subjects](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws) and [CDK bootstrap role naming](https://docs.aws.amazon.com/cdk/v2/guide/customize-synth.html). Until `AWS_DEPLOY_ROLE_ARN` is configured, the workflow verifies the build and skips deployment. Pull requests run the [CI workflow](./.github/workflows/ci.yml) (checks only, no AWS access).
 
 ## Running the full stack in Docker locally
 

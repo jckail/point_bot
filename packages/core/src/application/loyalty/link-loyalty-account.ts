@@ -1,3 +1,4 @@
+import type { PortfolioUnitOfWork } from "./portfolio-unit-of-work";
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import { createLoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
@@ -30,11 +31,16 @@ export class LinkLoyaltyAccount {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly unitOfWork?: PortfolioUnitOfWork,
   ) {}
 
   async execute(
     input: LinkLoyaltyAccountInput,
   ): Promise<LinkLoyaltyAccountResult> {
+    if (this.unitOfWork) {
+      return this.unitOfWork.run(input.userId, ({ accounts, activity }) =>
+        new LinkLoyaltyAccount(accounts, activity, this.clock).execute(input));
+    }
     const existing = await this.accounts.findByUserAndProvider(
       input.userId,
       input.providerId,

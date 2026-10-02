@@ -11,5 +11,5 @@ export function DELETE(_request: Request, context: Context) {
     const { id } = await context.params;
     await getContainer().useCases.deleteAwardWatch.execute(userId, id);
     return new NextResponse(null, { status: 204 });
-  });
+  }, { request: _request, scope: "portfolio:write" });
 }
