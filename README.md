@@ -35,6 +35,8 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 - [docs/integrations.md](./docs/integrations.md) — loyalty providers (airlines, hotels, credit cards, rail, shopping) and credential vaults (1Password, Apple Keychain, Chrome)
 - [docs/brand.md](./docs/brand.md) — brand kit: logo assets, color tokens, typography, voice
 - [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) — how the modernization was ported into `point_bot`, feature-parity checklist, and the Bedrock assistant
+- [docs/assistant-agent.md](./docs/assistant-agent.md) — shared web/extension Agents SDK, reviewed proposals and tracing privacy
+- [docs/assistant-evaluations.md](./docs/assistant-evaluations.md) — synthetic evaluation cases and opt-in live evaluation
 - [docs/bot.md](./docs/bot.md) — the PointBot chat surface: Slack/Discord commands, the `Notifier` port, digests, and deployment
 - [docs/extension.md](./docs/extension.md) — the Chrome extension: capture balances from provider pages via `@pointup/api-client`
 
@@ -311,3 +313,20 @@ docker compose --profile app up --build
 ```
 
 This starts PostgreSQL and the production image of the app on [http://localhost:3000](http://localhost:3000).
+
+### OpenAI Agents SDK activation
+
+The dashboard and Chrome extension share the server-side TypeScript Agents SDK
+assistant. Existing provider selection remains the default. See
+[assistant setup](docs/assistant-agent.md) and [evaluations](docs/assistant-evaluations.md).
+For local use, configure `ASSISTANT_RUNTIME=agents`, `OPENAI_API_KEY`, and an explicit
+`ASSISTANT_MODEL` in the server environment. Tracing requires separate opt-in.
+
+For AWS, synth/deploy with `-c enableAgents=true -c assistantModel=<approved-model>`;
+add `-c assistantTracing=true` only when trace export is intended. Populate the
+`OpenAiAgentsSecretArn` output with a real project key before live use; the generated
+placeholder is not an inference credential. GitHub deployment accepts corresponding
+repository variables `ENABLE_AGENTS=true`, `ASSISTANT_MODEL`, and optional
+`ASSISTANT_TRACING_ENABLED=true`. The key stays in Secrets Manager on the web task.
+Deployment still requires valid AWS access and the production migration adoption
+checks recorded in [integration status](docs/integration-status.md).

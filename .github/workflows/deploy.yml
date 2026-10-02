@@ -109,11 +109,24 @@ jobs:
           CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           DIGEST_FROM_EMAIL: ${{ vars.DIGEST_FROM_EMAIL }}
           ENABLE_MCP: ${{ vars.ENABLE_MCP }}
+          ENABLE_AGENTS: ${{ vars.ENABLE_AGENTS }}
+          ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL }}
+          ASSISTANT_TRACING_ENABLED: ${{ vars.ASSISTANT_TRACING_ENABLED }}
           MCP_CERTIFICATE_ARN: ${{ vars.MCP_CERTIFICATE_ARN }}
           MCP_DOMAIN_NAME: ${{ vars.MCP_DOMAIN_NAME }}
           MCP_POINTUP_URL: ${{ vars.MCP_POINTUP_URL }}
         run: |
           CTX=()
+          if [ "$ENABLE_AGENTS" = "true" ]; then
+            if [ -z "$ASSISTANT_MODEL" ]; then
+              echo "ENABLE_AGENTS requires an explicit ASSISTANT_MODEL" >&2
+              exit 1
+            fi
+            CTX+=(-c enableAgents=true -c "assistantModel=$ASSISTANT_MODEL")
+            if [ "$ASSISTANT_TRACING_ENABLED" = "true" ]; then
+              CTX+=(-c assistantTracing=true)
+            fi
+          fi
           if [ "$ENABLE_MCP" = "true" ]; then
             CTX+=(-c enableMcp=true)
             # Bearer tokens must not cross the ALB in cleartext: fail fast without TLS.

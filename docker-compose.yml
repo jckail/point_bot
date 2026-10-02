@@ -108,6 +108,13 @@ services:
       bootstrap:
         condition: service_completed_successfully
     environment:
+      ASSISTANT_RUNTIME: ${ASSISTANT_RUNTIME:-legacy}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
+      ASSISTANT_TRACING_ENABLED: ${ASSISTANT_TRACING_ENABLED:-false}
+      ASSISTANT_TIMEOUT_MS: ${ASSISTANT_TIMEOUT_MS:-30000}
+      ASSISTANT_MAX_TURNS: ${ASSISTANT_MAX_TURNS:-5}
+      OPENAI_AGENTS_DISABLE_TRACING: ${OPENAI_AGENTS_DISABLE_TRACING:-0}
       <<: *dev-auth
       DATABASE_URL: ${APP_DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-app}}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}

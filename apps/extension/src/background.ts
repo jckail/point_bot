@@ -8,6 +8,9 @@ import {
 import type { ExtractedBalance } from "./extraction";
 import type { ExtensionMessage, RecordResult } from "./messages";
 import { recordCapture } from "./record";
+import { askAssistant, clearChat, loadChat, openReviewTab } from "./assistant";
+
+let assistantBusy = false;
 
 function client(baseUrl: string, token: string): PointUpClient {
   return new PointUpClient({
@@ -33,7 +36,19 @@ async function updateBadge(capture: ExtractedBalance | null): Promise<void> {
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, _sender, sendResponse) => {
+  (message: ExtensionMessage, sender, sendResponse) => {
+    if (["ask", "getChat", "clearChat", "openReview"].includes(message?.type)) {
+      if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab) return;
+      if (assistantBusy) { sendResponse({ ok: false, message: "The assistant is working. Please wait." }); return; }
+      assistantBusy = true;
+      const action = message.type === "ask" ? askAssistant(message.message)
+        : message.type === "clearChat" ? clearChat()
+        : message.type === "openReview" ? openReviewTab()
+        : loadChat().then(chat => ({ ok: true, message: "", chat }));
+      void action.catch(() => ({ ok: false, message: "Extension worker unavailable. Reopen the popup and retry." }))
+        .then(sendResponse).finally(() => { assistantBusy = false; });
+      return true;
+    }
     if (message.type === "capture") {
       void saveLatestCapture(message.capture).then(() =>
         updateBadge(message.capture),

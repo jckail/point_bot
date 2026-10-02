@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { assistantActionDtoSchema, assistantActionProposalRequestSchema } from "../domain/assistant/actions";
+
 import { AWARD_CABINS } from "../domain/loyalty/award-availability";
 import { SWEET_SPOT_KINDS } from "../domain/loyalty/catalog/sweet-spots";
 import { REDEMPTION_GOAL_KINDS } from "../domain/loyalty/optimizer";
@@ -90,6 +92,11 @@ const COMPONENT_SCHEMAS = {
   PublicPortfolioSnapshotDto: publicPortfolioSnapshotDtoSchema,
   IngestDealPageResultDto: ingestDealPageResultDtoSchema,
   ChatAssistantResponse: chatAssistantResponseSchema,
+  AssistantActionDto: assistantActionDtoSchema,
+  AssistantActionProposalRequest: assistantActionProposalRequestSchema,
+  AssistantActionResponse: z.object({ action: assistantActionDtoSchema }),
+  AssistantActionListResponse: z.object({ actions: z.array(assistantActionDtoSchema) }),
+  AssistantActionReviewRequest: z.object({}).strict(),
   ImportPortfolioResultDto: importPortfolioResultDtoSchema,
   BulkUpdateMembershipResultDto: bulkUpdateMembershipResultDtoSchema,
   CustomValuationDto: customValuationDtoSchema,
@@ -145,6 +152,9 @@ function jsonResponse(description: string, schema: Json): Json {
 const ERROR_RESPONSES: Json = {
   "400": jsonResponse("Request failed schema validation", ref("ApiError")),
   "401": jsonResponse("Not authenticated", ref("ApiError")),
+  "403": jsonResponse("Insufficient scope or browser authority", ref("ApiError")),
+  "413": jsonResponse("Request body too large", ref("ApiError")),
+  "415": jsonResponse("Unsupported request media type", ref("ApiError")),
 };
 const NOT_FOUND: Json = {
   "404": jsonResponse("Not found or not owned by the caller", ref("ApiError")),
@@ -192,6 +202,12 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           bearerFormat: "pu_...",
           description:
             "PointUp personal access token (create one in Settings or POST /api/v1/tokens). Used by the MCP server, ChatGPT Actions, and scripts. Scoped: portfolio:read, portfolio:write, observations:write, consents:manage (revoke consent only; granting is session-only).",
+        },
+        browserSession: {
+          type: "apiKey",
+          in: "cookie",
+          name: "__session",
+          description: "Browser session cookie with same-origin mutation protection. Authorization headers are rejected.",
         },
         clerkSession: {
           type: "http",
@@ -452,11 +468,55 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
       "/api/v1/assistant/chat": {
         post: {
           summary: "Grounded portfolio assistant chat",
+          operationId: "chatWithAssistant",
+          "x-pointup-required-scope": "portfolio:read",
+          description: "Read grounded portfolio advice. Proposal tools additionally require portfolio:write; proposals execute only after browser review.",
           requestBody: body("ChatAssistantRequest"),
           responses: {
-            "200": jsonResponse("Assistant reply", ref("ChatAssistantResponse")),
+            "200": jsonResponse("Assistant reply and optional immutable proposals", ref("ChatAssistantResponse")),
+            "429": { ...jsonResponse("Assistant admission limit reached", ref("ApiError")), headers: { "Retry-After": { description: "Seconds before retrying", schema: { type: "integer", minimum: 1 } } } },
+            "503": jsonResponse("Assistant unavailable", ref("ApiError")),
             ...ERROR_RESPONSES,
           },
+        },
+      },
+      "/api/v1/assistant/actions": {
+        get: {
+          operationId: "listAssistantActions",
+          summary: "List the caller's reviewed action proposals",
+          "x-pointup-required-scope": "portfolio:read",
+          responses: { "200": jsonResponse("Owned proposals", ref("AssistantActionListResponse")), ...ERROR_RESPONSES },
+        },
+        post: {
+          operationId: "proposeAssistantAction",
+          summary: "Create an immutable proposal for browser review",
+          "x-pointup-required-scope": "portfolio:write",
+          requestBody: body("AssistantActionProposalRequest"),
+          responses: { "201": jsonResponse("Pending proposal; no portfolio mutation", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
+        },
+      },
+      "/api/v1/assistant/actions/{actionId}/approve": {
+        post: {
+          operationId: "approveAssistantAction",
+          summary: "Approve an immutable proposal in the browser",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          "x-pointup-required-scope": "portfolio:write",
+          parameters: [{ name: "actionId", in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 255 } }],
+          requestBody: body("AssistantActionReviewRequest"),
+          responses: { "200": jsonResponse("Reviewed proposal outcome", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
+        },
+      },
+      "/api/v1/assistant/actions/{actionId}/reject": {
+        post: {
+          operationId: "rejectAssistantAction",
+          summary: "Reject an immutable proposal in the browser",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          "x-pointup-required-scope": "portfolio:write",
+          parameters: [{ name: "actionId", in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 255 } }],
+          requestBody: body("AssistantActionReviewRequest"),
+          responses: { "200": jsonResponse("Reviewed proposal outcome", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
         },
       },
       "/api/v1/value-advice": {
@@ -687,6 +747,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         },
         post: {
           operationId: "grantConsent",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "Grant time-boxed consent for agents to read one program and write balances back (session auth only: tokens cannot grant)",
           requestBody: body("GrantConsentRequest"),
           responses: {
@@ -731,6 +793,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         parameters: [ID_PARAM],
         post: {
           operationId: "confirmObservationReview",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "Confirm a held reading and write it (session auth only; single-use, expires after 24h)",
           responses: {
             "200": jsonResponse("Recorded", ref("ObservationResultDto")),
@@ -743,6 +807,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         parameters: [ID_PARAM],
         post: {
           operationId: "rejectObservationReview",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "Discard a held reading (session auth only)",
           responses: {
             "200": jsonResponse("Rejected", ref("ObservationResultDto")),
@@ -754,6 +820,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
       "/api/v1/tokens": {
         get: {
           operationId: "listAccessTokens",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "List personal access tokens (never returns secrets)",
           responses: {
             "200": jsonResponse("Tokens", arrayOf("AccessTokenDto")),
@@ -762,6 +830,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         },
         post: {
           operationId: "createAccessToken",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "Create a personal access token (session auth only; secret shown once)",
           requestBody: body("CreateAccessTokenRequest"),
           responses: {
@@ -774,6 +844,8 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         parameters: [ID_PARAM],
         delete: {
           operationId: "revokeAccessToken",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
           summary: "Revoke a token",
           responses: {
             "204": { description: "Revoked" },

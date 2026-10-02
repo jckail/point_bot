@@ -144,3 +144,76 @@ The apps speak OTLP only, so changing backend is a collector/endpoint change:
 Deliberately left for later: OTLP log export (stdout JSON is the transport today),
 sampling configuration (use `OTEL_TRACES_SAMPLER`), tracing the bot/worker hosts,
 and a Redis-backed shared metrics view (the in-process registry is per instance).
+
+## Assistant operations
+
+Assistant runtime observations share the existing JSON logger, Prometheus registry
+and optional OTel metric exporter. SDK tracing is a separate export path: enabling
+`OTEL_EXPORTER_OTLP_ENDPOINT` does not enable SDK traces. Assistant log events use
+`component=pointup_assistant`; `requestId` is the support reference, `sdkTraceId`
+identifies an opt-in SDK trace, and the existing OTel `traceId` remains independent.
+Token log fields are `inputTokenCount`, `outputTokenCount`, `totalTokenCount`,
+`cachedInputTokenCount` and `reasoningOutputTokenCount`; unavailable cache/reasoning
+counts are omitted. Counts must be nonnegative safe integers.
+
+| Assistant metric | Type | Labels |
+| --- | --- | --- |
+| `assistant_run_events_total` | counter | `source`, `mode`, `outcome` |
+| `assistant_run_duration_ms` | histogram | `source`, `mode`, `outcome` |
+| `assistant_tool_calls_total` | counter | `source`, `mode`, `outcome` |
+| `assistant_tool_duration_ms` | histogram | `source`, `mode`, `outcome` |
+| `assistant_model_requests_total` | counter | `source`, `mode`, `outcome` |
+| `assistant_input_tokens_total`, `assistant_output_tokens_total`, `assistant_total_tokens_total` | counter | `source`, `mode`, `outcome` |
+| `assistant_cached_input_tokens_total`, `assistant_reasoning_output_tokens_total` | counter | `source`, `mode`, `outcome` |
+| `assistant_action_events_total` | counter | `kind`, `status` |
+
+Sources are `web`, `extension` or `api`; modes are `agents` or `fallback`.
+Outcomes are `started`, `success`, `failed`, `timeout`, `cancelled`, `max_turns`,
+`partial` or `unknown`. Run events count starts and terminal observations, so use
+an outcome filter when counting runs. Run duration measures completed runs only;
+tool metrics use `tool_completed`, excluding duplicate SDK lifecycle hooks.
+Usage includes reported partial usage after failures. Missing or invalid counts
+emit no sample. Request, user, trace and tool identifiers never become these
+metric labels. Export failures cannot determine assistant success.
+
+The web composition supplies a best-effort proposal audit sink. It logs
+`component=pointup_assistant_action`, action ID, fixed kind and status, and emits
+an aggregate counter with kind/status only. Proposal creation, rejection and
+execution paths produce observations; repeated idempotent calls may observe the
+same state again. These observations are not a complete lifecycle audit: expiry
+and lease recovery currently have paths without an observation. The persisted
+proposal journal remains the source of truth for review and execution state.
+
+### CloudWatch dashboard and alarms
+
+CDK attaches 14 metric filters to the existing web application log group, with
+no request/user metric dimensions. The dashboard shows started/completed/failed/
+cancelled runs, timeouts, maximum-turn stops, tool failures, p50/p95 completed-run
+and tool latency, reported input/output/cache/reasoning tokens, model requests,
+and a recent-failure support-reference log query. `AssistantDashboardName` is a
+stack output. This configuration describes provisioned resources; it does not
+establish that events have reached a deployed AWS account.
+
+The failure alarm evaluates `100 * failed / started` at a 20% threshold in at
+least two of three five-minute periods, only when a period has at least ten
+started runs. Cancellations are excluded from the failure numerator; the
+denominator remains all started runs. A second alarm requires at least five
+timeouts in each of two consecutive five-minute periods. Missing data does not
+breach either alarm. These are initial tuning values: inspect actual traffic
+and run durations before changing the helper thresholds or evaluation windows.
+No notification actions or recipient are configured; operators must configure
+an approved notification destination separately if they want delivery.
+
+### Agents configuration boundary
+
+`-c enableAgents=true -c assistantModel=<approved-model>` opts the web task into
+the SDK runtime. A blank/missing model is rejected. The optional placeholder
+Secrets Manager key becomes server-only `OPENAI_API_KEY`; bot, MCP and scheduled
+worker tasks receive no Agents key. Populate the placeholder with an approved key
+before live inference. Existing legacy assistant configuration remains the
+default when Agents is disabled.
+
+`-c assistantTracing=true` independently enables SDK tracing for that runtime;
+it defaults off. SDK tracing excludes sensitive data and uses the private
+sanitizing exporter. Keep the existing OTel request correlation and JSON support
+references when choosing whether to enable this separate export path.

@@ -60,6 +60,12 @@ export const env = createEnv({
     // PointUp Assistant provider selection. "bedrock" uses AWS Bedrock
     // (Claude via the Converse API, credentials from the task role); anything
     // else falls back to the OpenAI-compatible path, then the heuristic.
+    ASSISTANT_RUNTIME: z.enum(["agents", "legacy"]).optional(),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    ASSISTANT_MODEL: z.string().min(1).max(128).optional(),
+    ASSISTANT_TRACING_ENABLED: z.enum(["true", "false"]).optional(),
+    ASSISTANT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).optional(),
+    ASSISTANT_MAX_TURNS: z.coerce.number().int().min(1).max(12).optional(),
     LLM_PROVIDER: z.enum(LLM_PROVIDERS).optional(),
     // Optional OpenAI-compatible LLM for PointUp Assistant.
     LLM_API_KEY: z.string().min(1).optional(),
@@ -100,6 +106,12 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     OP_CONNECT_HOST: process.env.OP_CONNECT_HOST,
     OP_CONNECT_TOKEN: process.env.OP_CONNECT_TOKEN,
+    ASSISTANT_RUNTIME: process.env.ASSISTANT_RUNTIME,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ASSISTANT_MODEL: process.env.ASSISTANT_MODEL,
+    ASSISTANT_TRACING_ENABLED: process.env.ASSISTANT_TRACING_ENABLED,
+    ASSISTANT_TIMEOUT_MS: process.env.ASSISTANT_TIMEOUT_MS,
+    ASSISTANT_MAX_TURNS: process.env.ASSISTANT_MAX_TURNS,
     LLM_PROVIDER: process.env.LLM_PROVIDER,
     LLM_API_KEY: process.env.LLM_API_KEY,
     LLM_MODEL: process.env.LLM_MODEL,

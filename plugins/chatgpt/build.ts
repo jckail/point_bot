@@ -19,6 +19,9 @@ import { buildOpenApiDocument } from "../../packages/core/src/contracts/openapi"
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- OpenAPI documents are free-form JSON
 
 const ALLOW: Record<string, string> = {
+  "GET /api/v1/assistant/actions": "listAssistantActions",
+  "POST /api/v1/assistant/actions": "proposeAssistantAction",
+  "POST /api/v1/assistant/chat": "chatWithAssistant",
   "GET /api/v1/summary": "getPortfolioSummary",
   "GET /api/v1/loyalty-accounts": "listAccounts",
   "POST /api/v1/loyalty-accounts": "linkAccount",
@@ -44,6 +47,16 @@ const ALLOW: Record<string, string> = {
 const MAX_OPERATIONS = 30;
 const MAX_DESCRIPTION = 300;
 
+/** Browser decisions never become bearer-token tools, even if allow-listed later. */
+export function isAgentActionOperation(operation: Record<string, unknown>): boolean {
+  if (operation["x-pointup-session-only"] === true) return false;
+  const security = operation.security;
+  if (!Array.isArray(security)) return true;
+  return !security.some((requirement: unknown) =>
+    typeof requirement === "object" && requirement !== null && "browserSession" in requirement,
+  );
+}
+
 export function buildChatGptSpec(serverUrl: string): Json {
   const full = buildOpenApiDocument({ serverUrl }) as Json;
   const paths: Json = {};
@@ -54,6 +67,7 @@ export function buildChatGptSpec(serverUrl: string): Json {
       const key = `${method.toUpperCase()} ${path}`;
       const operationId = ALLOW[key];
       if (!operationId || !item[method]) continue;
+      if (!isAgentActionOperation(item[method])) continue;
       const operation = { ...item[method], operationId };
       const summary: string = operation.summary ?? operationId;
       operation.summary = summary.slice(0, MAX_DESCRIPTION);

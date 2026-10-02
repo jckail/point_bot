@@ -48,6 +48,9 @@ import type {
   TransferBonusDto,
   ValueAdviceDto,
 } from "@pointup/core/contracts";
+import type { AssistantActionDto, AssistantActionProposalRequest } from "@pointup/core/assistant-actions";
+
+export type { AssistantActionDto, AssistantActionProposalRequest } from "@pointup/core/assistant-actions";
 
 /**
  * Typed client for the PointUp HTTP API. It only uses `fetch` and the wire
@@ -96,6 +99,16 @@ export class PointUpClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: PointUpClientOptions) {
+    const url = new URL(options.baseUrl);
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.username || url.password || url.search || url.hash ||
+        (url.protocol !== "https:" && !(url.protocol === "http:" && local))) {
+      throw new TypeError("PointUp base URL must use HTTPS (HTTP is allowed on loopback only), without credentials, query or fragment");
+    }
+    if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
+      throw new TypeError("PointUp request timeout must be a positive finite number");
+    }
+    this.options = { ...options, baseUrl: url.href.replace(/\/$/, "") };
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -326,6 +339,20 @@ export class PointUpClient {
     return this.request("POST", "/api/v1/assistant/chat", body);
   }
 
+  listAssistantActions(): Promise<{ actions: AssistantActionDto[] }> {
+    return this.request("GET", "/api/v1/assistant/actions");
+  }
+
+  /** Proposals do not apply changes; portfolio:write tokens may prepare them. */
+  proposeAssistantAction(body: AssistantActionProposalRequest): Promise<{ action: AssistantActionDto }> {
+    return this.request("POST", "/api/v1/assistant/actions", body);
+  }
+
+  /** Approval/rejection require a signed-in browser cookie session. */
+  decideAssistantAction(id: string, decision: "approve" | "reject"): Promise<{ action: AssistantActionDto }> {
+    return this.request("POST", `/api/v1/assistant/actions/${encodeURIComponent(id)}/${decision}`, {});
+  }
+
   getValueAdvice(): Promise<ValueAdviceDto> {
     return this.request("GET", "/api/v1/value-advice");
   }
@@ -428,6 +455,7 @@ export class PointUpClient {
     accept = "text/csv",
   ): Promise<string> {
     const response = await this.fetchImpl(`${this.options.baseUrl}${path}`, {
+      redirect: "error",
       method,
       headers: {
         Accept: accept,
@@ -462,6 +490,7 @@ export class PointUpClient {
     body?: unknown,
   ): Promise<T> {
     const response = await this.fetchImpl(`${this.options.baseUrl}${path}`, {
+      redirect: "error",
       method,
       headers: {
         Accept: "application/json",

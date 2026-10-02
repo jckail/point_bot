@@ -19,6 +19,8 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | --- | --- | --- |
 | `UNAUTHENTICATED` | 401 | No valid session |
 | `INVALID_REQUEST` | 400 | Request body/query failed schema validation |
+| `REQUEST_TOO_LARGE` | 413 | JSON request body exceeds the bounded 2 MiB limit |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | JSON request requires `Content-Type: application/json` |
 | `INVALID_ID` | 422 | An identifier (user, account, goal, ...) was empty or not a string |
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
@@ -44,6 +46,8 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_ASSISTANT_MESSAGE` | 422 | Chat message empty or too long |
 | `INVALID_SCRAPE_URL` | 422 | Scrape URL is not absolute http(s) |
 | `ASSISTANT_UNAVAILABLE` | 503 | LLM provider failed |
+| `ASSISTANT_ACTION_NOT_FOUND` | 404 | Proposal does not exist **or is not yours** |
+| `INVALID_ASSISTANT_ACTION` | 400 | Proposal values or execution preconditions are invalid |
 | `SCRAPE_FAILED` | 502 | Page scraper failed |
 | `CREDENTIAL_UNAVAILABLE` | 409 | Sync needed credentials but none were resolvable |
 | `INSUFFICIENT_SCOPE` | 403 | Access token lacks the scope the route needs (or the route is session-only) |

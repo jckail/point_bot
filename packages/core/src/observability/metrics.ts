@@ -33,6 +33,50 @@ export const METRIC_DEFS = {
     type: "histogram",
     help: "Application use-case execution duration in milliseconds.",
   },
+  assistant_run_events_total: {
+    type: "counter",
+    help: "Assistant run lifecycle events by bounded source, mode and outcome.",
+  },
+  assistant_run_duration_ms: {
+    type: "histogram",
+    help: "Completed assistant run duration in milliseconds.",
+  },
+  assistant_tool_calls_total: {
+    type: "counter",
+    help: "Completed assistant tool calls by bounded source, mode and outcome.",
+  },
+  assistant_tool_duration_ms: {
+    type: "histogram",
+    help: "Completed assistant tool call duration in milliseconds.",
+  },
+  assistant_model_requests_total: {
+    type: "counter",
+    help: "Reported assistant model requests, including partial failed runs.",
+  },
+  assistant_input_tokens_total: {
+    type: "counter",
+    help: "Reported assistant input token count.",
+  },
+  assistant_output_tokens_total: {
+    type: "counter",
+    help: "Reported assistant output token count.",
+  },
+  assistant_total_tokens_total: {
+    type: "counter",
+    help: "Reported assistant total token count.",
+  },
+  assistant_cached_input_tokens_total: {
+    type: "counter",
+    help: "Reported assistant cached input token count when available.",
+  },
+  assistant_reasoning_output_tokens_total: {
+    type: "counter",
+    help: "Reported assistant reasoning output token count when available.",
+  },
+  assistant_action_events_total: {
+    type: "counter",
+    help: "Assistant proposal observations by fixed action kind and status; replay observations may repeat.",
+  },
   db_ping_latency_ms: {
     type: "gauge",
     help: "Latency of the last readiness database ping in milliseconds.",

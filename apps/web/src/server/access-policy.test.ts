@@ -1,6 +1,7 @@
 import { AccessTokenId, InsufficientScopeError, UserId } from "@pointup/core";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { RequestBodyError } from "./request-body";
 
 import {
   assertCsrfSafe,
@@ -90,6 +91,11 @@ describe("mapError", () => {
       message: "Internal server error",
       unexpected: true,
     });
+  });
+  it("maps only trusted bounded-body failures into transport errors", () => {
+    expect(mapError(new RequestBodyError(413, "REQUEST_TOO_LARGE", "Request body exceeds 2 MiB"))).toEqual({ code: "REQUEST_TOO_LARGE", message: "Request body exceeds 2 MiB", unexpected: false });
+    expect(mapError(new RequestBodyError(415, "UNSUPPORTED_MEDIA_TYPE", "Use Content-Type: application/json"))).toMatchObject({ code: "UNSUPPORTED_MEDIA_TYPE", unexpected: false });
+    expect(mapError(Object.assign(new Error("private upstream diagnostic"), { code: "REQUEST_TOO_LARGE", status: 413 }))).toEqual({ code: "INTERNAL", message: "Internal server error", unexpected: true });
   });
 });
 

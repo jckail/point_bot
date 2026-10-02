@@ -9,7 +9,7 @@
     "diff": "cdk diff",
     "deploy": "cdk deploy",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/mcp-tls.ts"
+    "test": "tsx test/mcp-tls.ts && tsx --test test/assistant-observability.test.ts"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.261.0",

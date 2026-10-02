@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { StubPageScraper } from "../src/infrastructure/scraper/firecrawl-page-scraper";
 import { HeuristicAssistant } from "../src/infrastructure/llm/openai-compatible-assistant";
@@ -71,6 +71,21 @@ describe("composition modules", () => {
     expect(await loyalty.listActivity.execute(asUserId("u1"))).toHaveLength(1);
     expect(loyalty.checkAwardWatches).toBeDefined();
     expect(loyalty.buildPortfolioDigest).toBeDefined();
+  });
+
+  it("passes the host audit sink to reviewed proposal observations", async () => {
+    const r = repos();
+    r.assistantActions = { insert: async action => action } as Repositories["assistantActions"];
+    const audit = vi.fn();
+    const loyalty = buildLoyaltyModule({ repos: r,
+      gateway: new SimulatedTravelProviderGateway(), vault: new NullCredentialVault(),
+      fx: new StaticFxRateSource(), scraper: new StubPageScraper(), llm: new HeuristicAssistant(),
+      assistantActionAudit: audit,
+    });
+    const action = await loyalty.manageAssistantActions!.proposeTripGoal({
+      userId: asUserId("u1"), requestId: "support-reference", title: "Trip", targetPoints: 100,
+    });
+    expect(audit).toHaveBeenCalledWith({ event: "assistant_action", actionId: action.id, kind: "trip_goal", status: "pending" });
   });
 
   it("threads the repositories' eventing into use cases", async () => {

@@ -6,7 +6,7 @@
     <title>PointUp</title>
     <style>
       body {
-        width: 320px;
+        width: 380px;
         margin: 0;
         padding: 16px;
         font-family: system-ui, sans-serif;
@@ -23,7 +23,7 @@
         color: #9aa5cb;
         margin: 10px 0 4px;
       }
-      input {
+      input, textarea {
         width: 100%;
         box-sizing: border-box;
         padding: 6px 8px;
@@ -70,6 +70,11 @@
       .row button {
         flex: 1;
       }
+      #assistant { border-top: 1px solid #232c4e; margin-top: 16px; padding-top: 12px; }
+      h2 { font-size: 15px; }
+      #chat { max-height: 260px; overflow-y: auto; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+      #chat small, #chatStatus { color: #9aa5cb; font-size: 12px; }
+      .proposal { background: #121a30; padding: 10px; border: 1px solid #232c4e; border-radius: 6px; margin: 8px 0; }
     </style>
   </head>
   <body>
@@ -91,6 +96,19 @@
     <button id="save">Save settings</button>
 
     <div id="status"></div>
+
+    <section id="assistant" aria-labelledby="assistantTitle">
+      <h2 id="assistantTitle">PointUp assistant</h2>
+      <div class="hint">Ask about your portfolio and travel plans. Chat uses only what you type and your authorized PointUp data. Proposed changes need your review in the web dashboard.</div>
+      <div id="chat" role="log" aria-live="polite"></div>
+      <form id="askForm">
+        <label for="question">Your question</label>
+        <textarea id="question" rows="3" maxlength="4000" required placeholder="How can I use my points for a trip?"></textarea>
+        <div class="row"><button id="ask" type="submit">Ask PointUp</button><button id="clearChat" type="button">Clear conversation</button></div>
+      </form>
+      <div id="chatStatus" role="status" aria-live="polite"></div>
+      <div class="hint">Chat needs <code>portfolio:read</code>. Proposals also need <code>portfolio:write</code>. Conversation stays in this browser session.</div>
+    </section>
 
     <script src="popup.js"></script>
   </body>

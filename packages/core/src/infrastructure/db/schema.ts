@@ -12,6 +12,26 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/** Server-only immutable proposals and their single-use execution journal. */
+export const assistantActions = pgTable("assistant_action", {
+  id: varchar("id", { length: 255 }).notNull().primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  kind: varchar("kind", { length: 32 }).$type<"manual_balance" | "trip_goal">().notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: varchar("status", { length: 16 }).$type<"pending" | "executing" | "succeeded" | "rejected" | "expired" | "failed" | "unknown">().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  result: jsonb("result").$type<Record<string, unknown>>(),
+  failureCode: varchar("failure_code", { length: 64 }),
+}, row => [
+  index("assistant_action_user_status_idx").on(row.userId, row.status),
+  check("assistant_action_kind_check", sql`${row.kind} IN ('manual_balance', 'trip_goal')`),
+  check("assistant_action_status_check", sql`${row.status} IN ('pending', 'executing', 'succeeded', 'rejected', 'expired', 'failed', 'unknown')`),
+  check("assistant_action_payload_check", sql`jsonb_typeof(${row.payload}) = 'object'`),
+  check("assistant_action_expiry_check", sql`${row.expiresAt} > ${row.createdAt}`),
+]).enableRLS();
+
 /**
  * Identity lives in Clerk (https://clerk.com); PointUp stores only the Clerk
  * user id (`user_id` columns) alongside domain data. There are no local

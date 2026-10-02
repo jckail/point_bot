@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AgentsPanel } from "@/components/agents-panel";
+import { ReviewedAssistantActions } from "@/components/reviewed-assistant-actions";
 import { getContainer } from "@/server/container";
 
 export const metadata: Metadata = { title: "Agents" };
@@ -69,6 +70,7 @@ export default async function AgentsPage() {
         providers={PROVIDER_CATALOG.map((p) => ({ id: p.id, name: p.displayName }))}
         mcpUrl={process.env.NEXT_PUBLIC_MCP_URL ?? "http://localhost:8787/mcp"}
       />
+      <ReviewedAssistantActions />
     </main>
   );
 }

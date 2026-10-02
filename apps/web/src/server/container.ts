@@ -53,6 +53,11 @@ function buildContainer(): Container {
     fx: selectFx(env),
     scraper: selectScraper(env),
     llm: selectLlm(env),
+    assistantActionAudit: event => {
+      const obs = webObservability();
+      try { obs.logger.info("assistant_action", { component: "pointup_assistant_action", ...event }); } catch { /* best effort */ }
+      try { obs.metrics.counter("assistant_action_events_total", { kind: event.kind, status: event.status }); } catch { /* best effort */ }
+    },
     cache: readCacheTtlMs() > 0 ? getReadCache() : undefined,
     cacheTtlMs: readCacheTtlMs(),
     awardAvailability: selectAwardAvailability(env),

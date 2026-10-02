@@ -75,18 +75,40 @@ advisories are not resolved by these application patches.
 
 ## Remaining integration and runtime gates
 
-Port the shared Agents SDK assistant, owner/process admission, safe tracing,
-usage metrics and evaluations without replacing PR #14's HTTP telemetry/auth
-wrapper or legacy assistant/optimizer composition. Adapt branded IDs and preserve
-OpenTelemetry IDs separately from SDK trace IDs. Existing log redaction treats
-keys containing `token` as secrets; token usage needs a narrowly tested metadata
-adapter. PR #14's extension needs the native assistant chat surface. Proposal
-storage, browser review, contracts and assistant tools must arrive together;
-do not silently remove the native proposal capability or claim the full native
-evaluation dataset passes during an intermediate read-only port.
+The second integration stage ports the TypeScript OpenAI Agents SDK into the
+existing authenticated chat route, with read-only portfolio tools and immutable
+manual-balance/trip-goal proposals for write-authorized principals. The web Agents
+page reviews stored values; approval/rejection require a browser cookie session.
+The extension sends bounded conversation history and opens one reused,
+extension-owned review tab. Existing capture/writeback contracts remain intact.
 
-Retain PR #14 migrations 0000–0015 and prepare additive integration migrations:
-SIWC/proposals; tenant-qualified goal membership with quarantine; versioned
+SDK tracing defaults off, sanitizes cloned error spans, and uses independent
+SDK IDs plus a server-generated run identifier. Application logs retain existing
+OpenTelemetry IDs. Numeric usage is explicitly allowlisted; unknown usage remains
+unknown. Process/owner admission, request/deadline bounds and synthetic evaluation
+cases accompany the runtime. Live inference/export delivery remain unverified.
+
+This stage appends **0016_assistant_actions** only. Migrations 0000–0015 remain
+unchanged; the new snapshot links to 0015 and preserves its schema descriptors.
+Actual installed Drizzle serialization and SQL generation in a scratch copy
+confirmed zero pending migrations. An isolated, root-owned PostgreSQL 17 fixture
+applied the complete managed history; six new proposal integration cases passed,
+covering ownership, expiry/rejection, concurrent single execution, RLS/grants,
+success-journal rollback and outbox failure/unknown recovery. Production composition
+atomically commits the mutation, outbox and success journal after a durable claim.
+These checks do not establish the production database's schema or live outbox delivery.
+
+Exact local application `npm ci`, workspace types and production dependency audit
+passed (zero production vulnerabilities). Full lint exposed minor assertion and
+UI-handler issues, corrected by their owners. The infra install exited 75 before
+execution because another project held the shared verification lock; use fresh CI
+for its exact dependencies instead of retrying the unchanged install. The local full workspace suite then passed 645 tests, including all real
+PostgreSQL cases; one paid live evaluation was intentionally skipped. Subsequent
+client request-budget and observation-type refactors passed their focused checks.
+Full aggregate CI/build evidence for this second stage is recorded after its source commit.
+
+Next additive migrations still need planning and production-state verification:
+SIWC account linking; tenant-qualified goal membership with quarantine; versioned
 observation token/consent/idempotency provenance; staged safe numeric constraints.
 Preserve historical observations without inventing missing provenance, existing
 review IDs/outcomes, `account_tag`, the `agent` balance source, outbox events and

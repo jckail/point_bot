@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assistantActionDtoSchema } from "../domain/assistant/actions";
 
 import type {
   PortfolioSummaryReadModel,
@@ -305,6 +306,10 @@ export const apiErrorSchema = z.object({
  * it to respond, clients can rely on it, and docs/api.md mirrors it.
  */
 export const HTTP_STATUS_BY_ERROR_CODE = {
+  REQUEST_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  ASSISTANT_ACTION_NOT_FOUND: 404,
+  INVALID_ASSISTANT_ACTION: 400,
   UNAUTHENTICATED: 401,
   INVALID_REQUEST: 400,
   INVALID_ID: 422,
@@ -783,6 +788,7 @@ export const chatAssistantRequestSchema = z
 
 export const chatAssistantResponseSchema = z.object({
   reply: z.string(),
+  actions: z.array(assistantActionDtoSchema).optional(),
 });
 
 export const scrapeDealRequestSchema = z

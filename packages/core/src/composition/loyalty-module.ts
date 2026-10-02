@@ -2,6 +2,7 @@ import {
   ChatWithAssistant,
   GetValueAdvice,
 } from "../application/loyalty/assistant";
+import { ManageAssistantActions, type ActionAudit } from "../application/assistant/manage-actions";
 import {
   CreateAwardWatch,
   ListAwardWatches,
@@ -83,6 +84,8 @@ export interface LoyaltyModuleDeps {
   fx: FxRateSource;
   scraper: PageScraper;
   llm: LlmAssistant;
+  /** Best-effort proposal state observations; host chooses the telemetry sink. */
+  assistantActionAudit?: ActionAudit;
   /** Optional: defaults to a stub that reports "not configured". */
   awardAvailability?: AwardAvailabilitySource;
   /**
@@ -168,16 +171,16 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     listActiveTransferBonuses,
     awardAvailability,
   );
+  const getLoyaltyAccount = new GetLoyaltyAccount(loyaltyAccounts, balanceSnapshots, undefined, customValuations);
+  const manageAssistantActions = repos.assistantActions
+    ? new ManageAssistantActions(repos.assistantActions, { getLoyaltyAccount, recordManualBalance, createTripGoal }, undefined, deps.assistantActionAudit, eventing?.unitOfWork)
+    : undefined;
 
   return {
     listProviders: new ListProviders(),
     listLoyaltyAccounts,
-    getLoyaltyAccount: new GetLoyaltyAccount(
-      loyaltyAccounts,
-      balanceSnapshots,
-      undefined,
-      customValuations,
-    ),
+    getLoyaltyAccount,
+    manageAssistantActions,
     linkLoyaltyAccount,
     updateLoyaltyAccount,
     bulkUpdateMembershipNumbers: new BulkUpdateMembershipNumbers(

@@ -11,6 +11,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
+import { AssistantObservability } from "./assistant-observability.js";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 
@@ -119,6 +120,35 @@ export class AppStack extends cdk.Stack {
           "OpenAI-compatible LLM API key (set the real value after deploy)",
         )
       : undefined;
+    // Agents runtime is a separate opt-in; its server credential never enters
+    // image build args, bot/MCP tasks, or scheduled workers.
+    const agentsEnabled =
+      this.node.tryGetContext("enableAgents") === true ||
+      this.node.tryGetContext("enableAgents") === "true";
+    const agentsModelContext: unknown = this.node.tryGetContext("assistantModel");
+    const agentsModel = typeof agentsModelContext === "string"
+      ? agentsModelContext.trim()
+      : undefined;
+    if (agentsEnabled && !agentsModel) {
+      throw new Error("enableAgents requires an explicit assistantModel context value");
+    }
+    const agentsSecret = agentsEnabled
+      ? placeholderSecret(
+          "OpenAiAgentsApiKey",
+          "OpenAI Agents SDK API key; populate before enabling live inference",
+        )
+      : undefined;
+    const agentsEnvironment: Record<string, string> = agentsEnabled
+      ? {
+          ASSISTANT_RUNTIME: "agents",
+          ASSISTANT_MODEL: agentsModel!,
+          ASSISTANT_TRACING_ENABLED:
+            this.node.tryGetContext("assistantTracing") === true ||
+            this.node.tryGetContext("assistantTracing") === "true"
+              ? "true"
+              : "false",
+        }
+      : {};
     const firecrawlSecret = this.node.tryGetContext("enableFirecrawl")
       ? placeholderSecret(
           "FirecrawlApiKey",
@@ -183,6 +213,12 @@ export class AppStack extends cdk.Stack {
       containerInsightsV2: ecs.ContainerInsights.ENABLED,
     });
 
+    // Capture the existing driver so monitoring reuses its log group and
+    // keeps the deployed group's construct path and retention unchanged.
+    const appLogDriver = ecs.LogDrivers.awsLogs({
+      streamPrefix: "app",
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
     const service = new ecsPatterns.ApplicationLoadBalancedFargateService(
       this,
       "Service",
@@ -203,6 +239,7 @@ export class AppStack extends cdk.Stack {
             // src/env.ts composes DATABASE_URL from the DB_* variables below.
             // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
             ...assistantEnvironment,
+            ...agentsEnvironment,
             ...aggregatorEnvironment,
           },
           secrets: {
@@ -213,12 +250,12 @@ export class AppStack extends cdk.Stack {
             DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
             CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
             ...assistantSecrets,
+            ...(agentsSecret
+              ? { OPENAI_API_KEY: ecs.Secret.fromSecretsManager(agentsSecret) }
+              : {}),
             ...aggregatorSecrets,
           },
-          logDriver: ecs.LogDrivers.awsLogs({
-            streamPrefix: "app",
-            logRetention: logs.RetentionDays.ONE_MONTH,
-          }),
+          logDriver: appLogDriver,
         },
         circuitBreaker: { rollback: true },
       },
@@ -694,6 +731,21 @@ export class AppStack extends cdk.Stack {
       evaluationPeriods: 3,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+
+    const assistantMonitoring = new AssistantObservability(
+      this,
+      "AssistantMonitoring",
+      appLogDriver.logGroup!,
+    );
+    new cdk.CfnOutput(this, "AssistantDashboardName", {
+      value: assistantMonitoring.dashboard.dashboardName,
+    });
+    if (agentsSecret) {
+      new cdk.CfnOutput(this, "OpenAiAgentsSecretArn", {
+        value: agentsSecret.secretArn,
+        description: "Populate with an approved OpenAI API key before using the agents runtime",
+      });
+    }
 
     // ─── Outputs ───────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "LoadBalancerUrl", {

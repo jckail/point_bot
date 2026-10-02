@@ -1,5 +1,6 @@
 import { type AccessTokenId, type AccessTokenScope, CsrfRejectedError, DomainError, type ErrorCode, InsufficientScopeError, type RateLimitPolicy, requireScope, type UserId } from "@pointup/core";
 import { z, ZodError } from "zod";
+import { RequestBodyError } from "./request-body";
 
 /**
  * Framework-free auth/scope/rate-limit/error-mapping logic used by
@@ -148,6 +149,9 @@ export interface MappedError {
 }
 
 export function mapError(error: unknown): MappedError {
+  if (error instanceof RequestBodyError && ["INVALID_REQUEST", "REQUEST_TOO_LARGE", "UNSUPPORTED_MEDIA_TYPE"].includes(error.code)) {
+    return { code: error.code as "INVALID_REQUEST" | "REQUEST_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE", message: error.message, unexpected: false };
+  }
   if (error instanceof ZodError) {
     // Human-readable, one issue per line - not the raw issue JSON.
     return {

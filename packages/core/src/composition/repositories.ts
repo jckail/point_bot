@@ -1,4 +1,6 @@
 import type { AccessTokenRepository } from "../domain/agent/access-token";
+import type { AssistantActionRepository } from "../domain/assistant/actions";
+import { DrizzleAssistantActionRepository } from "../infrastructure/assistant/drizzle-action-repository";
 import type { ConsentGrantRepository } from "../domain/agent/consent";
 import type { AgentObservationRepository } from "../domain/agent/observation";
 import type { AwardWatchRepository } from "../domain/loyalty/award-watch";
@@ -49,6 +51,8 @@ export interface Repositories {
   accessTokens: AccessTokenRepository;
   consents: ConsentGrantRepository;
   observations: AgentObservationRepository;
+  /** Optional for legacy/in-memory hosts without durable proposal storage. */
+  assistantActions?: AssistantActionRepository;
   /**
    * Atomic state + domain-event recording (transactional outbox). Optional:
    * omitted in unit tests, in which case use cases run without events.
@@ -90,5 +94,6 @@ export function buildDrizzleRepositories(
     accessTokens: new DrizzleAccessTokenRepository(db),
     consents: new DrizzleConsentGrantRepository(db),
     observations: new DrizzleAgentObservationRepository(db),
+    assistantActions: new DrizzleAssistantActionRepository(db),
   };
 }

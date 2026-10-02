@@ -362,7 +362,19 @@ export class CsrfRejectedError extends DomainError {
  * test/error-codes.test.ts and one that is listed but has no HTTP status fails
  * to compile (`HTTP_STATUS_BY_ERROR_CODE satisfies Record<ErrorCode, number>`).
  */
+export class AssistantActionNotFoundError extends DomainError {
+  readonly code = "ASSISTANT_ACTION_NOT_FOUND" as const;
+  constructor() { super("Assistant action was not found."); }
+}
+
+export class InvalidAssistantActionError extends DomainError {
+  readonly code = "INVALID_ASSISTANT_ACTION" as const;
+  constructor(message = "Assistant action proposal is invalid.") { super(message); }
+}
+
 export const DOMAIN_ERROR_CLASSES = [
+  AssistantActionNotFoundError,
+  InvalidAssistantActionError,
   InvalidIdError,
   ProviderNotSupportedError,
   DuplicateLoyaltyAccountError,
@@ -416,6 +428,8 @@ export type DomainErrorCode = InstanceType<
  * validation, unexpected failures and rate limiting.
  */
 export const TRANSPORT_ERROR_CODES = [
+  "REQUEST_TOO_LARGE",
+  "UNSUPPORTED_MEDIA_TYPE",
   "INVALID_REQUEST",
   "INTERNAL",
   "RATE_LIMITED",

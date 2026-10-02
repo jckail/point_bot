@@ -17,6 +17,11 @@ const MAX_DEPTH = 8;
 
 /** Keys that look sensitive but are safe identifiers (never secret values). */
 const ALLOWED_KEYS = new Set(["tokenid", "token_id", "tokenkind", "principalkind"]);
+/** Only measured numeric SDK usage can bypass the token secret-key filter. */
+const TOKEN_COUNT_KEYS = new Set([
+  "inputtokencount", "outputtokencount", "totaltokencount",
+  "cachedinputtokencount", "reasoningoutputtokencount",
+]);
 
 export function redactString(value: string): string {
   return value.replace(BEARER, `Bearer ${REDACTED}`).replace(PAT, REDACTED);
@@ -53,6 +58,10 @@ export function redact(
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1, seen));
   const out: Record<string, unknown> = {};
   for (const [key, v] of Object.entries(value)) {
+    if (TOKEN_COUNT_KEYS.has(key.toLowerCase())) {
+      out[key] = typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : REDACTED;
+      continue;
+    }
     out[key] =
       SENSITIVE_KEY.test(key) && !ALLOWED_KEYS.has(key.toLowerCase())
         ? REDACTED
