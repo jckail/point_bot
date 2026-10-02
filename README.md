@@ -18,10 +18,16 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 | API client     | `@pointup/api-client` — typed, fetch-only, runs on web, mobile, and browser extensions  |
 | Testing        | [Vitest](https://vitest.dev/) unit tests over ports-and-adapters fakes                  |
 | Infrastructure | [AWS CDK](https://docs.aws.amazon.com/cdk/) — ECS Fargate, ALB, RDS PostgreSQL, Secrets Manager |
-| CI             | GitHub Actions (lint, typecheck, test, build, CDK synth)                                |
+| CI             | GitHub Actions (lint, typecheck, test, build, plugin/spec validation, Playwright MCP smoke test, CDK synth, npm audit, CodeQL, Dependabot) |
 
 ## Documentation
 
+- [docs/integration-status.md](./docs/integration-status.md) — native overhaul preservation, stacked integration, verification and remaining release gates
+- [docs/local-development.md](./docs/local-development.md) — one-command Docker stack, dev auth mode, topology and how it scales later
+- [docs/agents.md](./docs/agents.md) — MCP server, Claude plugin, ChatGPT Action, consented browser/computer-use write-back, security model
+- [docs/supabase.md](./docs/supabase.md) — run on Supabase (pooler, TLS, RLS)
+- [docs/security-review.md](./docs/security-review.md) — adversarial security review of the agent surface (findings + proposed patches)
+- [docs/review.md](./docs/review.md) — codebase review: findings and status
 - [docs/roadmap.md](./docs/roadmap.md) — feature roadmap: what's shipped, what's next, and how it's sequenced
 - [docs/api.md](./docs/api.md) — full API v1 reference with request/response examples
 - [docs/architecture.md](./docs/architecture.md) — DDD layering, SOLID mapping, workspace layout
@@ -29,6 +35,9 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 - [docs/integrations.md](./docs/integrations.md) — loyalty providers (airlines, hotels, credit cards, rail, shopping) and credential vaults (1Password, Apple Keychain, Chrome)
 - [docs/brand.md](./docs/brand.md) — brand kit: logo assets, color tokens, typography, voice
 - [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) — how the modernization was ported into `point_bot`, feature-parity checklist, and the Bedrock assistant
+- [docs/release-backlog.md](./docs/release-backlog.md) — verified continuation and remaining release gates
+- [docs/assistant-agent.md](./docs/assistant-agent.md) — shared web/extension Agents SDK, reviewed proposals and tracing privacy
+- [docs/assistant-evaluations.md](./docs/assistant-evaluations.md) — synthetic evaluation cases and opt-in live evaluation
 - [docs/bot.md](./docs/bot.md) — the PointBot chat surface: Slack/Discord commands, the `Notifier` port, digests, and deployment
 - [docs/extension.md](./docs/extension.md) — the Chrome extension: capture balances from provider pages via `@pointup/api-client`
 
@@ -41,6 +50,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 │   │   └── public/brand/     #   brand kit assets (SVG logomarks, lockup)
 │   ├── worker/               # Background jobs: scheduled syncs + email + chat digests
 │   ├── bot/                  # PointBot chat surface: Slack/Discord commands over the core
+│   ├── mcp/                  # MCP server (stdio + stateless HTTP) over the API
 │   └── extension/            # Chrome (MV3) extension: capture balances from provider pages
 ├── packages/
 │   ├── core/                 # Domain + application + infrastructure (framework-free)
@@ -50,21 +60,48 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 │   │   ├── src/infrastructure/  # Drizzle repos, provider gateways, vault adapters
 │   │   └── drizzle/          #   generated SQL migrations
 │   └── api-client/           # Typed HTTP client for mobile / extension surfaces
+├── plugins/
+│   ├── claude/               # Claude Code plugin: skills, agent, commands, MCP config
+│   └── chatgpt/              # ChatGPT Action spec generator + GPT config
+├── e2e/                      # Playwright smoke test: MCP HTTP server vs a fake API (standalone package)
+├── supabase/                 # Supabase local config (schema stays in Drizzle)
 ├── infra/                    # AWS CDK app (standalone package)
 └── docs/                     # Architecture and integration guides
 ```
 
-## Local development
+## Quick start (Docker, no accounts needed)
 
-Requirements: Node.js ≥ 20 and Docker (for the local database).
+Requirements: Docker with Compose v2. No Clerk keys, no AWS.
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:3000/dashboard> - there is no sign-in locally
+(`AUTH_PROVIDER=dev`: one fixed, seeded demo user). The stack runs Postgres,
+a one-shot migrate/seed job, the web app, the MCP server
+(<http://localhost:8787/mcp>), the worker and Mailpit (<http://localhost:8025>).
+`docker compose logs bootstrap` prints copy-paste MCP / Claude / ChatGPT
+connection snippets with a ready-made dev token. Verify everything end to end:
+
+```bash
+npm run docker:smoke
+```
+
+Other commands: `npm run docker:up | docker:down | docker:reset |
+docker:up:pgbouncer`. Topology, the dev-auth safety rules and how this scales
+later: [docs/local-development.md](./docs/local-development.md).
+
+## Native development
+
+Requirements: Node.js >= 20 and Postgres (Docker is the easy way).
 
 ```bash
 # 1. Install all workspaces
 npm install
 
-# 2. Configure environment
+# 2. Configure environment (.env-example sets AUTH_PROVIDER=dev: no Clerk keys needed)
 cp .env-example .env
-# Fill in your Clerk keys from https://dashboard.clerk.com (API keys)
 
 # 3. Start PostgreSQL
 docker compose up -d db
@@ -88,6 +125,15 @@ npm run dev
 | `npm run db:generate` | Generate a new SQL migration from schema changes         |
 | `npm run db:migrate`  | Apply pending migrations to `DATABASE_URL`               |
 | `npm run db:studio`   | Open Drizzle Studio to browse the database               |
+| `npm run docker:up` / `docker:down` / `docker:reset` / `docker:smoke` | Local Docker stack lifecycle and end-to-end smoke test |
+
+### End-to-end smoke test
+
+`e2e/` is a standalone package (not a root workspace) that starts the built MCP server in HTTP mode against a tiny fake PointUp API and drives the tools over HTTP with Playwright's request client. No browser, database or Clerk keys needed:
+
+```bash
+cd e2e && npm ci && npm test   # builds apps/mcp first (pretest)
+```
 
 ### Database workflow
 
@@ -155,6 +201,9 @@ All surfaces speak the same versioned API; shapes are defined in `@pointup/core/
 | `POST /api/v1/loyalty-accounts/{id}/restore` | session | Undo an unlink |
 | `POST /api/v1/assistant/chat` | session | Grounded AI portfolio assistant |
 | `GET /api/v1/value-advice` | session | Transfer rankings + bang-for-buck deals |
+| `GET /api/v1/optimizer/plan` | session | Ranked redemption plans for your points (see docs/optimizer.md) |
+| `GET /api/v1/deals/sweet-spots` | session | Curated, unverified award sweet-spot catalog |
+| `GET` / `POST /api/v1/transfer-bonuses` | session | Active transfer bonuses (crowd/manual data) / report one |
 | `POST /api/v1/deals/scrape` | session | Scrape a deal URL and re-rank advice |
 | `GET /api/v1/activity` | session | Chronological activity feed |
 | `GET /api/v1/expiring` | session | Accounts expiring within N days (default 90) |
@@ -172,77 +221,67 @@ Errors are uniform: `{ "error": { "code": "DUPLICATE_LOYALTY_ACCOUNT", "message"
 
 ## Deploying to AWS
 
-All infrastructure is defined with the AWS CDK in [`infra/`](./infra):
+Infrastructure lives in [`infra/`](./infra). Production releases use the candidate-first helper [`scripts/deployment/rollout.mjs`](./scripts/deployment/rollout.mjs), with mandatory TLS configuration checked by [`infra/lib/rollout-config.ts`](./infra/lib/rollout-config.ts). Use the protected deployment workflow described below; directly deploying the application stack would bypass its migration and backup gates.
 
-- **VPC** with public, private (egress) and isolated subnets across two AZs
-- **RDS PostgreSQL 17** in isolated subnets, credentials auto-generated in Secrets Manager, storage encryption, 7-day backups, deletion protection
-- **ECS Fargate** service (2+ tasks, CPU-based autoscaling to 6) behind a public **Application Load Balancer** with `/api/health` health checks and deployment circuit breaker
-- **Docker image** built from the repository `Dockerfile` (monorepo-aware, standalone Next.js output) at deploy time and pushed to a CDK-managed ECR repository
-- **Secrets Manager** secret for the Clerk secret key (placeholder — set the real value after the first deploy); the Clerk publishable key is passed as a Docker build arg since it is inlined into the client bundle
-- **Scheduled worker tasks** (EventBridge → Fargate, from `Dockerfile.worker`): balance syncs every 6 hours and a weekly digest email job on Mondays
-- **SES** for digest delivery — verify a sender identity, then deploy with `-c digestFromEmail=digest@yourdomain.com` (without it the digest job logs instead of sending)
-- **CloudWatch alarms** on ALB 5xx responses and sustained service CPU
+The stack provisions a VPC, encrypted RDS PostgreSQL 17 in isolated subnets, Secrets Manager credentials, HTTPS ALB/Fargate services with health checks and deployment circuit breakers, candidate Docker assets in ECR, scheduled workers and CloudWatch alarms. Active web services start with two tasks and scale to six. An inactive first-create bootstrap instead has zero application service tasks, disabled schedules and zero scaling capacity. Database backup retention is seven days with deletion protection; high-availability changes to the database/network require a separately reviewed infrastructure rollout.
 
-```bash
-cd infra
-npm install
+Required production settings:
 
-# One-time per account/region
-npx cdk bootstrap
+| GitHub setting | Value |
+| --- | --- |
+| Secret `AWS_DEPLOY_ROLE_ARN` | Role emitted by the OIDC stack below |
+| Secret `CLERK_PUBLISHABLE_KEY` | Real `pk_live_…` key, inlined into the candidate web image |
+| Variable `AWS_REGION` | Approved deployment region; workflow default is `us-east-1` |
+| Variable `WEB_CERTIFICATE_ARN` | Approved ACM certificate in the same AWS account and region |
+| Variable `WEB_DOMAIN_NAME` | Approved public DNS hostname, without scheme, port or path |
+| Variable `APPROVED_DATABASE_SNAPSHOT_ARN` | Operator-approved RDS snapshot required for every existing-stack migration, including later bootstrap activation |
 
-# Deploy (builds and pushes the Docker image, then updates the stack)
-npx cdk deploy
-```
+The snapshot must be `available`, encrypted, completed within the preceding 24 hours, and belong to the exact live database (`DBInstanceIdentifier` and `DbiResourceId`) in the deployment account/region. Update the approved snapshot selection for each rollout; an ARN alone is not approval of an unrelated or stale backup. The helper verifies these conditions before launching migrations. Snapshot validation does not establish that a backup can be restored; verify the restore procedure separately.
 
-After the first deploy:
+The release sequence is:
 
-1. Set the real Clerk secret key in the secret printed as `ClerkSecretArn`:
+1. Run the complete reusable CI gate. Discover the approved account and stack, synthesize the candidate, publish its assets and pin task images to ECR digests. Existing-stack upgrades must preserve protected database/network properties and existing resource identities.
+2. For a first create only, prepare and verify an exact CREATE-only change set, then provision inactive resources. The helper confirms stack absence and validates that no service, schedule or scaling target becomes active. Ordinary upgrades do not update the existing stack before the migration gate.
+3. Register and run a one-off Fargate migration task using the **candidate worker digest**, existing private network and real database secret. Under the migration lock, verify the candidate migration manifest and complete managed journal. Promotion requires the matching image digest, exit code zero and matching `journal_verified` log attestation.
+4. First creation always stops at `inactive-awaiting-secret-readiness`, even if readiness was requested. Populate the real application secrets referenced by stack outputs, configure the HTTPS domain/Clerk origins and any enabled provider settings, and verify operator ownership/readiness. Generated Clerk/OpenAI/other secret placeholders are not working credentials.
+5. Activate an existing inactive bootstrap only through a later protected `workflow_dispatch` with `bootstrap_ready=true`, after explicitly attesting that production secrets and TLS/DNS configuration are ready. That later run still needs its approved fresh database snapshot and candidate migration/journal gate. Regular pushes do not activate an unready bootstrap. Existing active deployments promote only after the same candidate migration gate succeeds.
 
-   ```bash
-   aws secretsmanager put-secret-value \
-     --secret-id <ClerkSecretArn> --secret-string 'sk_live_...'
-   ```
+`bootstrap_ready` records the operator's readiness attestation; it does not test credentials, certificate issuance, DNS resolution or provider access. The workflow uploads a nonsecret `pointup-release.json` artifact recording release progress, candidate hashes/digests and migration references. Inspect the owned migration task/logs and release artifact after a failure before retrying; do not bypass the gate with a separate deployment or manual schema reset.
 
-2. Deploy with your real Clerk publishable key so it is baked into the client bundle:
+Live AWS credentials, production configuration, first-create/upgrade execution and backup restoration remain **unverified** in this project session. Offline helper/infra tests and successful CI do not establish a live deployment.
 
-   ```bash
-   npx cdk deploy -c clerkPublishableKey=pk_live_...
-   ```
+### Optional service and assistant configuration
 
-3. Run the database migrations against RDS (e.g. from a bastion host or an ECS one-off task):
+Set `ENABLE_MCP=true` together with `MCP_CERTIFICATE_ARN` and `MCP_DOMAIN_NAME` for the remote MCP service. Its certificate must also match the deployment account/region. Optional `MCP_POINTUP_URL` must be an approved HTTPS origin without credentials, path, query or fragment; otherwise it uses the configured web HTTPS origin. The stateless MCP adapter forwards each caller's own token and does not acquire browser review authority.
 
-   ```bash
-   DATABASE_URL="postgresql://..." npm run db:migrate
-   ```
+The MCP container binds `0.0.0.0`; host/origin controls remain configured by the service. `MCP_ALLOWED_HOSTS` protects against DNS rebinding; production browser origins are denied unless allowed. See [multi-surface documentation](./docs/multi-surface.md) for MCP behavior. Public production hosts require HTTPS; localhost HTTP instructions are for local development only.
 
-4. Add `http://<LoadBalancerUrl>` (or your domain) to the allowed origins in the Clerk dashboard.
+For the Telegram bot, set `ENABLE_BOT=true` with `BOT_CERTIFICATE_ARN` and `BOT_DOMAIN_NAME`; `BOT_DEFAULT_USER_ID` is optional. For aggregator integration, set `ENABLE_AGGREGATOR=true` with an approved HTTPS `AGGREGATOR_API_URL` without embedded credentials or a fragment. Feature flags accept only explicit `true` or `false` values.
 
-5. To enable digest emails, [verify a sender identity in SES](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html) (and move out of the SES sandbox for real recipients), then redeploy with:
-
-   ```bash
-   npx cdk deploy -c clerkPublishableKey=pk_live_... -c digestFromEmail=digest@yourdomain.com
-   ```
-
-For production, add an ACM certificate and a Route 53 hosted zone to `ApplicationLoadBalancedFargateService` in `infra/lib/app-stack.ts` to enable HTTPS, and consider enabling `multiAz` on the database plus a second NAT gateway.
+Optional repository variables include `DIGEST_FROM_EMAIL` for a verified SES sender, `ENABLE_AGENTS=true` with an explicit `ASSISTANT_MODEL`, and separate opt-in `ASSISTANT_TRACING_ENABLED=true`. Populate any enabled provider's real secret before activation. For identity linking, set `ENABLE_CHATGPT_LINKING=true` with approved `CHATGPT_CLIENT_ID`, `CHATGPT_REDIRECT_URI` and `CHATGPT_CLIENT_AUTH_METHOD`; this links an identity and does not replace PointUp sign-in. Use the current helper's supported configuration rather than ad hoc application `cdk deploy` commands.
 
 ### Continuous deployment
 
-Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full verification (lint, typecheck, tests, builds) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) runs on pushes to `master` and manual dispatch. Its AWS job depends on the **complete** reusable [CI workflow](./.github/workflows/ci.yml): lint, hygiene, types, unit/real-PostgreSQL tests, migration/rollout tests, all builds, plugin/infrastructure contracts and Docker smoke. Releases are serialized without cancelling an in-progress deployment. Missing `AWS_DEPLOY_ROLE_ARN` still runs verification but skips AWS deployment.
 
-Authentication uses GitHub OIDC federation — no long-lived AWS keys are stored in the repository. One-time setup:
+Authentication uses GitHub OIDC; no long-lived AWS keys belong in repository secrets. Protect the `production` GitHub environment with the appropriate reviewers and branch/ref rules before configuring deployment. The role trusts the exact `repo:owner/name:environment:production` subject. Establish the CDK bootstrap and OIDC role using an authorized operator session in the selected account/region:
 
 ```bash
-# 1. Create the OIDC provider + deploy role (in infra/)
-npx cdk deploy GithubOidc -c githubRepo=<owner>/<repo>
+cd infra
+npm ci
 
-# 2. In GitHub repo settings, add:
-#    Secret   AWS_DEPLOY_ROLE_ARN   = DeployRoleArn output from step 1
-#    Secret   CLERK_PUBLISHABLE_KEY = pk_live_... (inlined into the client bundle)
-#    Variable AWS_REGION            = deployment region (optional, default us-east-1)
-#    Variable DIGEST_FROM_EMAIL     = verified SES sender (optional)
+# One-time account/region bootstrap; this mode does not instantiate the app stack.
+npx cdk bootstrap aws://<account>/<region> \
+  -c deploymentMode=oidc -c githubRepo=<owner>/<repo>
+
+# Create the GitHub federation stack independently of application rollout.
+npx cdk deploy GithubOidc \
+  -c deploymentMode=oidc -c githubRepo=<owner>/<repo>
 ```
 
-The deploy role's permissions are minimal: it can only assume the CDK bootstrap roles and run the migration task. Until `AWS_DEPLOY_ROLE_ARN` is configured, the workflow verifies the build and skips deployment. Pull requests run the [CI workflow](./.github/workflows/ci.yml) (checks only, no AWS access).
+Configure the emitted `DeployRoleArn` as `AWS_DEPLOY_ROLE_ARN`, then add the required TLS/Clerk/snapshot settings above. If the account already has a GitHub OIDC provider, reconcile/import it instead of creating another provider for the same issuer. The role's scoped permissions cover candidate inspection/publication, CDK bootstrap-role assumption, validated first-create change-set execution and migration registration/run/inspection; do not describe it as migration-only.
+
+A manual dispatch with `verify_only=true` runs the entire release verification gate with **zero AWS deployment or migration calls**, even when credentials are configured. The AWS job and OIDC credential step are skipped; the helper also returns before AWS calls when `VERIFY_ONLY=true`. A later manual dispatch with `verify_only=false` and `bootstrap_ready=true` is the explicit activation request for an existing inactive bootstrap, subject to the protected environment and all rollout gates.
 
 ## Running the full stack in Docker locally
 
@@ -251,3 +290,24 @@ docker compose --profile app up --build
 ```
 
 This starts PostgreSQL and the production image of the app on [http://localhost:3000](http://localhost:3000).
+
+### OpenAI Agents SDK activation
+
+The dashboard and Chrome extension share the server-side TypeScript Agents SDK
+assistant. Existing provider selection remains the default. See
+[assistant setup](docs/assistant-agent.md) and [evaluations](docs/assistant-evaluations.md).
+For local use, configure `ASSISTANT_RUNTIME=agents`, `OPENAI_API_KEY`, and an explicit
+`ASSISTANT_MODEL` in the server environment. Tracing requires separate opt-in.
+
+For AWS, use the protected candidate rollout with repository variables
+`ENABLE_AGENTS=true`, an explicit `ASSISTANT_MODEL`, and separate opt-in
+`ASSISTANT_TRACING_ENABLED=true`. Populate the `OpenAiAgentsSecretArn` output with a
+real project key before the later readiness-attested activation; the generated
+placeholder is not an inference credential. The key stays in Secrets Manager on
+the web task. The TLS, approved-backup and migration/journal gates above still
+apply. See [integration status](docs/integration-status.md) for verified evidence
+and remaining live-configuration checks.
+
+The deployment workflow also supports a `verify_only=true` manual dispatch to
+exercise its complete reusable verification gate while explicitly disabling AWS
+deployment and migrations, even if deployment credentials are configured.

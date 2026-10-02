@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
+import { LoyaltyAccountId } from "@pointup/core";
 type Context = { params: Promise<{ id: string }> };
 
 /** Balance history, newest first. Query: ?limit=1..365 (default 50). */
@@ -20,11 +21,11 @@ export function GET(request: Request, context: Context) {
 
     const history = await getContainer().useCases.getBalanceHistory.execute(
       userId,
-      id,
+      LoyaltyAccountId.parse(id),
       limit,
     );
     return NextResponse.json(history.map(toBalanceDto));
-  });
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 /** Record a manually observed balance. */
@@ -35,10 +36,10 @@ export function POST(request: Request, context: Context) {
 
     const balance = await getContainer().useCases.recordManualBalance.execute({
       userId,
-      accountId: id,
+      accountId: LoyaltyAccountId.parse(id),
       points: body.points,
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
     });
     return NextResponse.json(toBalanceDto(balance), { status: 201 });
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

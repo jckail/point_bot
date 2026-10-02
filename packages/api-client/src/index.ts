@@ -1,4 +1,13 @@
 import type {
+  AccessTokenDto,
+  ExportFormat,
+  AgentObservationDto,
+  AgentSkillDto,
+  ConsentDto,
+  CreateAccessTokenRequest,
+  CreatedAccessTokenDto,
+  ObservationResultDto,
+  SubmitObservationRequest,
   ActivityEventDto,
   AwardWatchDto,
   BulkUpdateMembershipRequest,
@@ -32,8 +41,16 @@ import type {
   TripGoalDto,
   UpdateLoyaltyAccountRequest,
   UpdateTripGoalRequest,
+  PlanRedemptionQuery,
+  PlanRedemptionResultDto,
+  RecordTransferBonusRequest,
+  SweetSpotDto,
+  TransferBonusDto,
   ValueAdviceDto,
 } from "@pointup/core/contracts";
+import type { AssistantActionDto, AssistantActionProposalRequest } from "@pointup/core/assistant-actions";
+
+export type { AssistantActionDto, AssistantActionProposalRequest } from "@pointup/core/assistant-actions";
 
 /**
  * Typed client for the PointUp HTTP API. It only uses `fetch` and the wire
@@ -49,6 +66,12 @@ import type {
 export interface PointUpClientOptions {
   /** e.g. https://app.pointup.example or http://localhost:3000 */
   readonly baseUrl: string;
+  /**
+   * Explicit trusted server-to-server HTTP origin (e.g. http://web:3000 on a
+   * private Docker network). Pins the exception to this exact origin; HTTPS
+   * remains the default. Never derive this from request headers or user input.
+   */
+  readonly trustedHttpOrigin?: string;
   /** Custom fetch (tests, React Native polyfills). Defaults to global fetch. */
   readonly fetch?: typeof fetch;
   /** Extra headers, e.g. { Authorization: `Bearer ${token}` }. */
@@ -70,6 +93,8 @@ export class PointUpApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Server correlation id (`x-request-id`), when the API returned one. */
+    readonly requestId?: string,
   ) {
     super(message);
     this.name = "PointUpApiError";
@@ -80,6 +105,30 @@ export class PointUpClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: PointUpClientOptions) {
+    const url = new URL(options.baseUrl);
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    let trustedHttpOrigin: string | undefined;
+    if (options.trustedHttpOrigin !== undefined) {
+      try {
+        const trusted = new URL(options.trustedHttpOrigin);
+        if (trusted.protocol !== "http:" || trusted.username || trusted.password ||
+            trusted.pathname !== "/" || trusted.search || trusted.hash ||
+            options.trustedHttpOrigin.includes("?") || options.trustedHttpOrigin.includes("#")) {
+          throw new Error("Invalid origin");
+        }
+        trustedHttpOrigin = trusted.origin;
+      } catch {
+        throw new TypeError("Trusted HTTP origin must be an HTTP origin without credentials, path, query or fragment");
+      }
+    }
+    if (url.username || url.password || url.search || url.hash ||
+        (url.protocol !== "https:" && !(url.protocol === "http:" && (local || url.origin === trustedHttpOrigin)))) {
+      throw new TypeError("PointUp base URL must use HTTPS (HTTP requires loopback or an explicitly trusted origin), without credentials, query or fragment");
+    }
+    if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
+      throw new TypeError("PointUp request timeout must be a positive finite number");
+    }
+    this.options = { ...options, baseUrl: url.href.replace(/\/$/, "") };
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -219,7 +268,7 @@ export class PointUpClient {
   }
 
   /** Portable dump of accounts + history. Defaults to JSON. */
-  exportPortfolio(format: "json" | "csv" = "json"): Promise<PortfolioExportDto | string> {
+  exportPortfolio(format: ExportFormat = "json"): Promise<PortfolioExportDto | string> {
     if (format === "csv") {
       return this.requestText("GET", "/api/v1/export?format=csv");
     }
@@ -310,8 +359,51 @@ export class PointUpClient {
     return this.request("POST", "/api/v1/assistant/chat", body);
   }
 
+  listAssistantActions(): Promise<{ actions: AssistantActionDto[] }> {
+    return this.request("GET", "/api/v1/assistant/actions");
+  }
+
+  /** Proposals do not apply changes; portfolio:write tokens may prepare them. */
+  proposeAssistantAction(body: AssistantActionProposalRequest): Promise<{ action: AssistantActionDto }> {
+    return this.request("POST", "/api/v1/assistant/actions", body);
+  }
+
+  /** Approval/rejection require a signed-in browser cookie session. */
+  decideAssistantAction(id: string, decision: "approve" | "reject"): Promise<{ action: AssistantActionDto }> {
+    return this.request("POST", `/api/v1/assistant/actions/${encodeURIComponent(id)}/${decision}`, {});
+  }
+
   getValueAdvice(): Promise<ValueAdviceDto> {
     return this.request("GET", "/api/v1/value-advice");
+  }
+
+  /** Ranked redemption plans (optimizer). Estimates; see each plan's caveats. */
+  planRedemption(
+    query: Partial<Omit<PlanRedemptionQuery, never>> = {},
+  ): Promise<PlanRedemptionResultDto> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const qs = params.toString();
+    return this.request("GET", `/api/v1/optimizer/plan${qs ? `?${qs}` : ""}`);
+  }
+
+  listSweetSpots(filter: { kind?: string; programId?: string } = {}): Promise<SweetSpotDto[]> {
+    const params = new URLSearchParams();
+    if (filter.kind) params.set("kind", filter.kind);
+    if (filter.programId) params.set("programId", filter.programId);
+    const qs = params.toString();
+    return this.request("GET", `/api/v1/deals/sweet-spots${qs ? `?${qs}` : ""}`);
+  }
+
+  listTransferBonuses(): Promise<TransferBonusDto[]> {
+    return this.request("GET", "/api/v1/transfer-bonuses");
+  }
+
+  /** Report a transfer bonus (crowd data; stored unverified). Needs portfolio:write. */
+  recordTransferBonus(body: RecordTransferBonusRequest): Promise<TransferBonusDto> {
+    return this.request("POST", "/api/v1/transfer-bonuses", body);
   }
 
   scrapeDeal(body: ScrapeDealRequest): Promise<{
@@ -325,12 +417,65 @@ export class PointUpClient {
     return `/api/v1/loyalty-accounts/${encodeURIComponent(accountId)}`;
   }
 
+  // ─── Agent surface ───────────────────────────────────────────────────────
+
+  listAgentSkills(providerId?: string): Promise<AgentSkillDto[]> {
+    const query = providerId
+      ? `?providerId=${encodeURIComponent(providerId)}`
+      : "";
+    return this.request("GET", `/api/v1/skills${query}`);
+  }
+
+  listConsents(): Promise<ConsentDto[]> {
+    return this.request("GET", "/api/v1/consents");
+  }
+
+  // There is deliberately no grantConsent: granting consent is a session-only
+  // human action (dashboard). Tokens can list and revoke only.
+
+  revokeConsent(consentId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/consents/${encodeURIComponent(consentId)}`,
+    );
+  }
+
+  /** Write back a balance an agent read; needs a consent for the program. */
+  submitObservation(
+    body: SubmitObservationRequest,
+  ): Promise<ObservationResultDto> {
+    return this.request("POST", "/api/v1/agent/observations", body);
+  }
+
+  listObservations(): Promise<AgentObservationDto[]> {
+    return this.request("GET", "/api/v1/agent/observations");
+  }
+
+  /** Session-auth only: a token cannot mint tokens. */
+  listAccessTokens(): Promise<AccessTokenDto[]> {
+    return this.request("GET", "/api/v1/tokens");
+  }
+
+  createAccessToken(
+    body: CreateAccessTokenRequest,
+  ): Promise<CreatedAccessTokenDto> {
+    return this.request("POST", "/api/v1/tokens", body);
+  }
+
+  revokeAccessToken(tokenId: string): Promise<void> {
+    return this.request(
+      "DELETE",
+      `/api/v1/tokens/${encodeURIComponent(tokenId)}`,
+    );
+  }
+
   private async requestText(
     method: string,
     path: string,
     accept = "text/csv",
   ): Promise<string> {
     const response = await this.fetchImpl(`${this.options.baseUrl}${path}`, {
+      redirect: "error",
       method,
       headers: {
         Accept: accept,
@@ -353,6 +498,7 @@ export class PointUpClient {
         response.status,
         payload.error?.code ?? "UNKNOWN",
         payload.error?.message ?? response.statusText,
+        payload.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
       );
     }
     return response.text();
@@ -364,6 +510,7 @@ export class PointUpClient {
     body?: unknown,
   ): Promise<T> {
     const response = await this.fetchImpl(`${this.options.baseUrl}${path}`, {
+      redirect: "error",
       method,
       headers: {
         Accept: "application/json",
@@ -388,6 +535,7 @@ export class PointUpClient {
         response.status,
         payload.error?.code ?? "UNKNOWN",
         payload.error?.message ?? response.statusText,
+        payload.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
       );
     }
 
@@ -405,6 +553,14 @@ export function createPointUpClient(
 }
 
 export type {
+  AccessTokenDto,
+  AgentObservationDto,
+  AgentSkillDto,
+  ConsentDto,
+  CreateAccessTokenRequest,
+  CreatedAccessTokenDto,
+  ObservationResultDto,
+  SubmitObservationRequest,
   ActivityEventDto,
   ApiError,
   BalanceDto,
@@ -430,5 +586,10 @@ export type {
   TripGoalDto,
   UpdateLoyaltyAccountRequest,
   UpdateTripGoalRequest,
+  PlanRedemptionQuery,
+  PlanRedemptionResultDto,
+  RecordTransferBonusRequest,
+  SweetSpotDto,
+  TransferBonusDto,
   ValueAdviceDto,
 } from "@pointup/core/contracts";

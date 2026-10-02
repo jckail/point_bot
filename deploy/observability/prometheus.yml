@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # App metrics pushed over OTLP and re-exposed by the collector.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+  # Optional: scrape the web app's in-process /metrics directly. Needs
+  # METRICS_ENABLED=true and METRICS_TOKEN on web; uncomment and set the token.
+  # - job_name: pointup-web
+  #   metrics_path: /metrics
+  #   authorization:
+  #     type: Bearer
+  #     credentials: change-me
+  #   static_configs:
+  #     - targets: ["web:3000"]

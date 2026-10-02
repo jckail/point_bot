@@ -35,20 +35,21 @@ export function TripGoalsSection({
         </p>
       </div>
 
+      {goals.length === 0 && <p className="text-sm text-ink-muted">{accounts.length > 0 ? "Choose a trip and a points target below to start tracking it." : "Link a program first, then set a trip goal."}</p>}
       {goals.length > 0 && (
         <ul className="flex flex-col gap-3">
           {goals.map((goal) => (
             <li
               key={goal.id}
-              className="rounded-2xl border border-line bg-midnight/40 px-4 py-3"
+              className="rounded-2xl border border-line bg-surface px-4 py-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-display text-base font-semibold text-ink">
+                    <h3 className="break-words font-display text-base font-semibold text-ink">
                       {goal.title}
                     </h3>
-                    <span className="text-xs uppercase tracking-wide text-ink-faint">
+                    <span className="text-xs font-medium text-ink-faint">
                       {goal.status}
                     </span>
                   </div>
@@ -58,11 +59,11 @@ export function TripGoalsSection({
                     {goal.targetDate ? ` · by ${goal.targetDate}` : ""}
                     {goal.achieved ? " · reached" : ""}
                   </p>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+                  <div role="progressbar" aria-label={`${goal.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, goal.percentComplete))} aria-valuetext={`${goal.percentComplete}% complete; ${formatPoints(goal.currentPoints)} of ${formatPoints(goal.targetPoints)} points`} className="mt-2 h-2 overflow-hidden rounded-full bg-line">
                     <div
                       className="h-full rounded-full bg-brand transition-[width]"
                       style={{
-                        width: `${Math.min(100, goal.percentComplete)}%`,
+                        width: `${Math.max(0, Math.min(100, goal.percentComplete))}%`,
                       }}
                     />
                   </div>
@@ -76,12 +77,7 @@ export function TripGoalsSection({
                 {goal.status !== "archived" && (
                   <form action={deleteTripGoalAction}>
                     <input type="hidden" name="goalId" value={goal.id} />
-                    <button
-                      type="submit"
-                      className="text-xs font-medium text-ink-faint transition hover:text-ink"
-                    >
-                      Remove
-                    </button>
+                    <SubmitButton variant="secondary" size="sm" pendingLabel="Removing…">Remove</SubmitButton>
                   </form>
                 )}
               </div>
@@ -138,7 +134,7 @@ export function TripGoalsSection({
                       type="checkbox"
                       name="accountIds"
                       value={account.id}
-                      className="accent-[var(--brand)]"
+                      className="accent-brand"
                     />
                     {account.provider.displayName}
                   </label>

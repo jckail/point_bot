@@ -1,11 +1,6 @@
-import type {
-  AwardWatchHit,
-  Mailer,
-  Notifier,
-  OutboundEmail,
-  OutboundNotification,
-  UserDirectory,
-} from "@pointup/core";
+import type { AwardWatchHit, Mailer, Notifier, OutboundEmail, OutboundNotification, UserDirectory, UserId } from "@pointup/core";
+
+import { reportFailure } from "../failures";
 
 import type { WorkerContainer } from "../container";
 
@@ -57,11 +52,11 @@ export async function checkWatches(
     await notifier
       .notify(renderWatchHitsChat(result.hits))
       .catch((error: unknown) =>
-        console.warn("[watch] chat notify failed", error),
+        reportFailure("chat_delivery_failed", "watch", error),
       );
   }
 
-  const byUser = new Map<string, AwardWatchHit[]>();
+  const byUser = new Map<UserId, AwardWatchHit[]>();
   for (const hit of result.hits) {
     const list = byUser.get(hit.watch.userId) ?? [];
     list.push(hit);
@@ -74,7 +69,7 @@ export async function checkWatches(
     await mailer
       .send(renderWatchHitsEmail(hits, email))
       .catch((error: unknown) =>
-        console.warn(`[watch] user=${userId} email failed`, error),
+        reportFailure("email_delivery_failed", "watch", error),
       );
   }
 }

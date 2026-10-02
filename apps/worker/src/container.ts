@@ -1,89 +1,61 @@
 import {
-  BuildPortfolioDigest,
-  CheckAwardWatches,
-  DrizzleAwardWatchRepository,
-  FirecrawlPageScraper,
-  IngestDealPage,
-  StubPageScraper,
-  buildTravelProviderGateway,
+  buildDrizzleRepositories,
+  buildLoyaltyModule,
   createDb,
-  DrizzleBalanceSnapshotRepository,
-  DrizzleLoyaltyAccountRepository,
-  DrizzleTripGoalRepository,
-  ListLoyaltyAccounts,
-  ListTripGoals,
-  NullCredentialVault,
-  OnePasswordConnectVault,
-  SyncAllLoyaltyAccounts,
-  SyncLoyaltyAccount,
-  type CredentialVault,
+  DrizzleOutboxStore,
+  DrizzleRetentionStore,
+  selectFx,
+  selectGateway,
+  selectLlm,
+  selectScraper,
+  selectVault,
+  type AccessTokenRepository,
   type LoyaltyAccountRepository,
-  type PageScraper,
+  type LoyaltyModule,
+  type OutboxStore,
+  type RetentionStore,
 } from "@pointup/core";
 
 import type { WorkerEnv } from "./env";
 
 export interface WorkerContainer {
   accounts: LoyaltyAccountRepository;
-  useCases: {
-    syncAllLoyaltyAccounts: SyncAllLoyaltyAccounts;
-    buildPortfolioDigest: BuildPortfolioDigest;
-    checkAwardWatches: CheckAwardWatches;
-  };
+  accessTokens: AccessTokenRepository;
+  outbox: OutboxStore;
+  retention: RetentionStore;
+  useCases: Pick<
+    LoyaltyModule,
+    | "syncAllLoyaltyAccounts"
+    | "buildPortfolioDigest"
+    | "checkAwardWatches"
+    | "seedDemoPortfolio"
+  >;
 }
 
-/** The worker's composition root - mirrors the web app's container. */
+/** The worker's composition root: env -> adapters, then the shared module. */
 export function createContainer(env: WorkerEnv): WorkerContainer {
   const db = createDb(env.DATABASE_URL);
-  const accounts = new DrizzleLoyaltyAccountRepository(db);
-  const balances = new DrizzleBalanceSnapshotRepository(db);
-  const tripGoals = new DrizzleTripGoalRepository(db);
-  const awardWatches = new DrizzleAwardWatchRepository(db);
-
-  const vault: CredentialVault =
-    env.OP_CONNECT_HOST && env.OP_CONNECT_TOKEN
-      ? new OnePasswordConnectVault({
-          baseUrl: env.OP_CONNECT_HOST,
-          token: env.OP_CONNECT_TOKEN,
-        })
-      : new NullCredentialVault();
-
-  const gateway = buildTravelProviderGateway({
-    aggregator:
-      env.AGGREGATOR_API_URL && env.AGGREGATOR_API_KEY
-        ? { baseUrl: env.AGGREGATOR_API_URL, apiKey: env.AGGREGATOR_API_KEY }
-        : undefined,
+  const repos = buildDrizzleRepositories(db);
+  const loyalty = buildLoyaltyModule({
+    repos,
+    gateway: selectGateway(env),
+    vault: selectVault(env),
+    fx: selectFx({}),
+    scraper: selectScraper(env),
+    // The worker never chats; the offline assistant keeps wiring uniform.
+    llm: selectLlm({}),
   });
 
-  const syncOne = new SyncLoyaltyAccount(
-    accounts,
-    balances,
-    gateway,
-    vault,
-  );
-
-  const listAccounts = new ListLoyaltyAccounts(accounts, balances);
-
-  const scraper: PageScraper =
-    env.FIRECRAWL_API_KEY
-      ? new FirecrawlPageScraper({
-          apiKey: env.FIRECRAWL_API_KEY,
-          baseUrl: env.FIRECRAWL_BASE_URL,
-        })
-      : new StubPageScraper();
-
   return {
-    accounts,
+    accounts: repos.loyaltyAccounts,
+    accessTokens: repos.accessTokens,
+    outbox: new DrizzleOutboxStore(db),
+    retention: new DrizzleRetentionStore(db),
     useCases: {
-      syncAllLoyaltyAccounts: new SyncAllLoyaltyAccounts(accounts, syncOne),
-      buildPortfolioDigest: new BuildPortfolioDigest(
-        listAccounts,
-        new ListTripGoals(tripGoals, balances),
-      ),
-      checkAwardWatches: new CheckAwardWatches(
-        awardWatches,
-        new IngestDealPage(scraper),
-      ),
+      syncAllLoyaltyAccounts: loyalty.syncAllLoyaltyAccounts,
+      buildPortfolioDigest: loyalty.buildPortfolioDigest,
+      checkAwardWatches: loyalty.checkAwardWatches,
+      seedDemoPortfolio: loyalty.seedDemoPortfolio,
     },
   };
 }

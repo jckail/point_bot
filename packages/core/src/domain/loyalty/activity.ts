@@ -1,3 +1,4 @@
+import type { LoyaltyAccountId, UserId } from "../shared/ids";
 /**
  * Append-only activity log. Surfaces render a chronological feed; the worker
  * can later fan these out as notifications without changing producers.
@@ -10,16 +11,17 @@ export const ACTIVITY_TYPES = [
   "account_restored",
   "balance_synced",
   "balance_manual",
+  "balance_agent",
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 export interface ActivityEvent {
   readonly id: string;
-  readonly userId: string;
+  readonly userId: UserId;
   readonly type: ActivityType;
   /** Null when the account was deleted (unlink) or the event is user-scoped. */
-  readonly accountId: string | null;
+  readonly accountId: LoyaltyAccountId | null;
   readonly providerId: string | null;
   /** Optional human-readable detail, e.g. "48,320 miles". */
   readonly summary: string;
@@ -27,9 +29,9 @@ export interface ActivityEvent {
 }
 
 export interface NewActivityEvent {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly type: ActivityType;
-  readonly accountId?: string | null;
+  readonly accountId?: LoyaltyAccountId | null;
   readonly providerId?: string | null;
   readonly summary: string;
   readonly id?: string;

@@ -1,3 +1,5 @@
+import { upstreamBaseUrl, boundedUpstreamJson, discardUpstreamBody } from "../http/upstream-transport";
+
 import type { AssistantMessage, LlmAssistant } from "../../application/ports";
 
 export interface OpenAiCompatibleConfig {
@@ -17,51 +19,30 @@ export class OpenAiCompatibleAssistant implements LlmAssistant {
 
   constructor(private readonly config: OpenAiCompatibleConfig) {
     this.model = config.model ?? "gpt-4o-mini";
-    this.baseUrl = (config.baseUrl ?? "https://api.openai.com/v1").replace(
-      /\/$/,
-      "",
-    );
+    this.baseUrl = upstreamBaseUrl(config.baseUrl ?? "https://api.openai.com/v1");
   }
 
   async complete(input: {
     readonly system: string;
     readonly messages: readonly AssistantMessage[];
   }): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0.4,
-        messages: [
-          { role: "system", content: input.system },
-          ...input.messages.map((message) => ({
-            role: message.role === "system" ? "user" : message.role,
-            content: message.content,
-          })),
-        ],
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        `LLM request failed (${response.status}): ${body.slice(0, 200)}`,
-      );
-    }
-
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = payload.choices?.[0]?.message?.content?.trim();
-    if (!content) {
-      throw new Error("LLM returned an empty completion");
-    }
-    return content;
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: this.model, temperature: 0.4,
+          messages: [{ role: "system", content: input.system }, ...input.messages.map(message => ({
+            role: message.role === "system" ? "user" : message.role, content: message.content,
+          }))] }),
+        signal: AbortSignal.timeout(45_000), redirect: "error",
+      });
+      if (!response.ok) { await discardUpstreamBody(response); throw new Error(); }
+      const payload = await boundedUpstreamJson(response, 256 * 1024);
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error();
+      const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
+      if (typeof content !== "string" || !content.trim()) throw new Error();
+      return content.trim();
+    } catch { throw new Error("The assistant provider is unavailable. Retry later."); }
   }
 }
 

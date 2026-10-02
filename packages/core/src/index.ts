@@ -1,4 +1,5 @@
 // Domain
+export * from "./domain/shared";
 export * from "./domain/errors";
 export * from "./domain/loyalty/provider";
 export * from "./domain/loyalty/loyalty-account";
@@ -11,8 +12,30 @@ export * from "./domain/loyalty/award-watch";
 export * from "./domain/fx";
 export * from "./domain/loyalty/user-settings";
 
+// Dev auth safety rules (shared by web + bootstrap)
+export * from "./dev-auth";
+
+// Agent bounded context
+export * from "./domain/agent/access-token";
+export * from "./domain/agent/consent";
+export * from "./domain/agent/observation";
+export * from "./domain/agent/skill";
+export * from "./application/agent/access-tokens";
+export * from "./application/agent/consents";
+export * from "./application/agent/list-skills";
+export * from "./application/agent/submit-observation";
+export * from "./infrastructure/repositories/drizzle-agent-repositories";
+
+// Domain events + transactional outbox
+export * from "./domain/events";
+export * from "./application/events";
+export * from "./infrastructure/outbox/drizzle-outbox";
+export * from "./infrastructure/retention/retention";
+export * from "./infrastructure/retention/drizzle-retention-repository";
+
 // Application
 export * from "./application/ports";
+export * from "./application/cache";
 export * from "./application/loyalty/read-models";
 export * from "./application/loyalty/list-providers";
 export * from "./application/loyalty/link-loyalty-account";
@@ -42,22 +65,32 @@ export * from "./application/loyalty/seed-demo-portfolio";
 export * from "./application/loyalty/portfolio-share";
 export * from "./application/loyalty/assistant";
 export * from "./application/loyalty/ingest-deal-page";
+export * from "./application/loyalty/transfer-bonuses";
+export * from "./application/loyalty/plan-redemption";
 export * from "./application/loyalty/sync-loyalty-account";
 export * from "./application/loyalty/sync-all-loyalty-accounts";
 
 // Domain
 export * from "./domain/loyalty/activity";
 export * from "./domain/loyalty/transfer-partners";
+export * from "./domain/loyalty/transfer-ranking";
 export * from "./domain/loyalty/deals";
+export * from "./domain/loyalty/transfer-bonus";
+export * from "./domain/loyalty/catalog/sweet-spots";
+export * from "./domain/loyalty/award-availability";
+export * from "./domain/loyalty/optimizer";
 export { projectExpiryDate } from "./domain/loyalty/provider";
 export { refreshExpiryFromActivity } from "./domain/loyalty/loyalty-account";
 
 // Infrastructure
 export * from "./infrastructure/db/client";
+export * from "./infrastructure/db/migrations";
 export * as dbSchema from "./infrastructure/db/schema";
 export * from "./infrastructure/repositories/drizzle-loyalty-account-repository";
 export * from "./infrastructure/repositories/drizzle-custom-valuation-repository";
 export * from "./infrastructure/repositories/drizzle-award-watch-repository";
+export * from "./infrastructure/repositories/drizzle-transfer-bonus-repository";
+export * from "./infrastructure/award-search/award-availability-sources";
 export * from "./infrastructure/repositories/drizzle-user-settings-repository";
 export * from "./infrastructure/fx/fx-rate-sources";
 export * from "./infrastructure/providers/composite-travel-provider-gateway";
@@ -70,3 +103,16 @@ export * from "./infrastructure/llm/openai-compatible-assistant";
 export * from "./infrastructure/llm/bedrock-assistant";
 export * from "./infrastructure/notify/webhook-notifiers";
 export * from "./infrastructure/scraper/firecrawl-page-scraper";
+export * from "./application/rate-limit";
+
+// Composition (per-context wiring shared by every host)
+export * from "./composition/repositories";
+export * from "./composition/loyalty-module";
+export * from "./composition/agent-module";
+export * from "./composition/adapters";
+export * from "./observability";
+
+export * from "./domain/loyalty/card-products";
+export * from "./domain/loyalty/transfer-eligibility";
+
+export * from "./application/loyalty/estimate-transfer";

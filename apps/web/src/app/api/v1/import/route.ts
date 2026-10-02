@@ -13,5 +13,5 @@ export function POST(request: Request) {
       csv: body.csv,
     });
     return NextResponse.json(result, { status: 201 });
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

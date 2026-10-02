@@ -9,6 +9,7 @@ import type { CreateTripGoal } from "./create-trip-goal";
 import type { LinkLoyaltyAccount } from "./link-loyalty-account";
 import type { RecordManualBalance } from "./record-manual-balance";
 
+import type { LoyaltyAccountId, TripGoalId, UserId } from "../../domain/shared/ids";
 export interface DemoSeedAccount {
   readonly providerId: string;
   readonly membershipNumber: string;
@@ -55,8 +56,8 @@ export const DEMO_PORTFOLIO: readonly DemoSeedAccount[] = [
 ];
 
 export interface SeedDemoPortfolioResult {
-  readonly accountIds: readonly string[];
-  readonly goalId: string | null;
+  readonly accountIds: readonly LoyaltyAccountId[];
+  readonly goalId: TripGoalId | null;
 }
 
 /**
@@ -73,15 +74,15 @@ export class SeedDemoPortfolio {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string): Promise<SeedDemoPortfolioResult> {
+  async execute(userId: UserId): Promise<SeedDemoPortfolioResult> {
     const existing = await this.accounts.findByUserId(userId);
     if (existing.length > 0) {
       throw new DemoPortfolioNotEmptyError();
     }
 
     const now = this.clock.now();
-    const accountIds: string[] = [];
-    let hyattId: string | null = null;
+    const accountIds: LoyaltyAccountId[] = [];
+    let hyattId: LoyaltyAccountId | null = null;
 
     for (const seed of DEMO_PORTFOLIO) {
       const linked = await this.link.execute({
@@ -125,7 +126,7 @@ export class SeedDemoPortfolio {
       }
     }
 
-    let goalId: string | null = null;
+    let goalId: TripGoalId | null = null;
     if (this.createGoal && hyattId) {
       const goal = await this.createGoal.execute({
         userId,

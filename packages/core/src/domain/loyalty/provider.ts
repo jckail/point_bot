@@ -1,4 +1,12 @@
 import { ProviderNotSupportedError } from "../errors";
+import { estimateValueCents as estimateExactValueCents } from "../shared/point-math";
+import { AIRLINE_PROVIDERS } from "./catalog/airlines";
+import { CARD_PROVIDERS } from "./catalog/cards";
+import { DINING_PROVIDERS } from "./catalog/dining";
+import { HOTEL_PROVIDERS } from "./catalog/hotels";
+import { OTHER_PROVIDERS } from "./catalog/other";
+import { TRAVEL_PROVIDERS } from "./catalog/travel";
+import type { ProviderDefinitionShape } from "./catalog/types";
 
 /**
  * The catalog of loyalty providers PointUp understands. This is domain
@@ -8,52 +16,24 @@ import { ProviderNotSupportedError } from "../errors";
  * layer is optional and can be registered later.
  */
 
-/**
- * Every category of points-earning program PointUp tracks. Order here drives
- * display order in summaries and dashboards.
- */
-export const PROVIDER_KINDS = [
-  "airline",
-  "hotel",
-  "credit_card",
-  "rail",
-  "shopping",
-] as const;
-
-export type ProviderKind = (typeof PROVIDER_KINDS)[number];
-
-export const PROVIDER_KIND_LABELS: Record<ProviderKind, string> = {
-  airline: "Airline",
-  hotel: "Hotel",
-  credit_card: "Credit card",
-  rail: "Rail",
-  shopping: "Shopping",
-};
-
-export interface ProviderDefinition {
-  readonly id: string;
-  readonly kind: ProviderKind;
-  readonly displayName: string;
-  /** Name of the provider's points/miles currency, e.g. "MileagePlus miles". */
-  readonly pointsCurrency: string;
-  /**
-   * Editorial estimate of one point's redemption value in US cents, used to
-   * approximate portfolio value. Not a market price; revisit periodically.
-   */
-  readonly estimatedCentsPerPoint: number;
-  /**
-   * Months of inactivity after which points expire. `null` means the program
-   * does not expire balances for inactivity (or has no published policy).
-   */
-  readonly inactivityExpiryMonths: number | null;
-}
+export {
+  ALLIANCES,
+  CATALOG_CONFIDENCE,
+  PROVIDER_KINDS,
+  PROVIDER_KIND_LABELS,
+  type Alliance,
+  type AgentSkillSeed,
+  type CatalogConfidence,
+  type ProviderDefinitionShape,
+  type ProviderKind,
+} from "./catalog/types";
 
 /** Approximate USD value (in whole cents) of a points balance. */
 export function estimateValueCents(
   provider: ProviderDefinition,
   points: number,
 ): number {
-  return Math.round(points * provider.estimatedCentsPerPoint);
+  return estimateExactValueCents(points, provider.estimatedCentsPerPoint);
 }
 
 /** Projected expiry date from a reference moment, or null if the program never expires. */
@@ -67,117 +47,62 @@ export function projectExpiryDate(
   return expires;
 }
 
+/**
+ * Every catalog id as a string-literal union, derived from the literal-typed
+ * catalog arrays: a typo'd id in the transfer graph, sweet spots, deals or
+ * seeds is a compile error, and adding a catalog entry extends the union.
+ * Untrusted strings (HTTP, MCP, CSV, DB) go through `parseProviderId`.
+ */
+export type ProviderId =
+  | (typeof AIRLINE_PROVIDERS)[number]["id"]
+  | (typeof HOTEL_PROVIDERS)[number]["id"]
+  | (typeof CARD_PROVIDERS)[number]["id"]
+  | (typeof TRAVEL_PROVIDERS)[number]["id"]
+  | (typeof DINING_PROVIDERS)[number]["id"]
+  | (typeof OTHER_PROVIDERS)[number]["id"];
+
+/** A catalog entry whose `id` is the derived `ProviderId` union. */
+export interface ProviderDefinition extends Omit<ProviderDefinitionShape, "id"> {
+  readonly id: ProviderId;
+}
+
+/** The full catalog, assembled from per-kind files (extend those, not this). */
 export const PROVIDER_CATALOG: readonly ProviderDefinition[] = [
-  {
-    id: "united",
-    kind: "airline",
-    displayName: "United Airlines",
-    pointsCurrency: "MileagePlus miles",
-    estimatedCentsPerPoint: 1.2,
-    inactivityExpiryMonths: 18,
-  },
-  {
-    id: "delta",
-    kind: "airline",
-    displayName: "Delta Air Lines",
-    pointsCurrency: "SkyMiles",
-    estimatedCentsPerPoint: 1.1,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "american",
-    kind: "airline",
-    displayName: "American Airlines",
-    pointsCurrency: "AAdvantage miles",
-    estimatedCentsPerPoint: 1.4,
-    inactivityExpiryMonths: 24,
-  },
-  {
-    id: "marriott",
-    kind: "hotel",
-    displayName: "Marriott Bonvoy",
-    pointsCurrency: "Bonvoy points",
-    estimatedCentsPerPoint: 0.7,
-    inactivityExpiryMonths: 24,
-  },
-  {
-    id: "hilton",
-    kind: "hotel",
-    displayName: "Hilton Honors",
-    pointsCurrency: "Honors points",
-    estimatedCentsPerPoint: 0.5,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "hyatt",
-    kind: "hotel",
-    displayName: "World of Hyatt",
-    pointsCurrency: "World of Hyatt points",
-    estimatedCentsPerPoint: 1.7,
-    inactivityExpiryMonths: 24,
-  },
-  {
-    id: "chase-ultimate-rewards",
-    kind: "credit_card",
-    displayName: "Chase Ultimate Rewards",
-    pointsCurrency: "Ultimate Rewards points",
-    estimatedCentsPerPoint: 1.6,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "amex-membership-rewards",
-    kind: "credit_card",
-    displayName: "Amex Membership Rewards",
-    pointsCurrency: "Membership Rewards points",
-    estimatedCentsPerPoint: 1.6,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "capital-one-miles",
-    kind: "credit_card",
-    displayName: "Capital One Rewards",
-    pointsCurrency: "Capital One miles",
-    estimatedCentsPerPoint: 1.5,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "citi-thankyou",
-    kind: "credit_card",
-    displayName: "Citi ThankYou Rewards",
-    pointsCurrency: "ThankYou Points",
-    estimatedCentsPerPoint: 1.5,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "bilt",
-    kind: "credit_card",
-    displayName: "Bilt Rewards",
-    pointsCurrency: "Bilt Points",
-    estimatedCentsPerPoint: 1.8,
-    inactivityExpiryMonths: null,
-  },
-  {
-    id: "amtrak",
-    kind: "rail",
-    displayName: "Amtrak Guest Rewards",
-    pointsCurrency: "Guest Rewards points",
-    estimatedCentsPerPoint: 2.5,
-    inactivityExpiryMonths: 36,
-  },
-  {
-    id: "rakuten",
-    kind: "shopping",
-    displayName: "Rakuten Rewards",
-    pointsCurrency: "Rakuten points",
-    estimatedCentsPerPoint: 1.0,
-    inactivityExpiryMonths: null,
-  },
+  ...AIRLINE_PROVIDERS,
+  ...HOTEL_PROVIDERS,
+  ...CARD_PROVIDERS,
+  ...TRAVEL_PROVIDERS,
+  ...DINING_PROVIDERS,
+  ...OTHER_PROVIDERS,
 ];
+
+/** id -> provider, built once (first definition wins, like `Array.find`). */
+const PROVIDER_BY_ID: ReadonlyMap<string, ProviderDefinition> = (() => {
+  const index = new Map<string, ProviderDefinition>();
+  for (const provider of PROVIDER_CATALOG) {
+    if (!index.has(provider.id)) index.set(provider.id, provider);
+  }
+  return index;
+})();
+
+/** Type guard: is this string the id of a cataloged provider? */
+export function isProviderId(value: string): value is ProviderId {
+  return PROVIDER_BY_ID.has(value);
+}
+
+/**
+ * Parse an untrusted string (HTTP body, MCP argument, CSV cell, DB row) into
+ * a `ProviderId`. Throws the coded `ProviderNotSupportedError`.
+ */
+export function parseProviderId(value: string): ProviderId {
+  if (!isProviderId(value)) throw new ProviderNotSupportedError(value);
+  return value;
+}
 
 export function findProvider(
   providerId: string,
 ): ProviderDefinition | undefined {
-  return PROVIDER_CATALOG.find((provider) => provider.id === providerId);
+  return PROVIDER_BY_ID.get(providerId);
 }
 
 /**
@@ -192,6 +117,6 @@ export function getProviderOrThrow(providerId: string): ProviderDefinition {
   return provider;
 }
 
-export function isSupportedProvider(providerId: string): boolean {
-  return findProvider(providerId) !== undefined;
+export function isSupportedProvider(providerId: string): providerId is ProviderId {
+  return isProviderId(providerId);
 }

@@ -1,3 +1,6 @@
+import type { CardProductId } from "../../domain/loyalty/card-products";
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
 import { createLoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
@@ -9,9 +12,11 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import { recordActivity } from "./list-activity";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface LinkLoyaltyAccountInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly providerId: string;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   /**
    * Opaque pointer into the user's credential vault (1Password item id,
@@ -22,7 +27,7 @@ export interface LinkLoyaltyAccountInput {
 }
 
 export interface LinkLoyaltyAccountResult {
-  readonly accountId: string;
+  readonly accountId: LoyaltyAccountId;
 }
 
 export class LinkLoyaltyAccount {
@@ -30,6 +35,7 @@ export class LinkLoyaltyAccount {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(
@@ -48,19 +54,29 @@ export class LinkLoyaltyAccount {
       providerId: input.providerId,
       membershipNumber: input.membershipNumber,
       credentialRef: input.credentialRef,
+      cardProductId: input.cardProductId,
       now: this.clock.now(),
     });
 
-    await this.accounts.insert(account);
-
     const provider = getProviderOrThrow(account.providerId);
-    await recordActivity(this.activity, {
-      userId: input.userId,
-      type: "account_linked",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Linked ${provider.displayName}`,
-      occurredAt: account.createdAt,
+    await this.eventing.unitOfWork.run(async () => {
+      await this.accounts.insert(account);
+      await recordActivity(this.activity, {
+        userId: input.userId,
+        type: "account_linked",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Linked ${provider.displayName}`,
+        occurredAt: account.createdAt,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("account.linked", {
+          userId: input.userId,
+          aggregateId: account.id,
+          occurredAt: account.createdAt,
+          payload: { providerId: account.providerId },
+        }),
+      ]);
     });
 
     return { accountId: account.id };

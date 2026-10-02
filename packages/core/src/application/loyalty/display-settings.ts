@@ -9,13 +9,15 @@ import {
   type UserSettings,
   type UserSettingsRepository,
 } from "../../domain/loyalty/user-settings";
+import { userCacheTag, type Cache } from "../cache";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { UserId } from "../../domain/shared/ids";
 export class GetUserSettings {
   constructor(private readonly settings: UserSettingsRepository) {}
 
-  async execute(userId: string): Promise<UserSettings> {
+  async execute(userId: UserId): Promise<UserSettings> {
     return (
       (await this.settings.get(userId)) ?? {
         userId,
@@ -32,7 +34,7 @@ export class SetDisplayCurrency {
     private readonly clock: Clock = systemClock,
   ) {}
 
-  async execute(userId: string, currency: string): Promise<UserSettings> {
+  async execute(userId: UserId, currency: string): Promise<UserSettings> {
     const updated: UserSettings = {
       userId,
       displayCurrency: assertSupportedDisplayCurrency(currency),
@@ -53,20 +55,30 @@ export interface DisplayValue {
 
 /**
  * Converts a USD-cents value into the user's display currency. Returns null
- * for USD (nothing to convert) or when the rate source fails — display
+ * for USD (nothing to convert) or when the rate/conversion is unavailable — display
  * conversion is a nice-to-have that must never break the underlying response.
  */
 export class BuildDisplayValue {
   constructor(
     private readonly settings: UserSettingsRepository,
     private readonly fx: FxRateSource,
+    /** Optional: caches the per-user settings row (see `ListLoyaltyAccounts`). */
+    private readonly cache?: Cache,
+    private readonly cacheTtlMs = 10_000,
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     usdCents: number,
   ): Promise<DisplayValue | null> {
-    const settings = await this.settings.get(userId);
+    const settings =
+      this.cache && this.cacheTtlMs > 0
+        ? await this.cache.remember(
+            `settings:${userId}`,
+            { ttlMs: this.cacheTtlMs, tags: [userCacheTag(userId)] },
+            () => this.settings.get(userId),
+          )
+        : await this.settings.get(userId);
     const currency = settings?.displayCurrency ?? DEFAULT_DISPLAY_CURRENCY;
     if (currency === "USD") return null;
 

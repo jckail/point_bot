@@ -3,12 +3,21 @@
  * Pure domain types — no IO.
  */
 
-export type DealKind =
-  | "transfer_bonus"
-  | "award_sweet_spot"
-  | "hotel_redemption"
-  | "portal_sale"
-  | "scraped";
+import { InvalidBalanceError } from "../errors";
+import { exactPoints, safePoints } from "../shared/point-math";
+import { findProvider, type ProviderId } from "./provider";
+import { describeBonus, indexBestBonuses, type TransferBonus } from "./transfer-bonus";
+import { resolveTransferEdge, type TransferAccountContext, type TransferEligibilityMetadata, type TransferEligibilityWarning } from "./transfer-eligibility";
+import { convertPoints, edgeRatio, findTransferEdge } from "./transfer-partners";
+
+export const DEAL_KINDS = [
+  "transfer_bonus",
+  "award_sweet_spot",
+  "hotel_redemption",
+  "portal_sale",
+  "scraped",
+] as const;
+export type DealKind = (typeof DEAL_KINDS)[number];
 
 export interface DealCandidate {
   readonly id: string;
@@ -16,14 +25,14 @@ export interface DealCandidate {
   readonly title: string;
   readonly summary: string;
   /** Program that spends the points, when known. */
-  readonly providerId: string | null;
+  readonly providerId: ProviderId | null;
   /** Points required for the redemption, when known. */
   readonly pointsCost: number | null;
   /** Cash price avoided / equivalent, in whole US cents. */
   readonly cashEquivalentCents: number | null;
   readonly sourceUrl: string | null;
   /** Optional transfer source (card currency) for transfer-bonus deals. */
-  readonly transferFromProviderId: string | null;
+  readonly transferFromProviderId: ProviderId | null;
 }
 
 export interface RankedDeal {
@@ -34,6 +43,33 @@ export interface RankedDeal {
   readonly affordable: boolean;
   readonly affordabilityNote: string;
   readonly score: number;
+  readonly transferRequirement?: DealTransferRequirement | null;
+  readonly eligibilityWarnings?: readonly TransferEligibilityWarning[];
+  readonly transferUnavailableReason?: TransferEligibilityWarning["code"] | "NO_TRANSFER_ROUTE" | "SOURCE_ACCOUNT_REQUIRED" | "AMOUNT_OUT_OF_RANGE" | null;
+}
+
+export interface DealTransferRequirement {
+  readonly fromProviderId: ProviderId;
+  readonly toProviderId: ProviderId;
+  readonly sourcePointsRequired: number;
+  readonly sourcePointsAvailable: number;
+  readonly destinationPointsNeeded: number;
+  readonly destinationPointsProduced: number;
+  readonly ratioFrom: number;
+  readonly ratioTo: number;
+  readonly bonusPermille: number;
+  readonly bonusVerified: boolean | null;
+  readonly bonusLabel: string | null;
+  readonly eligibility: TransferEligibilityMetadata;
+  readonly minimumSourcePoints: number | null;
+  readonly incrementSourcePoints: number | null;
+  readonly limitsVerified: false;
+  readonly caveats: readonly string[];
+}
+export interface DealRankingContext {
+  readonly now?: Date;
+  readonly bonuses?: readonly TransferBonus[];
+  readonly accountContexts?: ReadonlyMap<string, TransferAccountContext>;
 }
 
 export function realizedCpp(deal: DealCandidate): number | null {
@@ -57,7 +93,10 @@ export function rankDeals(
   deals: readonly DealCandidate[],
   balances: ReadonlyMap<string, number>,
   editorialCppByProvider: ReadonlyMap<string, number>,
+  context: DealRankingContext = {},
 ): RankedDeal[] {
+  const now = context.now ?? new Date();
+  const bestBonuses = indexBestBonuses(context.bonuses ?? [], now);
   return deals
     .map((deal) => {
       const cpp = realizedCpp(deal);
@@ -68,20 +107,72 @@ export function rankDeals(
 
       let affordable = false;
       let affordabilityNote = "Link a matching program to check affordability";
+      let transferRequirement: DealTransferRequirement | null = null;
+      let transferUnavailableReason: RankedDeal["transferUnavailableReason"] = null;
+      const eligibilityWarnings: TransferEligibilityWarning[] = [];
 
-      if (deal.providerId && deal.pointsCost != null) {
+      if (deal.providerId && deal.pointsCost != null && deal.pointsCost > 0) {
+        exactPoints(deal.pointsCost);
         const direct = balances.get(deal.providerId) ?? 0;
+        exactPoints(direct);
         if (direct >= deal.pointsCost) {
           affordable = true;
-          affordabilityNote = `You have ${direct.toLocaleString("en-US")} points`;
+          affordabilityNote = `Your saved ${deal.providerId} balance has ${direct.toLocaleString("en-US")} points. Verify current balance, price and availability before redeeming.`;
         } else if (deal.transferFromProviderId) {
-          const transferable =
-            balances.get(deal.transferFromProviderId) ?? 0;
-          if (transferable >= deal.pointsCost) {
-            affordable = true;
-            affordabilityNote = `Transfer ${deal.pointsCost.toLocaleString("en-US")} from your transferable currency`;
+          const candidate = findTransferEdge(deal.transferFromProviderId, deal.providerId);
+          const hasSourceAccount = balances.has(deal.transferFromProviderId);
+          const resolution = candidate && hasSourceAccount ? resolveTransferEdge(candidate, context.accountContexts?.get(deal.transferFromProviderId) ?? {}, now) : null;
+          if (!candidate) {
+            transferUnavailableReason = "NO_TRANSFER_ROUTE";
+            affordabilityNote = `No supported transfer route from ${deal.transferFromProviderId} to ${deal.providerId}. Need ${deal.pointsCost.toLocaleString("en-US")} destination points; saved destination balance is ${direct.toLocaleString("en-US")}.`;
+          } else if (!resolution) {
+            transferUnavailableReason = "SOURCE_ACCOUNT_REQUIRED";
+            affordabilityNote = `Link ${deal.transferFromProviderId} and record its balance to check this transfer; saved destination balance is ${direct.toLocaleString("en-US")}.`;
+          } else if (resolution.status === "unavailable") {
+            transferUnavailableReason = resolution.warning.code;
+            eligibilityWarnings.push(resolution.warning);
+            affordabilityNote = resolution.warning.message;
           } else {
-            affordabilityNote = `Need ${deal.pointsCost.toLocaleString("en-US")}; have ${Math.max(direct, transferable).toLocaleString("en-US")}`;
+            const edge = resolution.edge;
+            const transferable = balances.get(deal.transferFromProviderId) ?? 0;
+            exactPoints(transferable);
+            const missing = deal.pointsCost - direct;
+            const bonus = bestBonuses.get(`${edge.fromProviderId}>${edge.toProviderId}`);
+            const permille = bonus?.multiplierPermille ?? 1000;
+            // Invert the same two floors as convertPoints, then apply only
+            // published catalog limits. Unknown increments are not invented.
+            const ceil = (n: bigint, d: bigint) => (n + d - 1n) / d;
+            const ratio = edgeRatio(edge);
+            const baseNeeded = ceil(exactPoints(missing) * 1000n, exactPoints(permille));
+            const required = ceil(baseNeeded * exactPoints(ratio.den), exactPoints(ratio.num));
+            const min = exactPoints(edge.minimumSourcePoints ?? 0);
+            const inc = exactPoints(edge.incrementSourcePoints ?? 1);
+            try {
+              if (inc === 0n) throw new InvalidBalanceError();
+              const sourcePointsRequired = safePoints(ceil(required > min ? required : min, inc) * inc);
+              const produced = convertPoints(edge, sourcePointsRequired, permille);
+              const bonusLabel = bonus ? describeBonus(bonus) : null;
+              transferRequirement = {
+                fromProviderId: edge.fromProviderId, toProviderId: edge.toProviderId,
+                sourcePointsRequired, sourcePointsAvailable: transferable,
+                destinationPointsNeeded: missing, destinationPointsProduced: produced,
+                ratioFrom: edge.ratioFrom, ratioTo: edge.ratioTo, bonusPermille: permille,
+                bonusVerified: bonus ? bonus.verifiedAt !== null : null, bonusLabel, eligibility: edge.eligibility,
+                minimumSourcePoints: edge.minimumSourcePoints ?? null,
+                incrementSourcePoints: edge.incrementSourcePoints ?? null, limitsVerified: false,
+                caveats: ["Saved balances may be stale; this is estimated balance sufficiency, not a transfer or booking.",
+                  "Issuer access, transfer minimums/increments and award availability are not verified. No cards are combined automatically.",
+                  ...(bonus && bonus.verifiedAt === null ? ["The applied bonus is unverified; confirm it with the issuer."] : [])],
+              };
+              affordable = transferable >= sourcePointsRequired && produced >= missing;
+              const sourceName = findProvider(edge.fromProviderId)?.displayName ?? edge.fromProviderId;
+              const directText = direct > 0 ? `Use ${direct.toLocaleString("en-US")} saved destination points and ` : "";
+              affordabilityNote = `${directText}need at least ${sourcePointsRequired.toLocaleString("en-US")} ${sourceName} points for ${missing.toLocaleString("en-US")} destination points at ${edge.ratioFrom}:${edge.ratioTo}${bonusLabel ? ` with ${bonusLabel}${bonus?.verifiedAt ? "" : " (unverified)"}` : ""}; saved source balance is ${transferable.toLocaleString("en-US")}. Estimate only; verify current balances, issuer limits and availability.`;
+            } catch (error) {
+              if (!(error instanceof InvalidBalanceError)) throw error;
+              transferUnavailableReason = "AMOUNT_OUT_OF_RANGE";
+              affordabilityNote = "This transfer requirement exceeds the supported safe point range; no affordable transfer estimate is available.";
+            }
           }
         } else {
           affordabilityNote = `Need ${deal.pointsCost.toLocaleString("en-US")}; have ${direct.toLocaleString("en-US")}`;
@@ -102,6 +193,9 @@ export function rankDeals(
         affordable,
         affordabilityNote,
         score,
+        transferRequirement,
+        eligibilityWarnings,
+        transferUnavailableReason,
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -159,7 +253,8 @@ export const CATALOG_DEALS: readonly DealCandidate[] = [
   },
   {
     id: "deal-bilt-hyatt",
-    kind: "transfer_bonus",
+    // Not a bonus window (those are real data in transfer_bonus); a pattern.
+    kind: "hotel_redemption",
     title: "Bilt → Hyatt for city stays",
     summary:
       "Rent-day points transferred to Hyatt frequently out-earn portal cash-out.",

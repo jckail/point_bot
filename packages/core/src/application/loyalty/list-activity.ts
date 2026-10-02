@@ -2,6 +2,7 @@ import { createActivityEvent } from "../../domain/loyalty/activity";
 import type { ActivityEventRepository } from "../../domain/loyalty/repositories";
 import type { ActivityEventReadModel } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 export const DEFAULT_ACTIVITY_LIMIT = 50;
 export const MAX_ACTIVITY_LIMIT = 200;
 
@@ -9,7 +10,7 @@ export class ListActivity {
   constructor(private readonly activity: ActivityEventRepository) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     limit = DEFAULT_ACTIVITY_LIMIT,
   ): Promise<ActivityEventReadModel[]> {
     const clamped = Math.min(Math.max(1, limit), MAX_ACTIVITY_LIMIT);

@@ -6,7 +6,11 @@ import {
   type DealCandidate,
   type DealKind,
 } from "../../domain/loyalty/deals";
-import { findProvider } from "../../domain/loyalty/provider";
+import {
+  findProvider,
+  parseProviderId,
+  type ProviderId,
+} from "../../domain/loyalty/provider";
 import type { Clock, PageScraper } from "../ports";
 import { systemClock } from "../ports";
 
@@ -51,14 +55,13 @@ export class IngestDealPage {
     let page;
     try {
       page = await this.scraper.scrape(url);
-    } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : "unknown scrape error";
-      throw new ScrapeFailedError(reason);
+    } catch {
+      throw new ScrapeFailedError("Could not load this page. Retry later.");
     }
 
     const deals = extractDealsFromMarkdown(page.markdown, page.url, {
-      providerId: input.providerId ?? null,
+      providerId:
+        input.providerId == null ? null : parseProviderId(input.providerId),
       now: this.clock.now(),
     });
 
@@ -70,37 +73,61 @@ export class IngestDealPage {
   }
 }
 
+/** Conservative line guard: cash DTOs are USD, never an inferred foreign conversion. */
+function hasForeignCashCurrency(line: string): boolean {
+  const foreignDollarPrefix = [...line.matchAll(/(?<!\w)([a-z]+)\$/gi)].some(match => !["US", "USD"].includes(match[1]!.toUpperCase()));
+  return foreignDollarPrefix || /\b(?:CAD|AUD|NZD|HKD|SGD|TWD|PHP|IDR|VND|EUR|GBP|JPY|CHF|CNY|RMB|KRW|INR|THB|AED|MXN|BRL|ZAR)\b/i.test(line)
+    || /(?<!\w)(?:CA|C|AU|A|NZ|HK|SG|S)\s*\$/i.test(line)
+    || /[€£¥₹₩]/u.test(line)
+    || /\b(?:Canadian|Australian|New Zealand|Hong Kong|Singapore)\s+dollars?\b/i.test(line);
+}
+
 function extractDealsFromMarkdown(
   markdown: string,
   sourceUrl: string,
-  opts: { providerId: string | null; now: Date },
+  opts: { providerId: ProviderId | null; now: Date },
 ): DealCandidate[] {
   const deals: DealCandidate[] = [];
   const lines = markdown.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-  const pointCash =
-    /(\d{1,3}(?:,\d{3})*|\d+\.?\d*\s*k)\s*(?:points?|miles?|pts\.?).*?(?:\$|usd\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
-  const cashPoint =
-    /(?:\$|usd\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?).*?(\d{1,3}(?:,\d{3})*|\d+\.?\d*\s*k)\s*(?:points?|miles?|pts\.?)/i;
+  // Capture whole numeric tokens before validating grammar; never numeric fragments.
+  const numeric = String.raw`\d(?:[\d,]*\d)?(?:\.\d+)?`;
+  // Capture signs as part of the selected token. Skipping a sign and retrying
+  // at the unsigned numeric/currency fragment would fabricate positive value.
+  const pointsToken = String.raw`(?<![\w.,+−-])(?<points>[-−+]?\s*${numeric}\s*k?)\s*(?:points?|miles?|pts\.?)(?!\w)`;
+  const foreignPageCurrency = lines.some(line =>
+    /\b(?:prices?|rates?|amounts?|costs?|fares?)\s+(?:(?:are|shown|displayed|quoted|listed|denominated)\s+)*(?:in|as)\b|\bcurrency\s*[:=]/i.test(line)
+      && hasForeignCashCurrency(line));
+  // A foreign page declaration removes the bare-dollar assumption. Only the
+  // selected cash token's explicit US/USD prefix or USD suffix can override it.
+  const currencyToken = foreignPageCurrency
+    ? String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$(?=\s*${numeric}\s*USD\b))`
+    : String.raw`(?:\bUSD\s*\$?|\bUS\s*\$|\$)`;
+  const cashToken = String.raw`(?<![\w$+−-])(?<cash>\(?[-−+]?\s*${currencyToken}\s*[-−+]?\s*${numeric}\s*\)?)(?!\w|[.,][\d.,])`;
+  const pointCash = new RegExp(`${pointsToken}.*?${cashToken}`, "i");
+  const cashPoint = new RegExp(`${cashToken}.*?${pointsToken}`, "i");
 
   let idx = 0;
   for (const line of lines.slice(0, 80)) {
+    // Preserve legacy bare-$ and explicit USD/US$ parsing. Foreign or mixed
+    // currency lines remain unstructured rather than publishing fabricated USD.
+    if (hasForeignCashCurrency(line)) continue;
     let points: number | null = null;
     let cashCents: number | null = null;
 
     const m1 = line.match(pointCash);
     if (m1) {
-      points = parsePoints(m1[1]!);
-      cashCents = Math.round(parseFloat(m1[2]!.replace(/,/g, "")) * 100);
+      points = parsePoints(m1.groups!.points!);
+      cashCents = parseCash(m1.groups!.cash!);
     } else {
       const m2 = line.match(cashPoint);
       if (m2) {
-        cashCents = Math.round(parseFloat(m2[1]!.replace(/,/g, "")) * 100);
-        points = parsePoints(m2[2]!);
+        cashCents = parseCash(m2.groups!.cash!);
+        points = parsePoints(m2.groups!.points!);
       }
     }
 
-    if (points == null || points <= 0) continue;
+    if (points == null || points <= 0 || cashCents == null) continue;
 
     const providerId =
       opts.providerId ?? detectProviderId(line) ?? detectProviderId(markdown);
@@ -139,17 +166,36 @@ function extractDealsFromMarkdown(
   return deals;
 }
 
-function parsePoints(raw: string): number {
-  const cleaned = raw.trim().toLowerCase().replace(/,/g, "");
-  if (cleaned.endsWith("k")) {
-    return Math.round(parseFloat(cleaned.slice(0, -1)) * 1000);
-  }
-  return Math.round(parseFloat(cleaned));
+/** Exact decimal scaling rejects fractional units and unsafe DTO integers. */
+function parseScaledInteger(raw: string, decimals: number): number | null {
+  // Safe DTO integers have at most 16 digits; bound parsing of remote tokens.
+  if (raw.length > 64) return null;
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(raw)) return null;
+  const [whole = "", fraction = ""] = raw.replace(/,/g, "").split(".");
+  if (fraction.length > decimals) return null;
+  const value = BigInt(whole) * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0") || "0");
+  return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null;
 }
 
-function detectProviderId(text: string): string | null {
+function parsePoints(raw: string): number | null {
+  const cleaned = raw.trim().toLowerCase();
+  return cleaned.endsWith("k")
+    ? parseScaledInteger(cleaned.slice(0, -1).trim(), 3)
+    : parseScaledInteger(cleaned, 0);
+}
+
+function parseCash(raw: string): number | null {
+  // Accounting parentheses and either minus character cannot establish a
+  // nonnegative cash equivalent. Keep the existing unstructured fallback.
+  if (/[-−()]/u.test(raw)) return null;
+  const amount = raw.trim().replace(/^(?:USD\s*\$?|US\s*\$|\$)\s*/i, "");
+  return parseScaledInteger(amount, 2);
+}
+
+function detectProviderId(text: string): ProviderId | null {
   const lower = text.toLowerCase();
-  const needles: Array<[string, string]> = [
+  const needles: Array<[string, ProviderId]> = [
     ["hyatt", "hyatt"],
     ["hilton", "hilton"],
     ["marriott", "marriott"],
@@ -162,6 +208,15 @@ function detectProviderId(text: string): string | null {
     ["bilt", "bilt"],
   ];
   for (const [needle, id] of needles) {
+    if (needle === "american" && !/\bamerican\b(?!\s+express\b)/.test(lower)) continue;
+    if (needle === "amex") {
+      // Keep redemption destinations ahead of card context. Recognize the full
+      // Membership Rewards name without treating American Express as an airline
+      // or treating an Amex cash-back label as a Membership Rewards currency.
+      if (/\bcash[\s-]*back\b/.test(lower)) continue;
+      if (/\b(?:amex|american\s+express[\s:®™–—-]+membership\s+rewards)\b/.test(lower)) return id;
+      continue;
+    }
     if (lower.includes(needle) && findProvider(id)) return id;
   }
   return null;

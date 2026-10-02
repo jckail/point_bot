@@ -1,51 +1,68 @@
-import { PointUpApiError, PointUpClient } from "@pointup/api-client";
+import { PointUpClient } from "@pointup/api-client";
 
 import {
   loadConfig,
   loadLatestCapture,
   saveLatestCapture,
+  loadCaptureState,
+  saveCaptureState,
+  loadCaptureReceipt,
 } from "./config";
-import type { ExtractedBalance } from "./extraction";
+import { captureIdentity, completeCapture, finishCapture, isReviewedCapture, observationRequest, type ReviewedCapture } from "./capture-state";
 import type { ExtensionMessage, RecordResult } from "./messages";
+import { recordCapture } from "./record";
+import { askAssistant, clearChat, loadChatState, openReviewTab } from "./assistant";
+import { configuredApiOrigin } from "./api-origin";
+import { openOwnedReviewTab } from "./review-tab";
+
+let assistantBusy = false;
 
 function client(baseUrl: string, token: string): PointUpClient {
   return new PointUpClient({
     baseUrl,
     headers: { Authorization: `Bearer ${token}` },
+    timeoutMs: 25_000,
   });
 }
 
-/** Record the capture against the user's matching account. */
-async function record(capture: ExtractedBalance): Promise<RecordResult> {
+let captureQueue: Promise<unknown> = Promise.resolve();
+function captureAction<T>(action: () => Promise<T>): Promise<T> {
+  const result = captureQueue.then(action);
+  captureQueue = result.catch(() => undefined);
+  return result;
+}
+async function record(captureId?: string): Promise<RecordResult> {
+  let state = await loadCaptureState();
+  const capture = state.pending?.capture ?? state.latest;
+  if (!capture) return { ok: false, message: "Nothing captured yet — reload a provider page for a fresh reading." };
+  if (captureId && capture.captureId !== captureId) return { ok: false, message: "Capture changed. Review the displayed balance before recording." };
   const config = await loadConfig();
-  if (!config.baseUrl || !config.token) {
-    return { ok: false, message: "Set the API URL and token in the popup first." };
+  if (!config.baseUrl || !config.token) return { ok: false, message: "Set the API URL and token in the popup first." };
+  const identity = await captureIdentity(config.baseUrl, config.token);
+  if (state.pending && state.pending.identity !== identity) return { ok: false, message: "API settings changed for this pending capture. Restore the original settings to retry, or check Dashboard > Agents before discarding it." };
+  try { configuredApiOrigin(config.baseUrl); }
+  catch (error) { return { ok: false, message: error instanceof Error ? error.message : "Save a valid PointUp URL first." }; }
+  if (config.token.startsWith("pu_") && !state.pending) {
+    state = { ...state, pending: { capture, identity, request: observationRequest(capture) } };
+    await saveCaptureState(state); // Freeze the identity/time/payload before network IO.
   }
-
-  const api = client(config.baseUrl, config.token);
-  try {
-    const accounts = await api.listLoyaltyAccounts();
-    const account = accounts.find((a) => a.provider.id === capture.providerId);
-    if (!account) {
-      return {
-        ok: false,
-        message: `No linked ${capture.providerId} account — link it in PointUp first.`,
-      };
-    }
-    await api.recordManualBalance(account.id, { points: capture.points });
-    return {
-      ok: true,
-      message: `Recorded ${capture.points.toLocaleString("en-US")} for ${account.provider.displayName}.`,
-    };
-  } catch (error) {
-    if (error instanceof PointUpApiError) {
-      return { ok: false, message: `API error (${error.status}): ${error.message}` };
-    }
-    return { ok: false, message: "Could not reach the PointUp API." };
-  }
+  const result = await recordCapture(client(config.baseUrl, config.token), config.token, capture, state.pending?.request);
+  if (state.pending) state = finishCapture(state, capture.captureId, result);
+  else if (result.ok) state = { ...completeCapture(state, capture.captureId), lastReceipt: {
+    captureId: capture.captureId, identity, observedAt: capture.observedAt, result: { ...result, message: result.message.slice(0, 2048) },
+  } };
+  await saveCaptureState(state);
+  await updateBadge(state.pending?.capture ?? state.latest);
+  return result;
+}
+async function openObservationReview(): Promise<RecordResult> {
+  const config = await loadConfig();
+  const url = `${configuredApiOrigin(config.baseUrl)}/dashboard/agents`;
+  await openOwnedReviewTab(url);
+  return { ok: true, message: "Review observations in PointUp. Only you can confirm or reject them." };
 }
 
-async function updateBadge(capture: ExtractedBalance | null): Promise<void> {
+async function updateBadge(capture: ReviewedCapture | null): Promise<void> {
   await chrome.action.setBadgeText({ text: capture ? "1" : "" });
   if (capture) {
     await chrome.action.setBadgeBackgroundColor({ color: "#7C5CFF" });
@@ -53,32 +70,45 @@ async function updateBadge(capture: ExtractedBalance | null): Promise<void> {
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, _sender, sendResponse) => {
+  (message: ExtensionMessage, sender, sendResponse) => {
+    if (["ask", "getChat", "clearChat", "openReview"].includes(message?.type)) {
+      if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab) return;
+      if (message.type === "getChat") {
+        void loadChatState().catch(() => ({ ok: false, message: "Conversation unavailable. Reopen the popup and retry." })).then(sendResponse);
+        return true;
+      }
+      if (assistantBusy) { sendResponse({ ok: false, message: "The assistant is working. Please wait." }); return; }
+      assistantBusy = true;
+      const action = message.type === "ask" ? askAssistant(message.message)
+        : message.type === "clearChat" ? clearChat()
+        : openReviewTab();
+      void action.catch(() => ({ ok: false, message: "Extension worker unavailable. Reopen the popup and retry." }))
+        .then(sendResponse).finally(() => { assistantBusy = false; });
+      return true;
+    }
     if (message.type === "capture") {
-      void saveLatestCapture(message.capture).then(() =>
-        updateBadge(message.capture),
-      );
-      return; // no async response needed
+      if (!isReviewedCapture(message.capture)) return;
+      void captureAction(async () => { await saveLatestCapture(message.capture); await updateBadge(await loadLatestCapture()); });
+      return;
     }
-    if (message.type === "getLatest") {
-      void loadLatestCapture().then((capture) => sendResponse(capture));
-      return true; // async response
-    }
-    if (message.type === "record") {
-      void loadLatestCapture()
-        .then((capture) =>
-          capture
-            ? record(capture)
-            : Promise.resolve({
-                ok: false,
-                message: "Nothing captured yet — open a provider page.",
-              }),
-        )
-        .then((result) => {
-          if (result.ok) void saveLatestCapture(null).then(() => updateBadge(null));
-          sendResponse(result);
-        });
-      return true; // async response
+    if (["getLatest", "getCaptureReceipt", "record", "discardCapture", "openObservationReview"].includes(message.type)) {
+      if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html") || sender.tab) return;
+      const action = captureAction(async () => {
+        if (message.type === "getLatest") return loadLatestCapture();
+        if (message.type === "getCaptureReceipt") return loadCaptureReceipt();
+        if (message.type === "record") return record(message.captureId);
+        if (message.type === "openObservationReview") return openObservationReview();
+        const state = await loadCaptureState();
+        const discarded = state.pending?.capture ?? state.latest;
+        if (!discarded || message.type !== "discardCapture" || discarded.captureId !== message.captureId) {
+          return { ok: false, message: "Capture changed. Review the displayed balance before discarding." };
+        }
+        await saveCaptureState(completeCapture(state, discarded.captureId));
+        await updateBadge(await loadLatestCapture());
+        return { ok: true, message: "Discarded local review. This does not undo a submission; check PointUp before recording a fresh capture." };
+      });
+      void action.catch(() => ({ ok: false, message: "Capture action failed. Keep your review and retry." })).then(sendResponse);
+      return true;
     }
     return undefined;
   },

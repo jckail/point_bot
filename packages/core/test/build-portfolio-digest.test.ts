@@ -9,6 +9,7 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 describe("BuildPortfolioDigest", () => {
   it("composes the summary with accounts ordered by estimated value", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
@@ -16,12 +17,12 @@ describe("BuildPortfolioDigest", () => {
 
     // hilton at 0.5 cpp is worth less than united at 1.2 cpp despite more points.
     const hilton = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hilton",
       membershipNumber: "HH1",
     });
     const united = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP1",
     });
@@ -45,7 +46,7 @@ describe("BuildPortfolioDigest", () => {
 
     const digest = await new BuildPortfolioDigest(
       new ListLoyaltyAccounts(accounts, balances),
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(digest.userId).toBe("user-1");
     expect(digest.goals).toEqual([]);
@@ -67,7 +68,7 @@ describe("BuildPortfolioDigest", () => {
       ["user-2", "delta"],
     ] as const) {
       const account = createLoyaltyAccount({
-        userId,
+        userId: asUserId(userId),
         providerId,
         membershipNumber: "X1",
       });

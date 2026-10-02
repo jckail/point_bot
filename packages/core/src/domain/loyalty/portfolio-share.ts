@@ -1,10 +1,20 @@
+import { ShareId, type UserId } from "../shared/ids";
+import { InvalidShareExpiryError } from "../errors";
+
+export const MAX_SHARE_EXPIRY_DAYS = 365;
+
+export function normalizeShareExpiryDays(days: number | null | undefined): number | null {
+  if (days == null) return null;
+  if (!Number.isInteger(days) || days < 1 || days > MAX_SHARE_EXPIRY_DAYS) throw new InvalidShareExpiryError();
+  return days;
+}
 /**
  * Privacy-preserving public share of a portfolio snapshot. The token is the
  * only secret; membership numbers and account ids never appear on the wire.
  */
 export interface PortfolioShare {
-  readonly id: string;
-  readonly userId: string;
+  readonly id: ShareId;
+  readonly userId: UserId;
   /** Opaque public token used in `/share/{token}` URLs. */
   readonly token: string;
   readonly label: string | null;
@@ -14,19 +24,20 @@ export interface PortfolioShare {
 }
 
 export interface NewPortfolioShare {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly label?: string | null;
   readonly expiresAt?: Date | null;
-  readonly id?: string;
+  readonly id?: ShareId;
   readonly token?: string;
   readonly now?: Date;
 }
 
 export function createPortfolioShare(input: NewPortfolioShare): PortfolioShare {
   const now = input.now ?? new Date();
+  if (!Number.isFinite(now.getTime()) || (input.expiresAt != null && !Number.isFinite(input.expiresAt.getTime()))) throw new InvalidShareExpiryError();
   const label = input.label?.trim() || null;
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? ShareId.generate(),
     userId: input.userId,
     token: input.token ?? crypto.randomUUID().replaceAll("-", ""),
     label: label && label.length > 80 ? label.slice(0, 80) : label,
@@ -44,8 +55,9 @@ export function revokePortfolioShare(
 }
 
 export function isShareActive(share: PortfolioShare, now: Date): boolean {
+  if (!Number.isFinite(now.getTime())) return false;
   if (share.revokedAt) return false;
-  if (share.expiresAt && share.expiresAt.getTime() <= now.getTime()) {
+  if (share.expiresAt && (!Number.isFinite(share.expiresAt.getTime()) || share.expiresAt.getTime() <= now.getTime())) {
     return false;
   }
   return true;

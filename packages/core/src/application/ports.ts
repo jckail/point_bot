@@ -1,5 +1,10 @@
+import type {
+  AwardSearchQuery,
+  AwardSearchResult,
+} from "../domain/loyalty/award-availability";
 import type { LoyaltyAccount } from "../domain/loyalty/loyalty-account";
 
+import type { UserId } from "../domain/shared/ids";
 /**
  * Outbound ports (hexagonal architecture). The application layer owns these
  * interfaces; infrastructure adapters implement them. Ports are intentionally
@@ -79,7 +84,7 @@ export interface Mailer {
  */
 export interface UserDirectory {
   /** Returns null when the user has no usable email address. */
-  getEmail(userId: string): Promise<string | null>;
+  getEmail(userId: UserId): Promise<string | null>;
 }
 
 /** A short chat/notification message ready to deliver to a channel. */
@@ -102,7 +107,8 @@ export interface Notifier {
 
 // ─── AI assistant ──────────────────────────────────────────────────────────
 
-export type AssistantRole = "system" | "user" | "assistant";
+export const ASSISTANT_ROLES = ["system", "user", "assistant"] as const;
+export type AssistantRole = (typeof ASSISTANT_ROLES)[number];
 
 export interface AssistantMessage {
   readonly role: AssistantRole;
@@ -136,4 +142,16 @@ export interface ScrapedPage {
  */
 export interface PageScraper {
   scrape(url: string): Promise<ScrapedPage>;
+}
+
+// ─── Award availability ────────────────────────────────────────────────────
+
+/**
+ * Searches live award space. Implementations never throw: a missing
+ * configuration yields `status: "not_configured"` and a failing backend
+ * yields `status: "error"`, both with no options, so callers can only ever
+ * show availability that a source really returned.
+ */
+export interface AwardAvailabilitySource {
+  searchAwards(query: AwardSearchQuery): Promise<AwardSearchResult>;
 }

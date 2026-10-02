@@ -39,3 +39,8 @@ yarn-error.log*
 infra/cdk.out/
 infra/cdk.context.json
 **/dist/
+
+# generated ChatGPT Action spec
+plugins/chatgpt/dist/
+# MCP bundle
+apps/mcp/dist/

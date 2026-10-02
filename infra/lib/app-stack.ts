@@ -1,8 +1,10 @@
 import * as cdk from "aws-cdk-lib";
+import * as applicationautoscaling from "aws-cdk-lib/aws-applicationautoscaling";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ecsPatterns from "aws-cdk-lib/aws-ecs-patterns";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as events from "aws-cdk-lib/aws-events";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -10,6 +12,9 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
+import { AssistantObservability } from "./assistant-observability.js";
+import { assertRegionalCertificate, rolloutConfig } from "./rollout-config.js";
+import { chatGptDeployment } from "./chatgpt-deployment.js";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 
@@ -18,6 +23,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    const certificateEnvironment = {
+      account: cdk.Token.isUnresolved(this.account) ? undefined : this.account,
+      region: cdk.Token.isUnresolved(this.region) ? undefined : this.region,
+    };
+    const rollout = rolloutConfig(key => this.node.tryGetContext(key), certificateEnvironment);
+    const disableBootstrapService = (service: ecs.FargateService): void => {
+      if (!rollout.bootstrapInactive) return;
+      // The higher-level pattern requires a positive count at construction.
+      // Override its existing resource, preserving the service construct path.
+      const resource = service.node.defaultChild;
+      if (!(resource instanceof ecs.CfnService)) {
+        throw new Error("ECS service resource is missing; inactive bootstrap cannot proceed");
+      }
+      resource.desiredCount = 0;
+    };
 
     // ─── Networking ────────────────────────────────────────────────────────
     // One NAT gateway keeps costs down; bump to 2+ for production HA.
@@ -106,11 +126,35 @@ export class AppStack extends cdk.Stack {
     //   -c enableFirecrawl=true  -c firecrawlBaseUrl=https://api.firecrawl.dev
     const ctx = (key: string): string | undefined =>
       (this.node.tryGetContext(key) as string | undefined) || undefined;
+    const upstreamUrl = (key: string, label: string): string | undefined => {
+      const value = ctx(key);
+      if (!value) return undefined;
+      let url: URL;
+      try { url = new URL(value); } catch { throw new Error(`${label} API URL is invalid.`); }
+      if (typeof value !== "string" || url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
+          /[\s\\]/.test(value) || value.includes("?") || value.includes("#")) {
+        throw new Error(`${label} API URL requires HTTPS without credentials, query or fragment.`);
+      }
+      return value;
+    };
+    const llmBaseUrl = upstreamUrl("llmBaseUrl", "LLM");
+    const firecrawlBaseUrl = upstreamUrl("firecrawlBaseUrl", "Firecrawl");
+    const aggregatorApiUrl = upstreamUrl("aggregatorApiUrl", "Aggregator");
     const placeholderSecret = (id: string, description: string) =>
       new secretsmanager.Secret(this, id, {
         description,
         generateSecretString: { passwordLength: 40, excludePunctuation: true },
       });
+
+    // Identity linking is separately opted in using an approved OAuth client.
+    // Only the web task needs this configuration; never pass secrets via context.
+    const chatGpt = chatGptDeployment(key => this.node.tryGetContext(key));
+    if (chatGpt && chatGpt.environment.APP_URL !== rollout.webOrigin) {
+      throw new Error("chatGptRedirectUri origin must match the approved webDomainName");
+    }
+    const chatGptSecret = chatGpt?.confidential
+      ? placeholderSecret("ChatGptClientSecret", "Approved ChatGPT OAuth confidential-client secret; populate before linking")
+      : undefined;
 
     const openAiLlmSecret = this.node.tryGetContext("enableOpenAiLlm")
       ? placeholderSecret(
@@ -118,6 +162,35 @@ export class AppStack extends cdk.Stack {
           "OpenAI-compatible LLM API key (set the real value after deploy)",
         )
       : undefined;
+    // Agents runtime is a separate opt-in; its server credential never enters
+    // image build args, bot/MCP tasks, or scheduled workers.
+    const agentsEnabled =
+      this.node.tryGetContext("enableAgents") === true ||
+      this.node.tryGetContext("enableAgents") === "true";
+    const agentsModelContext: unknown = this.node.tryGetContext("assistantModel");
+    const agentsModel = typeof agentsModelContext === "string"
+      ? agentsModelContext.trim()
+      : undefined;
+    if (agentsEnabled && !agentsModel) {
+      throw new Error("enableAgents requires an explicit assistantModel context value");
+    }
+    const agentsSecret = agentsEnabled
+      ? placeholderSecret(
+          "OpenAiAgentsApiKey",
+          "OpenAI Agents SDK API key; populate before enabling live inference",
+        )
+      : undefined;
+    const agentsEnvironment: Record<string, string> = agentsEnabled
+      ? {
+          ASSISTANT_RUNTIME: "agents",
+          ASSISTANT_MODEL: agentsModel!,
+          ASSISTANT_TRACING_ENABLED:
+            this.node.tryGetContext("assistantTracing") === true ||
+            this.node.tryGetContext("assistantTracing") === "true"
+              ? "true"
+              : "false",
+        }
+      : {};
     const firecrawlSecret = this.node.tryGetContext("enableFirecrawl")
       ? placeholderSecret(
           "FirecrawlApiKey",
@@ -134,9 +207,9 @@ export class AppStack extends cdk.Stack {
           ? { LLM_PROVIDER: "openai" }
           : {}),
       ...(ctx("llmModel") ? { LLM_MODEL: ctx("llmModel")! } : {}),
-      ...(ctx("llmBaseUrl") ? { LLM_BASE_URL: ctx("llmBaseUrl")! } : {}),
-      ...(ctx("firecrawlBaseUrl")
-        ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+      ...(llmBaseUrl ? { LLM_BASE_URL: llmBaseUrl } : {}),
+      ...(firecrawlBaseUrl
+        ? { FIRECRAWL_BASE_URL: firecrawlBaseUrl }
         : {}),
     };
     const assistantSecrets: Record<string, ecs.Secret> = {
@@ -158,8 +231,8 @@ export class AppStack extends cdk.Stack {
           "Loyalty-data aggregator API key (set the real value after deploy)",
         )
       : undefined;
-    const aggregatorEnvironment: Record<string, string> = ctx("aggregatorApiUrl")
-      ? { AGGREGATOR_API_URL: ctx("aggregatorApiUrl")! }
+    const aggregatorEnvironment: Record<string, string> = aggregatorApiUrl
+      ? { AGGREGATOR_API_URL: aggregatorApiUrl }
       : {};
     const aggregatorSecrets: Record<string, ecs.Secret> = aggregatorSecret
       ? { AGGREGATOR_API_KEY: ecs.Secret.fromSecretsManager(aggregatorSecret) }
@@ -182,6 +255,12 @@ export class AppStack extends cdk.Stack {
       containerInsightsV2: ecs.ContainerInsights.ENABLED,
     });
 
+    // Capture the existing driver so monitoring reuses its log group and
+    // keeps the deployed group's construct path and retention unchanged.
+    const appLogDriver = new ecs.AwsLogDriver({
+      streamPrefix: "app",
+      logRetention: logs.RetentionDays.ONE_MONTH,
+    });
     const service = new ecsPatterns.ApplicationLoadBalancedFargateService(
       this,
       "Service",
@@ -192,8 +271,11 @@ export class AppStack extends cdk.Stack {
         desiredCount: 2,
         minHealthyPercent: 100,
         publicLoadBalancer: true,
-        // For HTTPS: add a certificate + domainName/domainZone here and the
-        // pattern will provision the 443 listener and Route 53 record.
+        certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+          this, "WebCertificate", rollout.webCertificateArn,
+        ),
+        protocol: elbv2.ApplicationProtocol.HTTPS,
+        redirectHTTP: true,
         taskImageOptions: {
           image: ecs.ContainerImage.fromDockerImageAsset(image),
           containerPort: 3000,
@@ -202,6 +284,9 @@ export class AppStack extends cdk.Stack {
             // src/env.ts composes DATABASE_URL from the DB_* variables below.
             // Assistant (Bedrock/OpenAI) + Firecrawl config, when configured.
             ...assistantEnvironment,
+            ...agentsEnvironment,
+            ...chatGpt?.environment,
+            APP_URL: rollout.webOrigin,
             ...aggregatorEnvironment,
           },
           secrets: {
@@ -212,17 +297,21 @@ export class AppStack extends cdk.Stack {
             DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
             CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
             ...assistantSecrets,
+            ...(agentsSecret
+              ? { OPENAI_API_KEY: ecs.Secret.fromSecretsManager(agentsSecret) }
+              : {}),
+            ...(chatGptSecret
+              ? { CHATGPT_CLIENT_SECRET: ecs.Secret.fromSecretsManager(chatGptSecret) }
+              : {}),
             ...aggregatorSecrets,
           },
-          logDriver: ecs.LogDrivers.awsLogs({
-            streamPrefix: "app",
-            logRetention: logs.RetentionDays.ONE_MONTH,
-          }),
+          logDriver: appLogDriver,
         },
         circuitBreaker: { rollback: true },
       },
     );
 
+    disableBootstrapService(service.service);
     service.targetGroup.configureHealthCheck({
       path: "/api/health",
       healthyThresholdCount: 2,
@@ -236,6 +325,17 @@ export class AppStack extends cdk.Stack {
     scaling.scaleOnCpuUtilization("CpuScaling", {
       targetUtilizationPercent: 60,
     });
+
+    if (rollout.bootstrapInactive) {
+      // Keep scaling and policy construct paths stable while preventing bootstrap wakeups.
+      const target = scaling.node.findAll().find(node => node instanceof applicationautoscaling.CfnScalableTarget);
+      if (!(target instanceof applicationautoscaling.CfnScalableTarget)) {
+        throw new Error("Web scalable target is missing; inactive bootstrap cannot proceed");
+      }
+      target.minCapacity = 0;
+      target.maxCapacity = 0;
+      target.suspendedState = { dynamicScalingInSuspended: true, dynamicScalingOutSuspended: true, scheduledScalingSuspended: true };
+    }
 
     database.connections.allowDefaultPortFrom(
       service.service,
@@ -292,6 +392,7 @@ export class AppStack extends cdk.Stack {
 
       const botCertificateArn = ctx("botCertificateArn");
       const botDomainName = ctx("botDomainName");
+      if (botCertificateArn) assertRegionalCertificate(botCertificateArn, certificateEnvironment);
 
       const botService = new ecsPatterns.ApplicationLoadBalancedFargateService(
         this,
@@ -350,6 +451,7 @@ export class AppStack extends cdk.Stack {
         },
       );
 
+      disableBootstrapService(botService.service);
       botService.targetGroup.configureHealthCheck({
         path: "/health",
         healthyThresholdCount: 2,
@@ -376,6 +478,90 @@ export class AppStack extends cdk.Stack {
       });
     }
 
+    // ─── MCP server (optional) ─────────────────────────────────────────────
+    // Remote, stateless streamable-HTTP MCP server for ChatGPT / claude.ai
+    // connectors. It holds no secrets and no DB access: it forwards each
+    // caller's own `Authorization: Bearer pu_...` token to the web API.
+    // Opt in with `-c enableMcp=true`; an ACM cert + domain are REQUIRED (synth throws without them):
+    //   npx cdk deploy -c enableMcp=true \
+    //     -c mcpCertificateArn=arn:aws:acm:...:certificate/... \
+    //     -c mcpDomainName=mcp.example.com \
+    //     -c mcpPointupUrl=https://app.example.com   # public web URL
+    if (this.node.tryGetContext("enableMcp")) {
+      const mcpImage = new ecrAssets.DockerImageAsset(this, "McpImage", {
+        directory: path.join(__dirname, "..", ".."),
+        file: "Dockerfile.mcp",
+        platform: ecrAssets.Platform.LINUX_AMD64,
+        exclude: ["infra", "docs", ".git", "**/node_modules", "**/.next"],
+      });
+
+      const mcpCertificateArn = ctx("mcpCertificateArn");
+      const mcpDomainName = ctx("mcpDomainName");
+      if (mcpCertificateArn) assertRegionalCertificate(mcpCertificateArn, certificateEnvironment);
+      // Bearer tokens would cross the ALB in cleartext over HTTP: refuse.
+      if (!mcpCertificateArn || !mcpDomainName) {
+        throw new Error(
+          "enableMcp requires both -c mcpCertificateArn=<ACM certificate ARN> and " +
+            "-c mcpDomainName=<host>: the MCP server carries bearer tokens, which must " +
+            "not be sent over plain HTTP.",
+        );
+      }
+
+      const mcpService = new ecsPatterns.ApplicationLoadBalancedFargateService(
+        this,
+        "McpService",
+        {
+          cluster,
+          cpu: 256,
+          memoryLimitMiB: 512,
+          desiredCount: 1,
+          minHealthyPercent: 100,
+          publicLoadBalancer: true,
+          certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+            this,
+            "McpCertificate",
+            mcpCertificateArn,
+          ),
+          // DNS is the operator's job: point mcpDomainName (a CNAME/alias) at the ALB.
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          redirectHTTP: true,
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromDockerImageAsset(mcpImage),
+            containerPort: 8787,
+            environment: {
+              NODE_ENV: "production",
+              PORT: "8787",
+              HOST: "0.0.0.0",
+              MCP_TRANSPORT: "http",
+              MCP_ALLOWED_HOSTS: mcpDomainName,
+              MCP_PUBLIC_URL: `https://${mcpDomainName}`,
+              // Browser origins allowed to call the server (comma-separated); none by default.
+              ...(ctx("mcpAllowedOrigins")
+                ? { MCP_ALLOWED_ORIGINS: ctx("mcpAllowedOrigins")! }
+                : {}),
+              POINTUP_URL: rollout.mcpPointupUrl,
+            },
+            logDriver: ecs.LogDrivers.awsLogs({
+              streamPrefix: "mcp",
+              logRetention: logs.RetentionDays.ONE_MONTH,
+            }),
+          },
+          circuitBreaker: { rollback: true },
+        },
+      );
+      disableBootstrapService(mcpService.service);
+      mcpService.targetGroup.configureHealthCheck({
+        path: "/healthz",
+        healthyThresholdCount: 2,
+        interval: cdk.Duration.seconds(15),
+      });
+
+      new cdk.CfnOutput(this, "McpUrl", {
+        value: `https://${mcpDomainName}/mcp`,
+        description: "Remote MCP endpoint (Authorization: Bearer pu_... required)",
+      });
+    }
+
     // ─── Background worker (scheduled jobs) ────────────────────────────────
     // One image, two EventBridge schedules: balance syncs every 6 hours and a
     // weekly email digest via SES. The digest sender address must be a
@@ -392,12 +578,15 @@ export class AppStack extends cdk.Stack {
       (this.node.tryGetContext("digestFromEmail") as string | undefined) ??
       process.env.DIGEST_FROM_EMAIL;
 
-    const workerSecrets = {
+    const databaseSecrets = {
       DB_HOST: ecs.Secret.fromSecretsManager(dbSecret, "host"),
       DB_PORT: ecs.Secret.fromSecretsManager(dbSecret, "port"),
       DB_USER: ecs.Secret.fromSecretsManager(dbSecret, "username"),
       DB_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, "password"),
       DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
+    };
+    const workerSecrets = {
+      ...databaseSecrets,
       CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
       ...aggregatorSecrets,
     };
@@ -527,8 +716,8 @@ export class AppStack extends cdk.Stack {
           NODE_ENV: "production",
           MAILER: digestFromEmail ? "ses" : "console",
           ...(digestFromEmail ? { DIGEST_FROM_EMAIL: digestFromEmail } : {}),
-          ...(ctx("firecrawlBaseUrl")
-            ? { FIRECRAWL_BASE_URL: ctx("firecrawlBaseUrl")! }
+          ...(firecrawlBaseUrl
+            ? { FIRECRAWL_BASE_URL: firecrawlBaseUrl }
             : {}),
           ...chatWebhookEnv,
         },
@@ -552,13 +741,20 @@ export class AppStack extends cdk.Stack {
     );
 
     for (const task of [syncTask, digestTask, alertsTask, watchTask]) {
+      if (rollout.bootstrapInactive) {
+        const rules = task.node.findAll().filter(node => node instanceof events.CfnRule);
+        if (rules.length !== 1) throw new Error("Scheduled task rule is missing; inactive bootstrap cannot proceed");
+        for (const rule of rules) {
+          if (rule instanceof events.CfnRule) rule.state = "DISABLED";
+        }
+      }
       database.connections.allowDefaultPortFrom(
         task.task.securityGroups![0]!,
         "Worker tasks to PostgreSQL",
       );
     }
 
-    // ─── One-off migration task (invoked by CI after each deploy) ──────────
+    // ─── One-off migration task (invoked before host activation) ──────────
     // Same worker image, `migrate` command: applies pending drizzle
     // migrations under an advisory lock. CI runs it via `aws ecs run-task`
     // using the outputs below.
@@ -571,7 +767,7 @@ export class AppStack extends cdk.Stack {
       image: ecs.ContainerImage.fromDockerImageAsset(workerImage),
       command: ["migrate"],
       environment: { NODE_ENV: "production" },
-      secrets: workerSecrets,
+      secrets: databaseSecrets,
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "migrate",
         logRetention: logs.RetentionDays.ONE_MONTH,
@@ -610,9 +806,30 @@ export class AppStack extends cdk.Stack {
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
 
+    const assistantMonitoring = new AssistantObservability(
+      this,
+      "AssistantMonitoring",
+      appLogDriver.logGroup!,
+    );
+    new cdk.CfnOutput(this, "AssistantDashboardName", {
+      value: assistantMonitoring.dashboard.dashboardName,
+    });
+    if (chatGptSecret) {
+      new cdk.CfnOutput(this, "ChatGptClientSecretArn", {
+        value: chatGptSecret.secretArn,
+        description: "Populate with the approved OAuth client secret before ChatGPT identity linking",
+      });
+    }
+    if (agentsSecret) {
+      new cdk.CfnOutput(this, "OpenAiAgentsSecretArn", {
+        value: agentsSecret.secretArn,
+        description: "Populate with an approved OpenAI API key before using the agents runtime",
+      });
+    }
+
     // ─── Outputs ───────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "LoadBalancerUrl", {
-      value: `http://${service.loadBalancer.loadBalancerDnsName}`,
+      value: rollout.webOrigin,
       description: "Public URL of the application",
     });
     new cdk.CfnOutput(this, "DatabaseSecretArn", {
@@ -642,7 +859,12 @@ export class AppStack extends cdk.Stack {
       });
     }
 
-    // Consumed by .github/workflows/deploy.yml to run migrations post-deploy.
+    new cdk.CfnOutput(this, "DeploymentPhase", {
+      value: rollout.bootstrapInactive ? "inactive-bootstrap" : "active",
+    });
+    new cdk.CfnOutput(this, "WebOrigin", { value: rollout.webOrigin });
+
+    // Consumed by deployment tooling to migrate before candidate host activation.
     new cdk.CfnOutput(this, "ClusterArn", { value: cluster.clusterArn });
     new cdk.CfnOutput(this, "MigrationTaskDefinitionArn", {
       value: migrationTaskDef.taskDefinitionArn,

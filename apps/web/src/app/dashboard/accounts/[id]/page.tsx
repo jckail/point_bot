@@ -1,5 +1,5 @@
-import { auth } from "@clerk/nextjs/server";
-import { LoyaltyAccountNotFoundError } from "@pointup/core";
+import { getSessionUserId } from "@/server/auth";
+import { LoyaltyAccountId, LoyaltyAccountNotFoundError } from "@pointup/core";
 import { type Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -9,15 +9,17 @@ import {
   togglePinAccountAction,
   unlinkLoyaltyAccountAction,
 } from "@/app/actions";
+import { AccountCardProductForm } from "@/components/account-card-product-form";
 import { AccountNotesForm } from "@/components/account-notes-form";
 import { ManualBalanceForm } from "@/components/manual-balance-form";
 import { MembershipNumberForm } from "@/components/membership-number-form";
 import { BalanceTrendChips } from "@/components/balance-trend";
 import { ProviderBadge } from "@/components/provider-badge";
 import { Sparkline } from "@/components/sparkline";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getContainer } from "@/server/container";
+import { getProviderSyncOptions } from "@/server/provider-sync";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ export default async function AccountDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) redirect("/");
 
   const { id } = await params;
@@ -36,8 +38,8 @@ export default async function AccountDetailPage({
 
   let account, history;
   try {
-    account = await useCases.getLoyaltyAccount.execute(userId, id);
-    history = await useCases.getBalanceHistory.execute(userId, id, 90);
+    account = await useCases.getLoyaltyAccount.execute(userId, LoyaltyAccountId.parse(id));
+    history = await useCases.getBalanceHistory.execute(userId, LoyaltyAccountId.parse(id), 90);
   } catch (error) {
     if (error instanceof LoyaltyAccountNotFoundError) notFound();
     throw error;
@@ -45,6 +47,7 @@ export default async function AccountDetailPage({
 
   // Sparkline wants oldest → newest.
   const chartValues = [...history].reverse().map((entry) => entry.points);
+  const syncMode = getProviderSyncOptions([account.provider.id]).modes[account.provider.id] ?? "unavailable";
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6">
@@ -56,7 +59,7 @@ export default async function AccountDetailPage({
           &larr; Back to dashboard
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-bold text-ink">
+          <h1 className="break-words font-display text-3xl font-bold text-ink">
             {account.pinnedAt ? "★ " : ""}
             {account.provider.displayName}
           </h1>
@@ -76,7 +79,7 @@ export default async function AccountDetailPage({
             </button>
           </form>
         </div>
-        <p className="text-ink-muted">
+        <p className="break-all text-ink-muted">
           Member #{account.membershipNumber}
           {account.hasStoredCredential && " · credential vault connected"}
         </p>
@@ -86,7 +89,7 @@ export default async function AccountDetailPage({
       <section className="card-surface flex flex-col gap-6 p-6 md:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+            <p className="text-sm font-medium text-ink-faint">
               Current balance
             </p>
             <p className="font-display mt-1 text-4xl font-bold text-ink">
@@ -106,7 +109,7 @@ export default async function AccountDetailPage({
                     dateStyle: "medium",
                     timeStyle: "short",
                   })}{" "}
-                  · {account.latestBalance.source === "sync" ? "synced" : "manual entry"}
+                  · {account.latestBalance.source === "sync" ? "synced" : account.latestBalance.source === "agent" ? "agent capture" : "manual entry"}
                 </p>
                 <div className="mt-3">
                   <BalanceTrendChips trend={account.trend} />
@@ -114,19 +117,26 @@ export default async function AccountDetailPage({
               </>
             )}
           </div>
+          {syncMode === "unavailable" ? <div className="flex flex-col gap-2 text-sm">
+            <p className="text-ink-muted">Automatic sync is unavailable for this program.</p>
+            <Link href="#record-balance" className="font-semibold text-brand no-underline">Record a balance manually</Link>
+            <Link href="/dashboard/agents#capture-consent" className="font-semibold text-brand no-underline">Explore consented capture</Link>
+          </div> : <div className="flex flex-col items-start gap-2">
+          <p className="text-xs text-ink-muted">{syncMode === "demo" ? "Demo balances are simulated." : "API configured; provider access and delivery still need verification."}</p>
           <form action={syncLoyaltyAccountAction}>
             <input type="hidden" name="accountId" value={account.id} />
-            <Button variant="secondary" size="sm" type="submit">
-              Sync now
-            </Button>
+            <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
+              {syncMode === "demo" ? "Demo sync" : "Sync via API"}
+            </SubmitButton>
           </form>
+          </div>}
         </div>
 
         {chartValues.length >= 2 ? (
           <Sparkline values={chartValues} />
         ) : (
           <p className="text-sm text-ink-faint">
-            Balance history will chart here after a couple of syncs.
+            Balance history will chart here after two recorded balances.
           </p>
         )}
       </section>
@@ -144,7 +154,7 @@ export default async function AccountDetailPage({
               {history.slice(0, 8).map((entry) => (
                 <li
                   key={entry.capturedAt.toISOString()}
-                  className="flex items-center justify-between py-2.5 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                 >
                   <span className="text-ink">
                     {formatPoints(entry.points)}
@@ -166,7 +176,7 @@ export default async function AccountDetailPage({
         </section>
 
         <section className="card-surface flex flex-col gap-5 p-6">
-          <div>
+          <div id="record-balance" className="dashboard-section">
             <h2 className="font-display text-lg font-semibold text-ink">
               Record a balance
             </h2>
@@ -185,6 +195,13 @@ export default async function AccountDetailPage({
               membershipNumber={account.membershipNumber}
             />
           </div>
+
+          {account.provider.id === "chase-ultimate-rewards" && (
+            <div id="transfer-card">
+              <h2 className="font-display text-lg font-semibold text-ink">Transfer card</h2>
+              <AccountCardProductForm key={account.cardProductId ?? "unknown"} account={account} />
+            </div>
+          )}
 
           <div>
             <h2 className="font-display text-lg font-semibold text-ink">
@@ -214,9 +231,9 @@ export default async function AccountDetailPage({
         </div>
         <form action={unlinkLoyaltyAccountAction}>
           <input type="hidden" name="accountId" value={account.id} />
-          <Button variant="danger" size="sm" type="submit">
+          <SubmitButton variant="danger" size="sm" pendingLabel="Unlinking…">
             Unlink account
-          </Button>
+          </SubmitButton>
         </form>
       </section>
     </main>

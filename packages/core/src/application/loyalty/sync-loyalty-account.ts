@@ -1,5 +1,8 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   CredentialUnavailableError,
+  LoyaltyAccountNotFoundError,
   ProviderNotSupportedError,
 } from "../../domain/errors";
 import { createBalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
@@ -21,9 +24,10 @@ import { requireOwnedAccount } from "./access";
 import { recordActivity } from "./list-activity";
 import type { BalanceReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface SyncLoyaltyAccountInput {
-  readonly userId: string;
-  readonly accountId: string;
+  readonly userId: UserId;
+  readonly accountId: LoyaltyAccountId;
   /**
    * Credential resolved on the calling surface (e.g. from Apple Keychain on
    * mobile or the Chrome password manager in an extension). Takes precedence
@@ -40,6 +44,7 @@ export class SyncLoyaltyAccount {
     private readonly vault: CredentialVault,
     private readonly activity?: ActivityEventRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: SyncLoyaltyAccountInput): Promise<BalanceReadModel> {
@@ -63,19 +68,60 @@ export class SyncLoyaltyAccount {
       source: "sync",
       capturedAt: now,
     });
-    await this.balances.insert(snapshot);
-
-    // Activity resets the inactivity clock for programs that expire.
-    await this.accounts.update(refreshExpiryFromActivity(account, now));
-
     const provider = getProviderOrThrow(account.providerId);
-    await recordActivity(this.activity, {
-      userId: input.userId,
-      type: "balance_synced",
-      accountId: account.id,
-      providerId: account.providerId,
-      summary: `Synced ${provider.displayName}: ${balance.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
-      occurredAt: now,
+
+    await this.eventing.unitOfWork.run(async () => {
+      // Provider IO stays outside the transaction; refresh the account under
+      // the same serialization boundary as manual and observation writers.
+      const current = this.accounts.lockById
+        ? await this.accounts.lockById(input.accountId)
+        : await requireOwnedAccount(this.accounts, input.userId, input.accountId);
+      if (!current || current.userId !== input.userId || current.deletedAt) {
+        throw new LoyaltyAccountNotFoundError(input.accountId);
+      }
+      if (current.providerId !== account.providerId || current.membershipNumber !== account.membershipNumber
+          || current.credentialRef !== account.credentialRef) {
+        throw new CredentialUnavailableError("Account details changed while syncing; retry with the current account.");
+      }
+      const previous = (await this.balances.findLatestByAccountIds([account.id])).get(
+        account.id,
+      );
+      await this.balances.insert(snapshot);
+
+      // Provider capture happened before the account lock. A concurrent newer
+      // reading or metadata edit must retain its expiry, including explicit NULL.
+      const historical = now.getTime() < current.updatedAt.getTime()
+        || (previous !== undefined && now.getTime() < previous.capturedAt.getTime());
+      const refreshed = historical ? current : refreshExpiryFromActivity(current, now);
+      const mutationTime = this.clock.now();
+      await this.accounts.update({
+        ...refreshed,
+        updatedAt: new Date(Math.max(mutationTime.getTime(), current.updatedAt.getTime())),
+      });
+
+      await recordActivity(this.activity, {
+        userId: input.userId,
+        type: "balance_synced",
+        accountId: account.id,
+        providerId: account.providerId,
+        summary: `Synced ${provider.displayName}: ${balance.points.toLocaleString("en-US")} ${provider.pointsCurrency}`,
+        occurredAt: now,
+      });
+      await this.eventing.publisher.publish([
+        createDomainEvent("balance.recorded", {
+          userId: input.userId,
+          aggregateId: account.id,
+          occurredAt: now,
+          payload: {
+            accountId: account.id,
+            providerId: account.providerId,
+            points: snapshot.points,
+            previousPoints: previous?.points ?? null,
+            source: "sync",
+            capturedAt: now.toISOString(),
+          },
+        }),
+      ]);
     });
 
     return {

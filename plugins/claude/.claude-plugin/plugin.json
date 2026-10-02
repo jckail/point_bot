@@ -1,0 +1,10 @@
+{
+  "name": "pointup",
+  "version": "1.0.0",
+  "description": "Manage your loyalty points from Claude: review your portfolio, rescue expiring points, plan redemptions, and capture balances from your own signed-in browser with explicit, revocable consent.",
+  "author": { "name": "PointUp" },
+  "homepage": "https://github.com/jckail/point_bot",
+  "repository": "https://github.com/jckail/point_bot",
+  "license": "MIT",
+  "keywords": ["loyalty", "points", "miles", "travel", "mcp"]
+}

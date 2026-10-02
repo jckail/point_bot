@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import {
   LoyaltyAccountNotFoundError,
   TripGoalNotFoundError,
@@ -17,21 +19,22 @@ import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 import type { TripGoalReadModel } from "./create-trip-goal";
 
+import type { LoyaltyAccountId, TripGoalId, UserId } from "../../domain/shared/ids";
 export interface UpdateTripGoalInput {
-  readonly userId: string;
-  readonly goalId: string;
+  readonly userId: UserId;
+  readonly goalId: TripGoalId;
   readonly title?: string;
   readonly targetPoints?: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly status?: TripGoalStatus;
   readonly notes?: string | null;
 }
 
 async function requireOwnedGoal(
   goals: TripGoalRepository,
-  userId: string,
-  goalId: string,
+  userId: UserId,
+  goalId: TripGoalId,
 ): Promise<TripGoal> {
   const goal = await goals.findById(goalId);
   if (!goal || goal.userId !== userId) {
@@ -73,6 +76,7 @@ export class UpdateTripGoal {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly balances: BalanceSnapshotRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: UpdateTripGoalInput): Promise<TripGoalReadModel> {
@@ -101,16 +105,50 @@ export class UpdateTripGoal {
       now: this.clock.now(),
     });
 
-    await this.goals.update(updated);
+    const changed = (
+      [
+        "title",
+        "targetPoints",
+        "targetDate",
+        "accountIds",
+        "status",
+        "notes",
+      ] as const
+    ).filter((field) => input[field] !== undefined);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.update(updated);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.updated", {
+          userId: input.userId,
+          aggregateId: goal.id,
+          occurredAt: updated.updatedAt,
+          payload: { changed },
+        }),
+      ]);
+    });
     return toReadModel(updated, this.balances);
   }
 }
 
 export class DeleteTripGoal {
-  constructor(private readonly goals: TripGoalRepository) {}
+  constructor(
+    private readonly goals: TripGoalRepository,
+    private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
+  ) {}
 
-  async execute(userId: string, goalId: string): Promise<void> {
+  async execute(userId: UserId, goalId: TripGoalId): Promise<void> {
     await requireOwnedGoal(this.goals, userId, goalId);
-    await this.goals.delete(goalId);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.delete(goalId);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.deleted", {
+          userId,
+          aggregateId: goalId,
+          occurredAt: this.clock.now(),
+          payload: {},
+        }),
+      ]);
+    });
   }
 }

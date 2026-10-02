@@ -1,15 +1,17 @@
+import { normalizeCardProductId, type CardProductId } from "./card-products";
 import {
   InvalidMembershipNumberError,
   InvalidAccountNotesError,
   InvalidAccountTagError,
-  ProviderNotSupportedError,
 } from "../errors";
 import {
   getProviderOrThrow,
-  isSupportedProvider,
+  parseProviderId,
   projectExpiryDate,
+  type ProviderId,
 } from "./provider";
 
+import { LoyaltyAccountId, type UserId } from "../shared/ids";
 /**
  * A user's membership in a loyalty program (e.g. their United MileagePlus
  * account).
@@ -20,9 +22,10 @@ import {
  * docs/integrations.md.
  */
 export interface LoyaltyAccount {
-  readonly id: string;
-  readonly userId: string;
-  readonly providerId: string;
+  readonly id: LoyaltyAccountId;
+  readonly userId: UserId;
+  readonly providerId: ProviderId;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly credentialRef: string | null;
   /**
@@ -46,8 +49,9 @@ export interface LoyaltyAccount {
 }
 
 export interface NewLoyaltyAccount {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly providerId: string;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly credentialRef?: string | null;
   /** Override the catalog-projected expiry; omit to project from `now`. */
@@ -55,7 +59,7 @@ export interface NewLoyaltyAccount {
   readonly notes?: string | null;
   readonly tags?: readonly string[];
   readonly pinnedAt?: Date | null;
-  readonly id?: string;
+  readonly id?: LoyaltyAccountId;
   readonly now?: Date;
 }
 
@@ -107,21 +111,20 @@ export function normalizeAccountTags(
 
 /** Factory enforcing the entity's invariants. */
 export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
-  if (!isSupportedProvider(input.providerId)) {
-    throw new ProviderNotSupportedError(input.providerId);
-  }
+  const providerId = parseProviderId(input.providerId);
 
   const now = input.now ?? new Date();
-  const provider = getProviderOrThrow(input.providerId);
+  const provider = getProviderOrThrow(providerId);
   const expiresAt =
     input.expiresAt !== undefined
       ? input.expiresAt
       : projectExpiryDate(provider, now);
 
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? LoyaltyAccountId.generate(),
     userId: input.userId,
-    providerId: input.providerId,
+    providerId,
+    cardProductId: normalizeCardProductId(providerId, input.cardProductId),
     membershipNumber: normalizeMembershipNumber(input.membershipNumber),
     credentialRef: input.credentialRef ?? null,
     expiresAt,
@@ -136,6 +139,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
 
 export interface LoyaltyAccountChanges {
   /** New membership number; omit to leave unchanged. */
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber?: string;
   /** New credential ref; `null` clears it, omit to leave unchanged. */
   readonly credentialRef?: string | null;
@@ -161,6 +165,9 @@ export function applyLoyaltyAccountChanges(
 ): LoyaltyAccount {
   return {
     ...account,
+    cardProductId: changes.cardProductId !== undefined
+      ? normalizeCardProductId(account.providerId, changes.cardProductId)
+      : normalizeCardProductId(account.providerId, account.cardProductId),
     membershipNumber:
       changes.membershipNumber !== undefined
         ? normalizeMembershipNumber(changes.membershipNumber)

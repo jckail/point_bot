@@ -40,8 +40,7 @@ export function SharePortfolioSection({
           Share snapshot
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Privacy-preserving link — totals and program names only, no membership
-          numbers.
+          Anyone with the link can view program names, balances and estimated values. Membership numbers stay private. Revoke the link whenever you need.
         </p>
       </div>
 
@@ -54,13 +53,13 @@ export function SharePortfolioSection({
                 key={share.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-ink">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-medium text-ink">
                     {share.label ?? "Untitled share"}
                   </p>
                   <a
                     href={url}
-                    className="truncate text-xs text-brand-soft no-underline hover:underline"
+                    className="block break-all text-xs text-brand-soft no-underline hover:underline"
                   >
                     {url}
                   </a>
@@ -72,12 +71,7 @@ export function SharePortfolioSection({
                 </div>
                 <form action={revokePortfolioShareAction}>
                   <input type="hidden" name="shareId" value={share.id} />
-                  <button
-                    type="submit"
-                    className="text-xs font-medium text-ink-faint transition hover:text-ink"
-                  >
-                    Revoke
-                  </button>
+                  <SubmitButton variant="secondary" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
                 </form>
               </li>
             );

@@ -38,6 +38,19 @@ Make the data users already have more useful. All items are core + web changes w
 | ✅ | **Bang-for-buck advisor** | Transfer partner graph + curated/scraped deal ranking |
 | 🔮 | **Custom valuations** | Let users override cents-per-point per program; adds a per-user settings table |
 
+## Phase 2.5 — Agents (shipped)
+
+| Status | Feature | Notes |
+| --- | --- | --- |
+| ✅ | **MCP server** | `apps/mcp`: stdio + stateless HTTP; tools, prompts, dashboard-only consent |
+| ✅ | **Personal access tokens** | Scoped, hashed, expiring; session-only minting |
+| ✅ | **Consent + skills + write-back** | Per-provider consent, host allow-list, plausibility guard, audit trail |
+| ✅ | **Claude plugin / ChatGPT Action** | `plugins/claude`, `plugins/chatgpt` |
+| ✅ | **Supabase-ready Postgres** | Pooler/TLS handling, RLS migration |
+| 🔜 | **OAuth for connectors** | Per-user authorization for ChatGPT/claude.ai instead of pasted PATs |
+| 🔜 | **Per-token rate limits** | Before public launch |
+| 🔮 | **Deterministic scrape skills** | Playwright scripts that run without an LLM, same consent path |
+
 ## Phase 2 — Automation & notifications
 
 Move from on-demand to ambient. Powered by the background worker (`apps/worker`): EventBridge-scheduled Fargate tasks in AWS, `docker compose run worker` locally, with SES for delivery in production and Mailpit (OSS) for local email testing.

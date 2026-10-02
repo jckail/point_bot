@@ -1,3 +1,5 @@
+import type { CardProductId } from "../src/domain/loyalty/card-products";
+import type { AccessTokenId, AwardWatchId, ConsentId, LoyaltyAccountId, ObservationId, ShareId, TransferBonusId, TripGoalId, UserId } from "../src/domain/shared/ids";
 import type { ActivityEvent } from "../src/domain/loyalty/activity";
 import type { BalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
 import type { LoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
@@ -11,6 +13,10 @@ import type {
   AwardWatchRepository,
 } from "../src/domain/loyalty/award-watch";
 import type {
+  TransferBonus,
+  TransferBonusRepository,
+} from "../src/domain/loyalty/transfer-bonus";
+import type {
   UserSettings,
   UserSettingsRepository,
 } from "../src/domain/loyalty/user-settings";
@@ -23,6 +29,24 @@ import type {
   PortfolioShareRepository,
   TripGoalRepository,
 } from "../src/domain/loyalty/repositories";
+import type {
+  AccessToken,
+  AccessTokenRepository,
+} from "../src/domain/agent/access-token";
+import type {
+  ConsentGrant,
+  ConsentGrantRepository,
+} from "../src/domain/agent/consent";
+import type {
+  AgentObservation,
+  AgentObservationRepository,
+  ObservationCredential,
+} from "../src/domain/agent/observation";
+import { AccessTokenInvalidError, ConsentRequiredError, InsufficientScopeError, LoyaltyAccountNotFoundError } from "../src/domain/errors";
+import { isConsentActive } from "../src/domain/agent/consent";
+import { isTokenUsable } from "../src/domain/agent/access-token";
+import type { DomainEvent } from "../src/domain/events";
+import type { Eventing } from "../src/application/events/ports";
 import { buildTrendContext } from "../src/application/loyalty/balance-trend";
 import type {
   CredentialVault,
@@ -37,13 +61,13 @@ import type {
 export class InMemoryLoyaltyAccountRepository
   implements LoyaltyAccountRepository
 {
-  readonly rows = new Map<string, LoyaltyAccount>();
+  readonly rows = new Map<LoyaltyAccountId, LoyaltyAccount>();
 
-  async findById(id: string): Promise<LoyaltyAccount | null> {
+  async findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
     return this.rows.get(id) ?? null;
   }
 
-  async findByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     return [...this.rows.values()]
       .filter((account) => account.userId === userId && !account.deletedAt)
       .sort((a, b) => {
@@ -56,7 +80,7 @@ export class InMemoryLoyaltyAccountRepository
       });
   }
 
-  async findDeletedByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findDeletedByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     return [...this.rows.values()]
       .filter((account) => account.userId === userId && account.deletedAt)
       .sort(
@@ -66,7 +90,7 @@ export class InMemoryLoyaltyAccountRepository
   }
 
   async findByUserAndProvider(
-    userId: string,
+    userId: UserId,
     providerId: string,
   ): Promise<LoyaltyAccount | null> {
     return (
@@ -77,7 +101,7 @@ export class InMemoryLoyaltyAccountRepository
     );
   }
 
-  async listUserIds(): Promise<string[]> {
+  async listUserIds(): Promise<UserId[]> {
     return [
       ...new Set(
         [...this.rows.values()]
@@ -91,11 +115,15 @@ export class InMemoryLoyaltyAccountRepository
     this.rows.set(account.id, account);
   }
 
-  async update(account: LoyaltyAccount): Promise<void> {
-    this.rows.set(account.id, account);
+  async update(account: LoyaltyAccount, selection?: { readonly cardProductId?: CardProductId | null }): Promise<void> {
+    this.rows.set(account.id, {
+      ...account,
+      cardProductId: selection?.cardProductId !== undefined
+        ? selection.cardProductId : this.rows.get(account.id)?.cardProductId ?? null,
+    });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: LoyaltyAccountId): Promise<void> {
     this.rows.delete(id);
   }
 }
@@ -110,9 +138,9 @@ export class InMemoryBalanceSnapshotRepository
   }
 
   async findLatestByAccountIds(
-    accountIds: readonly string[],
-  ): Promise<Map<string, BalanceSnapshot>> {
-    const latest = new Map<string, BalanceSnapshot>();
+    accountIds: readonly LoyaltyAccountId[],
+  ): Promise<Map<LoyaltyAccountId, BalanceSnapshot>> {
+    const latest = new Map<LoyaltyAccountId, BalanceSnapshot>();
     for (const row of this.rows) {
       if (!accountIds.includes(row.loyaltyAccountId)) continue;
       const current = latest.get(row.loyaltyAccountId);
@@ -124,10 +152,10 @@ export class InMemoryBalanceSnapshotRepository
   }
 
   async findTrendContextByAccountIds(
-    accountIds: readonly string[],
+    accountIds: readonly LoyaltyAccountId[],
     now: Date,
-  ): Promise<Map<string, BalanceTrendContext>> {
-    const result = new Map<string, BalanceTrendContext>();
+  ): Promise<Map<LoyaltyAccountId, BalanceTrendContext>> {
+    const result = new Map<LoyaltyAccountId, BalanceTrendContext>();
     for (const accountId of accountIds) {
       const snapshots = this.rows
         .filter((row) => row.loyaltyAccountId === accountId)
@@ -138,7 +166,7 @@ export class InMemoryBalanceSnapshotRepository
   }
 
   async findByAccountId(
-    accountId: string,
+    accountId: LoyaltyAccountId,
     limit: number,
   ): Promise<BalanceSnapshot[]> {
     return this.rows
@@ -167,7 +195,7 @@ export class InMemoryActivityEventRepository
     this.rows.push(event);
   }
 
-  async findByUserId(userId: string, limit: number): Promise<ActivityEvent[]> {
+  async findByUserId(userId: UserId, limit: number): Promise<ActivityEvent[]> {
     return this.rows
       .filter((row) => row.userId === userId)
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
@@ -176,13 +204,13 @@ export class InMemoryActivityEventRepository
 }
 
 export class InMemoryTripGoalRepository implements TripGoalRepository {
-  readonly rows = new Map<string, TripGoal>();
+  readonly rows = new Map<TripGoalId, TripGoal>();
 
-  async findById(id: string): Promise<TripGoal | null> {
+  async findById(id: TripGoalId): Promise<TripGoal | null> {
     return this.rows.get(id) ?? null;
   }
 
-  async findByUserId(userId: string): Promise<TripGoal[]> {
+  async findByUserId(userId: UserId): Promise<TripGoal[]> {
     return [...this.rows.values()].filter((goal) => goal.userId === userId);
   }
 
@@ -194,7 +222,7 @@ export class InMemoryTripGoalRepository implements TripGoalRepository {
     this.rows.set(goal.id, goal);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: TripGoalId): Promise<void> {
     this.rows.delete(id);
   }
 }
@@ -202,9 +230,9 @@ export class InMemoryTripGoalRepository implements TripGoalRepository {
 export class InMemoryPortfolioShareRepository
   implements PortfolioShareRepository
 {
-  readonly rows = new Map<string, PortfolioShare>();
+  readonly rows = new Map<ShareId, PortfolioShare>();
 
-  async findById(id: string): Promise<PortfolioShare | null> {
+  async findById(id: ShareId): Promise<PortfolioShare | null> {
     return this.rows.get(id) ?? null;
   }
 
@@ -214,7 +242,7 @@ export class InMemoryPortfolioShareRepository
     );
   }
 
-  async findByUserId(userId: string): Promise<PortfolioShare[]> {
+  async findByUserId(userId: UserId): Promise<PortfolioShare[]> {
     return [...this.rows.values()].filter((share) => share.userId === userId);
   }
 
@@ -226,7 +254,7 @@ export class InMemoryPortfolioShareRepository
     this.rows.set(share.id, share);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: ShareId): Promise<void> {
     this.rows.delete(id);
   }
 }
@@ -236,11 +264,11 @@ export class InMemoryCustomValuationRepository
 {
   readonly rows = new Map<string, CustomValuation>();
 
-  private key(userId: string, providerId: string): string {
+  private key(userId: UserId, providerId: string): string {
     return `${userId}::${providerId}`;
   }
 
-  async listForUser(userId: string) {
+  async listForUser(userId: UserId) {
     return [...this.rows.values()].filter((v) => v.userId === userId);
   }
 
@@ -248,19 +276,19 @@ export class InMemoryCustomValuationRepository
     this.rows.set(this.key(valuation.userId, valuation.providerId), valuation);
   }
 
-  async delete(userId: string, providerId: string) {
+  async delete(userId: UserId, providerId: string) {
     this.rows.delete(this.key(userId, providerId));
   }
 }
 
 export class InMemoryAwardWatchRepository implements AwardWatchRepository {
-  readonly rows = new Map<string, AwardWatch>();
+  readonly rows = new Map<AwardWatchId, AwardWatch>();
 
-  async findById(id: string): Promise<AwardWatch | null> {
+  async findById(id: AwardWatchId): Promise<AwardWatch | null> {
     return this.rows.get(id) ?? null;
   }
 
-  async findByUserId(userId: string): Promise<AwardWatch[]> {
+  async findByUserId(userId: UserId): Promise<AwardWatch[]> {
     return [...this.rows.values()].filter((w) => w.userId === userId);
   }
 
@@ -276,19 +304,222 @@ export class InMemoryAwardWatchRepository implements AwardWatchRepository {
     this.rows.set(watch.id, watch);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: AwardWatchId): Promise<void> {
     this.rows.delete(id);
+  }
+}
+
+export class InMemoryTransferBonusRepository implements TransferBonusRepository {
+  readonly rows = new Map<TransferBonusId, TransferBonus>();
+
+  async insert(bonus: TransferBonus): Promise<void> {
+    this.rows.set(bonus.id, bonus);
+  }
+
+  async findActive(at: Date): Promise<TransferBonus[]> {
+    return [...this.rows.values()].filter(
+      (b) => b.startsAt.getTime() <= at.getTime() && b.endsAt.getTime() >= at.getTime(),
+    );
+  }
+
+  async findById(id: TransferBonusId): Promise<TransferBonus | null> {
+    return this.rows.get(id) ?? null;
   }
 }
 
 export class InMemoryUserSettingsRepository implements UserSettingsRepository {
   readonly rows = new Map<string, UserSettings>();
 
-  async get(userId: string): Promise<UserSettings | null> {
+  async get(userId: UserId): Promise<UserSettings | null> {
     return this.rows.get(userId) ?? null;
   }
 
   async upsert(settings: UserSettings): Promise<void> {
     this.rows.set(settings.userId, settings);
   }
+}
+
+export class InMemoryTokens implements AccessTokenRepository {
+  readonly rows = new Map<AccessTokenId, AccessToken>();
+  async findById(id: AccessTokenId) {
+    return this.rows.get(id) ?? null;
+  }
+  async findByHash(hash: string) {
+    return [...this.rows.values()].find((t) => t.tokenHash === hash) ?? null;
+  }
+  async findByUserId(userId: UserId) {
+    return [...this.rows.values()].filter((t) => t.userId === userId);
+  }
+  async insert(token: AccessToken) {
+    this.rows.set(token.id, token);
+  }
+  async update(token: AccessToken) {
+    this.rows.set(token.id, token);
+  }
+}
+
+export class InMemoryConsents implements ConsentGrantRepository {
+  readonly rows = new Map<ConsentId, ConsentGrant>();
+  async findById(id: ConsentId) {
+    return this.rows.get(id) ?? null;
+  }
+  async findByUserId(userId: UserId) {
+    return [...this.rows.values()].filter((c) => c.userId === userId);
+  }
+  async insert(c: ConsentGrant) {
+    this.rows.set(c.id, c);
+  }
+  async update(c: ConsentGrant) {
+    this.rows.set(c.id, c);
+  }
+  async replaceActive(c: ConsentGrant, at: Date) {
+    for (const row of this.rows.values()) {
+      if (row.userId === c.userId && row.providerId === c.providerId && !row.revokedAt) {
+        this.rows.set(row.id, { ...row, revokedAt: at });
+      }
+    }
+    this.rows.set(c.id, c);
+  }
+}
+
+export class InMemoryObservations implements AgentObservationRepository {
+  readonly rows: AgentObservation[] = [];
+  constructor(private readonly protectedStores?: {
+    accounts: InMemoryLoyaltyAccountRepository;
+    consents: InMemoryConsents;
+    tokens?: InMemoryTokens;
+  }) {}
+
+  async lockSubmission(input: { userId: UserId; providerId: string; credential?: ObservationCredential; captureId?: string; canLinkAccount?: boolean }, now: () => Date) {
+    const stores = this.protectedStores;
+    if (!stores) throw new Error("Observation fake requires explicit protected stores");
+    const account = await stores.accounts.findByUserAndProvider(input.userId, input.providerId);
+    if (account?.deletedAt) throw new LoyaltyAccountNotFoundError(input.providerId);
+    const consent = [...stores.consents.rows.values()].find(row => row.userId === input.userId && row.providerId === input.providerId && isConsentActive(row, now()));
+    if (!consent) throw new ConsentRequiredError(input.providerId);
+    const token = input.credential?.kind === "personal_access_token" ? stores.tokens?.rows.get(input.credential.tokenId) : undefined;
+    const assertAuthorized = () => {
+      if (input.credential?.kind === "personal_access_token") {
+        if (!token || token.userId !== input.userId || !isTokenUsable(token, now())) throw new AccessTokenInvalidError();
+        if (!token.scopes.includes("observations:write")) throw new InsufficientScopeError("observations:write");
+        if (!account && input.canLinkAccount && !token.scopes.includes("portfolio:write")) throw new InsufficientScopeError("portfolio:write");
+      }
+      if (!isConsentActive(consent, now())) throw new ConsentRequiredError(input.providerId);
+    };
+    assertAuthorized();
+    return { account, consent, assertAuthorized };
+  }
+  async findByCaptureId(userId: UserId, captureId: string) {
+    return this.rows.find(row => row.userId === userId && row.captureId === captureId) ?? null;
+  }
+  async lockReview(id: ObservationId, userId: UserId) {
+    const row = this.rows.find(observation => observation.id === id && observation.userId === userId);
+    if (!row) return null;
+    const account = await this.protectedStores?.accounts.findById(row.accountId);
+    if (!account || account.userId !== userId || account.providerId !== row.providerId || account.deletedAt) throw new LoyaltyAccountNotFoundError(row.accountId);
+    return row;
+  }
+  async insert(o: AgentObservation) {
+    this.rows.push(o);
+  }
+  async findById(id: ObservationId) {
+    return this.rows.find((o) => o.id === id) ?? null;
+  }
+  async findByUserId(userId: UserId) {
+    return this.rows.filter((o) => o.userId === userId);
+  }
+  async transition(
+    id: ObservationId,
+    userId: UserId,
+    from: AgentObservation["outcome"],
+    to: AgentObservation["outcome"],
+    metadata?: { reviewedAt: Date; reviewDecision: "confirm" | "reject"; recordedSnapshotId?: string },
+  ) {
+    const index = this.rows.findIndex(
+      (o) => o.id === id && o.userId === userId && o.outcome === from,
+    );
+    if (index < 0) return null;
+    this.rows[index] = { ...this.rows[index]!, outcome: to, ...metadata };
+    return this.rows[index];
+  }
+}
+
+
+/**
+ * Eventing fake: records published events. `run` snapshots the buffer and
+ * discards events published inside a failed unit of work, mimicking rollback.
+ */
+export class RecordingEventing implements Eventing {
+  readonly events: DomainEvent[] = [];
+  readonly publisher = {
+    publish: async (events: readonly DomainEvent[]) => {
+      this.events.push(...events);
+    },
+  };
+  readonly unitOfWork = {
+    // Events roll back, but the in-memory repositories do not.
+    atomic: false,
+    run: async <T>(work: () => Promise<T>): Promise<T> => {
+      const mark = this.events.length;
+      try {
+        return await work();
+      } catch (error) {
+        this.events.length = mark;
+        throw error;
+      }
+    },
+  };
+
+  types(): string[] {
+    return this.events.map((event) => event.type);
+  }
+}
+
+
+/** Atomic rollback fixture for sequential observation unit tests, not a database-lock simulator. */
+export class AtomicObservationEventing implements Eventing {
+  readonly events: DomainEvent[] = [];
+  private active = false;
+  constructor(private readonly stores: {
+    accounts: InMemoryLoyaltyAccountRepository;
+    balances: InMemoryBalanceSnapshotRepository;
+    activity: InMemoryActivityEventRepository;
+    observations: InMemoryObservations;
+    consents?: InMemoryConsents;
+    tokens?: InMemoryTokens;
+  }) {}
+  types(): string[] { return this.events.map(event => event.type); }
+  readonly publisher = { publish: async (events: readonly DomainEvent[]) => { this.events.push(...events); } };
+  readonly unitOfWork = {
+    atomic: true,
+    run: async <T>(work: () => Promise<T>): Promise<T> => {
+      if (this.active) return work();
+      this.active = true;
+      const accounts = structuredClone(this.stores.accounts.rows);
+      const balances = structuredClone(this.stores.balances.rows);
+      const activity = structuredClone(this.stores.activity.rows);
+      const observations = structuredClone(this.stores.observations.rows);
+      const events = structuredClone(this.events);
+      const consents = this.stores.consents ? structuredClone(this.stores.consents.rows) : undefined;
+      const tokens = this.stores.tokens ? structuredClone(this.stores.tokens.rows) : undefined;
+      try { return await work(); }
+      catch (error) {
+        this.stores.accounts.rows.clear();
+        for (const [id, row] of accounts) this.stores.accounts.rows.set(id, row);
+        this.stores.balances.rows.splice(0, this.stores.balances.rows.length, ...balances);
+        this.stores.activity.rows.splice(0, this.stores.activity.rows.length, ...activity);
+        this.stores.observations.rows.splice(0, this.stores.observations.rows.length, ...observations);
+        this.events.splice(0, this.events.length, ...events);
+        if (consents && this.stores.consents) {
+          this.stores.consents.rows.clear();
+          for (const [id, row] of consents) this.stores.consents.rows.set(id, row);
+        }
+        if (tokens && this.stores.tokens) {
+          this.stores.tokens.rows.clear();
+          for (const [id, row] of tokens) this.stores.tokens.rows.set(id, row);
+        }
+        throw error;
+      } finally { this.active = false; }
+    },
+  };
 }

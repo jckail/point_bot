@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { UserId } from "@pointup/core";
+
 /**
  * Verify a Slack slash-command request signature.
  * https://api.slack.com/authentication/verifying-requests-from-slack
@@ -55,6 +57,6 @@ export function parseSlackCommand(rawBody: string): SlackCommand {
 export function resolveUserId(
   defaultUserId: string | undefined,
   platformUserId: string,
-): string {
-  return defaultUserId ?? platformUserId;
+): UserId {
+  return UserId.parse(defaultUserId ?? platformUserId);
 }

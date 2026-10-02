@@ -1,7 +1,9 @@
 import { InvalidBalanceError, InvalidCaptureTimeError } from "../errors";
 
+import type { LoyaltyAccountId } from "../shared/ids";
 /** How a balance value entered the system. */
-export type BalanceSource = "sync" | "manual";
+export const BALANCE_SOURCES = ["sync", "manual", "agent"] as const;
+export type BalanceSource = (typeof BALANCE_SOURCES)[number];
 
 /**
  * A point-in-time reading of a loyalty account's balance. Snapshots are
@@ -9,14 +11,14 @@ export type BalanceSource = "sync" | "manual";
  */
 export interface BalanceSnapshot {
   readonly id: string;
-  readonly loyaltyAccountId: string;
+  readonly loyaltyAccountId: LoyaltyAccountId;
   readonly points: number;
   readonly source: BalanceSource;
   readonly capturedAt: Date;
 }
 
 export interface NewBalanceSnapshot {
-  readonly loyaltyAccountId: string;
+  readonly loyaltyAccountId: LoyaltyAccountId;
   readonly points: number;
   readonly source: BalanceSource;
   readonly id?: string;
@@ -26,7 +28,7 @@ export interface NewBalanceSnapshot {
 export function createBalanceSnapshot(
   input: NewBalanceSnapshot,
 ): BalanceSnapshot {
-  if (!Number.isInteger(input.points) || input.points < 0) {
+  if (!Number.isSafeInteger(input.points) || input.points < 0) {
     throw new InvalidBalanceError();
   }
   if (input.capturedAt && Number.isNaN(input.capturedAt.getTime())) {

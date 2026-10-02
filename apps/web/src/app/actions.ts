@@ -1,7 +1,8 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { DomainError } from "@pointup/core";
+import { getSessionUserId } from "@/server/auth";
+import { DomainError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
+import { createPortfolioShareRequestSchema } from "@pointup/core/contracts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -42,7 +43,7 @@ export async function linkLoyaltyAccountAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const result = await toActionResult(async () => {
@@ -50,6 +51,7 @@ export async function linkLoyaltyAccountAction(
       userId,
       providerId: String(formData.get("providerId") ?? ""),
       membershipNumber: String(formData.get("membershipNumber") ?? ""),
+      cardProductId: (String(formData.get("cardProductId") ?? "") || null) as CardProductId | null,
     });
   });
 
@@ -60,14 +62,14 @@ export async function linkLoyaltyAccountAction(
 export async function syncLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   const accountId = String(formData.get("accountId") ?? "");
   try {
     await getContainer().useCases.syncLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
     });
   } catch (error) {
     if (error instanceof DomainError) {
@@ -82,7 +84,7 @@ export async function syncLoyaltyAccountAction(
 }
 
 export async function syncAllLoyaltyAccountsAction(): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
@@ -93,7 +95,7 @@ export async function recordManualBalanceAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -109,7 +111,7 @@ export async function recordManualBalanceAction(
   const result = await toActionResult(async () => {
     await getContainer().useCases.recordManualBalance.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       points,
       capturedAt,
     });
@@ -126,14 +128,14 @@ export async function updateMembershipNumberAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
   const result = await toActionResult(async () => {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       membershipNumber: String(formData.get("membershipNumber") ?? ""),
     });
   });
@@ -144,16 +146,37 @@ export async function updateMembershipNumberAction(
   return result;
 }
 
+export async function updateCardProductAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const userId = await getSessionUserId();
+  if (!userId) return UNAUTHENTICATED;
+  const accountId = String(formData.get("accountId") ?? "");
+  const result = await toActionResult(async () => {
+    await getContainer().useCases.updateLoyaltyAccount.execute({
+      userId,
+      accountId: LoyaltyAccountId.parse(accountId),
+      cardProductId: (String(formData.get("cardProductId") ?? "") || null) as CardProductId | null,
+    });
+  });
+  if (result.status === "success") {
+    revalidatePath("/dashboard");
+    revalidatePath(`/dashboard/accounts/${accountId}`);
+  }
+  return result;
+}
+
 export async function unlinkLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
     await getContainer().useCases.unlinkLoyaltyAccount.execute(
       userId,
-      String(formData.get("accountId") ?? ""),
+      LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -171,13 +194,14 @@ export async function createTripGoalAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountIds = formData
     .getAll("accountIds")
     .map((value) => String(value))
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((value) => LoyaltyAccountId.parse(value));
   const targetDateRaw = String(formData.get("targetDate") ?? "").trim();
   const targetPoints = Number(formData.get("targetPoints") ?? Number.NaN);
 
@@ -198,13 +222,13 @@ export async function createTripGoalAction(
 export async function deleteTripGoalAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
     await getContainer().useCases.deleteTripGoal.execute(
       userId,
-      String(formData.get("goalId") ?? ""),
+      TripGoalId.parse(String(formData.get("goalId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -221,7 +245,7 @@ export async function importPortfolioAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const result = await toActionResult(async () => {
@@ -236,7 +260,7 @@ export async function importPortfolioAction(
 }
 
 export async function seedDemoPortfolioAction(): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
@@ -255,7 +279,7 @@ export async function seedDemoPortfolioAction(): Promise<void> {
 export async function togglePinAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -264,7 +288,7 @@ export async function togglePinAccountAction(
   try {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       pinned,
     });
   } catch (error) {
@@ -283,7 +307,7 @@ export async function updateAccountNotesAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
@@ -297,7 +321,7 @@ export async function updateAccountNotesAction(
   const result = await toActionResult(async () => {
     await getContainer().useCases.updateLoyaltyAccount.execute({
       userId,
-      accountId,
+      accountId: LoyaltyAccountId.parse(accountId),
       notes: notesRaw.trim().length > 0 ? notesRaw : null,
       tags,
     });
@@ -313,13 +337,13 @@ export async function updateAccountNotesAction(
 export async function restoreLoyaltyAccountAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
     await getContainer().useCases.restoreLoyaltyAccount.execute(
       userId,
-      String(formData.get("accountId") ?? ""),
+      LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {
@@ -336,21 +360,22 @@ export async function createPortfolioShareAction(
   _previous: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return UNAUTHENTICATED;
 
   const label = String(formData.get("label") ?? "").trim();
   const expiresRaw = String(formData.get("expiresInDays") ?? "").trim();
-  const expiresInDays = expiresRaw ? Number(expiresRaw) : null;
+  const parsed = createPortfolioShareRequestSchema.safeParse({
+    label: label.length > 0 ? label : null,
+    expiresInDays: expiresRaw === "" ? null : Number(expiresRaw),
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues.some(issue => issue.path[0] === "label")
+    ? "Share label must be at most 80 characters." : messageForDomainError("INVALID_SHARE_EXPIRY") };
 
   const result = await toActionResult(async () => {
     await getContainer().useCases.createPortfolioShare.execute({
       userId,
-      label: label.length > 0 ? label : null,
-      expiresInDays:
-        expiresInDays && Number.isFinite(expiresInDays)
-          ? expiresInDays
-          : null,
+      ...parsed.data,
     });
   });
 
@@ -361,13 +386,13 @@ export async function createPortfolioShareAction(
 export async function revokePortfolioShareAction(
   formData: FormData,
 ): Promise<void> {
-  const { userId } = await auth();
+  const userId = await getSessionUserId();
   if (!userId) return;
 
   try {
     await getContainer().useCases.revokePortfolioShare.execute(
       userId,
-      String(formData.get("shareId") ?? ""),
+      ShareId.parse(String(formData.get("shareId") ?? "")),
     );
   } catch (error) {
     if (error instanceof DomainError) {

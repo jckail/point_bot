@@ -12,6 +12,7 @@ import { requireOwnedAccount } from "./access";
 import { toLoyaltyAccountReadModel } from "./mappers";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
+import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export class GetLoyaltyAccount {
   constructor(
     private readonly accounts: LoyaltyAccountRepository,
@@ -21,8 +22,8 @@ export class GetLoyaltyAccount {
   ) {}
 
   async execute(
-    userId: string,
-    accountId: string,
+    userId: UserId,
+    accountId: LoyaltyAccountId,
   ): Promise<LoyaltyAccountReadModel> {
     const account = await requireOwnedAccount(this.accounts, userId, accountId);
     const [trends, overrides] = await Promise.all([

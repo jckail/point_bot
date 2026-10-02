@@ -1,64 +1,102 @@
 # PointUp Chrome extension
 
-`apps/extension` is a Manifest V3 Chrome extension that captures loyalty
-balances from provider pages **you're already signed in to** and records them
-in PointUp as manual snapshots — sync without ever sharing your program
-credentials with PointUp.
+The Manifest V3 extension reads a rewards balance from a page the user has
+opened and signed in to. It retains a reviewable candidate locally; recording is
+an explicit popup action. It does not sign in, handle MFA, read provider
+passwords or send the page text to PointUp. The web-hosted assistant uses the
+OpenAI Agents SDK when configured; extension chat calls that authorized server
+runtime rather than storing a model API key in the browser.
 
-It's the second consumer of `@pointup/api-client` (after the web app), which is
-exactly what the multi-surface architecture was built for — see
-[multi-surface.md](./multi-surface.md).
+## Capture and write-back
 
-## How it works
+1. In PointUp, open Dashboard → Agents, grant time-boxed consent for the program
+   and create a personal token with `observations:write`. Save the API URL and
+   token in the extension popup.
+2. Sign in to the program yourself and open its rewards balance page. The
+   content script reads visible text on known provider pages, retries briefly
+   after hydration and retains a detected candidate. Reading is automatic;
+   submission is not.
+3. Reopen the popup, check the program/points and select Record / retry balance.
+   The personal-token path submits a frozen observation to the consent-gated
+   agent endpoint. Current token, consent, host and account authority are checked
+   server-side; unusual values are held for browser review.
+4. If no clear reading appears, record manually in the account page. Page
+   layouts vary; available extraction rules are not proof of live compatibility.
 
-```
-provider page ──content script──▶ background worker ──@pointup/api-client──▶ PointUp API
-  (reads the visible          (matches provider → account,
-   balance, no creds)          records a manual balance)
-```
+The popup has capture steps and a supported-program list. The seven existing
+programs are United, Delta, American, Southwest, Marriott, Hyatt and Hilton.
+The bank candidate adds Chase Ultimate Rewards, US Amex Membership Rewards,
+Capital One Miles and Bilt with program-specific labels and narrower bank hosts.
+Bank page compatibility remains unverified until controlled live acceptance.
 
-1. A **content script** runs only on known provider domains (United, Delta,
-   American, Southwest, Marriott, Hyatt, Hilton). It reads the page's visible
-   text and extracts the balance.
-2. The **background service worker** stores the latest capture and, when you
-   click **Record balance** in the popup, looks up your matching linked account
-   and posts a manual balance via the API.
-3. The **popup** holds settings (API URL + session token) and shows the latest
-   capture.
+Extraction validates complete safe integers with strict comma grouping and
+refuses decimal, negative, exponent, promotional or conflicting readings. Bank
+rules distinguish the rewards product and unit from cash back, card balances
+and status. Source references contain HTTPS origin/path, without query/hash;
+credentials and nonstandard ports are rejected. International Amex pages must
+not be silently assigned to the US program.
 
-The extraction logic (`src/extraction.ts`) is **pure and unit-tested** — no DOM,
-no `chrome` APIs — so provider patterns can be validated exhaustively. A test
-also asserts the manifest's `content_scripts` matches stay in sync with the
-provider rules, so adding a provider can't silently miss the manifest.
+## Authorization and recovery
 
-## What it never does
+Personal tokens (`pu_…`, preferred) require `observations:write` and active
+program consent. Capture identity, time and payload are frozen before posting
+`/api/v1/agent/observations`. A timeout or unknown result retains the same review
+for an exact retry that can recover the server receipt without duplicate effects.
+The legacy Clerk-session token path records a manual snapshot on an already
+linked account and lacks observation replay guarantees; check PointUp before
+repeating an uncertain manual write. Full Clerk extension sign-in remains open.
+Tokens are stored in `chrome.storage.local`; genuine ChatGPT plan credentials
+are not implemented here and must not be treated as equivalent extension tokens.
 
-- It never reads passwords, cookies, or credential fields — only the balance
-  number the page already displays to the signed-in user.
-- It has no provider automation; capture is a one-click, user-initiated action.
+Discard binds the displayed capture ID. Stale discards cannot delete a newer
+candidate; discarding a local review does not undo a server submission. Persisted
+feedback restores outcomes and observation/review references on reopening.
+Capture errors show fixed guidance and validated support references. Raw provider
+errors are not displayed.
 
-## Auth
+Observation and proposal review buttons share one serialized extension-owned tab.
+They reuse that tab without taking ownership of another agent's browser session.
+Future agent verification should also reuse one owned tab per session.
 
-The extension authenticates to the API with a **Clerk session token** as a
-bearer header (the same path mobile uses — see [multi-surface.md](./multi-surface.md)).
-Paste the token and your API URL into the popup's settings. A full
-`@clerk/chrome-extension` sign-in flow is the natural follow-up; the client and
-capture pipeline are already token-driven.
+Previously retained Southwest candidates with providerId `southwest` remain
+frozen. Discard that local review explicitly and reload/recapture to use canonical
+`southwest-rapid-rewards`; no payload rewriting or automatic replay occurs. New
+captures resolve the actual core skill and canonical linked account.
 
-## Build & load
+## Assistant
+
+Chat needs `portfolio:read`; proposing changes also needs `portfolio:write`.
+Only typed questions and authorized PointUp data enter inference. Proposed
+changes require review in the web dashboard. Pending questions and diagnostic
+request IDs are stored before inference under the endpoint/token scope. A reopened
+popup polls while the worker is active; worker restart reports uncertainty and
+requires explicit retry after checking proposals. Correlation IDs do not authorize
+or deduplicate writes. Changing credentials hides the former conversation scope.
+
+## Build and verification
 
 ```bash
 npm run build --workspace @pointup/extension
-# Then in Chrome: chrome://extensions → Developer mode → Load unpacked →
-# select apps/extension/dist
+# Chrome → chrome://extensions → Developer mode → Load unpacked
+# Select apps/extension/dist
 ```
 
-`npm run build` bundles `background`, `content`, and `popup` with esbuild and
-copies `manifest.json` + `popup.html` into `dist/`.
+The build bundles background/content/popup code and copies the manifest/popup.
+Root coordinates builds through the shared heavy-check wrapper after inspecting
+running jobs. Focused tests verify pure extraction, manifest alignment, capture
+replay/review and synthetic Chrome lifecycle behavior. Latest verified runtime
+3701309 passes all six CI37000134163 jobs and CodeQL37000134144, including
+103 extension tests and the production bundle; the new bank candidate requires
+its own committed-head verification.
 
-## Adding a provider
+Add provider-specific rules and approved hosts in `src/extraction.ts`, matching
+content-script patterns in `public/manifest.json`, and positive/negative fixtures.
+Bank hosts require exact matching rather than implicit subdomain permission.
+Use canonical server provider IDs and confirm every extraction host is authorized
+by the corresponding core skill. A new rule or official public page is not evidence
+of a logged-in balance/API connection.
 
-Add a rule to `PROVIDER_PAGE_RULES` in `src/extraction.ts` (host + balance
-regex) **and** the matching `https://*.<host>/*` entry to
-`public/manifest.json` `content_scripts[0].matches`. The sync test will fail if
-you forget the manifest.
+Live provider extraction, authenticated browser/extension lifecycle, Clerk/PAT
+and SDK/exporter delivery remain separate checks. See
+[assistant-agent.md](assistant-agent.md), [integrations.md](integrations.md) and
+[release-backlog.md](release-backlog.md) for remaining work.

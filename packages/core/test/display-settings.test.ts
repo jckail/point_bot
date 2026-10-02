@@ -14,6 +14,7 @@ import {
 } from "../src/infrastructure/fx/fx-rate-sources";
 import { InMemoryUserSettingsRepository } from "./fakes";
 
+import { asUserId } from "./ids";
 const clock = { now: () => new Date("2026-07-09T12:00:00Z") };
 
 describe("convertUsdCents", () => {
@@ -21,17 +22,41 @@ describe("convertUsdCents", () => {
     expect(convertUsdCents(204_044, "EUR", 0.92)).toBe(1877.2);
     expect(convertUsdCents(204_044, "JPY", 155)).toBe(316_268);
   });
+  it("rounds exact decimal halves to target minor units", () => {
+    expect(convertUsdCents(201, "AUD", 1.5)).toBe(3.02);
+    expect(convertUsdCents(201, "EUR", 0.5)).toBe(1.01);
+    expect(convertUsdCents(201, "JPY", 50)).toBe(101);
+    expect(convertUsdCents(100, "EUR", 1.005)).toBe(1.01);
+  });
+  it("preserves signed rounding, zero and finite signed rates", () => {
+    expect(convertUsdCents(-201, "AUD", 1.5)).toBe(-3.01);
+    expect(convertUsdCents(-201, "JPY", 50)).toBe(-100);
+    expect(convertUsdCents(201, "EUR", -0.5)).toBe(-1);
+    expect(convertUsdCents(100, "EUR", 0)).toBe(0);
+    expect(Object.is(convertUsdCents(-1, "EUR", 0.5), -0)).toBe(true);
+    expect(Object.is(convertUsdCents(-0, "EUR", 1), -0)).toBe(true);
+  });
+  it("handles decimal exponent notation without intermediate overflow", () => {
+    expect(convertUsdCents(1_000_000, "EUR", 1e-7)).toBe(0);
+    expect(convertUsdCents(0, "EUR", 1e308)).toBe(0);
+    expect(convertUsdCents(Number.MAX_SAFE_INTEGER, "JPY", 100)).toBe(Number.MAX_SAFE_INTEGER);
+  });
+  it("rejects unsafe inputs and unrepresentable converted values explicitly", () => {
+    for (const cents of [NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 1.5]) expect(() => convertUsdCents(cents, "EUR", 1)).toThrow(RangeError);
+    for (const rate of [NaN, Infinity, -Infinity, 1e308]) expect(() => convertUsdCents(10_000, "EUR", rate)).toThrow(RangeError);
+    expect(() => convertUsdCents(Number.MAX_SAFE_INTEGER, "EUR", 1)).toThrow(RangeError);
+  });
 });
 
 describe("settings use cases", () => {
   it("defaults to USD when never saved, and round-trips a change", async () => {
     const repo = new InMemoryUserSettingsRepository();
-    expect((await new GetUserSettings(repo).execute("u")).displayCurrency).toBe(
+    expect((await new GetUserSettings(repo).execute(asUserId("u"))).displayCurrency).toBe(
       "USD",
     );
 
-    await new SetDisplayCurrency(repo, clock).execute("u", "EUR");
-    expect((await new GetUserSettings(repo).execute("u")).displayCurrency).toBe(
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "EUR");
+    expect((await new GetUserSettings(repo).execute(asUserId("u"))).displayCurrency).toBe(
       "EUR",
     );
   });
@@ -39,7 +64,7 @@ describe("settings use cases", () => {
   it("rejects unsupported currencies", async () => {
     const repo = new InMemoryUserSettingsRepository();
     await expect(
-      new SetDisplayCurrency(repo, clock).execute("u", "XYZ"),
+      new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "XYZ"),
     ).rejects.toBeInstanceOf(InvalidDisplayCurrencyError);
   });
 });
@@ -49,22 +74,36 @@ describe("BuildDisplayValue", () => {
     const repo = new InMemoryUserSettingsRepository();
     const build = new BuildDisplayValue(repo, new StaticFxRateSource());
 
-    expect(await build.execute("u", 100_000)).toBeNull(); // default USD
+    expect(await build.execute(asUserId("u"), 100_000)).toBeNull(); // default USD
 
-    await new SetDisplayCurrency(repo, clock).execute("u", "GBP");
-    const display = await build.execute("u", 100_000);
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "GBP");
+    const display = await build.execute(asUserId("u"), 100_000);
     expect(display).toEqual({ currency: "GBP", amount: 790, ratePerUsd: 0.79 });
   });
 
   it("degrades to null when the rate source fails", async () => {
     const repo = new InMemoryUserSettingsRepository();
-    await new SetDisplayCurrency(repo, clock).execute("u", "EUR");
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "EUR");
     const build = new BuildDisplayValue(repo, {
       getUsdRate: async () => {
         throw new Error("fx down");
       },
     });
-    expect(await build.execute("u", 100_000)).toBeNull();
+    expect(await build.execute(asUserId("u"), 100_000)).toBeNull();
+  });
+  it("returns explicit unavailable for overflow rather than a JSON-null numeric amount", async () => {
+    const repo = new InMemoryUserSettingsRepository();
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "AUD");
+    const build = new BuildDisplayValue(repo, { getUsdRate: async () => 1e308 });
+    expect(await build.execute(asUserId("u"), 10_000)).toBeNull();
+    expect(JSON.stringify(await build.execute(asUserId("u"), 10_000))).toBe("null");
+  });
+  it("uses exact rounding at the display DTO boundary and rejects unsafe USD inputs", async () => {
+    const repo = new InMemoryUserSettingsRepository();
+    await new SetDisplayCurrency(repo, clock).execute(asUserId("u"), "AUD");
+    const build = new BuildDisplayValue(repo, { getUsdRate: async () => 1.5 });
+    expect(await build.execute(asUserId("u"), 201)).toEqual({ currency: "AUD", amount: 3.02, ratePerUsd: 1.5 });
+    expect(await build.execute(asUserId("u"), Number.MAX_SAFE_INTEGER + 1)).toBeNull();
   });
 });
 

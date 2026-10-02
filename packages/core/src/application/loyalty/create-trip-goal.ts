@@ -1,3 +1,5 @@
+import { createDomainEvent } from "../../domain/events";
+import { noopEventing, type Eventing } from "../events/ports";
 import type {
   BalanceSnapshotRepository,
   LoyaltyAccountRepository,
@@ -12,21 +14,22 @@ import { LoyaltyAccountNotFoundError } from "../../domain/errors";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
+import type { LoyaltyAccountId, TripGoalId, UserId } from "../../domain/shared/ids";
 export interface CreateTripGoalInput {
-  readonly userId: string;
+  readonly userId: UserId;
   readonly title: string;
   readonly targetPoints: number;
   readonly targetDate?: string | null;
-  readonly accountIds?: readonly string[];
+  readonly accountIds?: readonly LoyaltyAccountId[];
   readonly notes?: string | null;
 }
 
 export interface TripGoalReadModel {
-  readonly id: string;
+  readonly id: TripGoalId;
   readonly title: string;
   readonly targetPoints: number;
   readonly targetDate: string | null;
-  readonly accountIds: readonly string[];
+  readonly accountIds: readonly LoyaltyAccountId[];
   readonly status: TripGoal["status"];
   readonly notes: string | null;
   readonly currentPoints: number;
@@ -39,8 +42,8 @@ export interface TripGoalReadModel {
 
 async function assertOwnedAccounts(
   accounts: LoyaltyAccountRepository,
-  userId: string,
-  accountIds: readonly string[],
+  userId: UserId,
+  accountIds: readonly LoyaltyAccountId[],
 ): Promise<void> {
   for (const accountId of accountIds) {
     const account = await accounts.findById(accountId);
@@ -84,6 +87,7 @@ export class CreateTripGoal {
     private readonly accounts: LoyaltyAccountRepository,
     private readonly balances: BalanceSnapshotRepository,
     private readonly clock: Clock = systemClock,
+    private readonly eventing: Eventing = noopEventing,
   ) {}
 
   async execute(input: CreateTripGoalInput): Promise<TripGoalReadModel> {
@@ -100,7 +104,17 @@ export class CreateTripGoal {
       now: this.clock.now(),
     });
 
-    await this.goals.insert(goal);
+    await this.eventing.unitOfWork.run(async () => {
+      await this.goals.insert(goal);
+      await this.eventing.publisher.publish([
+        createDomainEvent("goal.created", {
+          userId: goal.userId,
+          aggregateId: goal.id,
+          occurredAt: goal.createdAt,
+          payload: { targetPoints: goal.targetPoints },
+        }),
+      ]);
+    });
     return toReadModel(goal, this.balances);
   }
 }

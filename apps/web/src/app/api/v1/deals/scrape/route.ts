@@ -31,5 +31,5 @@ export function POST(request: Request) {
       },
       { status: 201 },
     );
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

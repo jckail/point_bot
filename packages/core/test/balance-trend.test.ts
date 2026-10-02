@@ -18,6 +18,7 @@ import {
   InMemoryLoyaltyAccountRepository,
 } from "./fakes";
 
+import { asAccountId, asUserId } from "./ids";
 const NOW = new Date("2026-07-08T12:00:00.000Z");
 const clock = { now: () => NOW };
 
@@ -33,7 +34,7 @@ describe("balance trends", () => {
   });
 
   it("builds trend context from newest-first history", () => {
-    const accountId = "acc-1";
+    const accountId = asAccountId("acc-1");
     const snapshots = [
       createBalanceSnapshot({
         loyaltyAccountId: accountId,
@@ -77,7 +78,7 @@ describe("balance trends", () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const balances = new InMemoryBalanceSnapshotRepository();
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP1",
     });
@@ -101,7 +102,7 @@ describe("balance trends", () => {
       accounts,
       balances,
       clock,
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(listed?.trend.sincePrevious).toEqual({
       points: 2_000,
@@ -116,7 +117,7 @@ describe("ExportPortfolio", () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const balances = new InMemoryBalanceSnapshotRepository();
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hilton",
       membershipNumber: "HH1",
     });
@@ -134,7 +135,7 @@ describe("ExportPortfolio", () => {
       accounts,
       balances,
       clock,
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(exported.accounts).toHaveLength(1);
     expect(exported.accounts[0]?.history).toHaveLength(1);

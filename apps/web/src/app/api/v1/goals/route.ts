@@ -2,6 +2,7 @@ import {
   createTripGoalRequestSchema,
   toTripGoalDto,
 } from "@pointup/core/contracts";
+import { LoyaltyAccountId } from "@pointup/core";
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
@@ -11,7 +12,7 @@ export function GET() {
   return withAuthenticatedUser(async (userId) => {
     const goals = await getContainer().useCases.listTripGoals.execute(userId);
     return NextResponse.json(goals.map(toTripGoalDto));
-  });
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
@@ -22,9 +23,11 @@ export function POST(request: Request) {
       title: body.title,
       targetPoints: body.targetPoints,
       targetDate: body.targetDate,
-      accountIds: body.accountIds,
+      accountIds: body.accountIds?.map((accountId) =>
+        LoyaltyAccountId.parse(accountId),
+      ),
       notes: body.notes,
     });
     return NextResponse.json(toTripGoalDto(goal), { status: 201 });
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

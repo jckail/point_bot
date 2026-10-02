@@ -3,17 +3,19 @@ import {
   linkLoyaltyAccountRequestSchema,
   toLoyaltyAccountDto,
 } from "@pointup/core/contracts";
+import { LoyaltyAccountId } from "@pointup/core";
 import { NextResponse } from "next/server";
 
 import { getContainer } from "@/server/container";
+import { jsonWithEtag } from "@/server/conditional";
 import { withAuthenticatedUser } from "@/server/http";
 
-export function GET() {
+export function GET(request: Request) {
   return withAuthenticatedUser(async (userId) => {
     const accounts =
       await getContainer().useCases.listLoyaltyAccounts.execute(userId);
-    return NextResponse.json(accounts.map(toLoyaltyAccountDto));
-  });
+    return jsonWithEtag(request, accounts.map(toLoyaltyAccountDto));
+  }, { method: "GET", scope: "portfolio:read" });
 }
 
 export function POST(request: Request) {
@@ -23,10 +25,11 @@ export function POST(request: Request) {
       userId,
       providerId: body.providerId,
       membershipNumber: body.membershipNumber,
+      cardProductId: body.cardProductId,
       credentialRef: body.credentialRef,
     });
     return NextResponse.json(result, { status: 201 });
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }
 
 /**
@@ -40,8 +43,11 @@ export function PATCH(request: Request) {
     const result =
       await getContainer().useCases.bulkUpdateMembershipNumbers.execute({
         userId,
-        updates: body.updates,
+        updates: body.updates.map((update) => ({
+          ...update,
+          accountId: LoyaltyAccountId.parse(update.accountId),
+        })),
       });
     return NextResponse.json(result);
-  });
+  }, { method: "PATCH", scope: "portfolio:write" });
 }

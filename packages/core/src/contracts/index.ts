@@ -1,4 +1,6 @@
+import { CARD_PRODUCT_IDS } from "../domain/loyalty/card-products";
 import { z } from "zod";
+import { assistantActionDtoSchema } from "../domain/assistant/actions";
 
 import type {
   PortfolioSummaryReadModel,
@@ -9,7 +11,15 @@ import type {
   ProviderReadModel,
 } from "../application/loyalty/read-models";
 import type { SyncOutcome } from "../application/loyalty/sync-all-loyalty-accounts";
+import type { ErrorCode } from "../domain/errors";
+import type { AssistantRole } from "../application/ports";
+import { SUPPORTED_DISPLAY_CURRENCIES } from "../domain/fx";
+import { ACTIVITY_TYPES } from "../domain/loyalty/activity";
+import { BALANCE_SOURCES } from "../domain/loyalty/balance-snapshot";
+import { DEAL_KINDS } from "../domain/loyalty/deals";
 import { PROVIDER_KINDS } from "../domain/loyalty/provider";
+import { MAX_SHARE_EXPIRY_DAYS } from "../domain/loyalty/portfolio-share";
+import { TRIP_GOAL_STATUSES } from "../domain/loyalty/trip-goal";
 
 /**
  * Wire contracts for the PointUp HTTP API (v1).
@@ -26,10 +36,15 @@ import { PROVIDER_KINDS } from "../domain/loyalty/provider";
  *   (`z.iso.datetime()`); `Date` objects never cross the network.
  */
 
+export * from "./agent";
+export * from "./optimizer";
+
 /** Strict ISO-8601 UTC timestamp, e.g. "2026-07-08T14:03:00.000Z". */
 export const isoDateTimeSchema = z.iso.datetime();
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
+
+export const cardProductIdSchema = z.enum(CARD_PRODUCT_IDS);
 
 export const providerKindSchema = z.enum(PROVIDER_KINDS);
 
@@ -46,7 +61,7 @@ export const providerDtoSchema = z.object({
 
 export const balanceDtoSchema = z.object({
   points: z.number().int().nonnegative(),
-  source: z.enum(["sync", "manual"]),
+  source: z.enum(BALANCE_SOURCES),
   capturedAt: isoDateTimeSchema,
 });
 
@@ -66,6 +81,7 @@ export const loyaltyAccountDtoSchema = z.object({
   id: z.string(),
   provider: providerDtoSchema,
   membershipNumber: z.string(),
+  cardProductId: cardProductIdSchema.nullable(),
   hasStoredCredential: z.boolean(),
   latestBalance: balanceDtoSchema.nullable(),
   /** Approximate USD value of the latest balance, in whole cents. */
@@ -85,6 +101,7 @@ export const linkLoyaltyAccountRequestSchema = z
   .object({
     providerId: z.string().min(1),
     membershipNumber: z.string().min(1),
+    cardProductId: cardProductIdSchema.nullish(),
     credentialRef: z.string().min(1).nullish(),
   })
   .strict();
@@ -109,6 +126,7 @@ export const syncLoyaltyAccountRequestSchema = z
 export const updateLoyaltyAccountRequestSchema = z
   .object({
     membershipNumber: z.string().min(1).optional(),
+    cardProductId: cardProductIdSchema.nullish(),
     /** `null` clears the stored credential reference. */
     credentialRef: z.string().min(1).nullish(),
     /** ISO UTC expiry; `null` clears it. */
@@ -193,13 +211,16 @@ export const recordManualBalanceRequestSchema = z
   })
   .strict();
 
+export const EXPORT_FORMATS = ["json", "csv"] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
 export const balanceHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(365).optional(),
 });
 
 export const exportQuerySchema = z.object({
   /** Wire format; defaults to json. */
-  format: z.enum(["json", "csv"]).optional(),
+  format: z.enum(EXPORT_FORMATS).optional(),
 });
 
 export const activityQuerySchema = z.object({
@@ -208,14 +229,7 @@ export const activityQuerySchema = z.object({
 
 export const activityEventDtoSchema = z.object({
   id: z.string(),
-  type: z.enum([
-    "account_linked",
-    "account_unlinked",
-    "account_updated",
-    "account_restored",
-    "balance_synced",
-    "balance_manual",
-  ]),
+  type: z.enum(ACTIVITY_TYPES),
   accountId: z.string().nullable(),
   providerId: z.string().nullable(),
   summary: z.string(),
@@ -232,14 +246,7 @@ export const portfolioExportDtoSchema = z.object({
   ),
 });
 
-export const displayCurrencySchema = z.enum([
-  "USD",
-  "EUR",
-  "GBP",
-  "CAD",
-  "AUD",
-  "JPY",
-]);
+export const displayCurrencySchema = z.enum(SUPPORTED_DISPLAY_CURRENCIES);
 
 export const displayValueDtoSchema = z.object({
   currency: displayCurrencySchema,
@@ -295,6 +302,8 @@ export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
+    /** Correlation id (also the `x-request-id` response header). Quote it in bug reports. */
+    requestId: z.string().optional(),
   }),
 });
 
@@ -304,13 +313,21 @@ export const apiErrorSchema = z.object({
  * it to respond, clients can rely on it, and docs/api.md mirrors it.
  */
 export const HTTP_STATUS_BY_ERROR_CODE = {
+  REQUEST_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  ASSISTANT_ACTION_NOT_FOUND: 404,
+  INVALID_ASSISTANT_ACTION: 400,
   UNAUTHENTICATED: 401,
   INVALID_REQUEST: 400,
+  INVALID_ID: 422,
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
+  INVALID_CARD_PRODUCT: 400,
   INVALID_VALUATION: 422,
   INVALID_DISPLAY_CURRENCY: 422,
   INVALID_AWARD_WATCH: 422,
+  INVALID_TRANSFER_BONUS: 422,
+  INVALID_REDEMPTION_GOAL: 422,
   AWARD_WATCH_NOT_FOUND: 404,
   INVALID_BALANCE: 422,
   INVALID_CAPTURE_TIME: 422,
@@ -326,14 +343,38 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   LOYALTY_ACCOUNT_NOT_FOUND: 404,
   TRIP_GOAL_NOT_FOUND: 404,
   SHARE_LINK_NOT_FOUND: 404,
+  INVALID_SHARE_EXPIRY: 400,
   INVALID_ASSISTANT_MESSAGE: 422,
   INVALID_SCRAPE_URL: 422,
   ASSISTANT_UNAVAILABLE: 503,
   SCRAPE_FAILED: 502,
+  INSUFFICIENT_SCOPE: 403,
+  INVALID_ACCESS_TOKEN_REQUEST: 422,
+  ACCESS_TOKEN_NOT_FOUND: 404,
+  CONSENT_REQUIRED: 403,
+  CONSENT_NOT_FOUND: 404,
+  INVALID_CONSENT: 422,
+  SKILL_NOT_FOUND: 404,
+  INVALID_OBSERVATION: 422,
+  OBSERVATION_REPLAY_CONFLICT: 409,
+  REVIEW_NOT_FOUND: 404,
+  REVIEW_ALREADY_RESOLVED: 409,
+  REVIEW_EXPIRED: 410,
+  REVIEW_STALE: 409,
+  CSRF_REJECTED: 403,
   INTERNAL: 500,
-} as const satisfies Record<string, number>;
+  RATE_LIMITED: 429,
+} as const satisfies Record<ErrorCode, number>;
 
 export type ApiErrorCode = keyof typeof HTTP_STATUS_BY_ERROR_CODE;
+
+/** Narrowing guard for untrusted code strings (wire, DB, logs). */
+export function isErrorCode(value: unknown): value is ErrorCode {
+  return (
+    typeof value === "string" &&
+    Object.hasOwn(HTTP_STATUS_BY_ERROR_CODE, value)
+  );
+}
 
 /** Unknown codes (future domain errors) default to 400. */
 export function httpStatusForErrorCode(code: string): number {
@@ -406,6 +447,7 @@ export function toLoyaltyAccountDto(
     id: account.id,
     provider: toProviderDto(account.provider),
     membershipNumber: account.membershipNumber,
+    cardProductId: account.cardProductId ?? null,
     hasStoredCredential: account.hasStoredCredential,
     latestBalance: account.latestBalance
       ? toBalanceDto(account.latestBalance)
@@ -464,6 +506,7 @@ export function toPortfolioExportCsv(
     "source",
     "capturedAt",
     "estimatedValueCents",
+    "cardProductId",
   ].join(",");
 
   const rows: string[] = [header];
@@ -481,6 +524,7 @@ export function toPortfolioExportCsv(
           "",
           "",
           String(account.estimatedValueCents),
+          account.cardProductId ?? "",
         ].join(","),
       );
       continue;
@@ -497,6 +541,7 @@ export function toPortfolioExportCsv(
           snap.source,
           snap.capturedAt.toISOString(),
           String(account.estimatedValueCents),
+          account.cardProductId ?? "",
         ].join(","),
       );
     }
@@ -545,7 +590,7 @@ export function toSyncOutcomeDto(outcome: SyncOutcome): SyncOutcomeDto {
 
 // ─── Trip goals ────────────────────────────────────────────────────────────
 
-export const tripGoalStatusSchema = z.enum(["active", "achieved", "archived"]);
+export const tripGoalStatusSchema = z.enum(TRIP_GOAL_STATUSES);
 
 export const tripGoalDtoSchema = z.object({
   id: z.string(),
@@ -647,7 +692,7 @@ export const portfolioShareDtoSchema = z.object({
 export const createPortfolioShareRequestSchema = z
   .object({
     label: z.string().max(80).nullish(),
-    expiresInDays: z.number().int().positive().max(365).nullish(),
+    expiresInDays: z.number().int().positive().max(MAX_SHARE_EXPIRY_DAYS).nullish(),
   })
   .strict();
 
@@ -738,9 +783,12 @@ export function toDeletedAccountDto(account: {
 
 // ─── Assistant, deals, scraping ────────────────────────────────────────────
 
+/** Roles a caller may send; "system" is server-side only. */
+const WIRE_ASSISTANT_ROLES = ["user", "assistant"] as const satisfies readonly AssistantRole[];
+
 export const assistantMessageSchema = z
   .object({
-    role: z.enum(["user", "assistant"]),
+    role: z.enum(WIRE_ASSISTANT_ROLES),
     content: z.string().min(1).max(4000),
   })
   .strict();
@@ -754,6 +802,7 @@ export const chatAssistantRequestSchema = z
 
 export const chatAssistantResponseSchema = z.object({
   reply: z.string(),
+  actions: z.array(assistantActionDtoSchema).optional(),
 });
 
 export const scrapeDealRequestSchema = z
@@ -765,13 +814,7 @@ export const scrapeDealRequestSchema = z
 
 export const dealCandidateDtoSchema = z.object({
   id: z.string(),
-  kind: z.enum([
-    "transfer_bonus",
-    "award_sweet_spot",
-    "hotel_redemption",
-    "portal_sale",
-    "scraped",
-  ]),
+  kind: z.enum(DEAL_KINDS),
   title: z.string(),
   summary: z.string(),
   providerId: z.string().nullable(),
@@ -781,12 +824,38 @@ export const dealCandidateDtoSchema = z.object({
   transferFromProviderId: z.string().nullable(),
 });
 
+export const transferEligibilityWarningDtoSchema = z.object({
+  code: z.enum(["CARD_PRODUCT_REQUIRED", "CARD_PRODUCT_UNVERIFIED", "TRANSFER_RULE_NOT_EFFECTIVE"]),
+  fromProviderId: z.string(), toProviderId: z.string(),
+  cardProductId: cardProductIdSchema.nullable(), message: z.string(),
+});
+export const transferEligibilityDtoSchema = z.object({
+  ruleId: z.string(), sourceUrl: z.string().nullable(), effectiveFrom: z.string().nullable(),
+  evaluatedAt: isoDateTimeSchema, cardProductId: cardProductIdSchema.nullable(),
+});
+
+export const dealTransferRequirementDtoSchema = z.object({
+  fromProviderId: z.string(), toProviderId: z.string(),
+  sourcePointsRequired: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  sourcePointsAvailable: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  destinationPointsNeeded: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  destinationPointsProduced: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  ratioFrom: z.number().positive(), ratioTo: z.number().positive(),
+  bonusPermille: z.number().int().positive(), bonusVerified: z.boolean().nullable(), bonusLabel: z.string().nullable(),
+  eligibility: transferEligibilityDtoSchema,
+  minimumSourcePoints: z.number().int().positive().nullable(), incrementSourcePoints: z.number().int().positive().nullable(),
+  limitsVerified: z.literal(false), caveats: z.array(z.string()),
+});
 export const rankedDealDtoSchema = z.object({
   deal: dealCandidateDtoSchema,
   realizedCentsPerPoint: z.number().nullable(),
   affordable: z.boolean(),
   affordabilityNote: z.string(),
   score: z.number(),
+  transferRequirement: dealTransferRequirementDtoSchema.nullable().optional(),
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema).optional(),
+  transferUnavailableReason: z.enum(["CARD_PRODUCT_REQUIRED", "CARD_PRODUCT_UNVERIFIED", "TRANSFER_RULE_NOT_EFFECTIVE",
+    "NO_TRANSFER_ROUTE", "SOURCE_ACCOUNT_REQUIRED", "AMOUNT_OUT_OF_RANGE"]).nullable().optional(),
 });
 
 export const transferOptionDtoSchema = z.object({
@@ -800,10 +869,16 @@ export const transferOptionDtoSchema = z.object({
   estimatedValueCents: z.number().int().nonnegative(),
   bonusMultiplier: z.number(),
   bonusLabel: z.string().nullable(),
+  bonusVerified: z.boolean().nullable().optional(),
+  bonusSource: z.enum(["manual", "scraped", "user"]).nullable().optional(),
   notes: z.string().nullable(),
+  ratioFrom: z.number().positive().optional(),
+  ratioTo: z.number().positive().optional(),
+  eligibility: transferEligibilityDtoSchema.optional(),
 });
 
 export const valueAdviceDtoSchema = z.object({
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema).optional(),
   transfers: z.array(transferOptionDtoSchema),
   deals: z.array(rankedDealDtoSchema),
 });
@@ -850,11 +925,14 @@ export function toRankedDealDto(
     affordable: ranked.affordable,
     affordabilityNote: ranked.affordabilityNote,
     score: ranked.score,
+    transferRequirement: ranked.transferRequirement ? { ...ranked.transferRequirement, caveats: [...ranked.transferRequirement.caveats] } : null,
+    eligibilityWarnings: [...(ranked.eligibilityWarnings ?? [])],
+    transferUnavailableReason: ranked.transferUnavailableReason ?? null,
   };
 }
 
 export function toTransferOptionDto(
-  option: import("../domain/loyalty/transfer-partners").TransferOption,
+  option: import("../domain/loyalty/transfer-ranking").TransferOption,
 ): TransferOptionDto {
   return {
     fromProviderId: option.from.id,
@@ -867,7 +945,12 @@ export function toTransferOptionDto(
     estimatedValueCents: option.estimatedValueCents,
     bonusMultiplier: option.bonusMultiplier,
     bonusLabel: option.bonusLabel,
+    bonusVerified: option.bonusVerified,
+    bonusSource: option.bonusSource,
     notes: option.edge.notes ?? null,
+    ratioFrom: option.edge.ratioFrom,
+    ratioTo: option.edge.ratioTo,
+    eligibility: option.edge.eligibility,
   };
 }
 
@@ -876,6 +959,7 @@ export function toValueAdviceDto(
 ): ValueAdviceDto {
   return {
     transfers: advice.transfers.map(toTransferOptionDto),
+    eligibilityWarnings: [...(advice.eligibilityWarnings ?? [])],
     deals: advice.deals.map(toRankedDealDto),
   };
 }

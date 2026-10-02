@@ -9,5 +9,5 @@ export function GET() {
     const deleted =
       await getContainer().useCases.listDeletedLoyaltyAccounts.execute(userId);
     return NextResponse.json(deleted.map(toDeletedAccountDto));
-  });
+  }, { method: "GET", scope: "portfolio:read" });
 }

@@ -1,3 +1,5 @@
+import { upstreamBaseUrl, boundedUpstreamJson, discardUpstreamBody } from "../http/upstream-transport";
+
 import type { PageScraper, ScrapedPage } from "../../application/ports";
 
 export interface FirecrawlConfig {
@@ -13,53 +15,29 @@ export class FirecrawlPageScraper implements PageScraper {
   private readonly baseUrl: string;
 
   constructor(private readonly config: FirecrawlConfig) {
-    this.baseUrl = (config.baseUrl ?? "https://api.firecrawl.dev").replace(
-      /\/$/,
-      "",
-    );
+    this.baseUrl = upstreamBaseUrl(config.baseUrl ?? "https://api.firecrawl.dev");
   }
 
   async scrape(url: string): Promise<ScrapedPage> {
-    const response = await fetch(`${this.baseUrl}/v1/scrape`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url,
-        formats: ["markdown"],
-        onlyMainContent: true,
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        `Firecrawl scrape failed (${response.status}): ${body.slice(0, 200)}`,
-      );
-    }
-
-    const payload = (await response.json()) as {
-      success?: boolean;
-      data?: {
-        markdown?: string;
-        metadata?: { title?: string; sourceURL?: string };
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/scrape`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+        signal: AbortSignal.timeout(60_000),
+        redirect: "error",
+      });
+      if (!response.ok) { await discardUpstreamBody(response); throw new Error(); }
+      const payload = await boundedUpstreamJson(response, 1024 * 1024);
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error();
+      const page = payload as { success?: unknown; data?: { markdown?: unknown; metadata?: { title?: unknown; sourceURL?: unknown } } };
+      if (page.success === false || typeof page.data?.markdown !== "string" || !page.data.markdown.trim()) throw new Error();
+      return {
+        url: typeof page.data.metadata?.sourceURL === "string" ? page.data.metadata.sourceURL : url,
+        title: typeof page.data.metadata?.title === "string" ? page.data.metadata.title : url,
+        markdown: page.data.markdown.trim(), fetchedAt: new Date(),
       };
-    };
-
-    const markdown = payload.data?.markdown?.trim() ?? "";
-    if (!markdown) {
-      throw new Error("Firecrawl returned empty markdown");
-    }
-
-    return {
-      url: payload.data?.metadata?.sourceURL ?? url,
-      title: payload.data?.metadata?.title ?? url,
-      markdown,
-      fetchedAt: new Date(),
-    };
+    } catch { throw new Error("Could not load the page from the scrape provider. Retry later."); }
   }
 }
 

@@ -1,14 +1,18 @@
 import type { PortfolioDigestReadModel } from "./build-portfolio-digest";
 import { DEFAULT_EXPIRY_WARNING_DAYS } from "./list-expiring-accounts";
 
-export type AlertType =
-  | "expired"
-  | "expiring"
-  | "goal-reached"
-  | "balance-drop"
-  | "balance-jump";
+import type { TripGoalId } from "../../domain/shared/ids";
+export const ALERT_TYPES = [
+  "expired",
+  "expiring",
+  "goal-reached",
+  "balance-drop",
+  "balance-jump",
+] as const;
+export type AlertType = (typeof ALERT_TYPES)[number];
 
-export type AlertSeverity = "warning" | "info";
+export const ALERT_SEVERITIES = ["warning", "info"] as const;
+export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
 
 export interface PortfolioAlert {
   readonly type: AlertType;
@@ -16,7 +20,7 @@ export interface PortfolioAlert {
   /** One-line, human-readable alert text. */
   readonly message: string;
   readonly providerId?: string;
-  readonly goalId?: string;
+  readonly goalId?: TripGoalId;
 }
 
 export interface DeriveAlertsOptions {

@@ -1,4 +1,5 @@
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
+import { estimateValueCents } from "../../domain/shared/point-math";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type { BalanceTrendContext } from "../../domain/loyalty/repositories";
@@ -24,9 +25,11 @@ export function toBalanceReadModel(
 
 function daysUntil(expiresAt: Date | null, now: Date): number | null {
   if (!expiresAt) return null;
-  return Math.ceil(
-    (expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
-  );
+  const remaining = expiresAt.getTime() - now.getTime();
+  // The deadline itself is expired. Round elapsed days away from zero so a
+  // recently expired account never becomes -0 and appears active for a day.
+  return remaining <= 0 ? Math.min(-1, Math.floor(remaining / (24 * 60 * 60 * 1000)))
+    : Math.ceil(remaining / (24 * 60 * 60 * 1000));
 }
 
 export function toLoyaltyAccountReadModel(
@@ -57,11 +60,12 @@ export function toLoyaltyAccountReadModel(
       inactivityExpiryMonths: provider.inactivityExpiryMonths,
     },
     membershipNumber: account.membershipNumber,
+    cardProductId: account.cardProductId ?? null,
     hasStoredCredential: account.credentialRef !== null,
     latestBalance: latest ? toBalanceReadModel(latest) : null,
     // Value uses the user's override when set, else the editorial estimate.
     estimatedValueCents: latest
-      ? Math.round(latest.points * effectiveCentsPerPoint)
+      ? estimateValueCents(latest.points, effectiveCentsPerPoint)
       : 0,
     customCentsPerPoint,
     trend,

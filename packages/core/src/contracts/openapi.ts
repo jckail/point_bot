@@ -1,7 +1,14 @@
 import { z } from "zod";
 
+import { assistantActionDtoSchema, assistantActionProposalRequestSchema } from "../domain/assistant/actions";
+
+import { AWARD_CABINS } from "../domain/loyalty/award-availability";
+import { SWEET_SPOT_KINDS } from "../domain/loyalty/catalog/sweet-spots";
+import { REDEMPTION_GOAL_KINDS } from "../domain/loyalty/optimizer";
+
 import {
   activityEventDtoSchema,
+  EXPORT_FORMATS,
   apiErrorSchema,
   balanceDtoSchema,
   bulkUpdateMembershipRequestSchema,
@@ -36,6 +43,23 @@ import {
   updateTripGoalRequestSchema,
   valueAdviceDtoSchema,
 } from "./index";
+import {
+  planRedemptionResultDtoSchema,
+  recordTransferBonusRequestSchema,
+  sweetSpotDtoSchema,
+  transferBonusDtoSchema,
+} from "./optimizer";
+import {
+  accessTokenDtoSchema,
+  agentObservationDtoSchema,
+  agentSkillDtoSchema,
+  consentDtoSchema,
+  createAccessTokenRequestSchema,
+  createdAccessTokenDtoSchema,
+  grantConsentRequestSchema,
+  observationResultDtoSchema,
+  submitObservationRequestSchema,
+} from "./agent";
 
 /**
  * OpenAPI 3.1 document generated from the zod wire contracts — the same schemas
@@ -59,11 +83,20 @@ const COMPONENT_SCHEMAS = {
   TripGoalDto: tripGoalDtoSchema,
   SyncOutcomeDto: syncOutcomeDtoSchema,
   ValueAdviceDto: valueAdviceDtoSchema,
+  PlanRedemptionResultDto: planRedemptionResultDtoSchema,
+  SweetSpotDto: sweetSpotDtoSchema,
+  TransferBonusDto: transferBonusDtoSchema,
+  RecordTransferBonusRequest: recordTransferBonusRequestSchema,
   DeletedAccountDto: deletedAccountDtoSchema,
   PortfolioShareDto: portfolioShareDtoSchema,
   PublicPortfolioSnapshotDto: publicPortfolioSnapshotDtoSchema,
   IngestDealPageResultDto: ingestDealPageResultDtoSchema,
   ChatAssistantResponse: chatAssistantResponseSchema,
+  AssistantActionDto: assistantActionDtoSchema,
+  AssistantActionProposalRequest: assistantActionProposalRequestSchema,
+  AssistantActionResponse: z.object({ action: assistantActionDtoSchema }),
+  AssistantActionListResponse: z.object({ actions: z.array(assistantActionDtoSchema) }),
+  AssistantActionReviewRequest: z.object({}).strict(),
   ImportPortfolioResultDto: importPortfolioResultDtoSchema,
   BulkUpdateMembershipResultDto: bulkUpdateMembershipResultDtoSchema,
   CustomValuationDto: customValuationDtoSchema,
@@ -84,6 +117,15 @@ const COMPONENT_SCHEMAS = {
   ChatAssistantRequest: chatAssistantRequestSchema,
   ScrapeDealRequest: scrapeDealRequestSchema,
   CreatePortfolioShareRequest: createPortfolioShareRequestSchema,
+  AccessTokenDto: accessTokenDtoSchema,
+  CreateAccessTokenRequest: createAccessTokenRequestSchema,
+  CreatedAccessTokenDto: createdAccessTokenDtoSchema,
+  ConsentDto: consentDtoSchema,
+  GrantConsentRequest: grantConsentRequestSchema,
+  AgentSkillDto: agentSkillDtoSchema,
+  SubmitObservationRequest: submitObservationRequestSchema,
+  ObservationResultDto: observationResultDtoSchema,
+  AgentObservationDto: agentObservationDtoSchema,
 } as const satisfies Record<string, z.ZodType>;
 
 type ComponentName = keyof typeof COMPONENT_SCHEMAS;
@@ -110,6 +152,9 @@ function jsonResponse(description: string, schema: Json): Json {
 const ERROR_RESPONSES: Json = {
   "400": jsonResponse("Request failed schema validation", ref("ApiError")),
   "401": jsonResponse("Not authenticated", ref("ApiError")),
+  "403": jsonResponse("Insufficient scope or browser authority", ref("ApiError")),
+  "413": jsonResponse("Request body too large", ref("ApiError")),
+  "415": jsonResponse("Unsupported request media type", ref("ApiError")),
 };
 const NOT_FOUND: Json = {
   "404": jsonResponse("Not found or not owned by the caller", ref("ApiError")),
@@ -148,9 +193,22 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         "Versioned HTTP API for PointUp / PointBot. Generated from the zod wire contracts (@pointup/core/contracts).",
     },
     servers: [{ url: options.serverUrl ?? "/" }],
-    security: [{ clerkSession: [] }],
+    security: [{ clerkSession: [] }, { accessToken: [] }],
     components: {
       securitySchemes: {
+        accessToken: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "pu_...",
+          description:
+            "PointUp personal access token (create one in Settings or POST /api/v1/tokens). Used by the MCP server, ChatGPT Actions, and scripts. Scoped: portfolio:read, portfolio:write, observations:write, consents:manage (revoke consent only; granting is session-only).",
+        },
+        browserSession: {
+          type: "apiKey",
+          in: "cookie",
+          name: "__session",
+          description: "Browser session cookie with same-origin mutation protection. Authorization headers are rejected.",
+        },
         clerkSession: {
           type: "http",
           scheme: "bearer",
@@ -249,11 +307,27 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
       },
       "/api/v1/loyalty-accounts/{id}/balances": {
         parameters: [ID_PARAM],
+        get: {
+          summary: "Balance history, newest first",
+          parameters: [
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 365 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Balance snapshots", arrayOf("BalanceDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
         post: {
           summary: "Record a manual balance",
           requestBody: body("RecordManualBalanceRequest"),
           responses: {
-            "201": jsonResponse("Updated account", ref("LoyaltyAccountDto")),
+            "201": jsonResponse("Recorded balance", ref("BalanceDto")),
             ...ERROR_RESPONSES,
             ...NOT_FOUND,
           },
@@ -303,7 +377,7 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
         get: {
           summary: "Export accounts + history (json or csv)",
           parameters: [
-            { name: "format", in: "query", schema: { type: "string", enum: ["json", "csv"] } },
+            { name: "format", in: "query", schema: { type: "string", enum: [...EXPORT_FORMATS] } },
           ],
           responses: {
             "200": {
@@ -394,11 +468,55 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
       "/api/v1/assistant/chat": {
         post: {
           summary: "Grounded portfolio assistant chat",
+          operationId: "chatWithAssistant",
+          "x-pointup-required-scope": "portfolio:read",
+          description: "Read grounded portfolio advice. Proposal tools additionally require portfolio:write; proposals execute only after browser review.",
           requestBody: body("ChatAssistantRequest"),
           responses: {
-            "200": jsonResponse("Assistant reply", ref("ChatAssistantResponse")),
+            "200": jsonResponse("Assistant reply and optional immutable proposals", ref("ChatAssistantResponse")),
+            "429": { ...jsonResponse("Assistant admission limit reached", ref("ApiError")), headers: { "Retry-After": { description: "Seconds before retrying", schema: { type: "integer", minimum: 1 } } } },
+            "503": jsonResponse("Assistant unavailable", ref("ApiError")),
             ...ERROR_RESPONSES,
           },
+        },
+      },
+      "/api/v1/assistant/actions": {
+        get: {
+          operationId: "listAssistantActions",
+          summary: "List the caller's reviewed action proposals",
+          "x-pointup-required-scope": "portfolio:read",
+          responses: { "200": jsonResponse("Owned proposals", ref("AssistantActionListResponse")), ...ERROR_RESPONSES },
+        },
+        post: {
+          operationId: "proposeAssistantAction",
+          summary: "Create an immutable proposal for browser review",
+          "x-pointup-required-scope": "portfolio:write",
+          requestBody: body("AssistantActionProposalRequest"),
+          responses: { "201": jsonResponse("Pending proposal; no portfolio mutation", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
+        },
+      },
+      "/api/v1/assistant/actions/{actionId}/approve": {
+        post: {
+          operationId: "approveAssistantAction",
+          summary: "Approve an immutable proposal in the browser",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          "x-pointup-required-scope": "portfolio:write",
+          parameters: [{ name: "actionId", in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 255 } }],
+          requestBody: body("AssistantActionReviewRequest"),
+          responses: { "200": jsonResponse("Reviewed proposal outcome", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
+        },
+      },
+      "/api/v1/assistant/actions/{actionId}/reject": {
+        post: {
+          operationId: "rejectAssistantAction",
+          summary: "Reject an immutable proposal in the browser",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          "x-pointup-required-scope": "portfolio:write",
+          parameters: [{ name: "actionId", in: "path", required: true, schema: { type: "string", minLength: 1, maxLength: 255 } }],
+          requestBody: body("AssistantActionReviewRequest"),
+          responses: { "200": jsonResponse("Reviewed proposal outcome", ref("AssistantActionResponse")), ...ERROR_RESPONSES, ...NOT_FOUND },
         },
       },
       "/api/v1/value-advice": {
@@ -406,6 +524,67 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           summary: "Transfer + deal value advice",
           responses: {
             "200": jsonResponse("Value advice", ref("ValueAdviceDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/optimizer/plan": {
+        get: {
+          summary: "Ranked redemption plans for the caller's points",
+          description:
+            "Deterministic optimizer over balances, active transfer bonuses and curated sweet spots. Estimates only: availability is NOT verified unless a plan has `availability` (award search must be configured). Every plan lists caveats and a confidence.",
+          parameters: [
+            { name: "goalKind", in: "query", schema: { type: "string", enum: [...REDEMPTION_GOAL_KINDS] } },
+            { name: "targetProgramId", in: "query", schema: { type: "string" } },
+            { name: "minValueCpp", in: "query", schema: { type: "number" } },
+            { name: "quantity", in: "query", schema: { type: "integer", minimum: 1, maximum: 30 } },
+            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50 } },
+            { name: "origin", in: "query", schema: { type: "string" }, description: "IATA code; with destination, dateFrom, dateTo, cabin runs a live award search (flight goals)." },
+            { name: "destination", in: "query", schema: { type: "string" } },
+            { name: "dateFrom", in: "query", schema: { type: "string" } },
+            { name: "dateTo", in: "query", schema: { type: "string" } },
+            { name: "cabin", in: "query", schema: { type: "string", enum: [...AWARD_CABINS] } },
+          ],
+          responses: {
+            "200": jsonResponse("Redemption plans", ref("PlanRedemptionResultDto")),
+            "422": jsonResponse("Invalid goal", ref("ApiError")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/deals/sweet-spots": {
+        get: {
+          summary: "Curated award sweet-spot catalog",
+          description:
+            "Editorial, unverified redemption patterns with typical points ranges. Never live prices or availability.",
+          parameters: [
+            { name: "kind", in: "query", schema: { type: "string", enum: [...SWEET_SPOT_KINDS] } },
+            { name: "programId", in: "query", schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse("Sweet spots", arrayOf("SweetSpotDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/transfer-bonuses": {
+        get: {
+          summary: "Active transfer bonuses",
+          description:
+            "Crowd/manual data, empty by default. Each bonus has a source (manual, scraped, user) and may be unverified.",
+          responses: {
+            "200": jsonResponse("Active bonuses", arrayOf("TransferBonusDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          summary: "Report a transfer bonus",
+          description:
+            "Needs portfolio:write. Stored as source=user, unverified, and used in every user's plans (flagged user-reported): only report bonuses you saw announced.",
+          requestBody: body("RecordTransferBonusRequest"),
+          responses: {
+            "201": jsonResponse("Recorded bonus", ref("TransferBonusDto")),
+            "422": jsonResponse("Invalid bonus", ref("ApiError")),
             ...ERROR_RESPONSES,
           },
         },
@@ -541,6 +720,139 @@ export function buildOpenApiDocument(options: BuildOpenApiOptions = {}): Json {
           responses: {
             "200": jsonResponse("Deleted accounts", arrayOf("DeletedAccountDto")),
             ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/skills": {
+        get: {
+          operationId: "listAgentSkills",
+          summary: "List agent skills (browser/computer playbooks) with this user's link + consent state",
+          parameters: [
+            { name: "providerId", in: "query", required: false, schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse("Skills", arrayOf("AgentSkillDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/consents": {
+        get: {
+          operationId: "listConsents",
+          summary: "List agent consents",
+          responses: {
+            "200": jsonResponse("Consents", arrayOf("ConsentDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "grantConsent",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "Grant time-boxed consent for agents to read one program and write balances back (session auth only: tokens cannot grant)",
+          requestBody: body("GrantConsentRequest"),
+          responses: {
+            "201": jsonResponse("Granted consent", ref("ConsentDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/consents/{id}": {
+        parameters: [ID_PARAM],
+        delete: {
+          operationId: "revokeConsent",
+          summary: "Revoke a consent immediately",
+          responses: {
+            "204": { description: "Revoked" },
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
+      },
+      "/api/v1/agent/observations": {
+        get: {
+          operationId: "listObservations",
+          summary: "Audit trail of what agents wrote back",
+          responses: {
+            "200": jsonResponse("Observations", arrayOf("AgentObservationDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "submitObservation",
+          summary: "Write back a balance an agent read from the user's own browser (requires active consent)",
+          requestBody: body("SubmitObservationRequest"),
+          responses: {
+            "200": jsonResponse("Outcome (recorded, unchanged, needs_review, rejected) with an optional server receipt ID; only the signed-in user resolves reviews", ref("ObservationResultDto")),
+            ...ERROR_RESPONSES,
+            "403": jsonResponse("Missing scope or no active consent", ref("ApiError")),
+            "409": jsonResponse("OBSERVATION_REPLAY_CONFLICT: capture key reused with different claims", ref("ApiError")),
+            "413": jsonResponse("Observation JSON exceeds 32 KiB", ref("ApiError")),
+          },
+        },
+      },
+      "/api/v1/agent/observations/{id}/confirm": {
+        parameters: [ID_PARAM],
+        post: {
+          operationId: "confirmObservationReview",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "Confirm a held reading and write it (session auth only; single-use, expires after 24h)",
+          responses: {
+            "200": jsonResponse("Recorded", ref("ObservationResultDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
+      },
+      "/api/v1/agent/observations/{id}/reject": {
+        parameters: [ID_PARAM],
+        post: {
+          operationId: "rejectObservationReview",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "Discard a held reading (session auth only)",
+          responses: {
+            "200": jsonResponse("Rejected", ref("ObservationResultDto")),
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
+          },
+        },
+      },
+      "/api/v1/tokens": {
+        get: {
+          operationId: "listAccessTokens",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "List personal access tokens (never returns secrets)",
+          responses: {
+            "200": jsonResponse("Tokens", arrayOf("AccessTokenDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+        post: {
+          operationId: "createAccessToken",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "Create a personal access token (session auth only; secret shown once)",
+          requestBody: body("CreateAccessTokenRequest"),
+          responses: {
+            "201": jsonResponse("Created token", ref("CreatedAccessTokenDto")),
+            ...ERROR_RESPONSES,
+          },
+        },
+      },
+      "/api/v1/tokens/{id}": {
+        parameters: [ID_PARAM],
+        delete: {
+          operationId: "revokeAccessToken",
+          security: [{ browserSession: [] }],
+          "x-pointup-session-only": true,
+          summary: "Revoke a token",
+          responses: {
+            "204": { description: "Revoked" },
+            ...ERROR_RESPONSES,
+            ...NOT_FOUND,
           },
         },
       },

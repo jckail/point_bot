@@ -8,13 +8,14 @@ import {
 } from "../src/domain/errors";
 import { InMemoryLoyaltyAccountRepository } from "./fakes";
 
+import { asUserId } from "./ids";
 describe("LinkLoyaltyAccount", () => {
   it("links a new account for a supported provider", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const useCase = new LinkLoyaltyAccount(accounts);
 
     const result = await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "MP123456",
     });
@@ -32,7 +33,7 @@ describe("LinkLoyaltyAccount", () => {
 
     await expect(
       useCase.execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         providerId: "not-a-real-airline",
         membershipNumber: "X1",
       }),
@@ -46,7 +47,7 @@ describe("LinkLoyaltyAccount", () => {
 
     await expect(
       useCase.execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         providerId: "delta",
         membershipNumber: "   ",
       }),
@@ -58,14 +59,14 @@ describe("LinkLoyaltyAccount", () => {
     const useCase = new LinkLoyaltyAccount(accounts);
 
     await useCase.execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hilton",
       membershipNumber: "HH1",
     });
 
     await expect(
       useCase.execute({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         providerId: "hilton",
         membershipNumber: "HH2",
       }),

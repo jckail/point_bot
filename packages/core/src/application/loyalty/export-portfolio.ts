@@ -10,6 +10,7 @@ import type {
   LoyaltyAccountReadModel,
 } from "./read-models";
 
+import type { UserId } from "../../domain/shared/ids";
 export interface ExportedAccount {
   readonly account: LoyaltyAccountReadModel;
   /** Full history, newest first (capped). */
@@ -36,7 +37,7 @@ export class ExportPortfolio {
   ) {}
 
   async execute(
-    userId: string,
+    userId: UserId,
     historyLimit = DEFAULT_EXPORT_HISTORY_LIMIT,
   ): Promise<PortfolioExportReadModel> {
     const accounts = await this.accounts.findByUserId(userId);
@@ -46,21 +47,24 @@ export class ExportPortfolio {
       now,
     );
 
-    const exported: ExportedAccount[] = [];
-    for (const account of accounts) {
-      const history = await this.balances.findByAccountId(
-        account.id,
-        historyLimit,
-      );
-      exported.push({
-        account: toLoyaltyAccountReadModel(
-          account,
-          trends.get(account.id) ?? null,
-          now,
-        ),
-        history: history.map(toBalanceReadModel),
-      });
-    }
+    // Histories are independent reads: issue them together (the pool queues
+    // beyond its size) instead of one round trip per account in sequence.
+    const exported: ExportedAccount[] = await Promise.all(
+      accounts.map(async (account) => {
+        const history = await this.balances.findByAccountId(
+          account.id,
+          historyLimit,
+        );
+        return {
+          account: toLoyaltyAccountReadModel(
+            account,
+            trends.get(account.id) ?? null,
+            now,
+          ),
+          history: history.map(toBalanceReadModel),
+        };
+      }),
+    );
 
     return { exportedAt: now, accounts: exported };
   }

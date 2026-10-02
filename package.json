@@ -17,14 +17,46 @@
     "db:generate": "npm run db:generate --workspace @pointup/core",
     "db:migrate": "npm run db:migrate --workspace @pointup/core",
     "db:push": "npm run db:push --workspace @pointup/core",
-    "db:studio": "npm run db:studio --workspace @pointup/core"
+    "db:studio": "npm run db:studio --workspace @pointup/core",
+    "docker:up": "docker compose up --build -d",
+    "docker:up:pgbouncer": "APP_DATABASE_URL=postgresql://postgres:password@pgbouncer:6432/app docker compose --profile pgbouncer up --build -d",
+    "docker:up:observability": "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 docker compose --profile observability up --build -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v --remove-orphans && docker compose up --build -d",
+    "docker:smoke": "node scripts/docker-smoke.mjs",
+    "bench:seed": "tsx scripts/bench/seed.ts",
+    "bench:queries": "tsx scripts/bench/queries.ts",
+    "bench:web": "scripts/bench/web-bench.sh",
+    "bench:mcp": "scripts/bench/mcp-bench.sh",
+    "bench:mcp-inproc": "tsx scripts/bench/mcp-inproc.ts",
+    "bench:fanout": "tsx scripts/bench/sync-fanout.ts",
+    "hygiene": "npm run hygiene:cycles && npm run hygiene:duplication",
+    "hygiene:cycles": "npx --yes madge@8.0.0 --circular --extensions ts,tsx --ts-config tsconfig.base.json packages/core/src packages/api-client/src apps/web/src apps/mcp/src apps/worker/src apps/bot/src apps/extension/src",
+    "hygiene:duplication": "npx --yes jscpd@4.0.5 packages apps --ignore \"**/node_modules/**,**/.next/**,**/dist/**,**/drizzle/**,**/test/**,**/*.test.ts,**/catalog/**\" --min-lines 15 --min-tokens 120 --threshold 2 --reporters console --silent"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.2.10",
+    "eslint-config-next": "^16.3.8",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0"
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "brace-expansion@1": "1.1.21",
+    "brace-expansion@5": "5.0.12",
+    "browserslist": "4.28.7",
+    "js-yaml@4": "4.3.2",
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
+    "hyperid": {
+      "uuid": "11.1.1"
+    },
+    "vitest": {
+      "vite": "7.3.6"
+    }
   }
 }

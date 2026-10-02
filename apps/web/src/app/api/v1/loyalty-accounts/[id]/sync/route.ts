@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getContainer } from "@/server/container";
 import { withAuthenticatedUser } from "@/server/http";
 
+import { LoyaltyAccountId } from "@pointup/core";
 export function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -19,9 +20,9 @@ export function POST(
 
     const balance = await getContainer().useCases.syncLoyaltyAccount.execute({
       userId,
-      accountId: id,
+      accountId: LoyaltyAccountId.parse(id),
       transientCredential: body.transientCredential,
     });
     return NextResponse.json(toBalanceDto(balance));
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

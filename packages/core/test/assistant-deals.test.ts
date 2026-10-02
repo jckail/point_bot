@@ -7,10 +7,9 @@ import { ListTripGoals } from "../src/application/loyalty/list-trip-goals";
 import { CreateTripGoal } from "../src/application/loyalty/create-trip-goal";
 import { HeuristicAssistant } from "../src/infrastructure/llm/openai-compatible-assistant";
 import { StubPageScraper } from "../src/infrastructure/scraper/firecrawl-page-scraper";
-import {
-  rankTransferOptions,
-} from "../src/domain/loyalty/transfer-partners";
+import { rankTransferOptions } from "../src/domain/loyalty/transfer-ranking";
 import { rankDeals, CATALOG_DEALS } from "../src/domain/loyalty/deals";
+import { createTransferBonus } from "../src/domain/loyalty/transfer-bonus";
 import { createBalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import {
@@ -20,23 +19,61 @@ import {
 } from "./fakes";
 import type { LlmAssistant } from "../src/application/ports";
 
+import { asTransferBonusId, asUserId } from "./ids";
 describe("transfer partner graph", () => {
-  it("applies Hyatt bonus and ranks partners by effective cpp", () => {
+  const now = new Date("2026-10-15T00:00:00Z");
+  const hyattBonus = createTransferBonus({
+    id: asTransferBonusId("b1"),
+    fromProviderId: "chase-ultimate-rewards",
+    toProviderId: "hyatt",
+    multiplierPermille: 1300,
+    startsAt: new Date("2026-10-01T00:00:00Z"),
+    endsAt: new Date("2026-10-31T00:00:00Z"),
+    source: "manual",
+    now,
+  });
+
+  it("shows no bonus by default (nothing is invented)", () => {
     const options = rankTransferOptions("chase-ultimate-rewards", 100_000);
     expect(options.length).toBeGreaterThan(0);
+    for (const option of options) {
+      expect(option.bonusMultiplier).toBe(1);
+      expect(option.bonusLabel).toBeNull();
+    }
+  });
 
-    const hyatt = options.find((o) => o.to.id === "hyatt");
-    const hilton = options.find((o) => o.to.id === "hilton");
-    expect(hyatt).toBeDefined();
-    expect(hilton).toBeDefined();
-    expect(hyatt!.bonusMultiplier).toBeGreaterThan(1);
-    expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
-      hilton!.effectiveCentsPerPoint,
+  it("applies an injected Hyatt bonus and ranks partners by effective cpp", () => {
+    const options = rankTransferOptions(
+      "chase-ultimate-rewards",
+      100_000,
+      [hyattBonus],
+      now,
+      { cardProductId: "chase-sapphire-preferred" },
     );
-    // Highest editorial cpp partners should lead the list.
+    const hyatt = options.find((o) => o.to.id === "hyatt");
+    const marriott = options.find((o) => o.to.id === "marriott");
+    expect(hyatt).toBeDefined();
+    expect(marriott).toBeDefined();
+    expect(hyatt!.bonusMultiplier).toBe(1.3);
+    expect(hyatt!.destinationPoints).toBe(97_500);
+    expect(hyatt!.bonusLabel).toBe("+30% bonus until 2026-10-31");
+    expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
+      marriott!.effectiveCentsPerPoint,
+    );
     expect(options[0]!.effectiveCentsPerPoint).toBeGreaterThanOrEqual(
       options[options.length - 1]!.effectiveCentsPerPoint,
     );
+  });
+
+  it("ignores bonuses outside their window", () => {
+    const options = rankTransferOptions(
+      "chase-ultimate-rewards",
+      100_000,
+      [hyattBonus],
+      new Date("2026-11-15T00:00:00Z"),
+      { cardProductId: "chase-sapphire-preferred" },
+    );
+    expect(options.find((o) => o.to.id === "hyatt")!.bonusMultiplier).toBe(1);
   });
 });
 
@@ -64,7 +101,7 @@ describe("GetValueAdvice", () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     const balances = new InMemoryBalanceSnapshotRepository();
     const chase = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "chase-ultimate-rewards",
       membershipNumber: "UR1",
     });
@@ -80,7 +117,7 @@ describe("GetValueAdvice", () => {
 
     const advice = await new GetValueAdvice(
       new ListLoyaltyAccounts(accounts, balances),
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(advice.transfers.length).toBeGreaterThan(0);
     expect(advice.deals.length).toBe(CATALOG_DEALS.length);
@@ -113,7 +150,7 @@ describe("ChatWithAssistant", () => {
     const goals = new InMemoryTripGoalRepository();
 
     const chase = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "chase-ultimate-rewards",
       membershipNumber: "UR1",
     });
@@ -128,7 +165,7 @@ describe("ChatWithAssistant", () => {
     );
 
     await new CreateTripGoal(goals, accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       title: "Kyoto",
       targetPoints: 70_000,
       accountIds: [],
@@ -139,7 +176,7 @@ describe("ChatWithAssistant", () => {
       new ListTripGoals(goals, balances),
       new HeuristicAssistant(),
     ).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       message: "What's my best transfer right now?",
     });
 
@@ -150,7 +187,7 @@ describe("ChatWithAssistant", () => {
   it("maps LLM failures to ASSISTANT_UNAVAILABLE", async () => {
     const failing: LlmAssistant = {
       async complete() {
-        throw new Error("boom");
+        throw Object.assign(new Error("PRIVATE_PROVIDER_BODY"), { name: "PRIVATE_PROVIDER_NAME", data: "PRIVATE_ACCOUNT_DATA" });
       },
     };
     const accounts = new InMemoryLoyaltyAccountRepository();
@@ -161,7 +198,10 @@ describe("ChatWithAssistant", () => {
         new ListLoyaltyAccounts(accounts, balances),
         new ListTripGoals(new InMemoryTripGoalRepository(), balances),
         failing,
-      ).execute({ userId: "user-1", message: "hello" }),
-    ).rejects.toMatchObject({ code: "ASSISTANT_UNAVAILABLE" });
+      ).execute({ userId: asUserId("user-1"), message: "hello" }),
+    ).rejects.toMatchObject({
+      code: "ASSISTANT_UNAVAILABLE",
+      message: "Assistant unavailable: Please try again later.",
+    });
   });
 });

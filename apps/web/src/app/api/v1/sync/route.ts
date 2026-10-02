@@ -10,5 +10,5 @@ export function POST() {
     const outcomes =
       await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
     return NextResponse.json(outcomes.map(toSyncOutcomeDto));
-  });
+  }, { method: "POST", scope: "portfolio:write" });
 }

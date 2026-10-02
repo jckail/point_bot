@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { normalizeCardProductId, type CardProductId } from "../../domain/loyalty/card-products";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { DuplicateLoyaltyAccountError } from "../../domain/errors";
+import { DuplicateLoyaltyAccountError, InvalidBalanceError, InvalidGoalTargetError, LoyaltyAccountNotFoundError, TripGoalNotFoundError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
-import type {
-  BalanceSnapshot,
-} from "../../domain/loyalty/balance-snapshot";
+import { parseProviderId } from "../../domain/loyalty/provider";
+import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
+import { BALANCE_SOURCES } from "../../domain/loyalty/balance-snapshot";
 import type {
   ActivityEventRepository,
   BalanceSnapshotRepository,
@@ -15,16 +16,21 @@ import type {
 } from "../../domain/loyalty/repositories";
 import type { ActivityEvent } from "../../domain/loyalty/activity";
 import type { PortfolioShare } from "../../domain/loyalty/portfolio-share";
-import { buildTrendContext } from "../../application/loyalty/balance-trend";
 import type { Database } from "../db/client";
+import { lockAccountForWrite } from "../db/account-write-lock";
+import { safeIntegerFromDatabase } from "../db/numeric-values";
 import {
+  accountTags,
   activityEvents,
   balanceSnapshots,
   loyaltyAccounts,
   portfolioShares,
+  tripGoalAccounts,
   tripGoals,
 } from "../db/schema";
 import type { TripGoal } from "../../domain/loyalty/trip-goal";
+import { TRIP_GOAL_STATUSES } from "../../domain/loyalty/trip-goal";
+import { LoyaltyAccountId, ShareId, TripGoalId, UserId } from "../../domain/shared/ids";
 
 const PG_UNIQUE_VIOLATION = "23505";
 
@@ -37,28 +43,25 @@ function isUniqueViolation(error: unknown): boolean {
   return isUniqueViolation(candidate.cause);
 }
 
-type LoyaltyAccountRow = typeof loyaltyAccounts.$inferSelect;
+type LoyaltyAccountRow = typeof loyaltyAccounts.$inferSelect & {
+  tags: { tag: string; position: number }[];
+};
+
+/** Eager-load tags in stored order. */
+const withTags = { tags: { orderBy: accountTags.position } } as const;
 type BalanceSnapshotRow = typeof balanceSnapshots.$inferSelect;
-
-function serializeTags(tags: readonly string[]): string {
-  return tags.join(",");
-}
-
-function parseTags(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((tag) => tag.trim()).filter(Boolean);
-}
 
 function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
   return {
-    id: row.id,
-    userId: row.userId,
-    providerId: row.providerId,
+    id: LoyaltyAccountId.parse(row.id),
+    userId: UserId.parse(row.userId),
+    providerId: parseProviderId(row.providerId),
     membershipNumber: row.membershipNumber,
+    cardProductId: normalizeCardProductId(row.providerId, row.cardProductId),
     credentialRef: row.credentialRef,
     expiresAt: row.expiresAt,
     notes: row.notes,
-    tags: parseTags(row.tags),
+    tags: row.tags.map((t) => t.tag),
     pinnedAt: row.pinnedAt,
     deletedAt: row.deletedAt,
     createdAt: row.createdAt,
@@ -67,35 +70,99 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
 }
 
 function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
+  const points = safeIntegerFromDatabase(row.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+  if (!BALANCE_SOURCES.includes(row.source)) throw new Error("Stored balance source requires repair");
   return {
     id: row.id,
-    loyaltyAccountId: row.loyaltyAccountId,
-    points: row.points,
+    loyaltyAccountId: LoyaltyAccountId.parse(row.loyaltyAccountId),
+    points,
     source: row.source,
     capturedAt: row.capturedAt,
   };
 }
 
-export class DrizzleLoyaltyAccountRepository
-  implements LoyaltyAccountRepository
-{
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface LateralSnapshotRow extends Record<string, unknown> {
+  kind: string;
+  account_id: string;
+  id: string;
+  points: string;
+  source: BalanceSnapshot["source"];
+  /** ISO-8601 UTC with millisecond precision (see `snapshotColumns`). */
+  captured_at: string;
+}
+
+/**
+ * Selected columns for raw snapshot SQL. `captured_at` is rendered as an ISO
+ * string server-side so parsing never depends on the driver's date parsers
+ * (Drizzle swaps them for pass-through strings).
+ */
+const snapshotColumns = sql.raw(
+  `b.id, b.points::text as points, b.source, to_char(b.captured_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as captured_at`,
+);
+
+function fromLateralRow(row: LateralSnapshotRow): BalanceSnapshot {
+  const points = safeIntegerFromDatabase(row.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+  if (!BALANCE_SOURCES.includes(row.source)) throw new Error("Stored balance source requires repair");
+  return {
+    id: row.id,
+    loyaltyAccountId: LoyaltyAccountId.parse(row.account_id),
+    points,
+    source: row.source,
+    capturedAt: new Date(row.captured_at),
+  };
+}
+
+/** `ARRAY['a','b']::text[]` with every id bound as a parameter. */
+function textArray(values: readonly string[]) {
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )}]::text[]`;
+}
+
+/** A Drizzle handle or an open transaction on it. */
+type Executor = Pick<Database, "insert" | "delete">;
+
+async function replaceTags(
+  db: Executor,
+  accountId: LoyaltyAccountId,
+  tags: readonly string[],
+): Promise<void> {
+  await db.delete(accountTags).where(eq(accountTags.accountId, accountId));
+  const unique = [...new Set(tags)];
+  if (unique.length === 0) return;
+  await db
+    .insert(accountTags)
+    .values(unique.map((tag, position) => ({ accountId, tag, position })));
+}
+
+export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<LoyaltyAccount | null> {
+  async lockById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
+    const row = await lockAccountForWrite(this.db, id);
+    return row ? this.findById(id) : null;
+  }
+
+  async findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null> {
     const row = await this.db.query.loyaltyAccounts.findFirst({
       where: eq(loyaltyAccounts.id, id),
+      with: withTags,
     });
     return row ? toLoyaltyAccount(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     const rows = await this.db.query.loyaltyAccounts.findMany({
       where: and(
         eq(loyaltyAccounts.userId, userId),
         isNull(loyaltyAccounts.deletedAt),
       ),
+      with: withTags,
       // Pinned first (NULLS LAST), then oldest linked.
-      orderBy: (table, { asc: a, desc: d }) => [
+      orderBy: (table, { asc: a }) => [
         sql`${table.pinnedAt} DESC NULLS LAST`,
         a(table.createdAt),
       ],
@@ -103,19 +170,28 @@ export class DrizzleLoyaltyAccountRepository
     return rows.map(toLoyaltyAccount);
   }
 
-  async findDeletedByUserId(userId: string): Promise<LoyaltyAccount[]> {
+  async findDeletedByUserId(userId: UserId): Promise<LoyaltyAccount[]> {
     const rows = await this.db.query.loyaltyAccounts.findMany({
       where: and(
         eq(loyaltyAccounts.userId, userId),
         isNotNull(loyaltyAccounts.deletedAt),
       ),
+      with: withTags,
       orderBy: (table, { desc: d }) => [d(table.deletedAt)],
     });
     return rows.map(toLoyaltyAccount);
   }
 
+  async lockByUserAndProvider(userId: UserId, providerId: string): Promise<LoyaltyAccount | null> {
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`consent:${userId}:${providerId}`}, 0))`);
+    const [row] = await this.db.select().from(loyaltyAccounts).where(and(
+      eq(loyaltyAccounts.userId, userId), eq(loyaltyAccounts.providerId, providerId),
+    )).for("update");
+    return row ? this.findById(LoyaltyAccountId.parse(row.id)) : null;
+  }
+
   async findByUserAndProvider(
-    userId: string,
+    userId: UserId,
     providerId: string,
   ): Promise<LoyaltyAccount | null> {
     // Include soft-deleted rows so re-linking the same provider is blocked
@@ -125,33 +201,37 @@ export class DrizzleLoyaltyAccountRepository
         eq(loyaltyAccounts.userId, userId),
         eq(loyaltyAccounts.providerId, providerId),
       ),
+      with: withTags,
     });
     return row ? toLoyaltyAccount(row) : null;
   }
 
-  async listUserIds(): Promise<string[]> {
+  async listUserIds(): Promise<UserId[]> {
     const rows = await this.db
       .selectDistinct({ userId: loyaltyAccounts.userId })
       .from(loyaltyAccounts)
       .where(isNull(loyaltyAccounts.deletedAt));
-    return rows.map((row) => row.userId);
+    return rows.map((row) => UserId.parse(row.userId));
   }
 
   async insert(account: LoyaltyAccount): Promise<void> {
     try {
-      await this.db.insert(loyaltyAccounts).values({
-        id: account.id,
-        userId: account.userId,
-        providerId: account.providerId,
-        membershipNumber: account.membershipNumber,
-        credentialRef: account.credentialRef,
-        expiresAt: account.expiresAt,
-        notes: account.notes,
-        tags: serializeTags(account.tags),
-        pinnedAt: account.pinnedAt,
-        deletedAt: account.deletedAt,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
+      await this.db.transaction(async (tx) => {
+        await tx.insert(loyaltyAccounts).values({
+          id: account.id,
+          userId: account.userId,
+          providerId: account.providerId,
+          membershipNumber: account.membershipNumber,
+          cardProductId: normalizeCardProductId(account.providerId, account.cardProductId),
+          credentialRef: account.credentialRef,
+          expiresAt: account.expiresAt,
+          notes: account.notes,
+          pinnedAt: account.pinnedAt,
+          deletedAt: account.deletedAt,
+          createdAt: account.createdAt,
+          updatedAt: account.updatedAt,
+        });
+        await replaceTags(tx, account.id, account.tags);
       });
     } catch (error) {
       // Two concurrent link requests can both pass the use case's duplicate
@@ -164,100 +244,134 @@ export class DrizzleLoyaltyAccountRepository
     }
   }
 
-  async update(account: LoyaltyAccount): Promise<void> {
-    await this.db
-      .update(loyaltyAccounts)
-      .set({
-        membershipNumber: account.membershipNumber,
-        credentialRef: account.credentialRef,
-        expiresAt: account.expiresAt,
-        notes: account.notes,
-        tags: serializeTags(account.tags),
-        pinnedAt: account.pinnedAt,
-        deletedAt: account.deletedAt,
-        updatedAt: account.updatedAt,
-      })
-      .where(eq(loyaltyAccounts.id, account.id));
+  async update(account: LoyaltyAccount, selection?: { readonly cardProductId?: CardProductId | null }): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(loyaltyAccounts)
+        .set({
+          membershipNumber: account.membershipNumber,
+          ...(selection?.cardProductId !== undefined
+            ? { cardProductId: normalizeCardProductId(account.providerId, selection.cardProductId) }
+            : {}),
+          credentialRef: account.credentialRef,
+          expiresAt: account.expiresAt,
+          notes: account.notes,
+          pinnedAt: account.pinnedAt,
+          deletedAt: account.deletedAt,
+          updatedAt: account.updatedAt,
+        })
+        .where(eq(loyaltyAccounts.id, account.id));
+      await replaceTags(tx, account.id, account.tags);
+    });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: LoyaltyAccountId): Promise<void> {
     await this.db.delete(loyaltyAccounts).where(eq(loyaltyAccounts.id, id));
   }
 }
 
-export class DrizzleBalanceSnapshotRepository
-  implements BalanceSnapshotRepository
-{
+export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotRepository {
   constructor(private readonly db: Database) {}
 
   async insert(snapshot: BalanceSnapshot): Promise<void> {
-    await this.db.insert(balanceSnapshots).values({
-      id: snapshot.id,
-      loyaltyAccountId: snapshot.loyaltyAccountId,
-      points: snapshot.points,
-      source: snapshot.source,
-      capturedAt: snapshot.capturedAt,
+    safeIntegerFromDatabase(snapshot.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+    if (!BALANCE_SOURCES.includes(snapshot.source)) throw new Error("Balance source is invalid");
+    await this.db.transaction(async tx => {
+      const account = await lockAccountForWrite(tx, snapshot.loyaltyAccountId);
+      if (!account || account.deletedAt) throw new LoyaltyAccountNotFoundError(snapshot.loyaltyAccountId);
+      await tx.insert(balanceSnapshots).values({
+        id: snapshot.id,
+        loyaltyAccountId: snapshot.loyaltyAccountId,
+        points: snapshot.points,
+        source: snapshot.source,
+        capturedAt: snapshot.capturedAt,
+      });
     });
   }
 
   async findLatestByAccountIds(
-    accountIds: readonly string[],
-  ): Promise<Map<string, BalanceSnapshot>> {
+    accountIds: readonly LoyaltyAccountId[],
+  ): Promise<Map<LoyaltyAccountId, BalanceSnapshot>> {
     if (accountIds.length === 0) return new Map();
 
-    // DISTINCT ON picks one row per account server-side (newest first via the
-    // order by), instead of shipping every snapshot to the app and reducing
-    // in JS. Served by the (loyalty_account_id, captured_at) index.
-    const rows = await this.db
-      .selectDistinctOn([balanceSnapshots.loyaltyAccountId])
-      .from(balanceSnapshots)
-      .where(inArray(balanceSnapshots.loyaltyAccountId, [...accountIds]))
-      .orderBy(
-        balanceSnapshots.loyaltyAccountId,
-        desc(balanceSnapshots.capturedAt),
-        // Tie-break equal timestamps deterministically.
-        sql`${balanceSnapshots.id} DESC`,
-      );
-
+    // One index probe per account (newest row of
+    // balance_snapshot_account_captured_idx) instead of DISTINCT ON over every
+    // snapshot of every requested account: cost is O(accounts), not
+    // O(snapshots). Ties on captured_at break on id, newest first.
+    const rows = await this.db.execute<LateralSnapshotRow>(sql`
+      select 'latest' as kind, a.id as account_id, s.*
+      from unnest(${textArray(accountIds)}) as a(id)
+      cross join lateral (
+        select ${snapshotColumns} from balance_snapshot b
+        where b.loyalty_account_id = a.id
+        order by b.captured_at desc, b.id desc
+        limit 1
+      ) s
+    `);
     return new Map(
-      rows.map((row) => [row.loyaltyAccountId, toBalanceSnapshot(row)]),
+      [...rows].map((row) => {
+        const snapshot = fromLateralRow(row);
+        return [snapshot.loyaltyAccountId, snapshot] as const;
+      }),
     );
   }
 
   async findTrendContextByAccountIds(
-    accountIds: readonly string[],
+    accountIds: readonly LoyaltyAccountId[],
     now: Date,
-  ): Promise<Map<string, BalanceTrendContext>> {
+  ): Promise<Map<LoyaltyAccountId, BalanceTrendContext>> {
     if (accountIds.length === 0) return new Map();
 
-    // Load history for the requested accounts (newest first) and reduce in
-    // the application layer. Typical portfolios are small; the
-    // (loyalty_account_id, captured_at) index keeps this cheap.
-    const rows = await this.db.query.balanceSnapshots.findMany({
-      where: inArray(balanceSnapshots.loyaltyAccountId, [...accountIds]),
-      orderBy: (table, { desc: d }) => [d(table.capturedAt)],
-    });
+    // Fetch only the four rows each trend needs (latest, previous, newest at
+    // or before 30 days ago, newest at or before 90 days ago) with index
+    // probes per account, rather than the full history (50-200+ rows per
+    // account) which was then reduced in JS. Result size is <= 4 rows per
+    // account regardless of history length.
+    const cutoff30 = new Date(now.getTime() - 30 * DAY_MS).toISOString();
+    const cutoff90 = new Date(now.getTime() - 90 * DAY_MS).toISOString();
+    const probe = (kind: string, where: ReturnType<typeof sql>, offset = 0) => sql`(
+      select ${sql.raw(`'${kind}'`)} as kind, ${snapshotColumns} from balance_snapshot b
+      where b.loyalty_account_id = a.id ${where}
+      order by b.captured_at desc, b.id desc
+      limit 1 offset ${sql.raw(String(offset))}
+    )`;
+    const rows = await this.db.execute<LateralSnapshotRow>(sql`
+      select s.kind, a.id as account_id, s.id, s.points, s.source, s.captured_at
+      from unnest(${textArray(accountIds)}) as a(id)
+      cross join lateral (
+        ${probe("latest", sql``)}
+        union all ${probe("previous", sql``, 1)}
+        union all ${probe("d30", sql`and b.captured_at <= ${cutoff30}::timestamptz`)}
+        union all ${probe("d90", sql`and b.captured_at <= ${cutoff90}::timestamptz`)}
+      ) s
+    `);
 
-    const byAccount = new Map<string, BalanceSnapshot[]>();
-    for (const id of accountIds) byAccount.set(id, []);
+    const slots = new Map<string, Record<string, BalanceSnapshot>>();
     for (const row of rows) {
-      byAccount.get(row.loyaltyAccountId)?.push(toBalanceSnapshot(row));
+      let slot = slots.get(row.account_id);
+      if (!slot) slots.set(row.account_id, (slot = {}));
+      slot[row.kind] = fromLateralRow(row);
     }
-
-    const result = new Map<string, BalanceTrendContext>();
-    for (const [accountId, snapshots] of byAccount) {
-      result.set(accountId, buildTrendContext(snapshots, now));
+    const result = new Map<LoyaltyAccountId, BalanceTrendContext>();
+    for (const accountId of accountIds) {
+      const slot = slots.get(accountId) ?? {};
+      result.set(accountId, {
+        latest: slot.latest ?? null,
+        previous: slot.previous ?? null,
+        asOf30Days: slot.d30 ?? null,
+        asOf90Days: slot.d90 ?? null,
+      });
     }
     return result;
   }
 
   async findByAccountId(
-    accountId: string,
+    accountId: LoyaltyAccountId,
     limit: number,
   ): Promise<BalanceSnapshot[]> {
     const rows = await this.db.query.balanceSnapshots.findMany({
       where: eq(balanceSnapshots.loyaltyAccountId, accountId),
-      orderBy: (table, { desc }) => [desc(table.capturedAt)],
+      orderBy: (table, { desc: d }) => [d(table.capturedAt), d(table.id)],
       limit,
     });
     return rows.map(toBalanceSnapshot);
@@ -279,7 +393,7 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
     });
   }
 
-  async findByUserId(userId: string, limit: number): Promise<ActivityEvent[]> {
+  async findByUserId(userId: UserId, limit: number): Promise<ActivityEvent[]> {
     const rows = await this.db.query.activityEvents.findMany({
       where: eq(activityEvents.userId, userId),
       orderBy: (table, { desc: d }) => [d(table.occurredAt)],
@@ -287,9 +401,9 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
     });
     return rows.map((row) => ({
       id: row.id,
-      userId: row.userId,
+      userId: UserId.parse(row.userId),
       type: row.type as ActivityEvent["type"],
-      accountId: row.accountId,
+      accountId: row.accountId === null ? null : LoyaltyAccountId.parse(row.accountId),
       providerId: row.providerId,
       summary: row.summary,
       occurredAt: row.occurredAt,
@@ -297,25 +411,39 @@ export class DrizzleActivityEventRepository implements ActivityEventRepository {
   }
 }
 
-function serializeAccountIds(accountIds: readonly string[]): string {
-  return accountIds.join(",");
-}
+type TripGoalRow = typeof tripGoals.$inferSelect & {
+  accounts: { accountId: string; position: number }[];
+};
 
-function parseAccountIds(raw: string): string[] {
-  if (!raw || raw.trim().length === 0) return [];
-  return raw.split(",").map((id) => id.trim()).filter(Boolean);
-}
+const withGoalAccounts = {
+  accounts: { orderBy: tripGoalAccounts.position },
+} as const;
 
-type TripGoalRow = typeof tripGoals.$inferSelect;
+async function replaceGoalAccounts(
+  db: Executor,
+  goalId: TripGoalId,
+  userId: UserId,
+  accountIds: readonly LoyaltyAccountId[],
+): Promise<void> {
+  await db.delete(tripGoalAccounts).where(and(eq(tripGoalAccounts.goalId, goalId), eq(tripGoalAccounts.userId, userId)));
+  const unique = [...new Set(accountIds)];
+  if (unique.length === 0) return;
+  await db
+    .insert(tripGoalAccounts)
+    .values(
+      unique.map((accountId, position) => ({ goalId, userId, accountId, position })),
+    );
+}
 
 function toTripGoal(row: TripGoalRow): TripGoal {
+  if (!TRIP_GOAL_STATUSES.includes(row.status)) throw new Error("Stored goal status requires repair");
   return {
-    id: row.id,
-    userId: row.userId,
+    id: TripGoalId.parse(row.id),
+    userId: UserId.parse(row.userId),
     title: row.title,
-    targetPoints: row.targetPoints,
+    targetPoints: safeIntegerFromDatabase(row.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError()),
     targetDate: row.targetDate,
-    accountIds: parseAccountIds(row.accountIds),
+    accountIds: row.accounts.map((a) => LoyaltyAccountId.parse(a.accountId)),
     status: row.status,
     notes: row.notes,
     createdAt: row.createdAt,
@@ -326,52 +454,64 @@ function toTripGoal(row: TripGoalRow): TripGoal {
 export class DrizzleTripGoalRepository implements TripGoalRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<TripGoal | null> {
+  async findById(id: TripGoalId): Promise<TripGoal | null> {
     const row = await this.db.query.tripGoals.findFirst({
       where: eq(tripGoals.id, id),
+      with: withGoalAccounts,
     });
     return row ? toTripGoal(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<TripGoal[]> {
+  async findByUserId(userId: UserId): Promise<TripGoal[]> {
     const rows = await this.db.query.tripGoals.findMany({
       where: eq(tripGoals.userId, userId),
+      with: withGoalAccounts,
       orderBy: (table, { desc: d }) => [d(table.updatedAt)],
     });
     return rows.map(toTripGoal);
   }
 
   async insert(goal: TripGoal): Promise<void> {
-    await this.db.insert(tripGoals).values({
-      id: goal.id,
-      userId: goal.userId,
-      title: goal.title,
-      targetPoints: goal.targetPoints,
-      targetDate: goal.targetDate,
-      accountIds: serializeAccountIds(goal.accountIds),
-      status: goal.status,
-      notes: goal.notes,
-      createdAt: goal.createdAt,
-      updatedAt: goal.updatedAt,
+    safeIntegerFromDatabase(goal.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError());
+    if (!TRIP_GOAL_STATUSES.includes(goal.status)) throw new Error("Goal status is invalid");
+    await this.db.transaction(async (tx) => {
+      await tx.insert(tripGoals).values({
+        id: goal.id,
+        userId: goal.userId,
+        title: goal.title,
+        targetPoints: goal.targetPoints,
+        targetDate: goal.targetDate,
+        status: goal.status,
+        notes: goal.notes,
+        createdAt: goal.createdAt,
+        updatedAt: goal.updatedAt,
+      });
+      await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
     });
   }
 
   async update(goal: TripGoal): Promise<void> {
-    await this.db
-      .update(tripGoals)
-      .set({
-        title: goal.title,
-        targetPoints: goal.targetPoints,
-        targetDate: goal.targetDate,
-        accountIds: serializeAccountIds(goal.accountIds),
-        status: goal.status,
-        notes: goal.notes,
-        updatedAt: goal.updatedAt,
-      })
-      .where(eq(tripGoals.id, goal.id));
+    safeIntegerFromDatabase(goal.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError());
+    if (!TRIP_GOAL_STATUSES.includes(goal.status)) throw new Error("Goal status is invalid");
+    await this.db.transaction(async (tx) => {
+      const changed = await tx
+        .update(tripGoals)
+        .set({
+          title: goal.title,
+          targetPoints: goal.targetPoints,
+          targetDate: goal.targetDate,
+          status: goal.status,
+          notes: goal.notes,
+          updatedAt: goal.updatedAt,
+        })
+        .where(and(eq(tripGoals.id, goal.id), eq(tripGoals.userId, goal.userId)))
+        .returning({ id: tripGoals.id });
+      if (changed.length !== 1) throw new TripGoalNotFoundError(goal.id);
+      await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
+    });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: TripGoalId): Promise<void> {
     await this.db.delete(tripGoals).where(eq(tripGoals.id, id));
   }
 }
@@ -380,8 +520,8 @@ type PortfolioShareRow = typeof portfolioShares.$inferSelect;
 
 function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
   return {
-    id: row.id,
-    userId: row.userId,
+    id: ShareId.parse(row.id),
+    userId: UserId.parse(row.userId),
     token: row.token,
     label: row.label,
     createdAt: row.createdAt,
@@ -390,12 +530,10 @@ function toPortfolioShare(row: PortfolioShareRow): PortfolioShare {
   };
 }
 
-export class DrizzlePortfolioShareRepository
-  implements PortfolioShareRepository
-{
+export class DrizzlePortfolioShareRepository implements PortfolioShareRepository {
   constructor(private readonly db: Database) {}
 
-  async findById(id: string): Promise<PortfolioShare | null> {
+  async findById(id: ShareId): Promise<PortfolioShare | null> {
     const row = await this.db.query.portfolioShares.findFirst({
       where: eq(portfolioShares.id, id),
     });
@@ -409,7 +547,7 @@ export class DrizzlePortfolioShareRepository
     return row ? toPortfolioShare(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<PortfolioShare[]> {
+  async findByUserId(userId: UserId): Promise<PortfolioShare[]> {
     const rows = await this.db.query.portfolioShares.findMany({
       where: eq(portfolioShares.userId, userId),
       orderBy: (table, { desc: d }) => [d(table.createdAt)],
@@ -440,7 +578,7 @@ export class DrizzlePortfolioShareRepository
       .where(eq(portfolioShares.id, share.id));
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: ShareId): Promise<void> {
     await this.db.delete(portfolioShares).where(eq(portfolioShares.id, id));
   }
 }

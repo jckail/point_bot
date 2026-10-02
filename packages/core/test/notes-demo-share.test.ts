@@ -24,6 +24,7 @@ import {
   InMemoryTripGoalRepository,
 } from "./fakes";
 
+import { asUserId } from "./ids";
 describe("BuildPortfolioDigest", () => {
   it("includes active goals and expiring accounts", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
@@ -31,7 +32,7 @@ describe("BuildPortfolioDigest", () => {
     const goals = new InMemoryTripGoalRepository();
 
     const hyatt = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "hyatt",
       membershipNumber: "HY1",
       expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
@@ -47,7 +48,7 @@ describe("BuildPortfolioDigest", () => {
     );
 
     await new CreateTripGoal(goals, accounts, balances).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       title: "Kyoto",
       targetPoints: 70_000,
       accountIds: [hyatt.id],
@@ -56,7 +57,7 @@ describe("BuildPortfolioDigest", () => {
     const digest = await new BuildPortfolioDigest(
       new ListLoyaltyAccounts(accounts, balances),
       new ListTripGoals(goals, balances),
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(digest.goals).toHaveLength(1);
     expect(digest.goals[0]?.percentComplete).toBeGreaterThan(0);
@@ -78,18 +79,18 @@ describe("SeedDemoPortfolio", () => {
       link,
       record,
       createGoal,
-    ).execute("user-1");
+    ).execute(asUserId("user-1"));
 
     expect(result.accountIds.length).toBe(5);
     expect(result.goalId).not.toBeNull();
-    expect(await accounts.findByUserId("user-1")).toHaveLength(5);
+    expect(await accounts.findByUserId(asUserId("user-1"))).toHaveLength(5);
   });
 
   it("refuses to seed when the portfolio is not empty", async () => {
     const accounts = new InMemoryLoyaltyAccountRepository();
     await accounts.insert(
       createLoyaltyAccount({
-        userId: "user-1",
+        userId: asUserId("user-1"),
         providerId: "united",
         membershipNumber: "X",
       }),
@@ -103,7 +104,7 @@ describe("SeedDemoPortfolio", () => {
           accounts,
           new InMemoryBalanceSnapshotRepository(),
         ),
-      ).execute("user-1"),
+      ).execute(asUserId("user-1")),
     ).rejects.toBeInstanceOf(DemoPortfolioNotEmptyError);
   });
 });
@@ -115,7 +116,7 @@ describe("PortfolioShare", () => {
     const shares = new InMemoryPortfolioShareRepository();
 
     const account = createLoyaltyAccount({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       providerId: "united",
       membershipNumber: "SECRET-MP",
     });
@@ -130,7 +131,7 @@ describe("PortfolioShare", () => {
     );
 
     const share = await new CreatePortfolioShare(shares).execute({
-      userId: "user-1",
+      userId: asUserId("user-1"),
       label: "Friends",
       expiresInDays: 30,
     });

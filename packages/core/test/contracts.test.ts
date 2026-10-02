@@ -36,6 +36,7 @@ import {
   PROVIDER_KINDS,
 } from "../src/domain/loyalty/provider";
 
+import { asTripGoalId } from "./ids";
 describe("provider catalog", () => {
   it("has unique ids and only cataloged kinds", () => {
     const ids = PROVIDER_CATALOG.map((provider) => provider.id);
@@ -108,7 +109,7 @@ describe("request schema strictness", () => {
     for (const kind of PROVIDER_KINDS) {
       expect(providerKindSchema.safeParse(kind).success).toBe(true);
     }
-    expect(providerKindSchema.safeParse("cruise").success).toBe(false);
+    expect(providerKindSchema.safeParse("spaceship").success).toBe(false);
   });
 });
 
@@ -122,7 +123,7 @@ describe("error code -> HTTP status contract", () => {
       new InvalidBalanceError(),
       new InvalidCaptureTimeError("x"),
       new CredentialUnavailableError("x"),
-      new TripGoalNotFoundError("x"),
+      new TripGoalNotFoundError(asTripGoalId("x")),
       new InvalidGoalTitleError(),
       new InvalidGoalTargetError(),
       new InvalidImportError("x"),

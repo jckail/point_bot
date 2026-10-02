@@ -9,12 +9,14 @@ import { SimulatedTravelProviderGateway } from "./simulated-travel-provider-gate
 export interface BuildGatewayOptions {
   /** When set (baseUrl + apiKey), a real aggregator gateway is added first. */
   readonly aggregator?: Partial<HttpAggregatorConfig>;
+  /** Explicit demo-only fallback; unconfigured real hosts remain unavailable. */
+  readonly allowSimulation?: boolean;
 }
 
 /**
  * Composition helper shared by every host (web, worker) so they build the same
- * provider gateway: the real aggregator adapter first (when configured), then
- * the simulated gateway as the fallback for everything else.
+ * provider gateway: configured real adapters first. Simulation is appended only
+ * for an explicitly enabled demo context, never as an implicit real-user sync.
  */
 export function buildTravelProviderGateway(
   options: BuildGatewayOptions = {},
@@ -27,6 +29,7 @@ export function buildTravelProviderGateway(
       new HttpAggregatorTravelProviderGateway({
         baseUrl: aggregator.baseUrl,
         apiKey: aggregator.apiKey,
+        ...(aggregator.fetchImpl ? { fetchImpl: aggregator.fetchImpl } : {}),
         ...(aggregator.supportedProviderIds
           ? { supportedProviderIds: aggregator.supportedProviderIds }
           : {}),
@@ -34,6 +37,6 @@ export function buildTravelProviderGateway(
     );
   }
 
-  gateways.push(new SimulatedTravelProviderGateway());
+  if (options.allowSimulation === true) gateways.push(new SimulatedTravelProviderGateway());
   return new CompositeTravelProviderGateway(gateways);
 }

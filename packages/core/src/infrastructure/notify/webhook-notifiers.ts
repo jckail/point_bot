@@ -7,11 +7,12 @@ export type FetchLike = (
     method: string;
     headers: Record<string, string>;
     body: string;
+    redirect: "error";
     signal?: AbortSignal;
   },
-) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
+) => Promise<{ ok: boolean; status: number; text(): Promise<string>; body?: { cancel(): Promise<void> } | null }>;
 
-const defaultFetch: FetchLike = (url, init) => fetch(url, init as RequestInit);
+const defaultFetch: FetchLike = (url, init) => fetch(url, init);
 
 async function postJson(
   fetchImpl: FetchLike,
@@ -19,18 +20,30 @@ async function postJson(
   payload: unknown,
   channel: string,
 ): Promise<void> {
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(
-      `${channel} webhook failed (${response.status}): ${body.slice(0, 200)}`,
-    );
-  }
+  // Preserve path/query credentials while rejecting ambiguous or unsafe URLs.
+  // URL parser errors can echo their input, so only a fixed error escapes.
+  try {
+    if (/[\s\\]/.test(url) || url.includes("#") || /^[^:]+:\/\/[^/?#]*@/.test(url)) throw new Error();
+    const parsed = new URL(url);
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
+    if ((parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback))
+      || parsed.username || parsed.password || parsed.hash) throw new Error();
+  } catch { throw new Error(`${channel} webhook failed`); }
+  // Network exceptions and upstream bodies can contain webhook secrets or
+  // notification content. Neither is inspected or attached as an error cause.
+  try {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+    });
+    // Drop the response stream without reading potentially private content.
+    try { await response.body?.cancel(); } catch { /* Best-effort resource release. */ }
+    if (response.ok) return;
+  } catch { /* Translate every transport failure to a fixed diagnostic. */ }
+  throw new Error(`${channel} webhook failed`);
 }
 
 /**

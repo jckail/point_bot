@@ -19,10 +19,16 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | --- | --- | --- |
 | `UNAUTHENTICATED` | 401 | No valid session |
 | `INVALID_REQUEST` | 400 | Request body/query failed schema validation |
+| `REQUEST_TOO_LARGE` | 413 | JSON request body exceeds the bounded 2 MiB limit |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | JSON request requires `Content-Type: application/json` |
+| `INVALID_ID` | 422 | An identifier (user, account, goal, ...) was empty or not a string |
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
+| `INVALID_CARD_PRODUCT` | 400 | Choose a supported transfer card compatible with the account program. |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
 | `INVALID_AWARD_WATCH` | 422 | Watch label/threshold failed validation |
+| `INVALID_TRANSFER_BONUS` | 422 | Bonus failed validation (unknown program, no transfer path, multiplier outside (1.0, 3.0], ends before it starts) |
+| `INVALID_REDEMPTION_GOAL` | 422 | Optimizer goal failed validation (unknown target program, bad quantity or min value) |
 | `INVALID_DISPLAY_CURRENCY` | 422 | Display currency not in the supported set |
 | `AWARD_WATCH_NOT_FOUND` | 404 | Watch does not exist **or is not yours** |
 | `INVALID_BALANCE` | 422 | Points value is negative or fractional |
@@ -38,11 +44,29 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `LOYALTY_ACCOUNT_NOT_FOUND` | 404 | Account does not exist **or is not yours** (never distinguishable) |
 | `TRIP_GOAL_NOT_FOUND` | 404 | Goal does not exist **or is not yours** |
 | `SHARE_LINK_NOT_FOUND` | 404 | Share token missing, revoked, or expired |
+| `INVALID_SHARE_EXPIRY` | 400 | Share expiry must be a whole number of days from 1 to 365, or omitted/null |
 | `INVALID_ASSISTANT_MESSAGE` | 422 | Chat message empty or too long |
 | `INVALID_SCRAPE_URL` | 422 | Scrape URL is not absolute http(s) |
 | `ASSISTANT_UNAVAILABLE` | 503 | LLM provider failed |
+| `ASSISTANT_ACTION_NOT_FOUND` | 404 | Proposal does not exist **or is not yours** |
+| `INVALID_ASSISTANT_ACTION` | 400 | Proposal values or execution preconditions are invalid |
 | `SCRAPE_FAILED` | 502 | Page scraper failed |
 | `CREDENTIAL_UNAVAILABLE` | 409 | Sync needed credentials but none were resolvable |
+| `INSUFFICIENT_SCOPE` | 403 | Access token lacks the scope the route needs (or the route is session-only) |
+| `CSRF_REJECTED` | 403 | Cookie-authenticated state-changing request failed the origin/content-type checks |
+| `INVALID_ACCESS_TOKEN_REQUEST` | 422 | Token name, scopes or lifetime failed validation |
+| `ACCESS_TOKEN_NOT_FOUND` | 404 | Token does not exist **or is not yours** |
+| `CONSENT_REQUIRED` | 403 | Agent write-back refused: no active consent for that provider |
+| `CONSENT_NOT_FOUND` | 404 | Consent does not exist **or is not yours** |
+| `INVALID_CONSENT` | 422 | Consent lifetime outside 1-90 days |
+| `SKILL_NOT_FOUND` | 404 | No agent skill for that id |
+| `INVALID_OBSERVATION` | 422 | Agent observation rejected (bad value, non-https or off-allow-list source) |
+| `OBSERVATION_REPLAY_CONFLICT` | 409 | Capture UUID already belongs to a different canonical payload; recover its receipt before making a new capture |
+| `REVIEW_NOT_FOUND` | 404 | Held reading does not exist **or is not yours** |
+| `REVIEW_ALREADY_RESOLVED` | 409 | Held reading was already confirmed or rejected |
+| `REVIEW_EXPIRED` | 410 | Held reading passed its 24 hour review window |
+| `REVIEW_STALE` | 409 | The account's latest balance changed since the reading was held |
+| `RATE_LIMITED` | 429 | Per-principal rate limit exceeded (see `Retry-After`) |
 | `INTERNAL` | 500 | Unexpected server error |
 
 ## Endpoints
@@ -210,7 +234,19 @@ Grounded portfolio assistant. Body: `{ "message": "...", "history"?: [{ "role": 
 
 ### `GET /api/v1/value-advice`
 
-Bang-for-buck view: ranked transfer options from the user's balances plus curated (and previously scraped) deals with realized ¢/pt and affordability.
+Bang-for-buck view: ranked transfer options from the user's balances plus curated (and previously scraped) deals with realized ¢/pt and affordability. Transfers use the saved card selection and dated eligibility resolver. Unknown or unverified conditional rules return eligibility warnings rather than numeric yields. Transfer DTOs optionally include `bonusVerified` and `bonusSource` (`manual|scraped|user`); a missing/null verification flag is unknown, not verified. The dashboard marks an applied bonus unverified unless that flag is explicitly true. No-bonus options are separate from unverified bonuses.
+
+### `GET /api/v1/optimizer/plan`
+
+Ranked redemption plans for the caller's balances (see [optimizer.md](./optimizer.md)). Query: `goalKind` (`flight|hotel|any`), `targetProgramId`, `minValueCpp`, `quantity`, `limit`, and optionally `origin`, `destination`, `dateFrom`, `dateTo`, `cabin` (all five together) to attach real award space when a search source is configured. Each plan has `steps`, `sources` (points used per program), `effectiveCentsPerPoint`, `shortfall`, `expiryUrgency`, `confidence`, `caveats[]` and `availability` (null unless real data was returned). Scope `portfolio:read`. Errors: `INVALID_REDEMPTION_GOAL`.
+
+### `GET /api/v1/deals/sweet-spots`
+
+The curated, **unverified** sweet-spot catalog (typical points ranges, estimated ¢/pt, constraints, confidence). Filters: `kind`, `programId`. Scope `portfolio:read`.
+
+### `GET /api/v1/transfer-bonuses` / `POST /api/v1/transfer-bonuses`
+
+Active transfer bonuses; **crowd/manual data, empty by default**. `GET` requires `portfolio:read` and returns shared manual/scraped or verified entries plus the caller's own unverified user reports. `POST` (scope `portfolio:write`) body `{ fromProviderId, toProviderId, bonusPercent, startsAt, endsAt, sourceUrl? }` records a bonus as `source: "user"`, unverified and attributed to the caller. That report affects only the reporter's advice and plans until trusted verification; the public request cannot set source or verification. There is no public verification endpoint. Emits `transfer_bonus.recorded`. Errors: `INVALID_TRANSFER_BONUS`.
 
 ### `POST /api/v1/deals/scrape`
 
@@ -253,7 +289,7 @@ Link a program membership. Returns `201` with `{ "accountId": "..." }`.
 }
 ```
 
-`credentialRef` is optional — a pointer into a credential vault (e.g. a 1Password reference), never a password.
+`credentialRef` is optional — a pointer into a credential vault (e.g. a 1Password reference), never a password. `cardProductId` is an optional nullable explicit transfer-card selection, validated against the program; omission/null leaves a new account unknown. It does not establish card ownership or issuer access. The currently supported choices belong to Chase Ultimate Rewards; see [dated rule behavior](transfer-eligibility-plan.md).
 
 ### `GET /api/v1/loyalty-accounts/{id}`
 
@@ -261,7 +297,7 @@ One account (same shape as the list entries). `404` if the account does not exis
 
 ### `PATCH /api/v1/loyalty-accounts/{id}`
 
-Partial update; omitted fields are unchanged, `"credentialRef": null` clears the stored reference. Returns the updated account.
+Partial update; omitted fields are unchanged, `"credentialRef": null` clears the stored reference. `cardProductId` omission preserves the current selection; explicit null clears it to unknown. Returns the updated account.
 
 ```json
 { "membershipNumber": "MP999999", "credentialRef": null }
@@ -379,3 +415,36 @@ await client.syncAllLoyaltyAccounts();
 ```
 
 All methods throw `PointUpApiError` (with `status` and `code`) on non-2xx responses.
+
+### `POST /api/v1/agent/observations`
+
+Submit a consented balance reading with `observations:write`; creating a missing
+account additionally requires `portfolio:write` and a membership number. JSON
+requests are limited to 32 KiB. Optional `captureId` is a UUID retained before
+submission; optional `sourceMethod` is `page_capture` or `manual_entry`. Retain
+the original `observedAt`, reviewed points, exact `sourceUrl`, agent label and
+auto-link input across retries. Sources require HTTPS, an exact skill-listed
+host, no credentials and the default TLS port. Capture time must be finite
+and nonfuture for every outcome. Source/method remain claims, not proof of a
+provider visit. Trusted credential and consent provenance cannot be supplied
+in JSON and remains private.
+
+The result retains `outcome`, `accountId`, `points`, `previousPoints`, `message`
+and nullable `reviewId`, and adds `observationId` for receipt recovery. Outcomes
+remain `recorded`, `unchanged`, `needs_review`, and `rejected`. For a timeout or
+lost response, retry the same capture UUID and canonical payload. Exact retries
+recover the same owner's current receipt without another balance or event,
+even after an intervening balance or human resolution. Current token scopes
+and provider consent must still authorize recovery; credential rotation does
+not rewrite the receipt's original witnesses. Changed claims under the same
+UUID return `OBSERVATION_REPLAY_CONFLICT` (409); do not automatically replace or
+drop the key to bypass this. Legacy requests without a UUID retain their
+existing admission semantics without stable replay recovery.
+
+Confirmation and rejection remain browser-session-only at
+`POST /api/v1/agent/observations/{id}/confirm` and `/reject`; bodyless requests
+or strict empty JSON are accepted. Confirmation requires an active owned
+account, unchanged baseline and unexpired 24-hour deadline after lock waits
+and write staging. New receipts compare snapshot identity; historical receipts
+with unknown witnesses retain a protected points comparison. Expired readings
+may still be rejected as cleanup. Neither action is exposed as an agent tool.

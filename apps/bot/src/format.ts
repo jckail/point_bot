@@ -81,6 +81,10 @@ export function formatValueAdvice(advice: ValueAdviceReadModel): string {
     }
   }
 
+  if (advice.eligibilityWarnings.length > 0) {
+    parts.push("Transfer eligibility:", ...advice.eligibilityWarnings.map(warning => `• ${warning.message}`));
+  }
+
   if (parts.length === 0) {
     return "No transfer or deal advice yet — link a transferable currency (Chase UR, Amex MR, Bilt) and record a balance.";
   }

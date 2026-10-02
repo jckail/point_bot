@@ -1,7 +1,9 @@
+import type { CardProductId } from "../../domain/loyalty/card-products";
 import type { BalanceSource } from "../../domain/loyalty/balance-snapshot";
-import type { ProviderKind } from "../../domain/loyalty/provider";
+import type { ProviderId, ProviderKind } from "../../domain/loyalty/provider";
 import type { BalanceTrend } from "./balance-trend";
 
+import type { LoyaltyAccountId } from "../../domain/shared/ids";
 /**
  * Read models returned by use cases. These are plain, serializable shapes:
  * the HTTP layer maps them onto wire DTOs (see `contracts/`), and other
@@ -9,7 +11,7 @@ import type { BalanceTrend } from "./balance-trend";
  */
 
 export interface ProviderReadModel {
-  readonly id: string;
+  readonly id: ProviderId;
   readonly kind: ProviderKind;
   readonly displayName: string;
   readonly pointsCurrency: string;
@@ -26,8 +28,9 @@ export interface BalanceReadModel {
 }
 
 export interface LoyaltyAccountReadModel {
-  readonly id: string;
+  readonly id: LoyaltyAccountId;
   readonly provider: ProviderReadModel;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly hasStoredCredential: boolean;
   readonly latestBalance: BalanceReadModel | null;
@@ -56,7 +59,7 @@ export interface LoyaltyAccountReadModel {
 export interface ActivityEventReadModel {
   readonly id: string;
   readonly type: import("../../domain/loyalty/activity").ActivityType;
-  readonly accountId: string | null;
+  readonly accountId: LoyaltyAccountId | null;
   readonly providerId: string | null;
   readonly summary: string;
   readonly occurredAt: Date;

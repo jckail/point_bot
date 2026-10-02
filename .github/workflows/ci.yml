@@ -5,11 +5,32 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A new push to a PR supersedes the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   app:
     name: Lint, typecheck, test & build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:password@localhost:5432/app
     steps:
       - uses: actions/checkout@v4
 
@@ -21,14 +42,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify tooling override compatibility
+        run: node scripts/check-tooling-overrides.mjs
+
       - name: Lint
         run: npm run lint
+
+      - name: Hygiene (import cycles, duplication budget)
+        run: npm run hygiene
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm run test
+      - name: Apply migrations (incl. RLS)
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/app
+
+      - name: Unit + Postgres integration tests
+        run: |
+          npm run test
+          node --test scripts/deployment/rollout.test.mjs
+
+      - name: Generate ChatGPT Action spec
+        run: npx tsx plugins/chatgpt/build.ts
 
       - name: Build web app
         run: npm run build
@@ -43,6 +80,9 @@ jobs:
 
       - name: Build bot bundle
         run: npm run build --workspace @pointup/bot
+
+      - name: Build MCP server bundle
+        run: npm run build --workspace @pointup/mcp
 
       - name: Build extension
         run: npm run build --workspace @pointup/extension
@@ -69,4 +109,157 @@ jobs:
         run: npm run typecheck
 
       - name: Synth
-        run: npx cdk synth --quiet
+        run: npx cdk synth --quiet -c webCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c webDomainName=pointup.test
+
+      - name: Synth with MCP enabled (placeholder certificate)
+        run: npx cdk synth --quiet -c webCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c webDomainName=pointup.test -c enableMcp=true -c mcpCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c mcpDomainName=mcp.example.com
+
+      - name: Synth guard (enableMcp without a certificate must fail)
+        run: npm test
+
+  plugins:
+    name: Validate plugin manifests & ChatGPT spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate JSON manifests
+        run: |
+          for f in .claude-plugin/marketplace.json plugins/claude/.claude-plugin/plugin.json plugins/claude/.mcp.json; do
+            node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$f"
+            echo "ok  $f"
+          done
+          node -e '
+            const fs = require("fs");
+            const market = JSON.parse(fs.readFileSync(".claude-plugin/marketplace.json", "utf8"));
+            for (const p of market.plugins) {
+              if (!fs.existsSync(`${p.source}/.claude-plugin/plugin.json`)) {
+                throw new Error(`marketplace source ${p.source} has no plugin.json`);
+              }
+            }
+            const plugin = JSON.parse(fs.readFileSync("plugins/claude/.claude-plugin/plugin.json", "utf8"));
+            if (!plugin.name || !plugin.version) throw new Error("plugin.json needs name and version");
+          '
+
+      - name: Generate ChatGPT Action spec
+        run: npx tsx plugins/chatgpt/build.ts
+
+      - name: Validate generated spec
+        run: |
+          node -e '
+            const spec = JSON.parse(require("fs").readFileSync("plugins/chatgpt/dist/openapi.json", "utf8"));
+            if (!String(spec.openapi).startsWith("3.")) throw new Error("not an OpenAPI 3 document");
+            const METHODS = ["get", "post", "put", "patch", "delete"];
+            const ops = Object.values(spec.paths).flatMap((p) => METHODS.filter((m) => p[m]).map((m) => p[m]));
+            if (ops.length > 30) throw new Error(`ChatGPT Actions allow 30 operations, got ${ops.length}`);
+            for (const op of ops) {
+              if (!op.operationId) throw new Error("operation without operationId");
+              if ((op.description ?? op.summary ?? "").length > 300) {
+                throw new Error(`description > 300 chars: ${op.operationId}`);
+              }
+            }
+            if (spec.paths["/api/v1/tokens"] || spec.paths["/api/v1/consents"]?.post) {
+              throw new Error("session-only operations (token minting, consent granting) must not be exported to ChatGPT");
+            }
+            console.log(`ok  ${ops.length} operations`);
+          '
+
+  e2e:
+    name: E2E smoke (MCP over HTTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci
+
+      # The smoke test only uses Playwright's HTTP client; no browser download.
+      - name: Run smoke tests
+        working-directory: e2e
+        run: npm test
+
+  docker:
+    name: Docker compose stack + smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate compose files (default + all profiles)
+        run: docker compose --profile pgbouncer --profile tools --profile bot config -q
+
+      # No secrets and no external accounts: AUTH_PROVIDER=dev, dev token from
+      # the compose defaults.
+      - name: Start the stack
+        run: docker compose up --build -d --wait --wait-timeout 300
+
+      - name: Smoke test (API, MCP over HTTP, consented write-back)
+        run: node scripts/docker-smoke.mjs
+
+      - name: Stack through PgBouncer (transaction pooling, prepare:false)
+        run: |
+          docker compose down -v --remove-orphans
+          APP_DATABASE_URL=postgresql://postgres:password@pgbouncer:6432/app \
+            docker compose --profile pgbouncer up --build -d --wait --wait-timeout 300
+          node scripts/docker-smoke.mjs
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --profile pgbouncer logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile pgbouncer down -v --remove-orphans
+
+  audit:
+    name: Dependency audit (report only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: npm audit (production deps)
+        run: npm audit --omit=dev --audit-level=high | tee audit.txt
+        continue-on-error: true
+
+      - name: npm audit (infra)
+        working-directory: infra
+        run: npm audit --omit=dev --audit-level=high | tee ../audit-infra.txt
+        continue-on-error: true
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## npm audit (non-blocking)"
+            echo '```'
+            tail -n 25 audit.txt || true
+            echo '--- infra ---'
+            tail -n 25 audit-infra.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

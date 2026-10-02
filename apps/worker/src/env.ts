@@ -1,5 +1,8 @@
-import { composeDatabaseUrl } from "@pointup/core";
+import { AUTH_PROVIDERS, composeDatabaseUrl } from "@pointup/core";
 import { z } from "zod";
+
+export const MAILER_KINDS = ["ses", "smtp", "console"] as const;
+export type MailerKind = (typeof MAILER_KINDS)[number];
 
 /**
  * Prefer an explicit DATABASE_URL (local dev, docker-compose). On AWS, ECS
@@ -26,13 +29,51 @@ function getDatabaseUrl(): string | undefined {
 const envSchema = z.object({
   DATABASE_URL: z.url(),
 
+  NODE_ENV: z.string().optional(),
+
+  /**
+   * Bootstrap job (local stack only). AUTH_PROVIDER=dev enables demo seeding
+   * and dev-token minting; the same production guard as the web app applies.
+   */
+  AUTH_PROVIDER: z.enum(AUTH_PROVIDERS).default("clerk"),
+  DEV_USER_ID: z.string().min(1).default("dev-user"),
+  ALLOW_INSECURE_DEV_AUTH: z.string().optional(),
+  DEV_AUTH_HOST_IS_LOOPBACK_ONLY: z.string().optional(),
+  /** Deterministic personal access token to mint for the dev user (pu_...). */
+  POINTUP_DEV_TOKEN: z.string().min(1).optional(),
+  /** Public URLs printed in the connection snippets. */
+  PUBLIC_WEB_URL: z.url().default("http://localhost:3000"),
+  PUBLIC_MCP_URL: z.url().default("http://localhost:8787/mcp"),
+
+  /** `loop` job cadence (minutes between syncs / digests). */
+  WORKER_SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(360),
+  WORKER_DIGEST_INTERVAL_MINUTES: z.coerce.number().positive().default(10080),
+
+  /** Domain-event outbox dispatcher (`outbox` job / loop task). */
+  WORKER_OUTBOX_INTERVAL_SECONDS: z.coerce.number().positive().default(10),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  /** Delivery attempts before an event is dead-lettered. */
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(8),
+
+  /**
+   * Retention (`purge` job / loop task). Processed outbox rows and activity
+   * events older than these are deleted in bounded batches; dead-lettered
+   * outbox rows, balance snapshots and agent observations are never purged.
+   */
+  WORKER_PURGE_INTERVAL_SECONDS: z.coerce.number().positive().default(3600),
+  OUTBOX_RETENTION_DAYS: z.coerce.number().positive().default(14),
+  ACTIVITY_RETENTION_DAYS: z.coerce.number().positive().default(365),
+  /** Rows per DELETE statement and per-target cap per run. */
+  PURGE_BATCH_SIZE: z.coerce.number().int().positive().default(1000),
+  PURGE_MAX_ROWS_PER_RUN: z.coerce.number().int().positive().default(50000),
+
   /**
    * Email delivery backend:
    * - "ses": AWS SES (task role must allow ses:SendEmail)
    * - "smtp": any SMTP endpoint - Mailpit in local development
    * - "console": log emails instead of sending (default)
    */
-  MAILER: z.enum(["ses", "smtp", "console"]).default("console"),
+  MAILER: z.enum(MAILER_KINDS).default("console"),
   /** SMTP endpoint for MAILER=smtp, e.g. smtp://mailpit:1025 */
   SMTP_URL: z.url().optional(),
   /** Verified sender address for digests (required for ses/smtp). */
@@ -68,7 +109,10 @@ export type WorkerEnv = z.infer<typeof envSchema>;
 
 export function loadEnv(): WorkerEnv {
   return envSchema.parse({
-    ...process.env,
+    // Compose emits empty strings for unset optional integrations, matching
+    // the web host's emptyStringAsUndefined convention. Keep nonempty values
+    // intact so malformed URLs and credentials still receive validation.
+    ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")),
     DATABASE_URL: getDatabaseUrl(),
   });
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   CheckAwardWatches,
@@ -19,12 +19,13 @@ import {
 import type { PageScraper, ScrapedPage } from "../src/application/ports";
 import { InMemoryAwardWatchRepository } from "./fakes";
 
+import { asUserId } from "./ids";
 const NOW = new Date("2026-07-09T12:00:00Z");
 const clock = { now: () => NOW };
 
 function watch(over: Partial<Parameters<typeof createAwardWatch>[0]> = {}) {
   return createAwardWatch({
-    userId: "u1",
+    userId: asUserId("u1"),
     url: "https://blog.example/hyatt-sweet-spots",
     label: "Hyatt sweet spots",
     minCentsPerPoint: 2,
@@ -100,6 +101,27 @@ describe("CheckAwardWatches", () => {
     expect(stored.lastCheckedAt).toEqual(NOW);
   });
 
+  it.each([Number.POSITIVE_INFINITY, 2_147_484])("counts an invalid observed rate %s without changing state or publishing", async cpp => {
+    const repo = new InMemoryAwardWatchRepository();
+    const original = watch();
+    await repo.insert(original);
+    const ingest = new IngestDealPage(scraperAt(2.5), clock);
+    vi.spyOn(ingest, "execute").mockResolvedValue({
+      pageTitle: "Synthetic", markdownExcerpt: "", deals: [{
+        id: "synthetic", kind: "scraped", title: "Award", summary: "Synthetic",
+        providerId: "hyatt", pointsCost: 1, cashEquivalentCents: cpp,
+        sourceUrl: "https://example.com/award", transferFromProviderId: null,
+      }],
+    });
+    const publish = vi.fn(async () => {});
+    const check = new CheckAwardWatches(repo, ingest, clock, {
+      unitOfWork: { atomic: false, run: work => work() }, publisher: { publish },
+    });
+    expect(await check.execute()).toEqual({ checked: 1, failed: 1, hits: [] });
+    expect(await repo.findAll()).toEqual([original]);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("stays quiet below the threshold", async () => {
     const repo = new InMemoryAwardWatchRepository();
     await repo.insert(watch({ minCentsPerPoint: 3 }));
@@ -129,18 +151,19 @@ describe("CreateAwardWatch / DeleteAwardWatch", () => {
   it("creates then deletes an owned watch; never another user's", async () => {
     const repo = new InMemoryAwardWatchRepository();
     const created = await new CreateAwardWatch(repo, clock).execute({
-      userId: "u1",
+      userId: asUserId("u1"),
       url: "https://blog.example/deals",
       label: "Deals",
-      minCentsPerPoint: 1.8,
+      minCentsPerPoint: 1.8004,
     });
-    expect((await repo.findByUserId("u1"))[0]?.id).toBe(created.id);
+    expect(created.minCentsPerPoint).toBe(1.8);
+    expect((await repo.findByUserId(asUserId("u1")))[0]?.id).toBe(created.id);
 
     const del = new DeleteAwardWatch(repo);
-    await expect(del.execute("u2", created.id)).rejects.toBeInstanceOf(
+    await expect(del.execute(asUserId("u2"), created.id)).rejects.toBeInstanceOf(
       AwardWatchNotFoundError,
     );
-    await del.execute("u1", created.id);
-    expect(await repo.findByUserId("u1")).toEqual([]);
+    await del.execute(asUserId("u1"), created.id);
+    expect(await repo.findByUserId(asUserId("u1"))).toEqual([]);
   });
 });

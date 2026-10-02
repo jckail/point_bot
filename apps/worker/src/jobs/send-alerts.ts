@@ -6,6 +6,8 @@ import {
   type UserDirectory,
 } from "@pointup/core";
 
+import { reportFailure } from "../failures";
+
 import type { WorkerContainer } from "../container";
 import { renderAlertsChat, renderAlertsEmail } from "../alerts-render";
 
@@ -42,7 +44,7 @@ export async function sendAlerts(
       await notifier
         .notify(renderAlertsChat(alerts))
         .catch((error: unknown) =>
-          console.warn(`[alerts] user=${userId} chat notify failed`, error),
+          reportFailure("chat_delivery_failed", "alerts", error),
         );
     }
 
@@ -51,7 +53,7 @@ export async function sendAlerts(
       await mailer
         .send(renderAlertsEmail(alerts, email))
         .catch((error: unknown) =>
-          console.warn(`[alerts] user=${userId} email failed`, error),
+          reportFailure("email_delivery_failed", "alerts", error),
         );
     }
   }
