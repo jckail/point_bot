@@ -1,3 +1,5 @@
+import { isErrorCode } from "../contracts";
+
 /**
  * Log redaction. Applied to every structured log line before it is written,
  * so a token or password can never reach stdout by accident.
@@ -20,18 +22,20 @@ export function redactString(value: string): string {
   return value.replace(BEARER, `Bearer ${REDACTED}`).replace(PAT, REDACTED);
 }
 
-function redactError(error: Error, depth: number, seen: WeakSet<object>): unknown {
+function redactFailure(error: unknown): unknown {
+  let code: unknown;
+  try {
+    if (typeof error === "object" && error !== null && "code" in error) code = error.code;
+  } catch { /* Diagnostic getters are untrusted. */ }
   return {
-    name: error.name,
-    message: redactString(error.message),
-    ...(error.stack ? { stack: redactString(error.stack) } : {}),
-    ...(error.cause !== undefined
-      ? { cause: redact(error.cause, depth + 1, seen) }
-      : {}),
+    name: "OperationError",
+    message: "Operation failed",
+    category: "operation_failed",
+    ...(isErrorCode(code) ? { code } : {}),
   };
 }
 
-/** Deep, cycle-safe redaction. Errors become `{name,message,stack,cause}`. */
+/** Deep, cycle-safe redaction. Errors expose only fixed metadata and public codes. */
 export function redact(
   value: unknown,
   depth = 0,
@@ -44,7 +48,7 @@ export function redact(
   if (depth >= MAX_DEPTH) return "[Truncated]";
   if (seen.has(value)) return "[Circular]";
   seen.add(value);
-  if (value instanceof Error) return redactError(value, depth, seen);
+  if (value instanceof Error) return redactFailure(value);
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1, seen));
   const out: Record<string, unknown> = {};
@@ -52,7 +56,9 @@ export function redact(
     out[key] =
       SENSITIVE_KEY.test(key) && !ALLOWED_KEYS.has(key.toLowerCase())
         ? REDACTED
-        : redact(v, depth + 1, seen);
+        : /^(error|exception)$/i.test(key)
+          ? redactFailure(v)
+          : redact(v, depth + 1, seen);
   }
   return out;
 }

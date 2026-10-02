@@ -7,7 +7,7 @@
   "scripts": {
     "build": "esbuild src/background.ts src/content.ts src/popup.ts --bundle --format=iife --target=chrome110 --outdir=dist && cp public/manifest.json public/popup.html dist/",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=2"
   },
   "dependencies": {
     "@pointup/api-client": "*"

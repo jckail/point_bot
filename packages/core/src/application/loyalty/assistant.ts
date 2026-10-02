@@ -147,10 +147,8 @@ export class ChatWithAssistant {
         messages: [...history, { role: "user", content: message }],
       });
       return { reply, context };
-    } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : "unknown LLM error";
-      throw new AssistantUnavailableError(reason);
+    } catch {
+      throw new AssistantUnavailableError("Please try again later.");
     }
   }
 }

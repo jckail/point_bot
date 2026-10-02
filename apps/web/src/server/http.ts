@@ -7,7 +7,8 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { workAsyncStorage } from "next/dist/server/app-render/work-async-storage.external";
 
-import { getSessionUserId } from "@/server/auth";
+import { resolveRequestPrincipal } from "@/server/auth";
+import { env } from "@/env";
 import { getContainer } from "@/server/container";
 import {
   RATE_LIMIT_POLICIES,
@@ -16,6 +17,7 @@ import {
   mapError,
   rateLimitClassFor,
   rateLimitKey,
+  parseAppOrigin,
   type Principal,
   type RateLimitClass,
 } from "@/server/access-policy";
@@ -64,31 +66,15 @@ export interface AuthOptions {
   readonly rateLimit?: RateLimitClass;
 }
 
-async function resolvePrincipal(): Promise<Principal | null> {
-  const authorization = (await headers()).get("authorization");
-  if (authorization?.startsWith("Bearer pu_")) {
-    const principal =
-      await getContainer().useCases.authenticateAccessToken.execute(
-        authorization.slice("Bearer ".length).trim(),
-      );
-    return {
-      userId: principal.userId,
-      scopes: principal.scopes,
-      tokenId: principal.tokenId,
-    };
-  }
-  const userId = await getSessionUserId();
-  return userId ? { userId, scopes: "session" } : null;
-}
-
-async function checkCsrf(principal: Principal): Promise<void> {
+async function checkCsrf(principal: Principal, method?: HttpMethod): Promise<void> {
+  if (principal.scopes !== "session" || principal.credential === "clerk-bearer") return;
   const h = await headers();
   const length = h.get("content-length");
   assertCsrfSafe({
     principal,
     origin: h.get("origin"),
-    host: h.get("host"),
-    forwardedHost: h.get("x-forwarded-host"),
+    expectedOrigin: env.APP_URL ?? parseAppOrigin(`${env.NODE_ENV === "production" ? "https" : "http"}://${h.get("host") ?? ""}`),
+    method,
     secFetchSite: h.get("sec-fetch-site"),
     contentType: h.get("content-type"),
     hasBody: h.has("transfer-encoding") || (length !== null && length !== "0"),
@@ -124,13 +110,15 @@ async function authenticatedResponse(
   state: RequestState,
 ): Promise<NextResponse> {
   try {
-    const principal = await resolvePrincipal();
+    const principal = await resolveRequestPrincipal(options, token =>
+      getContainer().useCases.authenticateAccessToken.execute(token),
+    );
     if (!principal) {
       state.errorCode = "UNAUTHENTICATED";
       return errorResponse("UNAUTHENTICATED", "Sign in required", requestId);
     }
     state.principal = principal;
-    await checkCsrf(principal);
+    await checkCsrf(principal, options.method);
     authorize(principal, options);
 
     const cls = rateLimitClassFor(principal, options);

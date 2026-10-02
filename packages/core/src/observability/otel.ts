@@ -8,6 +8,7 @@ import {
 
 import { METRIC_DEFS, type MetricLabels, type MetricName, type Metrics } from "./metrics";
 import type { SpanAttributes, SpanHandle, Tracer } from "./tracer";
+import { isErrorCode } from "../contracts";
 
 /**
  * OpenTelemetry adapters. Only the tiny `@opentelemetry/api` package is used
@@ -21,6 +22,12 @@ const SCOPE = "pointup";
 function clean(attributes: SpanAttributes | undefined): Attributes {
   const out: Attributes = {};
   for (const [k, v] of Object.entries(attributes ?? {})) {
+    // Exception attributes can contain provider payloads, SQL or portfolio data.
+    // Only the closed public error-code catalog is safe to retain.
+    if (k.startsWith("error.") || k.startsWith("exception.")) {
+      if (k === "error.code" && isErrorCode(v)) out[k] = v;
+      continue;
+    }
     if (v !== undefined) out[k] = v;
   }
   return out;
@@ -35,16 +42,25 @@ export function createOtelTracer(): Tracer {
         { attributes: clean(attributes) },
         async (span) => {
           const handle: SpanHandle = {
-            setAttribute: (k, v) => void span.setAttribute(k, v),
+            setAttribute: (k, v) => void span.setAttributes(clean({ [k]: v })),
             setAttributes: (a) => void span.setAttributes(clean(a)),
           };
           try {
             return await fn(handle);
           } catch (error) {
-            span.recordException(error instanceof Error ? error : String(error));
+            span.recordException({ name: "OperationError", message: "Operation failed" });
+            span.setAttribute("error.category", "operation_failed");
+            // Untrusted exception properties may themselves be throwing getters.
+            // Observability must preserve the original rejection in that case.
+            try {
+              if (typeof error === "object" && error !== null && "code" in error) {
+                const code = error.code;
+                if (isErrorCode(code)) span.setAttribute("error.code", code);
+              }
+            } catch { /* Ignore untrusted diagnostic properties. */ }
             span.setStatus({
               code: SpanStatusCode.ERROR,
-              message: error instanceof Error ? error.name : "error",
+              message: "Operation failed",
             });
             throw error;
           } finally {

@@ -185,7 +185,7 @@ describe("ChatWithAssistant", () => {
   it("maps LLM failures to ASSISTANT_UNAVAILABLE", async () => {
     const failing: LlmAssistant = {
       async complete() {
-        throw new Error("boom");
+        throw Object.assign(new Error("PRIVATE_PROVIDER_BODY"), { name: "PRIVATE_PROVIDER_NAME", data: "PRIVATE_ACCOUNT_DATA" });
       },
     };
     const accounts = new InMemoryLoyaltyAccountRepository();
@@ -197,6 +197,9 @@ describe("ChatWithAssistant", () => {
         new ListTripGoals(new InMemoryTripGoalRepository(), balances),
         failing,
       ).execute({ userId: asUserId("user-1"), message: "hello" }),
-    ).rejects.toMatchObject({ code: "ASSISTANT_UNAVAILABLE" });
+    ).rejects.toMatchObject({
+      code: "ASSISTANT_UNAVAILABLE",
+      message: "Assistant unavailable: Please try again later.",
+    });
   });
 });

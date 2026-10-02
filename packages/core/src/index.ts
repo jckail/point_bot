@@ -84,6 +84,7 @@ export { refreshExpiryFromActivity } from "./domain/loyalty/loyalty-account";
 
 // Infrastructure
 export * from "./infrastructure/db/client";
+export * from "./infrastructure/db/migrations";
 export * as dbSchema from "./infrastructure/db/schema";
 export * from "./infrastructure/repositories/drizzle-loyalty-account-repository";
 export * from "./infrastructure/repositories/drizzle-custom-valuation-repository";

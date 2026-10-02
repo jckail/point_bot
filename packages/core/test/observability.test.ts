@@ -76,13 +76,11 @@ describe("redaction", () => {
     expect(out).toEqual({ tokenId: "tok_1", msg: "pu_short" });
   });
 
-  it("serialises Error objects (message, stack, cause) with secrets removed", () => {
+  it("serialises Error objects with fixed safe failure metadata", () => {
     const err = new Error(`failed for ${PAT}`, { cause: new Error("Bearer abc.def") });
-    const out = redact(err) as { name: string; message: string; stack: string; cause: { message: string } };
-    expect(out.name).toBe("Error");
-    expect(out.message).toBe(`failed for ${REDACTED}`);
-    expect(out.stack).not.toContain(PAT);
-    expect(out.cause.message).toBe(`Bearer ${REDACTED}`);
+    expect(redact(err)).toEqual({
+      name: "OperationError", message: "Operation failed", category: "operation_failed",
+    });
   });
 
   it("survives cycles and extreme depth", () => {
@@ -111,7 +109,7 @@ describe("console logger", () => {
       service: "svc",
       route: "/x",
       authorization: REDACTED,
-      error: { name: "Error", message: "boom" },
+      error: { name: "OperationError", message: "Operation failed", category: "operation_failed" },
     });
   });
 

@@ -9,7 +9,7 @@
     "dev": "tsx src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=2"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

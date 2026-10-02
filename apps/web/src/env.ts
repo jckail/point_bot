@@ -8,6 +8,7 @@ import {
 } from "@pointup/core";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
+import { parseAppOrigin } from "./server/access-policy";
 
 /**
  * Prefer an explicit DATABASE_URL (local dev, docker-compose). On AWS, ECS
@@ -37,6 +38,11 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     DATABASE_URL: z.url(),
+    // Explicit canonical origin for TLS proxies or production Docker over HTTP.
+    APP_URL: z.string().transform((value, ctx) => {
+      try { return parseAppOrigin(value); }
+      catch { ctx.addIssue({ code: "custom", message: "APP_URL must be an HTTP or HTTPS origin" }); return z.NEVER; }
+    }).optional(),
     // "clerk" (default, production) or "dev": no sign-in, one fixed seeded
     // user. Dev mode is local-only; see assertDevAuthAllowed for the boot guard.
     AUTH_PROVIDER: z.enum(AUTH_PROVIDERS).default("clerk"),
@@ -83,6 +89,7 @@ export const env = createEnv({
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: getDatabaseUrl(),
+    APP_URL: process.env.APP_URL,
     AUTH_PROVIDER: process.env.AUTH_PROVIDER,
     DEV_USER_ID: process.env.DEV_USER_ID,
     DEV_AUTH_ALLOWED_HOSTS: process.env.DEV_AUTH_ALLOWED_HOSTS,

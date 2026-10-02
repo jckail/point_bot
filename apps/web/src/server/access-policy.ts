@@ -13,6 +13,8 @@ export interface Principal {
   readonly scopes: Scopes;
   /** Present for personal access tokens; absent for browser sessions. */
   readonly tokenId?: AccessTokenId;
+  /** Set only after independent JWT verification and Clerk session agreement. */
+  readonly credential?: "clerk-bearer";
 }
 
 export const RATE_LIMIT_CLASSES = ["default", "write", "observations"] as const;
@@ -42,7 +44,7 @@ export function authorize(
   principal: Principal,
   requirement: AccessRequirement,
 ): void {
-  if (requirement.sessionOnly && principal.scopes !== "session") {
+  if (requirement.sessionOnly && (principal.scopes !== "session" || principal.credential === "clerk-bearer")) {
     throw new InsufficientScopeError("session");
   }
   requireScope(principal.scopes, requirement.scope);
@@ -59,12 +61,24 @@ export function mayWritePortfolio(principal: Principal): boolean {
 export interface CsrfInput {
   readonly principal: Principal;
   readonly origin: string | null;
-  readonly host: string | null;
-  readonly forwardedHost?: string | null;
+  /** Canonical app origin from configuration or the direct Host; never forwarded headers. */
+  readonly expectedOrigin: string;
+  readonly method?: string;
   readonly secFetchSite?: string | null;
   readonly contentType: string | null;
   /** True when the request carries a body (content-length > 0 or chunked). */
   readonly hasBody: boolean;
+}
+
+/** Configuration contains only an origin; errors never echo its value. */
+export function parseAppOrigin(value: string): string {
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error("APP_URL must be an HTTP or HTTPS origin"); }
+  if (!/^https?:\/\/[^/?#\\\s]+\/?$/i.test(value) || !["http:", "https:"].includes(url.protocol) || url.username || url.password
+      || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("APP_URL must be an HTTP or HTTPS origin");
+  }
+  return url.origin;
 }
 
 /**
@@ -72,28 +86,30 @@ export interface CsrfInput {
  * Authorization header cannot be set by a cross-site form). Applied to every
  * method: browsers omit Origin on same-origin GETs, so legitimate reads pass,
  * while a cross-origin request carrying the cookie is refused.
- *  - A present Origin must match the request host (`null` never matches).
+ *  - A present Origin must match the canonical scheme and host (`null` never matches).
+ *  - Cookie mutations require Origin, even for body-less writes.
  *  - Request bodies must be application/json, which a plain cross-site form
  *    cannot send without a CORS preflight.
  */
 export function assertCsrfSafe(input: CsrfInput): void {
-  if (input.principal.scopes !== "session") return;
+  if (input.principal.scopes !== "session" || input.principal.credential === "clerk-bearer") return;
   if (input.secFetchSite === "cross-site") {
     throw new CsrfRejectedError("cross-site request");
   }
   if (input.origin !== null) {
-    let originHost: string;
+    let origin: string;
     try {
-      originHost = new URL(input.origin).host;
+      origin = parseAppOrigin(input.origin);
     } catch {
       throw new CsrfRejectedError("invalid Origin header");
     }
-    const allowed = [input.host, input.forwardedHost].filter(
-      (h): h is string => !!h,
-    );
-    if (!allowed.includes(originHost)) {
-      throw new CsrfRejectedError("Origin does not match the request host");
+    if (origin !== input.expectedOrigin) {
+      throw new CsrfRejectedError("Origin does not match the app origin");
     }
+  }
+  if (input.origin === null
+      && !["GET", "HEAD", "OPTIONS"].includes((input.method ?? "UNKNOWN").toUpperCase())) {
+    throw new CsrfRejectedError("Origin is required for browser mutations");
   }
   if (input.hasBody) {
     const type = input.contentType?.split(";")[0]?.trim().toLowerCase();

@@ -1,7 +1,8 @@
-import { DEFAULT_DEV_ALLOWED_HOSTS, isDevHostAllowed, UserId } from "@pointup/core";
+import { AccessTokenInvalidError, DEFAULT_DEV_ALLOWED_HOSTS, InsufficientScopeError, isDevHostAllowed, UserId } from "@pointup/core";
 import { headers } from "next/headers";
 
 import { env } from "@/env";
+import type { Principal } from "./access-policy";
 
 /**
  * Session identity for the web surface, behind one seam so the rest of the app
@@ -40,6 +41,38 @@ export async function getSessionUserId(): Promise<UserId | null> {
   const { auth } = await import("@clerk/nextjs/server");
   const { userId } = await auth();
   return userId ? UserId.parse(userId) : null;
+}
+
+/** Explicit credentials never fall back to an ambient Clerk or dev session. */
+export async function resolveRequestPrincipal(
+  options: { readonly sessionOnly?: boolean },
+  authenticateToken: (token: string) => Promise<Principal>,
+): Promise<Principal | null> {
+  const authorization = (await headers()).get("authorization");
+  if (authorization === null) {
+    const userId = await getSessionUserId();
+    return userId ? { userId, scopes: "session" } : null;
+  }
+  // Token management and consent approval require browser cookie authority,
+  // even when a valid bearer belongs to the same user as the ambient session.
+  if (options.sessionOnly) throw new InsufficientScopeError("session");
+  const match = /^Bearer ([^\s,]+)$/i.exec(authorization);
+  if (!match) throw new AccessTokenInvalidError();
+  const token = match[1]!;
+  if (/^pu_/i.test(token)) return authenticateToken(token);
+  if (isDevAuth()) throw new AccessTokenInvalidError();
+  const { auth, verifyToken } = await import("@clerk/nextjs/server");
+  let subject: string;
+  try {
+    const verified = await verifyToken(token, { secretKey: env.CLERK_SECRET_KEY });
+    if (typeof verified.sub !== "string" || !verified.sub) throw new Error("Missing subject");
+    subject = verified.sub;
+  } catch { throw new AccessTokenInvalidError(); }
+  const { userId } = await auth();
+  // Independent verification prevents Clerk's ignored-header cookie fallback;
+  // agreement retains the middleware's session policy for verified JWTs.
+  if (userId !== subject) throw new AccessTokenInvalidError();
+  return { userId: UserId.parse(subject), scopes: "session", credential: "clerk-bearer" };
 }
 
 export interface SessionUser {

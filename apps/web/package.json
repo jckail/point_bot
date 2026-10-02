@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=2"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.14",

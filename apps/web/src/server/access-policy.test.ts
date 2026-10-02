@@ -9,6 +9,7 @@ import {
   mapError,
   rateLimitClassFor,
   rateLimitKey,
+  parseAppOrigin,
   type Principal,
 } from "./access-policy";
 
@@ -41,6 +42,13 @@ describe("authorize", () => {
     expect(() =>
       authorize(session, { scope: "consents:manage", sessionOnly: true }),
     ).not.toThrow();
+  });
+  it("requires browser authority even for an independently verified Clerk bearer", () => {
+    const requirement = { scope: "consents:manage" as const, sessionOnly: true };
+    expect(() => authorize(session, requirement)).not.toThrow();
+    expect(() => authorize(token(["consents:manage"]), requirement)).toThrow(InsufficientScopeError);
+    expect(() => authorize({ ...session, credential: "clerk-bearer" }, requirement)).toThrow(InsufficientScopeError);
+    expect(() => authorize({ ...session, credential: "clerk-bearer" }, { scope: "portfolio:read" })).not.toThrow();
   });
 });
 
@@ -89,18 +97,19 @@ describe("assertCsrfSafe (cookie sessions)", () => {
   const ok = {
     principal: session,
     origin: "https://app.example.com",
-    host: "app.example.com",
+    expectedOrigin: "https://app.example.com",
+    method: "POST",
     contentType: "application/json",
     hasBody: true,
   };
-  it("allows same-origin JSON and absent Origin", () => {
+  it("allows same-origin JSON and absent Origin on reads", () => {
     expect(() => assertCsrfSafe(ok)).not.toThrow();
-    expect(() => assertCsrfSafe({ ...ok, origin: null })).not.toThrow();
+    expect(() => assertCsrfSafe({ ...ok, origin: null, method: "GET" })).not.toThrow();
     expect(() =>
       assertCsrfSafe({ ...ok, contentType: "application/json; charset=utf-8" }),
     ).not.toThrow();
     expect(() =>
-      assertCsrfSafe({ ...ok, origin: "https://public.example.com", host: "internal", forwardedHost: "public.example.com" }),
+      assertCsrfSafe({ ...ok, origin: "https://public.example.com", expectedOrigin: "https://public.example.com" }),
     ).not.toThrow();
   });
   it("allows body-less requests without a content type", () => {
@@ -109,9 +118,19 @@ describe("assertCsrfSafe (cookie sessions)", () => {
     ).not.toThrow();
   });
   it("rejects a mismatching, null, or malformed Origin", () => {
-    for (const origin of ["https://evil.example", "null", "not a url", "https://app.example.com.evil.example"]) {
+    for (const origin of ["http://app.example.com", "https://evil.example", "null", "not a url", "https://app.example.com.evil.example", "https://app.example.com/path", "https://app.example.com?query", "https://user@app.example.com"]) {
       expect(() => assertCsrfSafe({ ...ok, origin })).toThrow(/rejected/);
     }
+  });
+  it("rejects missing Origin on body-less cookie mutations", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(() => assertCsrfSafe({ ...ok, origin: null, method, contentType: null, hasBody: false })).toThrow(/Origin is required/);
+    }
+  });
+  it("compares normalized default ports but never trusts extra forwarded headers", () => {
+    expect(() => assertCsrfSafe({ ...ok, origin: "https://app.example.com:443" })).not.toThrow();
+    const spoofed = { ...ok, origin: "https://evil.example", forwardedHost: "evil.example" };
+    expect(() => assertCsrfSafe(spoofed)).toThrow(/app origin/);
   });
   it("rejects cross-site fetch metadata", () => {
     expect(() => assertCsrfSafe({ ...ok, secFetchSite: "cross-site" })).toThrow();
@@ -126,6 +145,21 @@ describe("assertCsrfSafe (cookie sessions)", () => {
     expect(() =>
       assertCsrfSafe({ ...ok, principal: token(["portfolio:read"]), origin: "https://evil.example", contentType: "text/plain" }),
     ).not.toThrow();
+    expect(() => assertCsrfSafe({ ...ok, principal: { ...session, credential: "clerk-bearer" }, origin: null, contentType: null })).not.toThrow();
+  });
+});
+
+describe("canonical app origin configuration", () => {
+  it.each([
+    ["http://localhost:3000/", "http://localhost:3000"],
+    ["https://app.example.com:443", "https://app.example.com"],
+    ["http://app.example.com:80", "http://app.example.com"],
+  ])("normalizes explicit origin %s", (input, expected) => {
+    expect(parseAppOrigin(input)).toBe(expected);
+  });
+  it.each(["invalid", "ftp://app.example.com", "https://user:secret@app.example.com", "https://app.example.com/path", "https://app.example.com/path/..", "https://app.example.com?", "https://app.example.com#", "https://app.example.com?key=secret", "https://app.example.com#secret"])("rejects non-origin configuration safely", input => {
+    expect(() => parseAppOrigin(input)).toThrow("APP_URL must be an HTTP or HTTPS origin");
+    try { parseAppOrigin(input); } catch (error) { expect(String(error)).not.toContain(input); }
   });
 });
 

@@ -8,7 +8,7 @@
     "dev": "tsx src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.cjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=2"
   },
   "dependencies": {
     "@pointup/core": "*",
