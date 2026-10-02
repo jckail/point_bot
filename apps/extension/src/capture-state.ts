@@ -1,6 +1,6 @@
 import type { SubmitObservationRequest } from "@pointup/api-client";
 import type { ExtractedBalance } from "./extraction";
-import type { RecordResult } from "./messages";
+import type { RecordResult } from "./record-result";
 
 export interface ReviewedCapture extends ExtractedBalance {
   readonly captureId: string;

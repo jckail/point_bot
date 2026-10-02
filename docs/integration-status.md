@@ -293,3 +293,12 @@ remains authoritative. The root-owned PostgreSQL fixture is stopped with data
 retained after final checks. No production migration, host activation, live Chrome/provider
 capture, approved OIDC client or exporter delivery is established here.
 Migration-before-host rollout and the broader original scope remain release gates.
+
+Observation source0819571 passed CodeQL and five CI jobs in
+[CI36983027317](https://github.com/jckail/point_bot/actions/runs/36983027317):
+infra, plugin/spec, HTTP MCP, Docker direct/pooler and report-only audit. The
+application job stopped at hygiene because extension capture-state and messages
+formed a type import cycle. Shared RecordResult now lives in a leaf module,
+preserving existing re-exports without disabling the hygiene rule. Eighteen
+focused capture tests, extension types and changed-file lint pass; fresh
+aggregate CI follows the fix commit.

@@ -1,4 +1,6 @@
 import type { ReviewedCapture } from "./capture-state";
+import type { RecordResult } from "./record-result";
+export type { RecordResult } from "./record-result";
 
 /** content script → background: a balance was scraped from a provider page. */
 export interface CaptureMessage {
@@ -31,11 +33,3 @@ export interface ChatEntry {
   readonly actions?: readonly ActionReview[];
 }
 export interface ChatResult extends RecordResult { readonly chat?: readonly ChatEntry[]; }
-
-export interface RecordResult {
-  readonly ok: boolean;
-  readonly message: string;
-  readonly outcome?: "recorded" | "unchanged" | "needs_review" | "rejected";
-  readonly observationId?: string;
-  readonly reviewId?: string | null;
-}
