@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 
 import { updateMembershipNumberAction } from "@/app/actions";
 import { FormFeedback, SubmitButton } from "@/components/form-feedback";
@@ -13,6 +13,7 @@ export function MembershipNumberForm({
   accountId: string;
   membershipNumber: string;
 }) {
+  const membershipNumberId = useId();
   const [result, formAction] = useActionState(
     updateMembershipNumberAction,
     idleActionResult,
@@ -21,8 +22,12 @@ export function MembershipNumberForm({
   return (
     <form action={formAction} className="mt-3 flex flex-col gap-2">
       <input type="hidden" name="accountId" value={accountId} />
+      <label htmlFor={membershipNumberId} className="text-sm font-medium text-ink-muted">
+        Membership number
+      </label>
       <div className="flex gap-2">
         <input
+          id={membershipNumberId}
           name="membershipNumber"
           required
           defaultValue={membershipNumber}

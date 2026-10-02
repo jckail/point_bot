@@ -375,23 +375,19 @@ export async function createPortfolioShareAction(
 }
 
 export async function revokePortfolioShareAction(
+  _previous: ActionResult,
   formData: FormData,
-): Promise<void> {
+): Promise<ActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
+  if (!userId) return UNAUTHENTICATED;
 
-  try {
+  const result = await toActionResult(async () => {
     await getContainer().useCases.revokePortfolioShare.execute(
       userId,
       ShareId.parse(String(formData.get("shareId") ?? "")),
     );
-  } catch (error) {
-    if (error instanceof DomainError) {
-      console.warn(`revokePortfolioShare rejected: ${error.code}`);
-      return;
-    }
-    throw error;
-  }
+  });
 
-  revalidatePath("/dashboard");
+  if (result.status === "success") revalidatePath("/dashboard");
+  return result;
 }
