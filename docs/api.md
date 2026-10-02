@@ -44,6 +44,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `LOYALTY_ACCOUNT_NOT_FOUND` | 404 | Account does not exist **or is not yours** (never distinguishable) |
 | `TRIP_GOAL_NOT_FOUND` | 404 | Goal does not exist **or is not yours** |
 | `SHARE_LINK_NOT_FOUND` | 404 | Share token missing, revoked, or expired |
+| `INVALID_SHARE_EXPIRY` | 400 | Share expiry must be a whole number of days from 1 to 365, or omitted/null |
 | `INVALID_ASSISTANT_MESSAGE` | 422 | Chat message empty or too long |
 | `INVALID_SCRAPE_URL` | 422 | Scrape URL is not absolute http(s) |
 | `ASSISTANT_UNAVAILABLE` | 503 | LLM provider failed |

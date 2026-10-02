@@ -67,7 +67,25 @@ not prove that a pending proposal was never saved: persistence can finish after
 the response deadline. The panel retains the question and tells the user to check
 proposed changes before explicitly retrying. Refresh proposed changes reloads the
 existing review list; the dashboard review link remains available. No failure
-automatically resends or approves a proposal. This covers uncertain response
-recovery within the current page, not persisted conversation after page reload.
+automatically resends or approves a proposal.
+
+The dashboard passes its authoritative signed-in owner into a keyed panel. One
+sessionStorage envelope per tab retains displayed turns and the current draft,
+with a 24-hour expiry, 40-turn/4,000-character limits and a 64 KiB UTF-8 bound.
+Oldest displayed turns are dropped first. Unknown, corrupt, expired or foreign-owner
+envelopes are discarded. The pending question and request reference are saved before
+the HTTP attempt; returning after navigation or reload restores an uncertain outcome
+and directs the user to inspect current proposed changes. It never replays the request.
+Clear chat removes recovery. Storage denial or quota failure leaves the current chat
+usable and reports unavailable recovery; credentials, exception text and proposal
+payloads are not stored. Owner replacement/unmount invalidates the old persistence
+lease, and aborted late responses cannot become confirmed answers.
+
+Root exercised the actual development React/Next dashboard in one isolated Chrome
+tab with synthetic requests: draft reload, stop followed by an abort-ignoring late
+success, interrupted-request navigation and return with zero automatic sends, and
+Clear followed by reload. The owned tab and server were closed. This bounded check
+uses development authentication and synthetic fetch responses; live Clerk owner
+switching, Chrome extension/provider behavior and paid inference remain open.
 
 References: [SDK tools](https://openai.github.io/openai-agents-js/guides/tools/), [running agents](https://openai.github.io/openai-agents-js/guides/running-agents/), [tracing](https://openai.github.io/openai-agents-js/guides/tracing/), and [Chrome service-worker lifetime](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).

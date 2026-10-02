@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { assistantChatFailure, requestAssistantChat } from "./assistant-chat-outcome";
+import { ASSISTANT_UNCERTAIN_NOTICE, assistantChatFailure, requestAssistantChat } from "./assistant-chat-outcome";
+import { AssistantChatRecoverySession, type ChatRecovery } from "./assistant-chat-recovery";
 import { serializeAssistantChatRequest } from "./assistant-chat-request";
 
 import { ReviewedAssistantActions } from "@/components/reviewed-assistant-actions";
@@ -30,7 +31,11 @@ const SUGGESTIONS = [
   "Where's the best bang for my buck?",
 ];
 
-export function AssistantPanel() {
+export function AssistantPanel({ ownerScope }: { ownerScope: string }) {
+  const recoveryRef = useRef<AssistantChatRecoverySession | null>(null);
+  const snapshotRef = useRef<ChatRecovery>({ turns: [GREETING], draft: "" });
+  const [ready, setReady] = useState(false);
+  const [recoveryUnavailable, setRecoveryUnavailable] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -49,7 +54,36 @@ export function AssistantPanel() {
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight });
   }, [turns, pending]);
 
-  useEffect(() => () => requestRef.current?.abort(), []);
+  useEffect(() => {
+    let storage: Storage | undefined;
+    try { storage = window.sessionStorage; } catch { /* Recovery is optional. */ }
+    const session = new AssistantChatRecoverySession(ownerScope, storage);
+    recoveryRef.current = session;
+    queueMicrotask(() => {
+      if (!session.isCurrent()) return;
+      const restored = session.restore();
+      snapshotRef.current = restored ?? { turns: [GREETING], draft: "" };
+      setTurns(restored?.turns.length ? restored.turns : [GREETING]);
+      setInput(restored?.draft ?? "");
+      setError(restored?.uncertain ? {
+        message: `The previous assistant response could not be confirmed. ${ASSISTANT_UNCERTAIN_NOTICE}`,
+        requestId: restored.uncertain.requestId,
+      } : null);
+      setRecoveryUnavailable(!storage);
+      setReady(true);
+    });
+    return () => { session.dispose(); requestRef.current?.abort(); };
+  }, [ownerScope]);
+
+  function persist(chat: ChatRecovery) {
+    snapshotRef.current = chat;
+    setRecoveryUnavailable(!(recoveryRef.current?.save(chat) ?? false));
+  }
+
+  function changeDraft(draft: string) {
+    setInput(draft);
+    persist({ ...snapshotRef.current, draft });
+  }
 
   function closeAssistant() {
     setOpen(false);
@@ -58,6 +92,8 @@ export function AssistantPanel() {
 
   function clearChat() {
     if (requestRef.current) return;
+    recoveryRef.current?.clear();
+    snapshotRef.current = { turns: [GREETING], draft: "" };
     setTurns([GREETING]);
     setInput("");
     setError(null);
@@ -66,7 +102,7 @@ export function AssistantPanel() {
 
   function send(message: string) {
     const trimmed = message.trim();
-    if (!trimmed || pending || requestRef.current) return;
+    if (!trimmed || !ready || pending || requestRef.current) return;
     if (trimmed.length > MESSAGE_LIMIT) {
       setError({ message: "Keep your message to 4,000 characters or fewer." });
       return;
@@ -85,17 +121,16 @@ export function AssistantPanel() {
       }));
     const controller = new AbortController();
     requestRef.current = controller;
-    if (!retrying)
-      setTurns((prev) =>
-        [...prev, { role: "user", content: trimmed } as ChatTurn].slice(
-          -TRANSCRIPT_LIMIT,
-        ),
-      );
+    const session = recoveryRef.current;
+    const clientRequestId = crypto.randomUUID();
+    const nextTurns = retrying ? turns : [...turns, { role: "user", content: trimmed } as ChatTurn].slice(-TRANSCRIPT_LIMIT);
+    setTurns(nextTurns);
+    // Freeze the question and trace reference before starting the HTTP attempt.
+    persist({ turns: nextTurns, draft: "", pending: { question: trimmed, requestId: clientRequestId } });
     setInput("");
     setError(null);
 
     startTransition(async () => {
-      const clientRequestId = crypto.randomUUID();
       let timedOut = false;
       const timeout = window.setTimeout(() => {
         timedOut = true;
@@ -105,22 +140,21 @@ export function AssistantPanel() {
         const { reply } = await requestAssistantChat(
           serializeAssistantChatRequest(trimmed, history), controller.signal, clientRequestId,
         );
-        setTurns((prev) =>
-          [
-            ...prev,
-            {
-              role: "assistant",
-              content: reply.slice(0, MESSAGE_LIMIT),
-              shortened: reply.length > MESSAGE_LIMIT,
-            } as ChatTurn,
-          ].slice(-TRANSCRIPT_LIMIT),
-        );
+        if (!session?.isCurrent() || requestRef.current !== controller) return;
+        const completedTurns = [...nextTurns, {
+          role: "assistant", content: reply.slice(0, MESSAGE_LIMIT), shortened: reply.length > MESSAGE_LIMIT,
+        } as ChatTurn].slice(-TRANSCRIPT_LIMIT);
+        setTurns(completedTurns);
+        persist({ turns: completedTurns, draft: "" });
       } catch (err) {
+        if (!session?.isCurrent() || requestRef.current !== controller) return;
         setInput(trimmed);
         const failure = assistantChatFailure(err, controller.signal.aborted, timedOut);
-        setError({ ...failure, requestId: failure.requestId ?? clientRequestId });
+        const requestId = failure.requestId ?? clientRequestId;
+        setError({ ...failure, requestId });
+        persist({ turns: nextTurns, draft: trimmed, uncertain: { requestId } });
       } finally {
-        setActionsVersion((value) => value + 1);
+        if (session?.isCurrent() && requestRef.current === controller) setActionsVersion((value) => value + 1);
         window.clearTimeout(timeout);
         if (requestRef.current === controller) requestRef.current = null;
       }
@@ -160,7 +194,7 @@ export function AssistantPanel() {
                 <button
                   type="button"
                   onClick={clearChat}
-                  disabled={pending}
+                  disabled={pending || !ready}
                   className="rounded-lg px-2 py-1 text-xs font-semibold text-brand disabled:opacity-50"
                 >
                   Clear chat
@@ -231,7 +265,7 @@ export function AssistantPanel() {
                 <div className="mt-3 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={pending || !ready}
                     onClick={() => setActionsVersion(value => value + 1)}
                     className="rounded-lg border border-line px-3 py-2 font-semibold text-ink-muted disabled:opacity-50"
                   >
@@ -256,7 +290,7 @@ export function AssistantPanel() {
                 <button
                   key={suggestion}
                   type="button"
-                  disabled={pending}
+                  disabled={pending || !ready}
                   onClick={() => send(suggestion)}
                   className="min-h-10 rounded-xl border border-line px-3 py-2 text-xs text-ink-muted transition hover:border-brand hover:text-ink"
                 >
@@ -266,6 +300,9 @@ export function AssistantPanel() {
             </div>
           )}
 
+          {recoveryUnavailable && <p role="status" className="px-4 py-2 text-xs text-ink-muted">
+            Tab recovery is unavailable. Keep this dashboard open to retain this conversation.
+          </p>}
           <form
             className="flex shrink-0 gap-2 border-t border-line bg-surface p-3"
             onSubmit={(event) => {
@@ -277,15 +314,15 @@ export function AssistantPanel() {
               ref={inputRef}
               aria-label="Message to PointUp Assistant"
               maxLength={MESSAGE_LIMIT}
-              disabled={pending}
+              disabled={pending || !ready}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => changeDraft(event.target.value)}
               placeholder="Ask about your points…"
               className="min-w-0 flex-1 rounded-xl border border-line bg-midnight px-3 py-2 text-sm text-ink outline-none focus:border-brand"
             />
             <button
               type="submit"
-              disabled={pending || input.trim().length === 0}
+              disabled={pending || !ready || input.trim().length === 0}
               className="rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               Send

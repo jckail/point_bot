@@ -90,6 +90,11 @@ eligibility against primary terms before adding their numeric rules.
   with outbox writes. Deleted or changed configurations cannot publish stale hits.
   Root verified four actual PostgreSQL lock barriers; this does not prove production
   scheduling or event delivery. Preserve this atomic composition during rollout.
+  Public-share lifetime now rejects nonempty invalid values consistently in browser,
+  HTTP and core callers; snapshot resolution rechecks current token/owner/revocation
+  and expiry after loading portfolio data. Exact account deadlines are treated as
+  expired instead of rounded negative zero. Focused gated use-case tests cover these
+  changes; production rollout and real concurrent database acceptance remain open.
 
 ## Live assistant, Chrome and provider acceptance
 
@@ -106,9 +111,12 @@ eligibility against primary terms before adding their numeric rules.
   Source follow-ups retain the last scoped capture receipt across popup reopening,
   normalize explicitly saved API origins consistently and preserve transcript DOM
   during unchanged polling. Cached proposal status is labeled as a snapshot.
-  Web chat drafts currently survive only while the dashboard stays mounted; copy
-  no longer promises persistence after navigation/reload. Owner-scoped web chat
-  recovery remains a product follow-up alongside live Chrome acceptance.
+  Owner-scoped web chat recovery now retains the bounded conversation/draft in
+  tab-local sessionStorage for 24 hours and restores interrupted requests as
+  uncertain without replay. Root's single isolated Chrome tab verified draft
+  reload, interrupted navigation, stopped late responses and Clear/reload with
+  synthetic requests. Real Clerk owner switching, extension service-worker
+  lifetime and authenticated provider acceptance remain open.
 - Verify the new program-specific bank capture candidate for Chase, US Amex,
   Capital One Miles and Bilt against controlled logged-in pages. Synthetic
   product/unit/region fixtures and exact hosts are implemented; current Capital

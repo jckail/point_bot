@@ -188,7 +188,7 @@ export default async function DashboardPage() {
         {accounts.length > 0 && <SharePortfolioSection shares={shares} baseUrl={baseUrl} />}
         <RecentlyUnlinked accounts={deleted} />
       </section>
-      <AssistantPanel />
+      <AssistantPanel key={userId} ownerScope={userId} />
     </main>
   );
 }

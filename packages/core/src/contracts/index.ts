@@ -18,6 +18,7 @@ import { ACTIVITY_TYPES } from "../domain/loyalty/activity";
 import { BALANCE_SOURCES } from "../domain/loyalty/balance-snapshot";
 import { DEAL_KINDS } from "../domain/loyalty/deals";
 import { PROVIDER_KINDS } from "../domain/loyalty/provider";
+import { MAX_SHARE_EXPIRY_DAYS } from "../domain/loyalty/portfolio-share";
 import { TRIP_GOAL_STATUSES } from "../domain/loyalty/trip-goal";
 
 /**
@@ -342,6 +343,7 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   LOYALTY_ACCOUNT_NOT_FOUND: 404,
   TRIP_GOAL_NOT_FOUND: 404,
   SHARE_LINK_NOT_FOUND: 404,
+  INVALID_SHARE_EXPIRY: 400,
   INVALID_ASSISTANT_MESSAGE: 422,
   INVALID_SCRAPE_URL: 422,
   ASSISTANT_UNAVAILABLE: 503,
@@ -690,7 +692,7 @@ export const portfolioShareDtoSchema = z.object({
 export const createPortfolioShareRequestSchema = z
   .object({
     label: z.string().max(80).nullish(),
-    expiresInDays: z.number().int().positive().max(365).nullish(),
+    expiresInDays: z.number().int().positive().max(MAX_SHARE_EXPIRY_DAYS).nullish(),
   })
   .strict();
 

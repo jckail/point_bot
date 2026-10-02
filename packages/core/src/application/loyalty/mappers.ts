@@ -25,9 +25,11 @@ export function toBalanceReadModel(
 
 function daysUntil(expiresAt: Date | null, now: Date): number | null {
   if (!expiresAt) return null;
-  return Math.ceil(
-    (expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
-  );
+  const remaining = expiresAt.getTime() - now.getTime();
+  // The deadline itself is expired. Round elapsed days away from zero so a
+  // recently expired account never becomes -0 and appears active for a day.
+  return remaining <= 0 ? Math.min(-1, Math.floor(remaining / (24 * 60 * 60 * 1000)))
+    : Math.ceil(remaining / (24 * 60 * 60 * 1000));
 }
 
 export function toLoyaltyAccountReadModel(

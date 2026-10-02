@@ -32,6 +32,7 @@ const DOMAIN_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   ACCOUNT_NOT_RESTORABLE:
     "That program can't be restored — the undo window may have expired.",
   SHARE_LINK_NOT_FOUND: "That share link wasn't found.",
+  INVALID_SHARE_EXPIRY: "Expiry must be a whole number of days between 1 and 365, or blank for no expiry.",
   INVALID_ACCESS_TOKEN_REQUEST:
     "Give the token a name, at least one scope, and a lifetime of 1-365 days.",
   ACCESS_TOKEN_NOT_FOUND: "We couldn't find that token.",

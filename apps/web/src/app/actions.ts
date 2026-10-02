@@ -2,6 +2,7 @@
 
 import { getSessionUserId } from "@/server/auth";
 import { DomainError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
+import { createPortfolioShareRequestSchema } from "@pointup/core/contracts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -364,16 +365,17 @@ export async function createPortfolioShareAction(
 
   const label = String(formData.get("label") ?? "").trim();
   const expiresRaw = String(formData.get("expiresInDays") ?? "").trim();
-  const expiresInDays = expiresRaw ? Number(expiresRaw) : null;
+  const parsed = createPortfolioShareRequestSchema.safeParse({
+    label: label.length > 0 ? label : null,
+    expiresInDays: expiresRaw === "" ? null : Number(expiresRaw),
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues.some(issue => issue.path[0] === "label")
+    ? "Share label must be at most 80 characters." : messageForDomainError("INVALID_SHARE_EXPIRY") };
 
   const result = await toActionResult(async () => {
     await getContainer().useCases.createPortfolioShare.execute({
       userId,
-      label: label.length > 0 ? label : null,
-      expiresInDays:
-        expiresInDays && Number.isFinite(expiresInDays)
-          ? expiresInDays
-          : null,
+      ...parsed.data,
     });
   });
 

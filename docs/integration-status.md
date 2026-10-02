@@ -76,6 +76,34 @@ development dependency remediation moves tests to Vitest 4.1.11 with explicit
 discovery and caller-scoped compatibility checks; its settled lock audit is clean.
 The infrastructure CDK bundled advisory and production/live gates remain open.
 
+The watch/extension/observability predecessor
+`ba19fd8d0e5009a635edba0d00f2303af6b8060a` passed all six
+[CI 37014262812](https://github.com/jckail/point_bot/actions/runs/37014262812)
+jobs and [CodeQL 37014263548](https://github.com/jckail/point_bot/actions/runs/37014263548):
+1,507 workspace tests plus one paid live skip, 30 rollout/28 infrastructure cases,
+all bundles, managed 0021/PostgreSQL attestation, contracts/HTTP MCP and Docker
+direct/PgBouncer smoke. Root also passed four actual PostgreSQL watch lock barriers.
+
+## Current recovery and expiry follow-up
+
+The web assistant now has bounded, owner-scoped tab recovery. Pending questions
+and support references survive navigation as uncertain outcomes without automatic
+replay; aborted late responses cannot be confirmed. Root verified actual
+React/Next development UI behavior in one isolated Chrome tab using controlled
+synthetic requests: draft reload, Stop/late success, pending navigation and return
+with zero automatic chat attempts, and Clear/reload. The owned tab and temporary
+server were closed; other agent tabs were untouched. This establishes that bounded
+development UI behavior, not live Clerk owner rotation, paid inference or extension
+provider acceptance. See [assistant-agent.md](assistant-agent.md).
+
+The backend follow-up validates public-share expiry consistently across dashboard,
+HTTP and core callers, rechecks current share authorization after loading a public
+snapshot, and distinguishes elapsed account deadlines from rounded future days.
+Root's settled successor workspace suite passed 1,568 tests plus one paid live
+skip against retained managed-0021 PostgreSQL, with workspace lint/types and
+whitespace checks. Focused and fresh committed-source CI evidence is recorded on
+PR #16; earlier commit-specific evidence above remains scoped to those commits.
+
 ## Data integrity and migration lineage
 
 Managed migrations 0000–0015 are preserved. Additive migrations are 0016 assistant

@@ -4,6 +4,7 @@ import {
 import {
   createPortfolioShare,
   isShareActive,
+  normalizeShareExpiryDays,
   revokePortfolioShare,
   type PortfolioShare,
 } from "../../domain/loyalty/portfolio-share";
@@ -78,9 +79,10 @@ export class CreatePortfolioShare {
     input: CreatePortfolioShareInput,
   ): Promise<PortfolioShareReadModel> {
     const now = this.clock.now();
+    const expiresInDays = normalizeShareExpiryDays(input.expiresInDays);
     const expiresAt =
-      input.expiresInDays != null && input.expiresInDays > 0
-        ? new Date(now.getTime() + input.expiresInDays * 24 * 60 * 60 * 1000)
+      expiresInDays !== null
+        ? new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000)
         : null;
 
     const share = createPortfolioShare({
@@ -135,28 +137,32 @@ export class GetPublicPortfolioSnapshot {
 
   async execute(token: string): Promise<PublicPortfolioSnapshot> {
     const share = await this.shares.findByToken(token);
-    const now = this.clock.now();
-    if (!share || !isShareActive(share, now)) {
+    if (!share || share.token !== token || !isShareActive(share, this.clock.now())) {
       throw new ShareLinkNotFoundError();
     }
 
     const accounts = await this.listAccounts.execute(share.userId);
     const summary = computePortfolioSummary(accounts);
+    const programs = accounts
+      .map((account) => ({
+        displayName: account.provider.displayName,
+        kind: account.provider.kind,
+        points: account.latestBalance?.points ?? 0,
+        valueCents: account.estimatedValueCents,
+      }))
+      .sort((a, b) => b.valueCents - a.valueCents);
+    const current = await this.shares.findByToken(token);
+    const now = this.clock.now();
+    if (!current || current.id !== share.id || current.userId !== share.userId
+      || current.token !== token || !isShareActive(current, now)) throw new ShareLinkNotFoundError();
 
     return {
-      label: share.label,
+      label: current.label,
       totalPoints: summary.totalPoints,
       totalValueCents: summary.totalValueCents,
       accountCount: summary.accountCount,
       byKind: summary.byKind,
-      programs: accounts
-        .map((account) => ({
-          displayName: account.provider.displayName,
-          kind: account.provider.kind,
-          points: account.latestBalance?.points ?? 0,
-          valueCents: account.estimatedValueCents,
-        }))
-        .sort((a, b) => b.valueCents - a.valueCents),
+      programs,
       generatedAt: now,
     };
   }

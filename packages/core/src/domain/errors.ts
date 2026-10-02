@@ -201,6 +201,14 @@ export class DemoPortfolioNotEmptyError extends DomainError {
   }
 }
 
+export class InvalidShareExpiryError extends DomainError {
+  readonly code = "INVALID_SHARE_EXPIRY" as const;
+
+  constructor() {
+    super("Share expiry must be a whole number of days between 1 and 365, or no expiry");
+  }
+}
+
 export class ShareLinkNotFoundError extends DomainError {
   readonly code = "SHARE_LINK_NOT_FOUND" as const;
 
@@ -411,6 +419,7 @@ export const DOMAIN_ERROR_CLASSES = [
   InvalidAccountTagError,
   AccountNotRestorableError,
   DemoPortfolioNotEmptyError,
+  InvalidShareExpiryError,
   ShareLinkNotFoundError,
   AssistantUnavailableError,
   ScrapeFailedError,
