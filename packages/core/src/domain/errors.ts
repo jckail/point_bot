@@ -1,3 +1,15 @@
+// Next routes and HMR can evaluate this module more than once while a cached
+// container retains earlier use-case instances. Membership is process-local
+// object identity, never a JSON/code/name/prototype brand that callers can copy.
+const domainErrorInstancesKey = Symbol.for("pointup.domain.error.instances.v1");
+type DomainErrorInstancesHolder = { [domainErrorInstancesKey]?: WeakSet<object> };
+const domainErrorInstances = (globalThis as DomainErrorInstancesHolder)[domainErrorInstancesKey] ??= new WeakSet<object>();
+
+/** Recognize genuine same-process domain errors across module generations. */
+export function isDomainError(error: unknown): error is DomainError {
+  return typeof error === "object" && error !== null && domainErrorInstances.has(error);
+}
+
 /**
  * Base class for all domain errors. Carries a stable machine-readable `code`
  * so every surface (web, mobile, extension) can map errors to UX without
@@ -10,6 +22,7 @@ export abstract class DomainError extends Error {
   constructor(message: string) {
     super(message);
     this.name = new.target.name;
+    domainErrorInstances.add(this);
   }
 }
 

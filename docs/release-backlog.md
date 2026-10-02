@@ -20,7 +20,7 @@ passed: 1,822 workspace tests plus one paid live skip, including 41 popup and
 role configuration. Active-share visibility, Revoke feedback, explicit labels
 and effective valuation provenance have source/controller verification.
 
-Actual application browser coverage remains **not executed**. The first local
+At that earlier PR #48 checkpoint, actual application browser coverage was **not executed**. The first local
 launch exited 75 before startup; a later caller was stopped before startup after
 a stale capacity update and shell guard error. No application/database work ran.
 The 15-surface matrix in [frontend-audit-20261002.md](frontend-audit-20261002.md)
@@ -392,6 +392,18 @@ October 1, 2026; unknown and Reserve rules remain unavailable. Do not infer
 selection from notes or capture text. See [implementation and evidence](transfer-eligibility-plan.md).
 Deal affordability must use the same resolver and visible bonuses rather than
 compare source points directly to a destination cost or assume a route exists.
+
+The latest valuation feature is merged in [PR #49](https://github.com/jckail/point_bot/pull/49)
+and fully verified on master `afdb606de5a37f9d754fbf9793aa7c7daa8f1ebb`
+with 1,847 workspace tests plus one paid live skip; AWS activation was skipped.
+A real local app/browser pass now covers named portfolio, valuation, CSV, goals,
+share/unlink/restore, access/consent, offline assistant and responsive flows.
+Its scope, evidence and open cases are in [frontend-browser-20261002.md](frontend-browser-20261002.md).
+It found invalid PAT errors mapping to 500; the reviewed genuine-object identity fix
+passes 52 targeted tests, core/web types and lint. A restarted real app now verifies 401 invalid/revoked-token responses and preserves
+valid read 200/write-scope 403. The new iteration's release gates remain pending. The full overhaul is unfinished.
+
+
 The current follow-up returns exact source requirements, missing-route/card
 warnings and unverified-limit caveats through the advice contract. Scraped signed
 or accounting prices must remain unstructured and cannot raise award-watch values;
