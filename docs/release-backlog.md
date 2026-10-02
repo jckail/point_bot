@@ -7,7 +7,33 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged proposal-transition release is [PR #37](https://github.com/jckail/point_bot/pull/37)
+The latest merged owner-isolation release is [PR #38](https://github.com/jckail/point_bot/pull/38)
+at master `371ecfecee42a0a3d57ef05ed5c30bdfbc2e25dc` (source
+`cdd9bc95ce964f6cb00e04a7c8e9f8420b911518`, tree
+`33655c4f8bc7b0673e68bb34ef6785976bac2e7c`). Candidate
+[CI 37044660484](https://github.com/jckail/point_bot/actions/runs/37044660484),
+[CodeQL 37044660355](https://github.com/jckail/point_bot/actions/runs/37044660355)
+and Bugbot passed, with 1,739 workspace tests and one paid live skip.
+Merged-master [Deploy 37045081965](https://github.com/jckail/point_bot/actions/runs/37045081965)
+and [CodeQL 37045081393](https://github.com/jckail/point_bot/actions/runs/37045081393)
+passed all six release verification jobs and CodeQL, with 1,739 workspace tests
+and one paid live skip. AWS deployment was skipped for missing deployment-role
+configuration. The controlled native owner-change fixture did not execute because
+the shared gate returned exit 75;
+no new native browser or live-auth acceptance is claimed.
+
+The current legacy assistant grounding follow-up labels bonus-adjusted hints
+explicitly verified or unverified and uses only bounded `manual`, `scraped`, `user`
+or `unknown` source classifications. Only literal `true` establishes verified
+status; the prompt requires issuer confirmation for an unverified or unknown
+bonus. It adds no URLs or private fields and preserves card eligibility, owner
+visibility and time-window rules. The seven new regressions first reproduced
+five failures and two passes on the original source; after the fix, all 20 focused
+tests across three files passed, with core typecheck, two-file lint and whitespace
+checks passing. Independent review approved the source. These checks do not
+establish live issuer terms, provider behavior or model compliance.
+
+The preceding proposal-transition release is [PR #37](https://github.com/jckail/point_bot/pull/37)
 at master `26643eccf2087f19df36e3299ed577627387263b` (source
 `b65afd58c8f8862198e4fd57e9c96e8c7683c097`, tree
 `bb774ef7501810d354feca0c733d8a32f427d44f`). All six candidate verification jobs
@@ -97,7 +123,7 @@ see [bounded probe evidence](chrome-extension-acceptance.md#native-loopback-perm
 Actual PointUp endpoint authentication and native candidate application installation
 remain open.
 
-The current owner-change UI follow-up keys both `/dashboard/agents` management
+The merged PR #38 owner-change UI fix keys both `/dashboard/agents` management
 and proposal-review panels by the authoritative owner, remounting on owner change
 and preserving local state for same-owner refresh. Source review and focused
 lint/types passed; controlled native fixture execution was blocked by the shared

@@ -4,9 +4,35 @@ The web dashboard and extension share authenticated `POST /api/v1/assistant/chat
 
 The route retains PR14's shared authentication, rate limiting, CSRF checks, request telemetry and error mapping. Chat requires `portfolio:read`. Cookie sessions and tokens with `portfolio:write` receive proposal tools; read-only tokens receive only read tools. Legacy chat does not propose changes. No model or token can approve a proposal through a chat tool.
 
+The latest merged owner-isolation release is [PR #38](https://github.com/jckail/point_bot/pull/38)
+at master `371ecfecee42a0a3d57ef05ed5c30bdfbc2e25dc` (source
+`cdd9bc95ce964f6cb00e04a7c8e9f8420b911518`, tree
+`33655c4f8bc7b0673e68bb34ef6785976bac2e7c`). Candidate
+[CI 37044660484](https://github.com/jckail/point_bot/actions/runs/37044660484),
+[CodeQL 37044660355](https://github.com/jckail/point_bot/actions/runs/37044660355)
+and Bugbot passed, with 1,739 workspace tests and one paid live skip.
+Merged-master [Deploy 37045081965](https://github.com/jckail/point_bot/actions/runs/37045081965)
+and [CodeQL 37045081393](https://github.com/jckail/point_bot/actions/runs/37045081393)
+passed all six release verification jobs and CodeQL, with 1,739 workspace tests
+and one paid live skip. AWS deployment was skipped for missing deployment-role
+configuration. The controlled native owner-change fixture did not execute because
+the shared gate returned exit 75;
+no new native browser or live-auth acceptance is claimed.
+
 ## Grounded reads and pending proposals
 
 Read tools close over the authenticated branded `UserId`; model input cannot select another owner. They expose portfolio totals, balances, goal progress and existing editorial value advice. PR14's optimizer, bonus-aware advice, catalog, readiness and other assistant services remain composed. Balance projections include opaque PointUp account IDs for proposal targeting, program labels, points, capture time, expiry and estimates. They exclude membership numbers, notes and stored credentials. Goal reads exclude notes and account IDs. Messages and selected portfolio data are sent to OpenAI for inference in agents mode.
+
+The current legacy assistant grounding follow-up labels bonus-adjusted hints
+explicitly verified or unverified and uses only bounded `manual`, `scraped`, `user`
+or `unknown` source classifications. Only literal `true` establishes verified
+status; the prompt requires issuer confirmation for an unverified or unknown
+bonus. It adds no URLs or private fields and preserves card eligibility, owner
+visibility and time-window rules. The seven new regressions first reproduced
+five failures and two passes on the original source; after the fix, all 20 focused
+tests across three files passed, with core typecheck, two-file lint and whitespace
+checks passing. Independent review approved the source. These checks do not
+establish live issuer terms, provider behavior or model compliance.
 
 Two extra tools prepare manual balance observations or trip goals. They persist typed, immutable values in `assistant_action` and return pending review DTOs; they never execute the mutation. Review the exact values at `/dashboard/agents#review-actions`. Provider pages and model claims are untrusted data, never consent.
 
@@ -144,7 +170,7 @@ usable and reports unavailable recovery; credentials, exception text and proposa
 payloads are not stored. Owner replacement/unmount invalidates the old persistence
 lease, and aborted late responses cannot become confirmed answers.
 
-The current agents-page follow-up keys both its management and proposal-review
+The merged PR #38 agents-page fix keys both its management and proposal-review
 panels by the authoritative signed-in owner. Owner replacement remounts both;
 same-owner refresh preserves local state. Independent source review and focused
 lint/type checks passed. The controlled native fixture did not execute because
