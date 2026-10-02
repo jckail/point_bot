@@ -43,5 +43,20 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "brace-expansion@1": "1.1.21",
+    "brace-expansion@5": "5.0.12",
+    "browserslist": "4.28.7",
+    "js-yaml@4": "4.3.2",
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
+    "hyperid": {
+      "uuid": "11.1.1"
+    },
+    "vitest": {
+      "vite": "7.3.6"
+    }
   }
 }

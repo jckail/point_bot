@@ -14,6 +14,7 @@ iOS remains deferred at the user's request. Concrete next actions are in
 | --- | --- | --- |
 | `977a4d586c269e1a3f34b82a8c5a2fdae9355f45` | All six jobs in [CI 36999223376](https://github.com/jckail/point_bot/actions/runs/36999223376) and [CodeQL 36999223346](https://github.com/jckail/point_bot/actions/runs/36999223346) passed. CI covered 1,243 workspace tests, one skipped paid live evaluation, 30 rollout helper and 26 infrastructure cases, all application bundles, managed migration 0020, PostgreSQL attestation, contracts/HTTP MCP and Docker direct/PgBouncer smoke. | Source/isolated-fixture evidence; no production deployment or live provider/model/exporter proof. |
 | `370130945ff34fa1ac7775984068d837d9e7d4bc` (verified upstream/capture milestone) | All six jobs in [CI 37000134163](https://github.com/jckail/point_bot/actions/runs/37000134163) and [CodeQL 37000134144](https://github.com/jckail/point_bot/actions/runs/37000134144) passed. CI covered 1,302 workspace tests, one skipped paid live evaluation, 30 rollout and 28 infrastructure cases, managed migration 0020/PostgreSQL attestation, all bundles/contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root also passed 130 focused core, 50 extension and 11 actual migrated PostgreSQL outbox cases, workspace lint/types, infrastructure types and whitespace checks. | Source and fixture gate complete; production, historical-data repair and live integrations remain open. |
+| `12e5de23442f2c76b5ea0bdb841d640cba0fd097` (card-aware account/capture milestone) | All six [CI 37007102694](https://github.com/jckail/point_bot/actions/runs/37007102694) jobs and [CodeQL 37007102367](https://github.com/jckail/point_bot/actions/runs/37007102367) passed: 1,401 workspace tests plus one paid live skip, 30 rollout/28 infrastructure cases, all bundles, managed migration 0021/PostgreSQL attestation, plugin/contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root also passed 18 actual PostgreSQL card/capture/race cases and workspace checks. | Exact-source fixture evidence; subsequent targeted assistant/dependency changes require fresh committed-source gates. |
 
 The last verified application production dependency audit reported zero
 vulnerabilities. Separate infrastructure/development advisories remain tracked;
@@ -59,11 +60,18 @@ sanitizes SDK spans and uses generated correlation identifiers; unknown usage st
 unknown. Live model quality, export delivery and dashboard arrival remain open.
 See [assistant agent](assistant-agent.md).
 
+The next candidate adds exact-route transfer estimates using the owned account's
+saved card and dated rules, independent of ranked advice truncation. Application
+development dependency remediation moves tests to Vitest 4.1.11 with explicit
+discovery and caller-scoped compatibility checks; its settled lock audit is clean.
+The infrastructure CDK bundled advisory and production/live gates remain open.
+
 ## Data integrity and migration lineage
 
 Managed migrations 0000–0015 are preserved. Additive migrations are 0016 assistant
 proposals, 0017 ChatGPT identity, 0018 goal ownership, 0019 observation provenance/
-replay and 0020 numeric integrity. Fixture journals and metadata do not prove which
+replay, 0020 numeric integrity and 0021 explicit nullable card selection.
+Fixture journals and metadata do not prove which
 lineage reached staging or production.
 
 Proposal execution commits the balance/goal mutation, outbox and success journal

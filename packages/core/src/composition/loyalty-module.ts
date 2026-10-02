@@ -1,3 +1,4 @@
+import { EstimateTransfer } from "../application/loyalty/estimate-transfer";
 import {
   ChatWithAssistant,
   GetValueAdvice,
@@ -184,6 +185,7 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
     listProviders: new ListProviders(),
     listLoyaltyAccounts,
     getLoyaltyAccount,
+    estimateTransfer: new EstimateTransfer(getLoyaltyAccount, listActiveTransferBonuses, clock),
     manageAssistantActions,
     linkLoyaltyAccount,
     updateLoyaltyAccount,

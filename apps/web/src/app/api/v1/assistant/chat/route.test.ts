@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { RequestBodyError } from "../../../../../server/request-body";
 
+type AssistantRunner = typeof import("../../../../../server/assistant-agent").runPortfolioAssistant;
 type RouteState = {
   config: ReturnType<typeof vi.fn>;
   container: ReturnType<typeof vi.fn>;
-  run: ReturnType<typeof vi.fn>;
+  run: ReturnType<typeof vi.fn<AssistantRunner>>;
   actions: ReturnType<typeof vi.fn>;
   admission: ReturnType<typeof vi.fn>;
   release: ReturnType<typeof vi.fn>;
@@ -15,7 +16,7 @@ type RouteState = {
 };
 
 const state = vi.hoisted((): RouteState => ({
-  config: vi.fn(), container: vi.fn(), run: vi.fn(), actions: vi.fn(),
+  config: vi.fn(), container: vi.fn(), run: vi.fn<AssistantRunner>(), actions: vi.fn(),
   admission: vi.fn(), release: vi.fn(),
   denial: undefined as number | undefined,
   logger: vi.fn(), principal: { scopes: "session", userId: "private-user-id" }, options: undefined,
@@ -65,7 +66,7 @@ beforeEach(() => {
   state.config.mockReturnValue({ runtime: "agents", tracing: false, timeoutMs: 120000 });
   state.container.mockReturnValue({ useCases: {} });
   state.actions.mockReturnValue({});
-  state.run.mockResolvedValue({ reply: "private-assistant-reply" });
+  state.run.mockResolvedValue({ reply: "private-assistant-reply", requestId: "canonical-request-id", mode: "agents", traceId: undefined });
 
 });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -121,7 +122,7 @@ describe("assistant HTTP support correlation", () => {
   });
   it("uses independent SDK IDs and preserves the HTTP support header", async () => {
     state.config.mockReturnValueOnce({ runtime: "agents", tracing: true, timeoutMs: 30000 });
-    state.run.mockImplementationOnce(async (input) => ({ reply: "ok", traceId: input.traceId }));
+    state.run.mockImplementationOnce(async (input) => ({ reply: "ok", requestId: input.requestId ?? "canonical-request-id", mode: "agents", traceId: input.traceId }));
     const response = await POST(request());
     const traceId = state.run.mock.calls[0]?.[0].traceId;
     expect(traceId).toMatch(/^trace_[a-zA-Z0-9]{32}$/);

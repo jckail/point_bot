@@ -10,6 +10,18 @@ Read tools close over the authenticated branded `UserId`; model input cannot sel
 
 Two extra tools prepare manual balance observations or trip goals. They persist typed, immutable values in `assistant_action` and return pending review DTOs; they never execute the mutation. Review the exact values at `/dashboard/agents#review-actions`. Provider pages and model claims are untrusted data, never consent.
 
+Agents mode also exposes `estimate_transfer` for an exact owned source account,
+destination program and positive safe-integer amount. It uses the account's saved
+card selection and the same dated eligibility resolver as advice and funding;
+model arguments cannot override the owner or card. This avoids treating omission
+from the ranked advice list as proof that a route is unavailable. The result gives
+the resolved ratio, available public eligibility source/effective date, base and
+bonus-adjusted yields, balance capture time and saved balance sufficiency. Unknown
+or excluded conditional rules return no numeric estimate. Catalog limits and
+unverified bonuses are identified separately; saved points do not establish issuer
+access, card-combining permission or live award inventory. This read tool executes
+no transfer or booking. Legacy chat does not expose this exact-route tool.
+
 `POST /api/v1/assistant/actions` requires `portfolio:write` and accepts either `{kind:"manual_balance",accountId,points,capturedAt?}` or `{kind:"trip_goal",title,targetPoints,targetDate?,accountIds?,notes?}`. Server services establish ownership, program labels, status, expiry and identifiers. `GET /api/v1/assistant/actions` requires `portfolio:read` and lists at most 50 recent owned proposals. Missing and foreign proposals receive the same 404.
 
 `POST /api/v1/assistant/actions/:id/approve` and `/reject` require a browser cookie session and reject personal-token and Clerk-bearer credentials. Their request body is empty or `{}`; payload overrides are rejected. The existing CSRF boundary protects cookie mutations. These endpoints return `{action: AssistantActionDto}` and use private, uncached responses.

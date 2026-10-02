@@ -1,4 +1,4 @@
-import type { UserId } from "@pointup/core";
+import { LoyaltyAccountId, type UserId } from "@pointup/core";
 import { tool } from "@openai/agents";
 import { z } from "zod";
 import type { AssistantActionDto, ManageAssistantActions } from "@pointup/core/assistant-actions";
@@ -37,6 +37,13 @@ export function createPortfolioTools(useCases: AgentUseCases, userId: UserId, si
       return { transfers: advice.transfers.slice(0, 10), deals: advice.deals.slice(0, 10), eligibilityWarnings: advice.eligibilityWarnings ?? [] };
     }) }),
   ];
+  const estimator = useCases.estimateTransfer;
+  if (estimator) tools.push(tool({
+    name: "estimate_transfer",
+    description: "Estimate one exact transfer route for an owned account using its saved selected card and current visible bonuses. Use this for targeted questions even when value_advice omits the route. Returns resolved ratio and source/effective date or eligibility warnings; saved balance sufficiency does not verify issuer eligibility, limits, award availability, or execution. No card overrides or automatic combining.",
+    parameters: z.object({ accountId: z.string().min(1).max(255), toProviderId: z.string().min(1).max(64), sourcePoints: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER) }).strict(),
+    execute: args => execute("estimate_transfer", () => estimator.execute({ ...args, userId, accountId: LoyaltyAccountId.parse(args.accountId) })),
+  }));
   if (!proposals) return tools;
   let proposedCount = 0;
   const observedAt = new Date().toISOString();

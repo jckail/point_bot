@@ -163,20 +163,21 @@ instead of rewriting their identity/payload or automatically resubmitting.
 
 ## Current dependency audit follow-up
 
-The card candidate lockfile audit found zero application production dependency
-advisories with `--omit=dev`; its all-dependency audit reports 12 findings
-(3 high, 9 moderate). High development findings include brace-expansion,
-browserslist and js-yaml; verify same-family patched versions and refresh locks
-through the shared installation gate. Vitest's moderate mocker file-read advisory
-requires a reviewed major upgrade to a patched 4.x version. Drizzle tooling still
-uses the obsolete esbuild-kit/esbuild chain; autocannon's hyperid/uuid dependency
-also needs a compatible remedy. Avoid force-fix suggestions that downgrade these
-tools or change their supported APIs.
+The application lock is updated to Vitest 4.1.11 with explicit workspace test
+discovery and supported Vite 7.3.6. Same-family brace-expansion, browserslist and
+js-yaml patches plus caller-scoped core-utils/esbuild and hyperid/UUID overrides
+remove the observed application development findings. The settled application
+audit reports zero findings, including development dependencies. A compatibility
+script exercises the actual transform, UUID buffer/CommonJS, hyperid rollover and
+bounded autocannon loopback callers in CI. Preserve clean-install and exact-head
+CI evidence for the final candidate; an audit alone does not verify compatibility.
+Do not replace these fixes with force-fix downgrades.
 
 The separate infrastructure lock has one high brace-expansion advisory bundled
-inside aws-cdk-lib. Verify a patched CDK artifact and synthesized-template behavior;
+inside aws-cdk-lib. A reviewed 2.272.0 artifact still bundled vulnerable
+brace-expansion 5.0.9, so simply upgrading to that artifact would not fix it.
+Verify a genuinely patched CDK artifact and synthesized-template behavior;
 a root override does not establish replacement of a bundled dependency. These
 are deployment/development tooling findings, distinct from application production
 dependencies and from GitHub's default-branch count. Container base OS/image
-audit remains separate. No dependency installation or version change occurred
-during this read-only audit.
+audit remains separate. This infrastructure finding is still open.
