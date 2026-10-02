@@ -494,3 +494,20 @@ work: real OAuth provider/session compatibility, public MCP OAuth onboarding,
 live model/exporter/provider/Chrome checks, remaining numeric boundaries and AWS
 rollout prerequisites. Agent Hub still lacks project memory routing; retain this
 curated checkpoint. The original goal remains active.
+
+## Verified recovery/currency runtime5e72a0f
+
+Exact source5e72a0fa815bdbffcf231200a01127704b7de7e4 passes all six
+[CI36994857164](https://github.com/jckail/point_bot/actions/runs/36994857164)
+jobs and [CodeQL36994857140](https://github.com/jckail/point_bot/actions/runs/36994857140).
+CI confirms1106 workspace tests and one skipped paid live evaluation, all bundles,
+managed migration20, PostgreSQL attestation, rollout/infrastructure checks,
+contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root180 focused tests and
+full workspace lint/types also pass. Logs: /tmp/pointup-recovery-ci.log,
+/tmp/pointup-recovery-final-tests.log and /tmp/pointup-recovery-typecheck.log.
+
+The shared Graphify refresh after the final reviewed source completed164478nodes
+successfully. PointUp graph coverage remains absent; live source supplied context.
+Agent Hub checkpoint creation explicitly refused this unconfigured memory scope;
+no hosted memory upload occurred. Fresh AWS STS still reports expired login.
+No new browser tab, development server, production deploy or merge occurred.

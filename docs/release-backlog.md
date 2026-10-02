@@ -282,3 +282,12 @@ neither genuine standalone login nor plan-backed inference is implemented.
 AWS renewal remains pending. Public OAuth MCP/Clerk compatibility, live SDK traces,
 provider access, Chrome lifecycle, legacy data repair and production activation
 remain open. Preserve PR14/15/16; iOS stays deferred.
+
+Runtime5e72a0fa815bdbffcf231200a01127704b7de7e4 now passes all6
+CI36994857164 and CodeQL36994857140:1106workspace tests plus one paid live skip,
+all bundles/migration/attestation/contracts/HTTP MCP and Docker direct/PgBouncer.
+Root180 focusedpass. Logs: /tmp/pointup-recovery-ci.log and
+/tmp/pointup-recovery-final-tests.log. Capture/chat live Chrome verification,
+standalone/plan-funded ChatGPT, public OAuth MCP and actual AWS activation remain
+uncompleted. Final shared graph refresh completed164478nodes, exit0, log
+/tmp/pointup-recovery-final-graph.log; Agent Hub rejected unconfigured scope.
