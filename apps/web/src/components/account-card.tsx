@@ -1,4 +1,4 @@
-import type { LoyaltyAccountReadModel } from "@pointup/core";
+import type { LoyaltyAccountReadModel, ProviderSyncMode } from "@pointup/core";
 import Link from "next/link";
 
 import {
@@ -12,8 +12,10 @@ import { formatPoints, formatUsdFromCents } from "@/lib/format";
 
 export function AccountCard({
   account,
+  syncMode = "unavailable",
 }: {
   account: LoyaltyAccountReadModel;
+  syncMode?: ProviderSyncMode;
 }) {
   return (
     <section className="card-surface account-card group flex min-w-0 flex-col gap-4 p-6 transition hover:border-brand/40">
@@ -113,12 +115,19 @@ export function AccountCard({
       </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-2">
+        {syncMode === "unavailable" ? <>
+          <p className="w-full text-xs text-ink-muted">Automatic sync is unavailable. Record a balance or explore consented capture.</p>
+          <Link href={`/dashboard/accounts/${account.id}#record-balance`} className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-brand no-underline">Record manually</Link>
+          <Link href="/dashboard/agents#capture-consent" className="rounded-full px-3 py-1.5 text-sm font-semibold text-brand no-underline">Capture options</Link>
+        </> : <>
+        <p className="w-full text-xs text-ink-muted">{syncMode === "demo" ? "Demo balances are simulated." : "API configured; provider access and delivery still need verification."}</p>
         <form action={syncLoyaltyAccountAction}>
           <input type="hidden" name="accountId" value={account.id} />
           <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
-            Sync balance
+            {syncMode === "demo" ? "Demo sync" : "Sync via API"}
           </SubmitButton>
         </form>
+        </>}
         <Link
           href={`/dashboard/accounts/${account.id}`}
           className="rounded-full px-3 py-1.5 text-sm font-semibold text-ink-faint no-underline transition hover:text-ink"

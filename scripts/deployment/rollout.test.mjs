@@ -177,3 +177,9 @@ test('failed release receipt retains safe progress without exception details', (
   assert.deepEqual(fixture.files.get(path), { version: 1, phase: 'failed', lastRecordedPhase: 'migration-running', failureCode: 'DEPLOYMENT_ABORTED', migrationTaskArn: ecsArn('task/TemplateApp/task-one') });
   assert.doesNotThrow(() => recordRolloutFailure(path, () => { throw new Error('synthetic unreadable receipt'); }, fixture.args.saveJson));
 });
+
+test('aggregator deployment refuses query, fragment and noncanonical URL input', () => {
+  for (const AGGREGATOR_API_URL of ['https://api.vendor.test?token=secret', 'https://api.vendor.test?', 'https://api.vendor.test#', 'https://api.vendor.test\\path', ' https://api.vendor.test']) {
+    assert.throws(() => contextFromEnvironment({ ...env, ENABLE_AGGREGATOR: 'true', AGGREGATOR_API_URL }), /Aggregator HTTPS API URL/);
+  }
+});

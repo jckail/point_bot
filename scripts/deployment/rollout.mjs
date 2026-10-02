@@ -21,7 +21,7 @@ export function contextFromEnvironment(env) {
   if (env.ENABLE_AGGREGATOR === 'true') {
     const value = required(env.AGGREGATOR_API_URL, 'Aggregator HTTPS API URL is required');
     let url; try { url = new URL(value); } catch { fail('Aggregator HTTPS API URL is invalid'); }
-    check(url.protocol === 'https:' && !url.username && !url.password && !url.hash, 'Aggregator HTTPS API URL is invalid');
+    check(url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash && !/[\s\\]/.test(value) && !value.includes('?') && !value.includes('#'), 'Aggregator HTTPS API URL is invalid');
     context.push('-c', 'enableAggregator=true', '-c', `aggregatorApiUrl=${value}`);
   }
   if (env.ENABLE_AGENTS === 'true') {

@@ -1,3 +1,4 @@
+import { boundedJob, reportFailure } from "../failures";
 import type { WorkerEnv } from "../env";
 
 export interface ScheduledTask {
@@ -32,10 +33,10 @@ export function runLoop(
         if (!running.has(task.name)) {
           running.add(task.name);
           try {
-            if (!task.quiet) console.info(`[loop] running ${task.name}`);
+            if (!task.quiet) console.info(`[loop] running ${boundedJob(task.name)}`);
             await task.run();
           } catch (error) {
-            console.error(`[loop] ${task.name} failed`, error);
+            reportFailure("scheduled_job_failed", task.name, error);
           } finally {
             running.delete(task.name);
           }
@@ -73,7 +74,7 @@ export function runLoop(
       schedule(task, options.initialDelayMs ?? task.everyMs);
     }
     console.info(
-      `[loop] scheduled: ${tasks.map((t) => `${t.name} every ${t.everyMs < 60_000 ? `${Math.round(t.everyMs / 1000)}s` : `${Math.round(t.everyMs / 60_000)}m`}`).join(", ")}`,
+      `[loop] scheduled: ${tasks.map((t) => `${boundedJob(t.name)} every ${t.everyMs < 60_000 ? `${Math.round(t.everyMs / 1000)}s` : `${Math.round(t.everyMs / 60_000)}m`}`).join(", ")}`,
     );
   });
 }

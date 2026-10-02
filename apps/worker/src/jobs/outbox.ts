@@ -1,5 +1,5 @@
+import { randomUUID } from "node:crypto";
 import {
-  createLogHandler,
   createObservationHeldNotifier,
   EventHandlerRegistry,
   OutboxProcessor,
@@ -8,6 +8,8 @@ import {
   type OutboxProcessorOptions,
   type OutboxRunResult,
 } from "@pointup/core";
+
+import { reportFailure } from "../failures";
 
 import type { WorkerContainer } from "../container";
 import type { WorkerEnv } from "../env";
@@ -28,7 +30,17 @@ export function buildEventHandlers(
   notifier: Notifier | null,
   write?: (line: string) => void,
 ): EventHandlerRegistry {
-  const registry = new EventHandlerRegistry().on("*", createLogHandler(write));
+  const registry = new EventHandlerRegistry().on("*", {
+    name: "log",
+    async handle() {
+      // No event identity or payload is copied into operational logs.
+      try {
+        (write ?? console.log)(JSON.stringify({
+          level: "info", category: "domain_event", job: "outbox", eventRef: randomUUID(),
+        }));
+      } catch { /* Best-effort telemetry must not retry a delivered event. */ }
+    },
+  });
   if (notifier) {
     registry.on("observation.held", createObservationHeldNotifier(notifier));
   }
@@ -36,18 +48,8 @@ export function buildEventHandlers(
 }
 
 /** Default dead-letter hook; the observability layer can swap in a counter. */
-function logDeadLetter({ event, attempts, error }: DeadLetterInfo): void {
-  console.error(
-    JSON.stringify({
-      level: "error",
-      msg: "outbox_dead_letter",
-      eventId: event.id,
-      type: event.type,
-      aggregateId: event.aggregateId,
-      attempts,
-      error,
-    }),
-  );
+function logDeadLetter(_info: DeadLetterInfo): void {
+  reportFailure("outbox_dead_letter", "outbox");
 }
 
 /**

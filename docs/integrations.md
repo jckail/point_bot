@@ -25,12 +25,11 @@ interface TravelProviderGateway {
 
 1. Add the program to the catalog if it isn't there (one line).
 2. Write an adapter in `packages/core/src/infrastructure/providers/`, e.g. `UnitedGateway implements TravelProviderGateway`, calling the airline's API (or an aggregator such as an NDC/loyalty API vendor).
-3. Register it **ahead of the simulated fallback** — either add it to the shared `buildTravelProviderGateway()` factory (`packages/core/src/infrastructure/providers/build-gateway.ts`, used by both web and worker) or compose directly for a one-off:
+3. Register it in the shared `buildTravelProviderGateway()` factory (`packages/core/src/infrastructure/providers/build-gateway.ts`, used by both web and worker), or compose real adapters directly:
 
 ```ts
 const gateway = new CompositeTravelProviderGateway([
   new UnitedGateway(unitedApiOptions),
-  new SimulatedTravelProviderGateway(),
 ]);
 ```
 
@@ -41,8 +40,7 @@ No use case, route, or schema changes are required — this is the open/closed p
 `HttpAggregatorTravelProviderGateway` is a real adapter for a loyalty-data
 aggregator's HTTP API — one integration to cover the long tail of programs. It's
 composed by the shared `buildTravelProviderGateway()` factory (used by both the
-web app and the worker), which registers the aggregator **ahead of** the
-simulated fallback when it's configured:
+web app and the worker), which registers the aggregator when it's configured:
 
 ```ts
 const gateway = buildTravelProviderGateway({
@@ -55,8 +53,10 @@ const gateway = buildTravelProviderGateway({
 
 Set `AGGREGATOR_API_URL` + `AGGREGATOR_API_KEY` (locally, or via CDK context
 `-c enableAggregator=true -c aggregatorApiUrl=…` in AWS — the key becomes a
-Secrets Manager placeholder) and real syncs route through it; everything else
-falls back to the simulation. The vendor wire contract is:
+Secrets Manager placeholder) and sync attempts route through it. Configuration
+does not prove vendor authorization or live provider coverage. Unconfigured or
+unsupported real providers remain unavailable rather than replacing observed
+balances with fake values. The vendor wire contract is:
 
 ```
 POST {baseUrl}/v1/balance
@@ -68,6 +68,27 @@ Authorization: Bearer {apiKey}
 Transient credentials the calling surface supplies are forwarded for one-time
 use and never persisted. `supportedProviderIds` scopes the adapter to the
 programs a given vendor actually covers.
+
+### Explicit demo mode and truthful capabilities
+
+The factory defaults to no simulated gateway. `allowSimulation:true` is an
+explicit demo-only option; shared web/worker composition enables it only under
+the existing `AUTH_PROVIDER=dev` context. Normal Clerk or omitted authentication
+configuration cannot silently simulate a sync. A real adapter failure also does
+not fall back to demo success. Unavailable sync leaves history, account metadata,
+activity and outbox unchanged.
+
+The dashboard distinguishes configured API sync, demo sync and unavailable sync.
+Unavailable programs link to manual recording and consented capture rather than
+offering an ordinary sync button. These capability labels represent configured
+adapters, not verified vendor connectivity. Official provider partnerships and
+live capture still need separate evidence.
+
+Previous simulated snapshots used the same sync source as real adapters. Do not
+delete or automatically reassign historical rows from that label alone. Before
+production activation, inspect actual deployment history and data, identify any
+affected balances using reliable evidence and agree on reviewed repair/recovery.
+This source fix prevents new implicit simulation; it does not repair old rows.
 
 ## Credential vaults
 

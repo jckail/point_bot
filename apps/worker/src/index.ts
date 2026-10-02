@@ -2,6 +2,7 @@ import { assertNever, isOneOf } from "@pointup/core";
 
 import { createContainer } from "./container";
 import { loadEnv } from "./env";
+import { finishWorkerJob } from "./failures";
 import { checkWatches } from "./jobs/check-watches";
 import { bootstrap } from "./jobs/bootstrap";
 import { minutes, runLoop } from "./jobs/loop";
@@ -134,9 +135,4 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error: unknown) => {
-    console.error("[worker] job failed", error);
-    process.exit(1);
-  });
+void finishWorkerJob(main, process.argv[2]);

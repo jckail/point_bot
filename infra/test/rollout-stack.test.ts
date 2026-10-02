@@ -13,6 +13,12 @@ function template(inactive: boolean) {
     bootstrapInactive: inactive, bootstrapStackConfirmedAbsent: inactive } }), "TemplateApp",
   { env: { account: "111111111111", region: "us-east-1" } }));
 }
+test("rejects unsafe aggregator configuration before publishing task environments", () => {
+  for (const aggregatorApiUrl of ["bad", "http://provider.test", "https://user:secret@provider.test", "https://provider.test?token=secret", "https://provider.test?", "https://provider.test#", "https://provider.test\\path"]) {
+    assert.throws(() => new AppStack(new App({ context: { ...context, aggregatorApiUrl } }), "InvalidAggregator",
+      { env: { account: "111111111111", region: "us-east-1" } }), /Aggregator API URL/);
+  }
+});
 test("inactive first creation preserves all resource IDs while preventing any workload activation", () => {
   const active = template(false);
   const inactive = template(true);

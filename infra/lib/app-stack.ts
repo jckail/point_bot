@@ -211,14 +211,23 @@ export class AppStack extends cdk.Stack {
     // a Secrets Manager placeholder gated by `-c enableAggregator=true`; the
     // base URL is plain config:
     //   -c enableAggregator=true -c aggregatorApiUrl=https://api.vendor.example
+    const aggregatorApiUrl = ctx("aggregatorApiUrl");
+    if (aggregatorApiUrl) {
+      let url: URL;
+      try { url = new URL(aggregatorApiUrl); } catch { throw new Error("Aggregator API URL is invalid."); }
+      if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
+          /[\s\\]/.test(aggregatorApiUrl) || aggregatorApiUrl.includes("?") || aggregatorApiUrl.includes("#")) {
+        throw new Error("Aggregator API URL requires HTTPS without credentials, query or fragment.");
+      }
+    }
     const aggregatorSecret = this.node.tryGetContext("enableAggregator")
       ? placeholderSecret(
           "AggregatorApiKey",
           "Loyalty-data aggregator API key (set the real value after deploy)",
         )
       : undefined;
-    const aggregatorEnvironment: Record<string, string> = ctx("aggregatorApiUrl")
-      ? { AGGREGATOR_API_URL: ctx("aggregatorApiUrl")! }
+    const aggregatorEnvironment: Record<string, string> = aggregatorApiUrl
+      ? { AGGREGATOR_API_URL: aggregatorApiUrl }
       : {};
     const aggregatorSecrets: Record<string, ecs.Secret> = aggregatorSecret
       ? { AGGREGATOR_API_KEY: ecs.Secret.fromSecretsManager(aggregatorSecret) }

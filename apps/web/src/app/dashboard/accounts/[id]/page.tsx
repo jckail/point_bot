@@ -18,6 +18,7 @@ import { Sparkline } from "@/components/sparkline";
 import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getContainer } from "@/server/container";
+import { getProviderSyncOptions } from "@/server/provider-sync";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ export default async function AccountDetailPage({
 
   // Sparkline wants oldest → newest.
   const chartValues = [...history].reverse().map((entry) => entry.points);
+  const syncMode = getProviderSyncOptions([account.provider.id]).modes[account.provider.id] ?? "unavailable";
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6">
@@ -114,12 +116,19 @@ export default async function AccountDetailPage({
               </>
             )}
           </div>
+          {syncMode === "unavailable" ? <div className="flex flex-col gap-2 text-sm">
+            <p className="text-ink-muted">Automatic sync is unavailable for this program.</p>
+            <Link href="#record-balance" className="font-semibold text-brand no-underline">Record a balance manually</Link>
+            <Link href="/dashboard/agents#capture-consent" className="font-semibold text-brand no-underline">Explore consented capture</Link>
+          </div> : <div className="flex flex-col items-start gap-2">
+          <p className="text-xs text-ink-muted">{syncMode === "demo" ? "Demo balances are simulated." : "API configured; provider access and delivery still need verification."}</p>
           <form action={syncLoyaltyAccountAction}>
             <input type="hidden" name="accountId" value={account.id} />
             <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
-              Sync now
+              {syncMode === "demo" ? "Demo sync" : "Sync via API"}
             </SubmitButton>
           </form>
+          </div>}
         </div>
 
         {chartValues.length >= 2 ? (
@@ -166,7 +175,7 @@ export default async function AccountDetailPage({
         </section>
 
         <section className="card-surface flex flex-col gap-5 p-6">
-          <div>
+          <div id="record-balance" className="dashboard-section">
             <h2 className="font-display text-lg font-semibold text-ink">
               Record a balance
             </h2>

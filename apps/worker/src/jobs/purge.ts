@@ -49,7 +49,7 @@ export async function purge(
             batches: t.batches,
             capped: t.capped,
             cutoff: t.cutoff,
-            ...(t.error ? { error: t.error } : {}),
+            ...(t.error ? { failed: true } : {}),
           },
         ]),
       ),
@@ -57,7 +57,7 @@ export async function purge(
   );
   if (failed.length) {
     throw new Error(
-      `purge failed for: ${failed.map((t) => `${t.target} (${t.error})`).join(", ")}`,
+      `purge failed for: ${failed.map((t) => t.target).join(", ")}`,
     );
   }
   return result;

@@ -1,3 +1,4 @@
+import { reportFailure } from "../failures";
 import type { WorkerContainer } from "../container";
 
 /**
@@ -29,9 +30,7 @@ export async function syncAllUsers(container: WorkerContainer): Promise<void> {
           synced += 1;
         } else {
           failed += 1;
-          console.warn(
-            `[sync] user=${userId} account=${outcome.accountId} error=${outcome.errorCode}`,
-          );
+          reportFailure("sync_account_failed", "sync", { code: outcome.errorCode });
         }
       }
     }

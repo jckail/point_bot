@@ -25,6 +25,7 @@ import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getSessionUser, getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
+import { getProviderSyncOptions } from "@/server/provider-sync";
 import {
   toPlanRedemptionResultDto,
   toValueAdviceDto,
@@ -52,6 +53,7 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   const { useCases } = getContainer();
   const accounts = await useCases.listLoyaltyAccounts.execute(userId);
+  const syncOptions = getProviderSyncOptions(accounts.map(account => account.provider.id));
   const summary = computePortfolioSummary(accounts);
   const [activity, expiring, goals, deleted, shares, valueAdvice, bestPlans] =
     await Promise.all([
@@ -99,9 +101,9 @@ export default async function DashboardPage() {
         </div>
         {accounts.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <form action={syncAllLoyaltyAccountsAction}>
-              <SubmitButton size="sm" pendingLabel="Syncing programs…">Sync all programs</SubmitButton>
-            </form>
+            {syncOptions.bulkLabel ? <form action={syncAllLoyaltyAccountsAction}>
+              <SubmitButton size="sm" pendingLabel="Syncing programs…">{syncOptions.bulkLabel}</SubmitButton>
+            </form> : <a href="/dashboard/agents#capture-consent" className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-brand no-underline">Capture options</a>}
             <a
               href="/api/v1/export?format=csv"
               className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-ink-muted no-underline transition hover:border-ink-faint hover:text-ink"
@@ -171,7 +173,7 @@ export default async function DashboardPage() {
           <div><h2 id="programs-heading" className="font-display text-2xl font-semibold text-ink">Your programs</h2><p className="mt-1 text-sm text-ink-muted">Balances, expiry dates and memberships in one place.</p></div>
           <a href="#link-program" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-brand no-underline">Link a program</a>
         </div>
-        {accounts.length === 0 ? <><div className="card-surface p-6"><p className="font-semibold text-ink">Start with a program you already use.</p><p className="mt-2 text-sm text-ink-muted">Link its membership number, then record the balance you see on the provider’s site.</p></div><DemoPortfolioCta /></> : <AccountGrid accounts={accounts} />}
+        {accounts.length === 0 ? <><div className="card-surface p-6"><p className="font-semibold text-ink">Start with a program you already use.</p><p className="mt-2 text-sm text-ink-muted">Link its membership number, then record the balance you see on the provider’s site.</p></div><DemoPortfolioCta /></> : <AccountGrid accounts={accounts} syncModes={syncOptions.modes} />}
       </section>
       <section id="opportunities" className="dashboard-section flex flex-col gap-8" aria-label="Points opportunities">
         <ExpiryWarnings accounts={expiring} />

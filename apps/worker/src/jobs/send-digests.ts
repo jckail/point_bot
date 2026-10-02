@@ -1,5 +1,7 @@
 import type { Mailer, Notifier, UserDirectory } from "@pointup/core";
 
+import { reportFailure } from "../failures";
+
 import type { WorkerContainer } from "../container";
 import { renderDigestChat } from "../digest-chat";
 import { renderDigestEmail } from "../digest-email";
@@ -38,12 +40,12 @@ export async function sendDigests(
           notified += 1;
         })
         .catch((error: unknown) => {
-          console.warn(`[digest] user=${userId} chat notify failed`, error);
+          reportFailure("chat_delivery_failed", "digest", error);
         });
     }
 
     const email = await directory.getEmail(userId).catch((error: unknown) => {
-      console.warn(`[digest] user=${userId} directory lookup failed`, error);
+      reportFailure("directory_lookup_failed", "digest", error);
       return null;
     });
     if (!email) {

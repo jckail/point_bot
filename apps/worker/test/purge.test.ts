@@ -81,7 +81,7 @@ describe("purge job", () => {
       },
     };
     const lines: string[] = [];
-    await expect(purge({ retention }, env(), (l) => lines.push(l))).rejects.toThrow(/outbox \(db down\)/);
+    await expect(purge({ retention }, env(), (l) => lines.push(l))).rejects.toThrow("purge failed for: outbox");
     expect(seen).toEqual(["outbox", "activity", "access_tokens", "consents"]);
     expect(JSON.parse(lines[0]!).level).toBe("error");
   });

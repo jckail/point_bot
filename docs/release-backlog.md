@@ -305,3 +305,27 @@ configuration failures exit1 without private markers. Local CDK queue75 preserve
 fresh candidate CI required. No browser/server/AWS mutation. AWS session remains
 expired. Preserve full standalone/plan-funded ChatGPT, public OAuth MCP, provider
 access and live observability scope; these source seams do not complete them.
+
+## Provider safety and operational follow-ups
+
+New candidate removes implicit simulation from real-user sync, exposes truthful
+provider capabilities, protects aggregator credentials/response boundaries and
+redacts worker operational failures. Root focused checks are48 core,10 web,
+17 worker and30 rollout cases. Fresh candidate CI remains required. Previous
+MCP runtime05a0eed passes all six CI36997108617 and CodeQL36997108649.
+
+Before production activation, inspect existing balance provenance with reviewed
+deployment/data evidence. Historical simulated snapshots used source `sync`,
+also used by real adapters: source alone cannot identify or justify deleting
+legacy data. The new gate prevents future synthetic writes, not historical repair.
+Review core outbox persisted retry/dead-letter exception text separately for
+confidentiality, retention and any DTO exposure; this candidate redacts logs only.
+
+Continue guided capture/extractor coverage for Chase, Amex, Capital One and Bilt;
+program catalog/playbook presence is not verified capture support. Remaining
+original scope includes genuine standalone ChatGPT sign-in and eligible
+plan-backed inference, public OAuth MCP integration/provider compatibility, live
+SDK tracing/exporter/Chrome/provider checks, legacy numeric/data repair, backup/
+restore evidence and AWS migration-gated activation. Renewed AWS identity and
+repository deployment configuration remain prerequisites. Preserve PR14/15/16;
+iOS deferred. No production deployment or merge has occurred.

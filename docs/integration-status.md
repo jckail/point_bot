@@ -537,3 +537,30 @@ CI must cover the new template check. Previous docs1522aac passes all6 CI3699539
 and CodeQL36995394448. AWS login remains expired; no production mutation occurred.
 Continue provider/account compatibility, live inference/exporter/Chrome, numeric/
 legacy-data and deployment work from the existing backlog. Original goal active.
+
+## Verified MCP runtime and provider safety continuation
+
+Runtime05a0eed0f73fc0d1712b000a073de3e4453940ae passes all six
+[CI36997108617](https://github.com/jckail/point_bot/actions/runs/36997108617) jobs
+and [CodeQL36997108649](https://github.com/jckail/point_bot/actions/runs/36997108649):
+1192 workspace tests plus one paid live skip, all bundles, managed migration20,
+PostgreSQL attestation, contracts/HTTP MCP and Docker direct/PgBouncer smoke.
+The preceding E2E fixture incorrectly fabricated an authentication code; it now
+uses the actual UNAUTHENTICATED contract and asserts private error text is absent.
+
+The next candidate disables implicit simulated balances for real-user sync.
+Simulation requires explicit dev authentication or factory opt-in; unsupported
+sync preserves existing balances and metadata. Dashboard cards and account pages
+show available API, demo or manual/capture paths. API configuration does not prove
+provider access. Aggregator transport rejects unsafe URLs, prohibits credential
+redirects, bounds responses and emits fixed private-safe failures. Deployment
+configuration enforces matching URL restrictions. Worker terminal, scheduler,
+delivery, purge and outbox logs omit raw exceptions and identities; diagnostic
+sink failures cannot change delivery, retries or exit status.
+
+Root focused verification:48 core provider/transport/sync,10 web capability/UI,
+17 worker privacy/purge and30 rollout helper cases. Fresh committed-head CI must
+verify this candidate; the runtime05 evidence does not cover these new changes.
+AWS login renewal remains pending; no production mutation, browser tab or server
+was created. Agent Hub still refuses the unconfigured project memory scope;
+these curated repository documents preserve continuity. Original goal active.

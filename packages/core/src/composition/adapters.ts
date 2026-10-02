@@ -4,6 +4,7 @@ import type {
   LlmAssistant,
   PageScraper,
 } from "../application/ports";
+import type { AuthProvider } from "../dev-auth";
 import type { FxRateSource } from "../domain/fx";
 import {
   StaticFxRateSource,
@@ -106,18 +107,34 @@ export function selectFx(config: FxConfig): FxRateSource {
 export interface GatewayConfig {
   AGGREGATOR_API_URL?: string;
   AGGREGATOR_API_KEY?: string;
+  /** Existing explicit local/demo authentication context; absent means real. */
+  AUTH_PROVIDER?: AuthProvider;
+  /** Optional host-supplied adapter scope, not a new environment variable. */
+  aggregatorSupportedProviderIds?: readonly string[];
 }
 
 export function selectGateway(config: GatewayConfig) {
   return buildTravelProviderGateway({
+    allowSimulation: config.AUTH_PROVIDER === "dev",
     aggregator:
       config.AGGREGATOR_API_URL && config.AGGREGATOR_API_KEY
         ? {
             baseUrl: config.AGGREGATOR_API_URL,
             apiKey: config.AGGREGATOR_API_KEY,
+            ...(config.aggregatorSupportedProviderIds ? { supportedProviderIds: config.aggregatorSupportedProviderIds } : {}),
           }
         : undefined,
   });
+}
+
+export type ProviderSyncMode = "api" | "demo" | "unavailable";
+
+/** Configuration capability only; an API mode does not prove vendor access or live delivery. */
+export function selectProviderSyncMode(config: GatewayConfig, providerId: string): ProviderSyncMode {
+  if (!selectGateway(config).supports(providerId)) return "unavailable";
+  if (config.AGGREGATOR_API_URL && config.AGGREGATOR_API_KEY
+    && (!config.aggregatorSupportedProviderIds || config.aggregatorSupportedProviderIds.includes(providerId))) return "api";
+  return "demo";
 }
 
 export interface AwardSearchConfig {
