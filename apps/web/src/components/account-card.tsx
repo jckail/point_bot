@@ -3,12 +3,11 @@ import { findCardProduct } from "@pointup/core/card-products";
 import Link from "next/link";
 
 import {
-  syncLoyaltyAccountAction,
   togglePinAccountAction,
 } from "@/app/actions";
+import { SyncBalanceForm } from "@/components/sync-balance-form";
 import { BalanceTrendChips } from "@/components/balance-trend";
 import { ProviderBadge } from "@/components/provider-badge";
-import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 
 export function AccountCard({
@@ -125,12 +124,7 @@ export function AccountCard({
           <Link href="/dashboard/agents#capture-consent" className="rounded-full px-3 py-1.5 text-sm font-semibold text-brand no-underline">Capture options</Link>
         </> : <>
         <p className="w-full text-xs text-ink-muted">{syncMode === "demo" ? "Demo balances are simulated." : "API configured; provider access and delivery still need verification."}</p>
-        <form action={syncLoyaltyAccountAction}>
-          <input type="hidden" name="accountId" value={account.id} />
-          <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
-            {syncMode === "demo" ? "Demo sync" : "Sync via API"}
-          </SubmitButton>
-        </form>
+        <SyncBalanceForm accountId={account.id} label={syncMode === "demo" ? "Demo sync" : "Sync via API"} />
         </>}
         <Link
           href={`/dashboard/accounts/${account.id}`}

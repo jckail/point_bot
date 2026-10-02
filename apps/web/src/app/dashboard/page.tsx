@@ -7,7 +7,7 @@ import { type Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { syncAllLoyaltyAccountsAction } from "@/app/actions";
+import { SyncBalanceForm } from "@/components/sync-balance-form";
 import { AccountGrid } from "@/components/account-grid";
 import { ActivityFeed } from "@/components/activity-feed";
 import { BestRedemptionsSection } from "@/components/best-redemptions-section";
@@ -21,7 +21,6 @@ import { SharePortfolioSection } from "@/components/share-portfolio-section";
 import { StatCard } from "@/components/stat-card";
 import { TripGoalsSection } from "@/components/trip-goals-section";
 import { ValueDealsSection } from "@/components/value-deals-section";
-import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getSessionUser, getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
@@ -101,9 +100,7 @@ export default async function DashboardPage() {
         </div>
         {accounts.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            {syncOptions.bulkLabel ? <form action={syncAllLoyaltyAccountsAction}>
-              <SubmitButton size="sm" pendingLabel="Syncing programs…">{syncOptions.bulkLabel}</SubmitButton>
-            </form> : <a href="/dashboard/agents#capture-consent" className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-brand no-underline">Capture options</a>}
+            {syncOptions.bulkLabel ? <SyncBalanceForm key={userId} label={syncOptions.bulkLabel} /> : <a href="/dashboard/agents#capture-consent" className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-brand no-underline">Capture options</a>}
             <a
               href="/api/v1/export?format=csv"
               className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-ink-muted no-underline transition hover:border-ink-faint hover:text-ink"

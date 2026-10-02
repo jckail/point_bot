@@ -5,10 +5,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
-  syncLoyaltyAccountAction,
   togglePinAccountAction,
   unlinkLoyaltyAccountAction,
 } from "@/app/actions";
+import { SyncBalanceForm } from "@/components/sync-balance-form";
 import { AccountCardProductForm } from "@/components/account-card-product-form";
 import { AccountNotesForm } from "@/components/account-notes-form";
 import { AccountValuationForm } from "@/components/account-valuation-form";
@@ -127,12 +127,7 @@ export default async function AccountDetailPage({
             <Link href="/dashboard/agents#capture-consent" className="font-semibold text-brand no-underline">Explore consented capture</Link>
           </div> : <div className="flex flex-col items-start gap-2">
           <p className="text-xs text-ink-muted">{syncMode === "demo" ? "Demo balances are simulated." : "API configured; provider access and delivery still need verification."}</p>
-          <form action={syncLoyaltyAccountAction}>
-            <input type="hidden" name="accountId" value={account.id} />
-            <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
-              {syncMode === "demo" ? "Demo sync" : "Sync via API"}
-            </SubmitButton>
-          </form>
+          <SyncBalanceForm key={`${userId}:${account.id}`} accountId={account.id} label={syncMode === "demo" ? "Demo sync" : "Sync via API"} />
           </div>}
         </div>
 

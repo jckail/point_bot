@@ -189,7 +189,7 @@ export function AgentsPanel({
           </label>
           <label className="flex w-full flex-col gap-1.5 text-sm font-medium text-ink-muted sm:w-32">
             Days (1-90)
-            <input name="days" type="number" min={1} max={90} defaultValue={30} className={input} />
+            <input name="days" type="number" min={1} max={90} step={1} required defaultValue={30} className={input} />
           </label>
           <SubmitButton pendingLabel="Granting…">Allow agents</SubmitButton>
         </form>
