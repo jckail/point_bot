@@ -2,10 +2,8 @@
 
 import { useActionState } from "react";
 
-import {
-  createPortfolioShareAction,
-  revokePortfolioShareAction,
-} from "@/app/actions";
+import { createPortfolioShareAction } from "@/app/actions";
+import { RevokeShareForm } from "@/components/revoke-share-form";
 import { FormFeedback, SubmitButton } from "@/components/form-feedback";
 import { idleActionResult } from "@/lib/action-result";
 import { formatDate } from "@/lib/format";
@@ -69,10 +67,10 @@ export function SharePortfolioSection({
                     </p>
                   )}
                 </div>
-                <form action={revokePortfolioShareAction}>
-                  <input type="hidden" name="shareId" value={share.id} />
-                  <SubmitButton variant="secondary" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
-                </form>
+                <RevokeShareForm
+                  shareId={share.id}
+                  label={share.label ?? "Untitled share"}
+                />
               </li>
             );
           })}

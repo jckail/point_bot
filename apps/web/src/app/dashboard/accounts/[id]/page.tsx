@@ -45,6 +45,9 @@ export default async function AccountDetailPage({
     throw error;
   }
 
+  const effectiveCentsPerPoint = account.customCentsPerPoint ?? account.provider.estimatedCentsPerPoint;
+  const valuationSource = account.customCentsPerPoint != null ? "your custom valuation" : "catalog estimate";
+
   // Sparkline wants oldest → newest.
   const chartValues = [...history].reverse().map((entry) => entry.points);
   const syncMode = getProviderSyncOptions([account.provider.id]).modes[account.provider.id] ?? "unavailable";
@@ -104,7 +107,7 @@ export default async function AccountDetailPage({
               <>
                 <p className="mt-1 text-xs text-ink-faint">
                   ~{formatUsdFromCents(account.estimatedValueCents)} at{" "}
-                  {account.provider.estimatedCentsPerPoint}&cent;/pt · updated{" "}
+                  {effectiveCentsPerPoint}&cent;/pt ({valuationSource}) · updated{" "}
                   {account.latestBalance.capturedAt.toLocaleString("en-US", {
                     dateStyle: "medium",
                     timeStyle: "short",

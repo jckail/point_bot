@@ -7,7 +7,19 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged mutation-feedback and telemetry release is [PR #46](https://github.com/jckail/point_bot/pull/46)
+The current local frontend audit candidate has nine reviewed source/test fixes
+for active-share controls, Revoke feedback, explicit input labels and effective
+valuation rates. Its 25 focused tests, web typecheck, nine-file lint and whitespace
+checks pass. Actual application browser coverage is **not executed**: the initial
+heavy-check launch exited 75 before startup; a later caller after a capacity update
+was stopped before startup when the fresh precheck showed contention again.
+The audit records the guard error and cleanup; no gate bypass or native acceptance
+is claimed. Candidate release gates remain pending. See the bounded evidence
+and planned feature matrix in [frontend-audit-20261002.md](frontend-audit-20261002.md).
+The baseline is fully verified PR #47 master `6c1735167` (1,811 tests plus one paid
+live skip; AWS deployment skipped); the linked audit records its exact run IDs.
+
+The preceding merged mutation-feedback and telemetry release is [PR #46](https://github.com/jckail/point_bot/pull/46)
 from source `c9b82e708276ec6de74337a3e88e1d3e3bd07f1e`, at master
 `f2ea9b5b5457116a5a03ac5787b2c59547c7d065`. Candidate, prospective master and
 actual master have the same tree, `9e4f0e941e3edf3a5a24a2f21363bed7009b7114`.
@@ -20,9 +32,8 @@ also passed, with 1,807 workspace tests and one paid live skip, including 41 pop
 and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
 deployment-role configuration; production activation remains unverified.
 
-The current two-file session capture timestamp candidate is applied on
-`codex/pointup-capture-timestamp-20261002` after hash verification and independent
-review. The session manual-balance request now forwards the original
+The merged PR #47 two-file session capture timestamp change followed hash
+verification and independent review. The session manual-balance request now forwards the original
 `capture.observedAt` as `capturedAt`, without replacing or normalizing it. Four
 new cases use the actual API client, shared input schema and actual core use case
 with existing in-memory repositories at a synthetic HTTP boundary. They prove
@@ -30,8 +41,8 @@ that a late reading retains its capture time and leaves a newer snapshot latest,
 preserves explicit or cleared expiry, and rejects malformed/future timestamps
 without writes. The activity-array assertion was corrected before first execution.
 Original source produced four failures and 11 passes; fixed source passes all 15
-cases, with extension typecheck and two-file lint passing. Committed candidate
-release gates remain pending. No real authenticated route, provider or native
+cases, with extension typecheck and two-file lint passing. PR #47 candidate and
+merged-master release gates passed as recorded in the linked frontend audit. No real authenticated route, provider or native
 browser proof is claimed. PAT frozen payloads and idempotency are unchanged;
 legacy session writes remain non-idempotent, with no automatic retry guarantee.
 

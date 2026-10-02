@@ -185,7 +185,7 @@ export default async function DashboardPage() {
         <div><h2 id="manage-heading" className="font-display text-2xl font-semibold text-ink">Manage your portfolio</h2><p className="mt-1 text-sm text-ink-muted">Link programs, import existing balances, share totals or restore recently unlinked memberships.</p></div>
         <div id="link-program" className="dashboard-section"><LinkAccountForm providers={availableProviders} /></div>
         <ImportPortfolioForm />
-        {accounts.length > 0 && <SharePortfolioSection shares={shares} baseUrl={baseUrl} />}
+        {(accounts.length > 0 || shares.some(share => share.active)) && <SharePortfolioSection shares={shares} baseUrl={baseUrl} />}
         <RecentlyUnlinked accounts={deleted} />
       </section>
       <AssistantPanel key={userId} ownerScope={userId} />

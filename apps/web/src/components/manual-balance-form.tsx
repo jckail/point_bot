@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 
 import { recordManualBalanceAction } from "@/app/actions";
 import { FormFeedback, SubmitButton } from "@/components/form-feedback";
 import { idleActionResult } from "@/lib/action-result";
 
 export function ManualBalanceForm({ accountId }: { accountId: string }) {
+  const formId = useId();
+  const pointsId = `${formId}-points`;
+  const capturedOnId = `${formId}-captured-on`;
   const [result, formAction] = useActionState(
     recordManualBalanceAction,
     idleActionResult,
@@ -15,8 +18,12 @@ export function ManualBalanceForm({ accountId }: { accountId: string }) {
   return (
     <form action={formAction} className="mt-3 flex flex-col gap-2">
       <input type="hidden" name="accountId" value={accountId} />
+      <label htmlFor={pointsId} className="text-sm font-medium text-ink-muted">
+        Balance (points)
+      </label>
       <div className="flex gap-2">
         <input
+          id={pointsId}
           name="points"
           type="number"
           min="0"
@@ -29,9 +36,10 @@ export function ManualBalanceForm({ accountId }: { accountId: string }) {
           Save
         </SubmitButton>
       </div>
-      <label className="flex items-center gap-2 text-xs text-ink-faint">
+      <label htmlFor={capturedOnId} className="flex items-center gap-2 text-xs text-ink-faint">
         As of (UTC date)
         <input
+          id={capturedOnId}
           name="capturedOn"
           type="date"
           max={new Date().toISOString().slice(0, 10)}
