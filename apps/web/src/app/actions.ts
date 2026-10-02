@@ -334,25 +334,21 @@ export async function updateAccountNotesAction(
 }
 
 export async function restoreLoyaltyAccountAction(
+  _previous: ActionResult,
   formData: FormData,
-): Promise<void> {
+): Promise<ActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
+  if (!userId) return UNAUTHENTICATED;
 
-  try {
+  const result = await toActionResult(async () => {
     await getContainer().useCases.restoreLoyaltyAccount.execute(
       userId,
       LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
-  } catch (error) {
-    if (error instanceof DomainError) {
-      console.warn(`restoreLoyaltyAccount rejected: ${error.code}`);
-      return;
-    }
-    throw error;
-  }
+  });
 
-  revalidatePath("/dashboard");
+  if (result.status === "success") revalidatePath("/dashboard");
+  return result;
 }
 
 export async function createPortfolioShareAction(

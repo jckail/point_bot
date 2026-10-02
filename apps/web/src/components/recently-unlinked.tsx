@@ -1,4 +1,4 @@
-import { restoreLoyaltyAccountAction } from "@/app/actions";
+import { RestoreAccountForm } from "@/components/restore-account-form";
 import { formatDateTime } from "@/lib/format";
 
 type DeletedRow = {
@@ -32,15 +32,10 @@ export function RecentlyUnlinked({ accounts }: { accounts: DeletedRow[] }) {
                 unlinked {formatDateTime(account.deletedAt)}
               </span>
             </span>
-            <form action={restoreLoyaltyAccountAction}>
-              <input type="hidden" name="accountId" value={account.id} />
-              <button
-                type="submit"
-                className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-ink-muted transition hover:border-brand hover:text-ink"
-              >
-                Restore
-              </button>
-            </form>
+            <RestoreAccountForm
+              accountId={account.id}
+              providerName={account.providerName}
+            />
           </li>
         ))}
       </ul>

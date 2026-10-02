@@ -7,7 +7,40 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
-The latest merged hydration-recovery release is [PR #42](https://github.com/jckail/point_bot/pull/42)
+The latest merged SDK tracing release is [PR #44](https://github.com/jckail/point_bot/pull/44)
+from source `c260cb385cc8b01acb88a9174f5866218deaa8a1`, merged at master
+`bbeb8f1d3bfdc2928293bfd6d52dab363efa2d73`. Candidate, prospective master and
+actual master have the same tree, `b6fa189c7382428626567c0dd5f48961a2dddc81`.
+All six candidate verification jobs in [CI 37055319757](https://github.com/jckail/point_bot/actions/runs/37055319757)
+and [CodeQL 37055319754](https://github.com/jckail/point_bot/actions/runs/37055319754)
+passed. Merged-master [Deploy 37056080541](https://github.com/jckail/point_bot/actions/runs/37056080541)
+and [CodeQL 37056080352](https://github.com/jckail/point_bot/actions/runs/37056080352)
+also passed, with 1,790 workspace tests and one paid live skip, including 41 popup
+and 12 actual PostgreSQL retention cases. AWS deployment was skipped for missing
+deployment-role configuration; these gates do not establish production activation.
+
+The current four-file Restore feedback candidate is prepared on
+`codex/pointup-restore-feedback-20261002`; candidate and merged-master gates remain
+pending. The dashboard action returns existing
+session/domain error feedback, and each row uses `useActionState`, `FormFeedback`
+and `SubmitButton`. Core ownership, fresh seven-day checks, writes, audit/events
+and success-only revalidation are preserved. Six actual action/core tests pass;
+original behavior produced five failures and one pass with a legacy-call adapter
+that qualifies the changed action signature. Typecheck, lint and independent
+review passed.
+
+A native React 19 form fixture passed four synthetic server-action outcomes
+(session expiry, expired restore window, other error and success), including
+pending-button disabling, duplicate prevention, alert/status announcements,
+accessible controls and no automatic retry. Its server action was mocked; this
+is not authenticated or live-service acceptance. Owned browser page 14 and server
+port 55821 were closed. Node PID 2201102 required SIGTERM because `/finish` called
+`server.close` but left esbuild running; the wrapper exited 241. Functional browser
+assertions passed, but the wrapper was not green. The temporary helper now calls
+`esbuild.stop` during cleanup and has not been rerun. Goal Remove feedback remains
+a separate backlog finding.
+
+The preceding hydration-recovery release is [PR #42](https://github.com/jckail/point_bot/pull/42)
 from source `fd59f2008ce92024f18d3f8cf1f6ef687490bcdf` (tree
 `4c325ad38778c0eae7001ee1f7251a2f1eb05bd5`). Its prospective and actual merged
 master `c1293b580dbc07ed88cd241f91ade3e26680c2fb` have tree
@@ -25,7 +58,7 @@ passed all six release verification jobs and configuration verification, with
 PostgreSQL retention cases. [Master CodeQL 37054588607](https://github.com/jckail/point_bot/actions/runs/37054588607)
 also passed. AWS deployment was skipped for missing deployment-role configuration.
 
-The current SDK tracing correction shares one effective-readiness predicate
+The merged PR #44 SDK tracing correction shares one effective-readiness predicate
 across runtime trace-ID allocation, emitted events, runner configuration and the
 HTTP trace header. It respects tracing opt-in, the environment kill switch and
 SDK provider disabling. The existing evaluation helper delegates to that predicate;
@@ -33,9 +66,9 @@ CLI override semantics and the HTTP support request ID are unchanged. Six new
 runtime/route regressions failed against the original source; all 66 focused tests
 across four files and one actual private-exporter bootstrap test now pass (67 total).
 Web typecheck, eight-file lint and whitespace checks passed; independent source
-review approved the proposal; committed candidate CI remains pending. An allocated
-trace ID proves neither trace creation
-nor exporter delivery. No paid inference, cloud exporter delivery or production
+review approved the proposal. Candidate and merged-master verification passed as
+recorded above. An allocated trace ID proves neither trace creation nor exporter
+delivery. No paid inference, cloud exporter delivery or production
 activation is established by these checks.
 
 The preceding retention-bounds release is [PR #41](https://github.com/jckail/point_bot/pull/41)
