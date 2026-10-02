@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@pointup/core": "*",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.0",
     "typescript": "^5.9.0",
     "vitest": "4.1.11"

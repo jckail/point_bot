@@ -13,8 +13,8 @@
     "@pointup/api-client": "*"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.287",
-    "esbuild": "^0.25.0",
+    "@types/chrome": "^0.3.4",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.0",
     "vitest": "4.1.11",
     "@types/node": "^24.0.0"
