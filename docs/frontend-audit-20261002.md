@@ -1,5 +1,9 @@
 # Local frontend audit — 2026-10-02
 
+Historical source/plan receipt. The later actual-app partial execution and PR #49
+release evidence are in [frontend-browser-20261002.md](frontend-browser-20261002.md).
+The unexecuted statuses below describe the earlier checkpoint, not the latest state.
+
 PR #48 is merged and verified, from source `4af48bb20499958b0a071f82c1cd6cbce46767ae`
 at master `0864a1978603caa18ad8d01fb3fe0f6f6820f38b`; source, prospective and
 actual master share tree `3b7ea1a03578994f286046e28f3c325f1eecc899`.

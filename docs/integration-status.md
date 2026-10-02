@@ -10,6 +10,17 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+The latest valuation feature is merged in [PR #49](https://github.com/jckail/point_bot/pull/49)
+and fully verified on master `afdb606de5a37f9d754fbf9793aa7c7daa8f1ebb`
+with 1,847 workspace tests plus one paid live skip; AWS activation was skipped.
+A real local app/browser pass now covers named portfolio, valuation, CSV, goals,
+share/unlink/restore, access/consent, offline assistant and responsive flows.
+Its scope, evidence and open cases are in [frontend-browser-20261002.md](frontend-browser-20261002.md).
+It found invalid PAT errors mapping to 500; the reviewed genuine-object identity fix
+passes 52 targeted tests, core/web types and lint. A restarted real app now verifies 401 invalid/revoked-token responses and preserves
+valid read 200/write-scope 403. The new iteration's release gates remain pending. The full overhaul is unfinished.
+
+
 Pending expiry/rejection now returns safe conditional-transition receipts. The
 service audits only those receipts in list/approve/reject, including claim expiry
 after its row lock. Repeated/concurrent losers add no receipt event; audit sink
@@ -30,7 +41,7 @@ passed: 1,822 workspace tests plus one paid live skip, including 41 popup and
 role configuration. Active-share visibility, Revoke feedback, explicit labels
 and effective valuation provenance have source/controller verification.
 
-Actual application browser coverage remains **not executed**. The first local
+At that earlier PR #48 checkpoint, actual application browser coverage was **not executed**. The first local
 launch exited 75 before startup; a later caller was stopped before startup after
 a stale capacity update and shell guard error. No application/database work ran.
 The 15-surface matrix in [frontend-audit-20261002.md](frontend-audit-20261002.md)

@@ -1,4 +1,5 @@
-import { type AccessTokenId, type AccessTokenScope, CsrfRejectedError, DomainError, type ErrorCode, InsufficientScopeError, type RateLimitPolicy, requireScope, type UserId } from "@pointup/core";
+import { type AccessTokenId, type AccessTokenScope, CsrfRejectedError, isDomainError, TRANSPORT_ERROR_CODES, type ErrorCode, InsufficientScopeError, type RateLimitPolicy, requireScope, type UserId } from "@pointup/core";
+import { isErrorCode } from "@pointup/core/contracts";
 import { z, ZodError } from "zod";
 import { RequestBodyError } from "./request-body";
 
@@ -169,8 +170,14 @@ export function mapError(error: unknown): MappedError {
       unexpected: false,
     };
   }
-  if (error instanceof DomainError) {
-    return { code: error.code, message: error.message, unexpected: false };
+  if (isDomainError(error)) {
+    try {
+      const code: unknown = error.code;
+      const message = error.message;
+      if (isErrorCode(code) && !TRANSPORT_ERROR_CODES.some(transport => transport === code) && typeof message === "string") {
+        return { code, message, unexpected: false };
+      }
+    } catch { /* Malformed diagnostic properties must stay unexpected/private. */ }
   }
   return {
     code: "INTERNAL",
