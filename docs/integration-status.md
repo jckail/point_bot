@@ -13,7 +13,7 @@ iOS remains deferred at the user's request. Concrete next actions are in
 | Source | Verified evidence | Limits |
 | --- | --- | --- |
 | `977a4d586c269e1a3f34b82a8c5a2fdae9355f45` | All six jobs in [CI 36999223376](https://github.com/jckail/point_bot/actions/runs/36999223376) and [CodeQL 36999223346](https://github.com/jckail/point_bot/actions/runs/36999223346) passed. CI covered 1,243 workspace tests, one skipped paid live evaluation, 30 rollout helper and 26 infrastructure cases, all application bundles, managed migration 0020, PostgreSQL attestation, contracts/HTTP MCP and Docker direct/PgBouncer smoke. | Source/isolated-fixture evidence; no production deployment or live provider/model/exporter proof. |
-| `370130945ff34fa1ac7775984068d837d9e7d4bc` (current verified runtime) | All six jobs in [CI 37000134163](https://github.com/jckail/point_bot/actions/runs/37000134163) and [CodeQL 37000134144](https://github.com/jckail/point_bot/actions/runs/37000134144) passed. CI covered 1,302 workspace tests, one skipped paid live evaluation, 30 rollout and 28 infrastructure cases, managed migration 0020/PostgreSQL attestation, all bundles/contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root also passed 130 focused core, 50 extension and 11 actual migrated PostgreSQL outbox cases, workspace lint/types, infrastructure types and whitespace checks. | Source and fixture gate complete; production, historical-data repair and live integrations remain open. |
+| `370130945ff34fa1ac7775984068d837d9e7d4bc` (verified upstream/capture milestone) | All six jobs in [CI 37000134163](https://github.com/jckail/point_bot/actions/runs/37000134163) and [CodeQL 37000134144](https://github.com/jckail/point_bot/actions/runs/37000134144) passed. CI covered 1,302 workspace tests, one skipped paid live evaluation, 30 rollout and 28 infrastructure cases, managed migration 0020/PostgreSQL attestation, all bundles/contracts/HTTP MCP and Docker direct/PgBouncer smoke. Root also passed 130 focused core, 50 extension and 11 actual migrated PostgreSQL outbox cases, workspace lint/types, infrastructure types and whitespace checks. | Source and fixture gate complete; production, historical-data repair and live integrations remain open. |
 
 The last verified application production dependency audit reported zero
 vulnerabilities. Separate infrastructure/development advisories remain tracked;
@@ -233,3 +233,38 @@ AWS STS still reports an expired session. No deployment, merge, live provider
 account or new Chrome tab/window was used. Production adoption, standalone
 ChatGPT identity/inference eligibility, public MCP OAuth, live observability
 acceptance, historical data/retention and the full original overhaul remain open.
+
+### Transaction and receipt verification follow-up
+
+Account edit, unlink and restore now lock/recheck the current owned row inside
+the same atomic unit of work, preventing stale edits from resurrecting unlinked
+accounts or overwriting omitted metadata. CSV imports acquire provider/row locks
+in a stable order, validate every explicit card/tombstone before writes and join
+all balance/link effects to one transaction. Production imports fail closed when
+transaction/locking wiring is absent; composition supplies both.
+
+Five actual PostgreSQL lock-barrier cases pass: edit behind unlink is denied
+without an update event, delayed patches keep current metadata, unlink preserves
+a prior edit, competing restores emit once, and conflicting import writes no
+other program. Two additional production consent/PAT capture cases pass for
+selected-card preservation, immutable receipt/snapshot witnesses, replay with
+zero extra effects and foreign-owner denial. The full card/capture/race group
+passes 18 cases; CI fixture corrections and error documentation pass 28 focused
+core cases plus 38 MCP cases. This is source/isolated fixture proof.
+
+The first card commit's CI exposed missing additive fixture metadata, an outdated
+isolated numeric fixture, omitted error documentation and tied synthetic capture
+timestamps. These were corrected without weakening their assertions. Fresh
+committed-head CI/build evidence is tracked in PR #16 and remains required for
+release. AWS renewal, live issuer/model/exporter acceptance, actual migration
+adoption and the full original goal remain open. Candidate production npm
+advisories are zero; development/infra findings remain in the release backlog.
+
+Final source verification after the diagnosed fixes passes all 1,401 workspace
+tests against retained migrated PostgreSQL, plus one deliberately skipped paid
+live evaluation. The workspace comprises 21 bot, 133 extension, 59 MCP, 292 web,
+23 worker, 24 API-client and 849 core cases. Workspace lint/types and whitespace
+checks pass. This run used the shared heavy-check gate after the unrelated lock
+holder ended and the source/fixture changes settled; it was not an unchanged
+contention retry. Root stopped its PostgreSQL fixture with data retained.
+Fresh committed-head bundle/smoke/CodeQL gates remain recorded in PR #16.

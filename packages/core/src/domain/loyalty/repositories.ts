@@ -28,6 +28,8 @@ export interface LoyaltyAccountRepository {
   findById(id: LoyaltyAccountId): Promise<LoyaltyAccount | null>;
   /** Provider/account serialization; call inside an atomic UOW. */
   lockById?(id: LoyaltyAccountId): Promise<LoyaltyAccount | null>;
+  /** Provider advisory lock then current account row; includes absence for atomic imports. */
+  lockByUserAndProvider?(userId: UserId, providerId: string): Promise<LoyaltyAccount | null>;
   /** Active (non-deleted) accounts for a user, pinned first then createdAt. */
   findByUserId(userId: UserId): Promise<LoyaltyAccount[]>;
   /** Soft-deleted accounts still inside the restore window. */

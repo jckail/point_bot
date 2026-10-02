@@ -46,12 +46,14 @@ suite("explicit transfer cards on production PostgreSQL repositories", () => {
   });
   async function fixture() {
     const userId = UserId.parse(`${prefix}-${randomUUID()}`);
+    let instant = clock.now();
+    const fixtureClock = { now: () => new Date(instant) };
     const repos = buildDrizzleRepositories(db);
-    const link = new LinkLoyaltyAccount(repos.loyaltyAccounts, repos.activity, clock, repos.eventing);
-    const update = new UpdateLoyaltyAccount(repos.loyaltyAccounts, repos.activity, clock, repos.eventing);
-    const record = new RecordManualBalance(repos.loyaltyAccounts, repos.balanceSnapshots, repos.activity, clock, repos.eventing);
+    const link = new LinkLoyaltyAccount(repos.loyaltyAccounts, repos.activity, fixtureClock, repos.eventing);
+    const update = new UpdateLoyaltyAccount(repos.loyaltyAccounts, repos.activity, fixtureClock, repos.eventing);
+    const record = new RecordManualBalance(repos.loyaltyAccounts, repos.balanceSnapshots, repos.activity, fixtureClock, repos.eventing);
     const { accountId } = await link.execute({ userId, providerId: "chase-ultimate-rewards", membershipNumber: "synthetic", cardProductId: product });
-    return { userId, repos, link, update, record, accountId };
+    return { userId, repos, link, update, record, accountId, clock: fixtureClock, advance: () => { instant = new Date(instant.getTime() + 1000); } };
   }
   it("roundtrips selection and omission, explicit null and foreign-owner denial", async () => {
     const f = await fixture();
@@ -86,19 +88,21 @@ suite("explicit transfer cards on production PostgreSQL repositories", () => {
     await f.record.execute({ userId: f.userId, accountId: f.accountId, points: 40000 });
     const exported = await new ExportPortfolio(f.repos.loyaltyAccounts, f.repos.balanceSnapshots, clock).execute(f.userId);
     const other = UserId.parse(`${prefix}-${randomUUID()}`);
-    await new ImportPortfolio(f.repos.loyaltyAccounts, f.link, f.record, clock).execute({ userId: other, csv: toPortfolioExportCsv(exported) });
+    await new ImportPortfolio(f.repos.loyaltyAccounts, f.link, f.record, f.clock, f.repos.eventing).execute({ userId: other, csv: toPortfolioExportCsv(exported) });
     expect((await f.repos.loyaltyAccounts.findByUserAndProvider(other, "chase-ultimate-rewards"))?.cardProductId).toBe(product);
   });
   it("selection changes actual persisted advice and funding, with unknown excluded", async () => {
     const f = await fixture();
     await f.record.execute({ userId: f.userId, accountId: f.accountId, points: 40000 });
-    const list = new ListLoyaltyAccounts(f.repos.loyaltyAccounts, f.repos.balanceSnapshots, clock);
-    const bonuses = new ListActiveTransferBonuses(f.repos.transferBonuses, clock);
-    const advice = new GetValueAdvice(list, bonuses, clock);
+    const list = new ListLoyaltyAccounts(f.repos.loyaltyAccounts, f.repos.balanceSnapshots, f.clock);
+    const bonuses = new ListActiveTransferBonuses(f.repos.transferBonuses, f.clock);
+    const advice = new GetValueAdvice(list, bonuses, f.clock);
     const spot = SWEET_SPOTS.find(entry => entry.programId === "hyatt")!;
-    const plan = new PlanRedemption(list, bonuses, new StubAwardAvailabilitySource(), clock, [{ ...spot, pointsCost: 40000, pointsCostMin: 40000, pointsCostMax: 40000, maxUnits: 1 }]);
+    const plan = new PlanRedemption(list, bonuses, new StubAwardAvailabilitySource(), f.clock, [{ ...spot, pointsCost: 40000, pointsCostMin: 40000, pointsCostMax: 40000, maxUnits: 1 }]);
     const input = { userId: f.userId, goal: { kind: "hotel" as const, targetProgramId: "hyatt", quantity: 1 } };
     expect((await plan.execute(input)).plans.some(entry => entry.status === "fundable")).toBe(false);
+    // Distinct captures must have distinct timestamps; UUIDs are not chronology.
+    f.advance();
     await f.record.execute({ userId: f.userId, accountId: f.accountId, points: 54000 });
     expect((await plan.execute(input)).plans.some(entry => entry.status === "fundable")).toBe(true);
     await f.update.execute({ userId: f.userId, accountId: f.accountId, cardProductId: null });

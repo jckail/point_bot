@@ -212,6 +212,8 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
       loyaltyAccounts,
       linkLoyaltyAccount,
       recordManualBalance,
+      clock,
+      eventing,
     ),
     seedDemoPortfolio: new SeedDemoPortfolio(
       loyaltyAccounts,

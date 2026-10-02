@@ -141,3 +141,15 @@ points and unknown exclusion. Physical attestation tests reject missing card
 column/CHECK, incorrect type and non-nullability with an unchanged journal.
 No live transfer, paid model call, exporter delivery or production activation
 is established by these tests.
+
+## Atomic mutation and actual capture verification
+
+Account edits, unlink and restoration recheck the current owner/state after
+locking the row in the transaction. Omitted metadata is applied from that
+current row. Import locks providers in sorted order and validates current card
+selections before any write; all links and balance effects join the same unit
+of work. Five real PostgreSQL barrier tests verify these concurrency paths.
+Two more tests exercise actual consent, PAT authority, SubmitObservation and
+persisted receipts, preserving selected cards across exact replay and rejecting
+foreign credentials/owners with no extra effects. These extend the earlier
+agent-source balance test with actual production capture authorization/provenance.

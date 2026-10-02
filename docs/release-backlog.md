@@ -21,15 +21,16 @@ production has adopted this fix. Verify remaining card variants and Amex checkin
 eligibility against primary terms before adding their numeric rules.
 
 1. Preserve the exact verified release candidate and complete its production gates.
-   Current `370130945ff34fa1ac7775984068d837d9e7d4bc` passed all six
-   [CI 37000134163](https://github.com/jckail/point_bot/actions/runs/37000134163)
-   jobs and [CodeQL 37000134144](https://github.com/jckail/point_bot/actions/runs/37000134144):
-   1,302 workspace tests, one paid live skip, 30 rollout/28 infrastructure cases,
-   managed 0020/PostgreSQL attestation, all bundles/contracts/HTTP MCP and Docker
-   direct/PgBouncer smoke. Root's 130 core, 50 extension and 11 actual PostgreSQL
-   focused cases plus lint/types also passed. Earlier verified `977a4d5` evidence is
-   retained in [integration status](integration-status.md); these passing gates do
-   not establish production activation or live integration behavior.
+   Previous verified Southwest runtime `fe36202b738906fdecf0ca346a586c0cd1534c98`
+   passed all six [CI 37003135680](https://github.com/jckail/point_bot/actions/runs/37003135680)
+   jobs and [CodeQL 37003135711](https://github.com/jckail/point_bot/actions/runs/37003135711),
+   covering 1,332 workspace tests plus one paid live skip, managed 0020/attestation,
+   all bundles/contracts/HTTP MCP and Docker direct/PgBouncer smoke. The card-aware
+   successor includes migration 0021, atomic account/import fixes and actual
+   consented capture/race regressions. Fresh exact-source CI evidence is recorded
+   in PR #16; verify that candidate rather than adopting an older unconditional
+   advice runtime. These passing checks do not establish production activation
+   or live issuer/model/exporter behavior.
 2. Renew expired AWS authentication; renewal is pending. Configure the authorized
    GitHub deployment role/application secrets and protected production environment.
    The last repository secret inspection found none. Verify actual account/region,
@@ -157,5 +158,25 @@ merge, live provider/model/exporter call or new browser execution.
 A source audit verified all122 transfer endpoints resolve to the190-provider
 catalog. It found an extension-specific Southwest alias defect: `southwest`
 does not resolve; canonical `southwest-rapid-rewards` is required for both PAT
-skill lookup and legacy linked-account matching. The focused follow-up is implemented and awaiting fresh committed-head CI. Preserve frozen historical captures; require explicit discard/recapture
+skill lookup and legacy linked-account matching. The focused follow-up is implemented and its committed-head CI passed; subsequent card-aware changes need their own exact-source gates. Preserve frozen historical captures; require explicit discard/recapture
 instead of rewriting their identity/payload or automatically resubmitting.
+
+## Current dependency audit follow-up
+
+The card candidate lockfile audit found zero application production dependency
+advisories with `--omit=dev`; its all-dependency audit reports 12 findings
+(3 high, 9 moderate). High development findings include brace-expansion,
+browserslist and js-yaml; verify same-family patched versions and refresh locks
+through the shared installation gate. Vitest's moderate mocker file-read advisory
+requires a reviewed major upgrade to a patched 4.x version. Drizzle tooling still
+uses the obsolete esbuild-kit/esbuild chain; autocannon's hyperid/uuid dependency
+also needs a compatible remedy. Avoid force-fix suggestions that downgrade these
+tools or change their supported APIs.
+
+The separate infrastructure lock has one high brace-expansion advisory bundled
+inside aws-cdk-lib. Verify a patched CDK artifact and synthesized-template behavior;
+a root override does not establish replacement of a bundled dependency. These
+are deployment/development tooling findings, distinct from application production
+dependencies and from GitHub's default-branch count. Container base OS/image
+audit remains separate. No dependency installation or version change occurred
+during this read-only audit.

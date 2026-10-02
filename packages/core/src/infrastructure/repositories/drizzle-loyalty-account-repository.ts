@@ -182,6 +182,14 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     return rows.map(toLoyaltyAccount);
   }
 
+  async lockByUserAndProvider(userId: UserId, providerId: string): Promise<LoyaltyAccount | null> {
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`consent:${userId}:${providerId}`}, 0))`);
+    const [row] = await this.db.select().from(loyaltyAccounts).where(and(
+      eq(loyaltyAccounts.userId, userId), eq(loyaltyAccounts.providerId, providerId),
+    )).for("update");
+    return row ? this.findById(LoyaltyAccountId.parse(row.id)) : null;
+  }
+
   async findByUserAndProvider(
     userId: UserId,
     providerId: string,

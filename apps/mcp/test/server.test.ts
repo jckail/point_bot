@@ -390,6 +390,7 @@ describe("pointup MCP server", () => {
 
   describe("optimizer tools", () => {
     const plan = {
+      eligibilityWarnings: [],
       goal: { kind: "hotel", targetProgramId: "hyatt", minValueCpp: null, quantity: null },
       generatedAt: "2026-10-01T00:00:00.000Z",
       activeBonusCount: 0,

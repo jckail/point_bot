@@ -24,6 +24,7 @@ Every surface — web app, mobile, browser extension — talks to the same versi
 | `INVALID_ID` | 422 | An identifier (user, account, goal, ...) was empty or not a string |
 | `PROVIDER_NOT_SUPPORTED` | 422 | Provider id is not in the catalog |
 | `INVALID_MEMBERSHIP_NUMBER` | 422 | Membership number is blank |
+| `INVALID_CARD_PRODUCT` | 400 | Choose a supported transfer card compatible with the account program. |
 | `INVALID_VALUATION` | 422 | Custom cents-per-point is ≤ 0 or > 100 |
 | `INVALID_AWARD_WATCH` | 422 | Watch label/threshold failed validation |
 | `INVALID_TRANSFER_BONUS` | 422 | Bonus failed validation (unknown program, no transfer path, multiplier outside (1.0, 3.0], ends before it starts) |

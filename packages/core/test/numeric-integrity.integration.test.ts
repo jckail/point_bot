@@ -193,6 +193,9 @@ suite("numeric integrity adoption and guarded adapters on isolated PostgreSQL", 
 
   it("rolls back snapshot, account metadata, activity and outbox on a numeric check failure", async () => {
     const f = await fixture(); await f.apply();
+    // The current repository also expects additive card migration 0021.
+    const cards = await readFile(new URL("../drizzle/0021_card_product.sql", import.meta.url), "utf8");
+    await f.client.begin(async tx => { await tx.unsafe(cards); });
     const uow = new DrizzleUnitOfWork(f.db);
     const publisher = new DrizzleEventPublisher(uow.db);
     const publish = publisher.publish.bind(publisher);

@@ -15,7 +15,7 @@ import type {
 } from "../../domain/loyalty/repositories";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
-import { requireOwnedAccountIncludingDeleted } from "./access";
+import { requireOwnedAccountForMutation } from "./access";
 import { recordActivity } from "./list-activity";
 import { toLoyaltyAccountReadModel } from "./mappers";
 import type { LoyaltyAccountReadModel } from "./read-models";
@@ -38,24 +38,20 @@ export class RestoreLoyaltyAccount {
     userId: UserId,
     accountId: LoyaltyAccountId,
   ): Promise<LoyaltyAccountReadModel> {
-    const account = await requireOwnedAccountIncludingDeleted(
-      this.accounts,
-      userId,
-      accountId,
-    );
+    return this.eventing.unitOfWork.run(async () => {
+      const account = await requireOwnedAccountForMutation(this.accounts, userId, accountId, this.eventing, true);
 
-    if (!account.deletedAt) {
-      throw new AccountNotRestorableError("account is not deleted");
-    }
+      if (!account.deletedAt) {
+        throw new AccountNotRestorableError("account is not deleted");
+      }
 
-    const now = this.clock.now();
-    if (!isWithinRestoreWindow(account, now)) {
-      throw new AccountNotRestorableError("restore window has expired");
-    }
+      const now = this.clock.now();
+      if (!isWithinRestoreWindow(account, now)) {
+        throw new AccountNotRestorableError("restore window has expired");
+      }
 
-    const restored = restoreLoyaltyAccount(account, now);
-    const provider = getProviderOrThrow(account.providerId);
-    await this.eventing.unitOfWork.run(async () => {
+      const restored = restoreLoyaltyAccount(account, now);
+      const provider = getProviderOrThrow(account.providerId);
       await this.accounts.update(restored);
       await recordActivity(this.activity, {
         userId,
@@ -73,17 +69,17 @@ export class RestoreLoyaltyAccount {
           payload: { providerId: account.providerId },
         }),
       ]);
-    });
 
-    const trends = await this.balances.findTrendContextByAccountIds(
-      [account.id],
-      now,
-    );
-    return toLoyaltyAccountReadModel(
-      restored,
-      trends.get(account.id) ?? null,
-      now,
-    );
+      const trends = await this.balances.findTrendContextByAccountIds(
+        [account.id],
+        now,
+      );
+      return toLoyaltyAccountReadModel(
+        restored,
+        trends.get(account.id) ?? null,
+        now,
+      );
+    });
   }
 }
 
