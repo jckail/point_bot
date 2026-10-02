@@ -4,7 +4,7 @@ Verified on 2026-10-01. The overhaul remains active; these results cover the
 implemented milestone and do not establish production deployment or all roadmap
 requirements.
 
-Current source at `326b2e50e1523bbeb4e97594ff250d6845dfbdee` passed all four jobs in [GitHub Actions run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868). Infrastructure also passed eight contract tests (including eleven Python migration lifecycle cases), typechecking and CDK synthesis. Production deployment and rendered authenticated flows remain unverified.
+Current source at `4303c050df496e8b084c4f2e21a36813ac89083c` passed all four jobs in [GitHub Actions run 36969293365](https://github.com/jckail/point_bot/actions/runs/36969293365). Infrastructure also passed eight contract tests (including eleven Python migration lifecycle cases), typechecking and CDK synthesis. Production deployment and rendered authenticated flows remain unverified.
 
 ## Follow-up trace privacy and evaluation readiness
 
@@ -19,14 +19,14 @@ under Vitest, and both SDK kill-switch values (`1`/`true`) remain honored.
 
 Focused SDK/privacy checks passed 15 tests; evaluation checks passed 18 tests with
 one live test skipped. Web TypeScript and affected-file lint passed on the exact
-source mirror. Aggregate CI below belongs to `326b2e5` and predates this follow-up;
-the new commit needs its own CI result. Live exporter delivery remains unverified.
+source mirror. All four aggregate CI jobs then passed at `4303c05`, including these changes.
+Live exporter delivery remains unverified.
 
 ## Automated evidence
 
 | Check | Result |
 | --- | --- |
-| Last combined workspace unit run | 358 passed: bot 20, extension 47, MCP 15, web 92, API client 20, core 164; one live evaluation skipped and 47 database cases executed separately |
+| Last combined workspace unit run | 371 passed: bot 20, extension 47, MCP 15, web 105, API client 20, core 164; one live evaluation skipped and 47 database cases executed separately |
 | Dedicated PostgreSQL fixture | 47 passed in fresh CI fixtures: 24 agent + 8 baseline + 15 portfolio migration/transaction cases; actual current migrations, concurrency and private-table RLS |
 | Root ESLint | Passed with zero errors or warnings after cleanup |
 | Workspace TypeScript | Passed for all seven workspaces |

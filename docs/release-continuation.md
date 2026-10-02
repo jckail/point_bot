@@ -2,9 +2,9 @@
 
 ## Verified source state
 
-Native work was committed and pushed as `326b2e5` on `codex/pointup-overhaul-20261001`, with [draft PR #15](https://github.com/jckail/point_bot/pull/15). All four jobs in [CI run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868) passed: 358 unit tests, 47 PostgreSQL tests, application bundles, eight infrastructure contracts, typechecks and synthesis. PR #15 has not been merged or deployed. The local portfolio fixture is stopped, with its data retained.
+Native work was committed and pushed as `326b2e5` on `codex/pointup-overhaul-20261001`, with [draft PR #15](https://github.com/jckail/point_bot/pull/15). The latest source follow-up is `4303c05`. All four jobs in [CI run 36969293365](https://github.com/jckail/point_bot/actions/runs/36969293365) passed at that commit: 371 unit tests, 47 PostgreSQL tests, application bundles, eight infrastructure contracts, typechecks and synthesis. PR #15 has not been merged or deployed. The local portfolio fixture is stopped, with its data retained.
 
-A follow-up privacy/evaluation change sanitizes SDK response-span provider errors before export and checks actual evaluation tracing readiness. Focused SDK/privacy checks passed 15 tests, evaluations 18 tests (one live skip), web TypeScript and affected lint. The aggregate CI evidence above predates this follow-up; observe its own CI before release.
+A follow-up privacy/evaluation change sanitizes SDK response-span provider errors before export and checks actual evaluation tracing readiness. Focused SDK/privacy checks passed 15 tests, evaluations 18 tests (one live skip), web TypeScript and affected lint. This follow-up is included in the aggregate CI evidence above. Live inference and exporter delivery remain unverified.
 
 The active native repository is `/home/jkail/projects/point_bot`; its Linux validation mirror is `/tmp/pointup-verification`. Native HEAD and the inspected `origin/master` are `4ebba1f2b07895017f2ab9fe1a8a50b505ddaed0`, with substantial uncommitted overhaul work. PR [#14](https://github.com/jckail/point_bot/pull/14), branch `origin/claude/charming-cannon-d6xxhc`, was inspected at `e04725fd01df49ce02ac3e0b14f4da96640ded41`. These references must be refreshed before release integration; this document records the inspected state, not a completed merge or deployment.
 
@@ -35,6 +35,44 @@ PR #14's Docker smoke assumes its dev/bootstrap stack, readiness routes, provide
 5. Combine CI checks using separate fresh databases where required. Preserve PR #14's integration/Docker coverage and native portfolio's pre-0009 fixture. Validate the integrated source once through the resource wrapper; do not reuse earlier branch results as evidence for the merge.
 6. Commit and push the reviewed integrated result, verify its remote checks, then perform the authorized deployment when credentials/configuration permit it. Record the final commit, migration outcome and post-deployment checks.
 
+## Concrete schema integration proposal
+
+The reviewed default is to retain PR #14 migrations **0000–0015 unchanged** and
+append integration migrations. Migrations 0000–0007 were compared directly and
+match after newline normalization. This proposal still requires actual database
+journal/table inspection before implementation; it is not a deployed schema decision.
+
+- **0016, SIWC/proposals:** add managed ChatGPT transaction/identity storage and
+  `assistant_action` with server-only RLS and privilege revocations. Do not copy
+  native 0008's competing agent tables.
+- **0017, goal ownership:** retain PR #14 `trip_goal_account.account_id`, add tenant
+  ownership and composite parent/account foreign keys, and quarantine invalid
+  memberships before backfill. Preserve `account_tag`. PR #14 already dropped
+  original CSV; an appended migration cannot recover those original values.
+- **0018, observation provenance:** retain existing review IDs and outcomes, add
+  versioned token/consent references, payload hash, client idempotency key,
+  snapshot reference and review time for new submissions. Preserve historical
+  observations explicitly as legacy records; do not fabricate missing provenance.
+  New replay identity is tenant-qualified and submissions/reviews need atomic locks.
+- **0019, numeric constraints:** stage safe integer checks while retaining PR #14's
+  `agent` balance source. Native 0009's `sync`/`manual` check would reject agent writes.
+
+Adapt branded IDs, schema/journal/snapshots, agent contracts and token identity,
+API/client/MCP/extension submissions, tenant-qualified goal repositories, SIWC and
+proposal composition, and retention together. Keep PR #14 provider-level consent
+unless a deliberate account-level API migration is chosen. Preserve outbox events
+and `balance_agent` activity when porting atomic writes and the expiry correction.
+Referenced credentials/consents need audit-preserving retention or tombstones.
+Port bounded migration serialization using a direct/session connection.
+
+Add replay/owner/rollback/lock-wait expiry/review/retention PostgreSQL checks while
+preserving PR #14 integration and Docker coverage. Before migration selection,
+inspect each intended deployment's journal, tables, and standalone SIWC storage;
+retain a recoverable backup. Source trees and fixture checks cannot establish
+which lineage reached production. Substituting the native post-0007 history is
+only viable if inspection proves neither alternative was applied to any retained
+staging/production database, and still requires substantial PR #14 adaptations.
+
 ## Evidence and release boundaries
 
 - Historical native combined workspace run: **303 unit tests passed** (bot 20, extension 44, MCP 9, web 60, API client 20, core 150). It predates current design/evaluation/remote-MCP/0009 changes; see [verification.md](verification.md).
@@ -42,7 +80,7 @@ PR #14's Docker smoke assumes its dev/bootstrap stack, readiness routes, provide
 - Historical/latest recorded native PostgreSQL expiry pass: **32 passed** (24 agent, 8 baseline). It does not establish current portfolio migration success; see [database-verification.md](database-verification.md).
 - Current portfolio suite passed **15 actual PostgreSQL tests** in its own fresh CI fixture. Earlier local attempts were blocked by shared heavy-check contention; that evidence remains preserved.
 - PR #14 was reported to have passing CI at its current branch state; that does not establish compatibility with native ports or an integrated release.
-- New reusable `.github/workflows/postgres.yml` is called by CI and deploy, and deployment depends on its result. All three YAML files parsed and structural assertions passed; this workflow **passed both fresh-fixture matrix jobs** at `326b2e5`.
+- New reusable `.github/workflows/postgres.yml` is called by CI and deploy, and deployment depends on its result. All three YAML files parsed and structural assertions passed; this workflow **passed both fresh-fixture matrix jobs** at `4303c05`.
 
 The user authorized committing, pushing and deploying all work. Authorization persists; missing configuration is an operational blocker, not a reason to request the same permission again. At this checkpoint, repository deployment secrets were unavailable and local AWS credentials were expired. Do not claim a release, deployment or new CI result until observed. Root owns broad checks and release mutations; delegated work must retain explicit file ownership.
 

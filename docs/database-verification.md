@@ -2,7 +2,7 @@
 
 ## Current-source CI evidence
 
-At `326b2e5`, [GitHub Actions run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868) passed **47 actual PostgreSQL tests**: 24 agent/authority/action cases, eight baseline cases and 15 portfolio migration/transaction cases. The reusable workflow provisions separate fresh PostgreSQL 16 services. Agent runs before baseline to exercise legacy SIWC adoption; portfolio runs on its own empty database to stage legacy data before migration 0009.
+At `4303c05`, [GitHub Actions run 36969293365](https://github.com/jckail/point_bot/actions/runs/36969293365) passed **47 actual PostgreSQL tests**: 24 agent/authority/action cases, eight baseline cases and 15 portfolio migration/transaction cases. The reusable workflow provisions separate fresh PostgreSQL 16 services. Agent runs before baseline to exercise legacy SIWC adoption; portfolio runs on its own empty database to stage legacy data before migration 0009.
 
 Portfolio cases verify tenant-qualified membership, canonical tags and legacy projections, snapshot/feed and whole-import rollback, concurrent imports/replacements, migration lock contention and independent concurrent migration clients. This verifies the current source history, not PR #14 schema compatibility or production deployment.
 
