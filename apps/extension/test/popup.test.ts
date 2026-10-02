@@ -323,3 +323,75 @@ it("preserves an unsent draft when settings persistence fails without clearing o
   expect(elements.save!.disabled).toBe(false);
   expect(send.mock.calls.some(([message]) => message.type === "clearChat" || message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
 });
+
+
+it.each(["reply", "error response", "transport failure"])("ignores delayed old-scope hydration %s after successful Save", async outcome => {
+  let finish!: (result: ChatResult) => void;
+  let fail!: (error: Error) => void;
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? new Promise<ChatResult>((resolve, reject) => { finish = resolve; fail = reject; })
+      : { ok: true, message: "", chat: [] });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  elements.question!.value = "Unsent original-scope draft";
+  elements.baseUrl!.value = "https://other.example";
+  elements.token!.value = "pu_rotated";
+  elements.save!.listeners.click!(); await flush();
+  expect(elements.question!.value).toBe("");
+  const feedback = elements.chatStatus!.textContent;
+  const savedFeedback = elements.status!.textContent;
+  if (outcome === "transport failure") fail(new Error("private old-scope transport detail"));
+  else if (outcome === "error response") finish({ ok: false, message: "Old-scope read unavailable" });
+  else finish({ ok: true, message: "", chat: [{ role: "assistant", content: "Old private transcript" }],
+    pending: { question: "Old uncertain question", status: "uncertain", message: "Old support reference" } });
+  await flush();
+  expect(elements.question!.value).toBe("");
+  expect(elements.chatStatus!.textContent).toBe(feedback);
+  expect(elements.status!.textContent).toBe(savedFeedback);
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
+  expect(elements.ask!.disabled).toBe(false);
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "record" || message.type === "discardCapture")).toBe(false);
+});
+
+it("retains valid delayed hydration when settings Save fails", async () => {
+  let finish!: (result: ChatResult) => void;
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? new Promise<ChatResult>(resolve => { finish = resolve; })
+      : { ok: true, message: "", chat: [] });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  mocks.save.mockRejectedValueOnce(new Error("Storage unavailable"));
+  elements.token!.value = "pu_unsaved";
+  elements.save!.listeners.click!(); await flush();
+  const chat: ChatResult["chat"] = [{ role: "assistant", content: "Current saved-scope transcript" }];
+  finish({ ok: true, message: "", chat,
+    pending: { question: "Current saved-scope question", status: "uncertain", message: "Check proposals before retrying" } });
+  await flush();
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, chat, expect.any(Function));
+  expect(elements.question!.value).toBe("Current saved-scope question");
+  expect(elements.chatStatus!.textContent).toBe("Check proposals before retrying");
+  expect(elements.status!.textContent).toContain("Settings could not be saved");
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "clearChat")).toBe(false);
+});
+
+it.each(["ask", "clearChat"])("does not restore initial hydration after a newer %s completes", async action => {
+  let finish!: (result: ChatResult) => void;
+  const current: ChatResult = { ok: true, message: action === "clearChat" ? "Conversation cleared." : "",
+    chat: action === "ask" ? [{ role: "user", content: "New explicit question" }, { role: "assistant", content: "Current answer" }] : [] };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? new Promise<ChatResult>(resolve => { finish = resolve; }) : current);
+  vi.resetModules(); await import("../src/popup"); await flush();
+  if (action === "ask") {
+    elements.question!.value = "New explicit question";
+    const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+    submit({ preventDefault: () => {} });
+  } else elements.clearChat!.listeners.click!();
+  await flush();
+  const feedback = elements.chatStatus!.textContent;
+  finish({ ok: true, message: "", chat: [{ role: "assistant", content: "Obsolete initial transcript" }],
+    pending: { question: "Obsolete question", status: "uncertain", message: "Obsolete uncertainty" } });
+  await flush();
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, current.chat, expect.any(Function));
+  expect(elements.question!.value).toBe("");
+  expect(elements.chatStatus!.textContent).toBe(feedback);
+  expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
+  expect(send.mock.calls.filter(([message]) => message.type === "ask")).toHaveLength(action === "ask" ? 1 : 0);
+});

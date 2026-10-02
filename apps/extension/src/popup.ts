@@ -15,6 +15,7 @@ let selectedCaptureId: string | undefined;
 let captureBusy = false;
 let settingsBusy = false;
 let chatBusy = false;
+let chatGeneration = 0;
 let chatPending: ChatPending | undefined;
 let chatRefresh: ReturnType<typeof setTimeout> | undefined;
 function updateControls(): void {
@@ -93,6 +94,7 @@ async function init(): Promise<void> {
           ? INVALID_API_URL : "Settings could not be saved. Retry before recording or asking.";
         return;
       }
+      chatGeneration++;
       ($("question") as HTMLTextAreaElement).value = "";
       showChat([]);
       applyChatState({ ok: true, message: "", chat: [] });
@@ -157,7 +159,18 @@ async function init(): Promise<void> {
 }
 
 async function chatRequest(message: ExtensionMessage): Promise<ChatResult> {
-  const result = await chrome.runtime.sendMessage<ExtensionMessage, ChatResult | undefined>(message);
+  if (message.type === "ask" || message.type === "clearChat") chatGeneration++;
+  const generation = chatGeneration;
+  let result: ChatResult | undefined;
+  try {
+    result = await chrome.runtime.sendMessage<ExtensionMessage, ChatResult | undefined>(message);
+  } catch (error) {
+    if (message.type === "getChat" && generation !== chatGeneration) return { ok: true, message: "" };
+    throw error;
+  }
+  // A read from before Save/Ask/Clear must not restore an obsolete conversation
+  // or replace current feedback, including when its transport failed.
+  if (message.type === "getChat" && generation !== chatGeneration) return { ok: true, message: "" };
   if (!result || typeof result.ok !== "boolean") throw new Error("Extension worker unavailable. Reopen the popup and retry.");
   if (result.chat || result.pending || message.type === "getChat" || message.type === "clearChat") applyChatState(result);
   if (!result.ok) throw new Error(result.message);

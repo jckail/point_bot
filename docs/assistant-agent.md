@@ -4,7 +4,31 @@ The web dashboard and extension share authenticated `POST /api/v1/assistant/chat
 
 The route retains PR14's shared authentication, rate limiting, CSRF checks, request telemetry and error mapping. Chat requires `portfolio:read`. Cookie sessions and tokens with `portfolio:write` receive proposal tools; read-only tokens receive only read tools. Legacy chat does not propose changes. No model or token can approve a proposal through a chat tool.
 
-The latest merged extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
+The latest merged retention-bounds release is [PR #41](https://github.com/jckail/point_bot/pull/41)
+at master `5c52f47ba5a0e8d9e37ead82fa8e549bc73317e2` (source
+`92c3d07333e42dbb2e7a407019152ed6c9cb332d`). Both have the same tree,
+`1f316ace91178aac457bef22b4b605023f560183`. All six candidate verification jobs
+in [CI 37049660507](https://github.com/jckail/point_bot/actions/runs/37049660507),
+[CodeQL 37049660366](https://github.com/jckail/point_bot/actions/runs/37049660366)
+and Bugbot passed without findings. The 1,760 workspace tests and one paid live
+skip include all 12 actual PostgreSQL retention cases. Merged-master
+[Deploy 37050353563](https://github.com/jckail/point_bot/actions/runs/37050353563)
+passed all six release verification jobs and configuration verification, with
+1,760 workspace tests and one paid live skip, including all 12 actual PostgreSQL
+retention cases. [Master CodeQL 37050352459](https://github.com/jckail/point_bot/actions/runs/37050352459)
+also passed. AWS deployment was skipped for missing deployment-role configuration.
+Production rollout
+and the broader identity, model/provider and native acceptance gates remain open.
+
+The current extension hydration fix captures the initial `getChat` generation
+and ignores delayed results, error responses and transport failures after a
+successful settings save or dispatched Ask/Clear. A failed save retains valid
+hydration. Six deferred-message regressions produced five failures on the original
+source; all 29 focused popup tests pass with the fix. Extension typecheck, lint and
+whitespace checks passed; independent review approved the source without blockers.
+This remains prepared source and focused-test evidence: the race has no native browser verification.
+
+The preceding extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
 at master `464cb0ec0c7de73403c5aaf5fb24fd5495a78a81` (source
 `30a29d6975a7b3375f633c011483c06106a3ea7e`, tree
 `6d496fcfd67ae3c53cd0e0c24fe64617ae6314c3`). Candidate
@@ -17,18 +41,18 @@ failed the existing PostgreSQL retention cap test: batch size 10 and run cap 20
 should delete 20 rows in two batches, but deleted 25 in one. The other five release
 verification jobs and [master CodeQL 37047565755](https://github.com/jckail/point_bot/actions/runs/37047565755)
 passed. AWS deployment remained skipped for missing deployment-role configuration;
-the merged-master release gate is not green.
+that PR #40 merged-master verification failed; successor evidence is above.
 
-The current retention correction claims one materialized ID set per batch, then
+The merged PR #41 retention correction claims one materialized ID set per batch, then
 uses `DELETE USING` for all four targets without changing retention policy. Twelve
-PostgreSQL cases, including eight new cases, are prepared in uniquely owned schemas
+PostgreSQL cases, including eight new cases, passed in candidate CI using uniquely owned schemas
 cloned from migrated tables. They cover small direct limits, run caps and concurrent
 claims across all targets under adverse planner settings. Independent review, core
 typecheck and focused lint passed. The wrapped local PostgreSQL red/green attempt
 returned exit 75 before execution: no source substitution or test schemas occurred,
 the retained public fixture's 16 outbox rows and 22 migration journal entries were
-unchanged, and its container was stopped. No unchanged retry occurred. Fresh
-committed CI is pending. PostgreSQL's documented selector-rescan mechanism supports
+unchanged, and its container was stopped. No unchanged retry occurred. The later
+committed candidate CI supplied the actual database proof. PostgreSQL's documented selector-rescan mechanism supports
 the fix; the exact failed runner plan was not observed and remains an inference.
 See [retention mechanism and boundaries](events.md#retention-purge-job). This does not complete
 production, identity, model/provider, licensing or native web-owner acceptance.
