@@ -18,7 +18,7 @@ share/unlink/restore, access/consent, offline assistant and responsive flows.
 Its scope, evidence and open cases are in [frontend-browser-20261002.md](frontend-browser-20261002.md).
 It found invalid PAT errors mapping to 500; the reviewed genuine-object identity fix
 passes 52 targeted tests, core/web types and lint. A restarted real app now verifies 401 invalid/revoked-token responses and preserves
-valid read 200/write-scope 403. The new iteration's release gates remain pending. The full overhaul is unfinished.
+valid read 200/write-scope 403. The authentication fix is merged in [PR #50](https://github.com/jckail/point_bot/pull/50), master `a88b001b222c49ab450947d5fd5160d07580d997`, with 1,851 workspace tests plus one paid live skip and successful release/CodeQL checks. AWS deployment remains skipped for missing role configuration. The full overhaul is unfinished.
 
 
 Pending expiry/rejection now returns safe conditional-transition receipts. The

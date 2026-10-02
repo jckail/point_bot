@@ -59,7 +59,7 @@ Curated receipt: `/tmp/pointup-native-frontend-evidence-20261002.json`.
 | CSV/JSON | Malformed CSV showed error without changing account count; quoted multiline Delta membership imported and re-exported with quoting; endpoints returned 200/content types/attachment metadata | Full snapshot round trip and all malformed-row cases; notes are outside CSV format |
 | Share | Actual share page hid memberships/notes; Revoke remained after last unlink; revocation made public fetch return 404 | Expired links and production anonymous/auth separation |
 | Opportunities/expiry | Estimate caveats; explicitly seeded local expiry produced warning and calendar link; calendar returned 200 with valid VCALENDAR/United | Live award/provider integration and complete optimizer interactions |
-| Agent access | UI created read-only one-day PAT; full token read returned 200 and write returned 403 INSUFFICIENT_SCOPE; revoke removed active row/secret; consent granted then revoked | Held observation/review and cross-owner native scenarios |
+| Agent access | UI created read-only one-day PAT; full token read returned 200 and write returned 403 INSUFFICIENT_SCOPE; revoke removed active row and denied the token; navigation cleared one-time plaintext; consent granted then revoked | Held observation/review and cross-owner native scenarios |
 | Assistant | Actual panel Enter/send returned fallback chat 200; successful correlated run-start/run-complete events; clearing persisted across navigation/reopen | Live Agents SDK model calls, recovery faults, generated proposal approval/reject/expiry and exporter delivery |
 | Settings | Actual unconfigured ChatGPT-linking state and capability boundaries rendered | Real Clerk/OpenAI identity acceptance |
 | Responsive | No page overflow at verified 390px dashboard/detail/share/agents/settings; desktop 1440px dashboard had three-column grid and no overflow | Full axe/contrast/focus/screen-reader and other narrow routes |
@@ -134,3 +134,33 @@ fixtures blindly or bypassed the shared admission gate.
 Production, identity, model, native extension, data and licensing gates remain
 in [release-backlog.md](release-backlog.md). Shared Graphify still excludes PointUp
 and its semantic index remains held; this work verified live source.
+
+
+## Authentication fix release and token-display follow-up
+
+[PR #50](https://github.com/jckail/point_bot/pull/50) is merged from source
+`385cba8313a77bdfcf909cdfafb6bcdc67d5d317` at master
+`a88b001b222c49ab450947d5fd5160d07580d997`; source, prospective merge and
+master share tree `b149f2f3bfd21c72167abb2949f2cf623bf8a6f8`. Candidate CI
+37070296895, CodeQL 37070296840, Bugbot, master Deploy 37070787761 and
+CodeQL 37070787313 passed. Candidate and master each ran 1,851 workspace
+tests plus one paid live skip. AWS deployment remained skipped for missing role.
+
+The patched native pass also found that the creation result still displayed
+one-time plaintext after revoking that exact token on the same page. The token
+was immediately denied with 401 and navigation cleared the result. A narrow
+follow-up associates the creation result with its nonsecret token ID and
+hides it after an authoritative same-ID revoked row is returned. Other-token
+revocation and failed requests must preserve a still-valid creation result.
+This changes rendered visibility, without claiming JavaScript memory zeroization.
+
+
+The display follow-up reproduced the original source defect with two failing
+and four passing cases. The patched six-case regression exercises real token
+issue/list/revoke use cases and the actual server action, then renders the actual
+React panel with a controlled completed `useActionState` value. It verifies the
+matching-token case, unrelated same-name/prefix token, active token, absent list
+entry and real creation error. This is rendered-output coverage; native
+dispatch, hydration and server revalidation after this follow-up remain pending.
+The focused run including share-revocation controls passed 12 cases; web types
+and targeted lint passed after correcting two test-only type-assertion findings.
