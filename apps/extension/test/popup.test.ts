@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ChatResult, ExtensionMessage } from "../src/messages";
 
@@ -11,7 +12,7 @@ class Element {
   disabled = false;
   listeners: Record<string, () => void> = {};
   addEventListener(type: string, listener: () => void) { this.listeners[type] = listener; }
-  querySelectorAll() { return [elements.ask!, elements.clearChat!]; }
+  querySelectorAll() { return [elements.ask!, elements.clearChat!, elements.reviewProposals!]; }
 }
 const elements: Record<string, Element> = {};
 const capture = { captureId: "00000000-0000-4000-8000-000000000001", providerId: "united", points: 123,
@@ -21,7 +22,7 @@ const send = vi.fn(async (message: ExtensionMessage): Promise<unknown> => messag
 async function flush() { await new Promise(resolve => setTimeout(resolve, 0)); }
 beforeEach(async () => {
   vi.resetModules(); vi.clearAllMocks();
-  for (const id of ["latest", "record", "discardCapture", "openObservationReview", "baseUrl", "token", "save", "status", "assistant", "askForm", "question", "chat", "chatStatus", "ask", "clearChat"]) elements[id] = new Element();
+  for (const id of ["latest", "record", "discardCapture", "openObservationReview", "baseUrl", "token", "save", "status", "assistant", "askForm", "question", "chat", "chatStatus", "ask", "clearChat", "reviewProposals"]) elements[id] = new Element();
   mocks.save.mockResolvedValue(undefined);
   send.mockImplementation(async message => message.type === "getLatest" ? capture : { ok: true, message: "", chat: [] });
   vi.stubGlobal("document", { getElementById: (id: string) => elements[id] });
@@ -193,4 +194,57 @@ it("preserves acknowledged discard when refreshing the capture view fails", asyn
   expect(elements.status!.textContent).toContain("Capture view unavailable");
   expect(elements.status!.textContent).not.toContain("Keep your capture and retry");
   expect(elements.discardCapture!.disabled).toBe(true);
+});
+
+it("opens proposed-action review from an empty uncertain conversation without resending or losing support guidance", async () => {
+  const pending = { question: "First interrupted question", status: "uncertain" as const,
+    message: "Outcome unknown. Check proposed actions before explicitly retrying. Support reference: trace.run:1234" };
+  let finishReview!: (result: ChatResult) => void;
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? { ok: true, message: "", chat: [], pending }
+      : new Promise<ChatResult>(resolve => { finishReview = resolve; }));
+  vi.resetModules(); await import("../src/popup"); await flush();
+  expect(elements.reviewProposals!.disabled).toBe(false);
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
+  elements.reviewProposals!.listeners.click!(); await flush();
+  expect(send).toHaveBeenCalledWith({ type: "openReview" });
+  expect(elements.chatStatus!.textContent).toContain(pending.message);
+  expect(elements.chatStatus!.textContent).toContain("Opening proposed changes");
+  expect(elements.reviewProposals!.disabled).toBe(true);
+  finishReview({ ok: true, message: "Review and approve proposed actions in PointUp." }); await flush();
+  expect(elements.chatStatus!.textContent).toContain(pending.message);
+  expect(elements.chatStatus!.textContent).toContain("Review and approve");
+  expect(elements.question!.value).toBe(pending.question);
+  expect(elements.reviewProposals!.disabled).toBe(false);
+  expect(send.mock.calls.some(([message]) => message.type === "ask" || message.type === "clearChat")).toBe(false);
+});
+
+it("preserves recovery guidance when a proposal-card navigation fails", async () => {
+  const pending = { question: "Saved question", status: "uncertain" as const,
+    message: "Check proposed actions before retrying. Support reference: saved-request" };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? { ok: true, message: "", chat: [], pending }
+      : { ok: false, message: "Review navigation unavailable. Reopen PointUp." });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  const cardReview = mocks.render.mock.calls.at(-1)?.[2] as () => void;
+  cardReview(); await flush();
+  expect(elements.chatStatus!.textContent).toContain(pending.message);
+  expect(elements.chatStatus!.textContent).toContain("Review navigation unavailable");
+  expect(elements.question!.value).toBe(pending.question);
+  expect(send.mock.calls.filter(([message]) => message.type === "openReview")).toHaveLength(1);
+  expect(send.mock.calls.some(([message]) => message.type === "ask")).toBe(false);
+});
+
+it("disables the always-present review action during inference without opening tabs or sending another ask", async () => {
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : { ok: true, message: "", chat: [], pending: { question: "Working question", status: "in_flight", message: "Working" } });
+  vi.useFakeTimers(); vi.resetModules(); await import("../src/popup"); await vi.advanceTimersByTimeAsync(0);
+  expect(elements.reviewProposals!.disabled).toBe(true);
+  elements.reviewProposals!.listeners.click!(); await vi.advanceTimersByTimeAsync(0);
+  expect(send.mock.calls.some(([message]) => message.type === "openReview" || message.type === "ask")).toBe(false);
+});
+
+it("ships an always-present non-submitting proposal review control in the popup markup", () => {
+  const html = readFileSync(new URL("../public/popup.html", import.meta.url), "utf8");
+  expect(html).toContain('<button id="reviewProposals" type="button">Review proposed changes in PointUp</button>');
 });

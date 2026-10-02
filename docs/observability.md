@@ -188,9 +188,14 @@ The web composition supplies a best-effort proposal audit sink. It logs
 `component=pointup_assistant_action`, action ID, fixed kind and status, and emits
 an aggregate counter with kind/status only. Proposal creation, rejection and
 execution paths produce observations; repeated idempotent calls may observe the
-same state again. These observations are not a complete lifecycle audit: expiry
-and lease recovery currently have paths without an observation. The persisted
-proposal journal remains the source of truth for review and execution state.
+same state again. Stalled execution recovery returns only rows actually changed
+from `executing` to `unknown` and observes their fixed ID/kind/status metadata;
+repeated or concurrent inspection cannot duplicate that recovery observation.
+These observations remain best effort: a process crash after the database update
+can lose the audit, and pending expiry has paths without an observation. No
+proposal payload, private identity witness or owner becomes a log field or metric
+label. The persisted proposal journal remains the source of truth for review and
+execution state.
 
 ### CloudWatch dashboard and alarms
 

@@ -1,7 +1,7 @@
 import { UserId } from "../src/domain/shared/ids";
 import { describe, expect, it, vi } from "vitest";
 import { ManageAssistantActions } from "../src/application/assistant/manage-actions";
-import { AssistantActionNotFoundError, assistantActionProposalRequestSchema, type AssistantAction, type AssistantActionRepository, type AssistantActionStatus } from "../src/domain/assistant/actions";
+import { AssistantActionNotFoundError, assistantActionProposalRequestSchema, type AssistantAction, type AssistantActionRepository, type AssistantActionStatus, type RecoveredAssistantAction } from "../src/domain/assistant/actions";
 import { GetLoyaltyAccount } from "../src/application/loyalty/get-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { CreateTripGoal } from "../src/application/loyalty/create-trip-goal";
@@ -34,7 +34,12 @@ class MemoryActions implements AssistantActionRepository {
     if (action?.userId === userId && action.status === "executing") { this.rows.set(id, { ...action, status, updatedAt: now, result, failureCode }); this.transitions.push(status); }
   }
   async expireExecuting(userId: UserId, cutoff: Date, now: Date) {
-    for (const [id, row] of this.rows) if (row.userId === userId && row.status === "executing" && row.updatedAt <= cutoff) this.rows.set(id, { ...row, status: "unknown", failureCode: "EXECUTION_OUTCOME_UNKNOWN", updatedAt: now });
+    const recovered: RecoveredAssistantAction[] = [];
+    for (const [id, row] of this.rows) if (row.userId === userId && row.status === "executing" && row.updatedAt <= cutoff) {
+      this.rows.set(id, { ...row, status: "unknown", failureCode: "EXECUTION_OUTCOME_UNKNOWN", updatedAt: now });
+      recovered.push({ id, kind: row.kind, status: "unknown" });
+    }
+    return recovered;
   }
 }
 async function fixture() {
@@ -167,6 +172,40 @@ describe("persistent reviewed assistant actions", () => {
     f.advance(5 * 60000);
     expect((await f.service.list(owner))[0]).toMatchObject({ status: "unknown" });
     await f.service.approve(action.id, owner);
+    expect(f.balances.rows).toHaveLength(0);
+  });
+
+  it("audits only actual stale transitions once across concurrent and repeated recovery", async () => {
+    const f = await fixture(), action = await f.propose();
+    await f.repository.claim(action.id, owner, f.clock.now());
+    const stale = f.repository.rows.get(action.id)!;
+    f.repository.rows.set("recent", { ...stale, id: "recent", updatedAt: new Date(f.clock.now().getTime() + 1) });
+    f.repository.rows.set("foreign", { ...stale, id: "foreign", userId: other });
+    f.repository.rows.set("terminal", { ...stale, id: "terminal", status: "succeeded" });
+    f.advance(5 * 60000);
+    f.audit.mockClear();
+    const restarted = new ManageAssistantActions(f.repository, f.useCases, f.clock, f.audit);
+    await Promise.all([f.service.list(owner), restarted.list(owner)]);
+    await f.service.list(owner);
+    await f.service.approve(action.id, owner);
+    expect(f.audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: "unknown" }]]);
+    expect(f.repository.rows.get("recent")?.status).toBe("executing");
+    expect(f.repository.rows.get("foreign")?.status).toBe("executing");
+    expect(f.repository.rows.get("terminal")?.status).toBe("succeeded");
+    expect(f.balances.rows).toHaveLength(0);
+    expect(JSON.stringify(f.audit.mock.calls)).not.toMatch(/PRIVATE-MEMBER|40000|nonce|digest|executionWitness|payload|userId/);
+  });
+
+  it("keeps recovered unknown visible and non-replayable when the audit throws", async () => {
+    const f = await fixture(), action = await f.propose();
+    await f.repository.claim(action.id, owner, f.clock.now());
+    f.advance(5 * 60000);
+    const audit = vi.fn(() => { throw new Error("synthetic telemetry unavailable"); });
+    const restarted = new ManageAssistantActions(f.repository, f.useCases, f.clock, audit);
+    expect((await restarted.list(owner))[0]).toMatchObject({ id: action.id, status: "unknown", failureCode: "EXECUTION_OUTCOME_UNKNOWN" });
+    await restarted.list(owner);
+    await restarted.approve(action.id, owner);
+    expect(audit).toHaveBeenCalledTimes(1);
     expect(f.balances.rows).toHaveLength(0);
   });
 

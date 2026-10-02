@@ -53,6 +53,7 @@ export class DrizzleAssistantActionRepository implements AssistantActionReposito
     if (rows.length !== 1) throw new Error("Assistant action execution claim is no longer available.");
   }
   async expireExecuting(userId: UserId, cutoff: Date, now: Date) {
-    await this.db.update(assistantActions).set({ status: "unknown", failureCode: "EXECUTION_OUTCOME_UNKNOWN", updatedAt: now }).where(and(eq(assistantActions.userId, userId), eq(assistantActions.status, "executing"), lte(assistantActions.updatedAt, cutoff)));
+    const rows = await this.db.update(assistantActions).set({ status: "unknown", failureCode: "EXECUTION_OUTCOME_UNKNOWN", updatedAt: now }).where(and(eq(assistantActions.userId, userId), eq(assistantActions.status, "executing"), lte(assistantActions.updatedAt, cutoff))).returning({ id: assistantActions.id, kind: assistantActions.kind });
+    return rows.map(row => ({ ...row, status: "unknown" as const }));
   }
 }

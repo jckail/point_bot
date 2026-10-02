@@ -73,6 +73,12 @@ popup polls while the worker is active; worker restart reports uncertainty and
 requires explicit retry after checking proposals. Correlation IDs do not authorize
 or deduplicate writes. Changing credentials hides the former conversation scope.
 
+The popup offers **Review proposed changes in PointUp** even when no proposal
+card was returned. This covers a first request whose response was lost after a
+proposal may have persisted. Opening review preserves the uncertain question and
+support reference alongside navigation feedback. It uses the same extension-owned
+review tab and neither resends the question nor approves a change.
+
 ## Build and verification
 
 ```bash

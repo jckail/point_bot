@@ -24,13 +24,14 @@ const EXECUTION_LEASE_MS = 5 * 60_000;
 export class ManageAssistantActions {
   constructor(private readonly repository: AssistantActionRepository, private readonly useCases: ActionUseCases, private readonly clock: Clock = systemClock, private readonly audit: ActionAudit = () => {}, private readonly unitOfWork?: UnitOfWork) {}
 
-  private record(action: AssistantAction, durationMs?: number) {
+  private record(action: Pick<AssistantAction, "id" | "kind" | "status">, durationMs?: number) {
     try { this.audit({ event: "assistant_action", actionId: action.id, kind: action.kind, status: action.status, ...(durationMs === undefined ? {} : { durationMs }) }); } catch { /* telemetry cannot change mutation outcome */ }
   }
 
   private async refresh(userId: UserId) {
     const now = this.clock.now();
-    await this.repository.expireExecuting(userId, new Date(now.getTime() - EXECUTION_LEASE_MS), now);
+    const recovered = await this.repository.expireExecuting(userId, new Date(now.getTime() - EXECUTION_LEASE_MS), now);
+    for (const action of recovered) this.record(action);
   }
 
   async list(userId: UserId) {

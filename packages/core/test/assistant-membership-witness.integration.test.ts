@@ -86,6 +86,32 @@ suite("private proposal identity evidence on dedicated PostgreSQL", () => {
     await expectNoBalanceEffects(f);
   });
 
+  it("conditionally recovers and audits stale executions once across concurrent PostgreSQL callers", async () => {
+    const f = await fixture(), foreign = await fixture(), dto = await f.propose(), foreignDto = await foreign.propose();
+    const stored = await f.repository.findOwned(dto.id, f.owner);
+    if (!stored) throw new Error("Missing synthetic proposal");
+    const now = new Date(), cutoff = new Date(now.getTime() - 5 * 60000);
+    await db.$client`UPDATE assistant_action SET status = 'executing', updated_at = ${cutoff.toISOString()}::timestamptz WHERE id IN (${dto.id}, ${foreignDto.id})`;
+    await f.repository.insert({ ...stored, id: `${dto.id}-recent`, status: "executing", updatedAt: new Date(cutoff.getTime() + 1) });
+    await f.repository.insert({ ...stored, id: `${dto.id}-terminal`, status: "rejected", updatedAt: cutoff });
+    const audit = vi.fn(), clock = { now: () => now };
+    const first = new ManageAssistantActions(f.repository, f.useCases, clock, audit);
+    const second = new ManageAssistantActions(f.repository, f.useCases, clock, audit);
+    await Promise.all([first.list(f.owner), second.list(f.owner)]);
+    await first.list(f.owner);
+    expect(audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: dto.id, kind: "manual_balance", status: "unknown" }]]);
+    expect((await f.repository.findOwned(dto.id, f.owner))?.status).toBe("unknown");
+    expect((await f.repository.findOwned(`${dto.id}-recent`, f.owner))?.status).toBe("executing");
+    expect((await f.repository.findOwned(`${dto.id}-terminal`, f.owner))?.status).toBe("rejected");
+    expect((await foreign.repository.findOwned(foreignDto.id, foreign.owner))?.status).toBe("executing");
+    expect(await f.repository.expireExecuting(f.owner, cutoff, now)).toEqual([]);
+    const transitions = await foreign.repository.expireExecuting(foreign.owner, cutoff, now);
+    expect(transitions).toEqual([{ id: foreignDto.id, kind: "manual_balance", status: "unknown" }]);
+    expect(JSON.stringify([audit.mock.calls, transitions])).not.toMatch(/PRIVATE_PG|digest|nonce|executionWitness|payload|userId/);
+    await first.approve(dto.id, f.owner);
+    await expectNoBalanceEffects(f);
+  });
+
   it("keeps legacy witnessless pending rows readable but refuses execution", async () => {
     const f = await fixture(), dto = await f.propose();
     await db.$client`UPDATE assistant_action SET payload = payload - '__pointupExecutionWitness' WHERE id = ${dto.id} AND user_id = ${f.owner}`;
