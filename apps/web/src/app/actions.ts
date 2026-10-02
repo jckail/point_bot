@@ -219,25 +219,21 @@ export async function createTripGoalAction(
 }
 
 export async function deleteTripGoalAction(
+  _previous: ActionResult,
   formData: FormData,
-): Promise<void> {
+): Promise<ActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
+  if (!userId) return UNAUTHENTICATED;
 
-  try {
+  const result = await toActionResult(async () => {
     await getContainer().useCases.deleteTripGoal.execute(
       userId,
       TripGoalId.parse(String(formData.get("goalId") ?? "")),
     );
-  } catch (error) {
-    if (error instanceof DomainError) {
-      console.warn(`deleteTripGoal rejected: ${error.code}`);
-      return;
-    }
-    throw error;
-  }
+  });
 
-  revalidatePath("/dashboard");
+  if (result.status === "success") revalidatePath("/dashboard");
+  return result;
 }
 
 export async function importPortfolioAction(
