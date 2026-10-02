@@ -65,14 +65,22 @@ export function toAssistantActionDto(action: AssistantAction): AssistantActionDt
 /** Safe metadata for executions actually transitioned during recovery. */
 export type RecoveredAssistantAction = Pick<AssistantAction, "id" | "kind"> & { readonly status: "unknown" };
 
+/** Safe metadata from a pending row actually changed by this operation. */
+export type PendingAssistantActionTransition = Pick<AssistantAction, "id" | "kind"> & { readonly status: "rejected" | "expired" };
+export type AssistantActionClaimResult =
+  | { readonly outcome: "claimed"; readonly action: AssistantAction }
+  | { readonly outcome: "expired"; readonly transition: PendingAssistantActionTransition & { readonly status: "expired" } }
+  | { readonly outcome: "unavailable" };
+
 export interface AssistantActionRepository {
   /** Insert once; a repeated ID returns the existing immutable proposal. */
   insert(action: AssistantAction): Promise<AssistantAction>;
   findOwned(id: string, userId: UserId): Promise<AssistantAction | null>;
   listOwned(userId: UserId, limit: number): Promise<AssistantAction[]>;
   /** Atomically claim an unexpired pending proposal. */
-  claim(id: string, userId: UserId, now: Date): Promise<AssistantAction | null>;
-  settlePending(id: string, userId: UserId, status: "rejected" | "expired", now: Date): Promise<void>;
+  claim(id: string, userId: UserId, now: Date): Promise<AssistantActionClaimResult>;
+  /** Return only the committed conditional transition, never a later observation. */
+  settlePending(id: string, userId: UserId, status: "rejected" | "expired", now: Date): Promise<PendingAssistantActionTransition | null>;
   finish(id: string, userId: UserId, status: "succeeded" | "failed" | "unknown", now: Date, result: Record<string, unknown> | null, failureCode: string | null): Promise<void>;
   /** Atomically recover stale executing rows; return only changed rows, with safe audit metadata. */
   expireExecuting(userId: UserId, cutoff: Date, now: Date): Promise<readonly RecoveredAssistantAction[]>;

@@ -1,7 +1,8 @@
 import { UserId } from "../src/domain/shared/ids";
 import { describe, expect, it, vi } from "vitest";
 import { ManageAssistantActions } from "../src/application/assistant/manage-actions";
-import { AssistantActionNotFoundError, assistantActionProposalRequestSchema, type AssistantAction, type AssistantActionRepository, type AssistantActionStatus, type RecoveredAssistantAction } from "../src/domain/assistant/actions";
+import { AssistantActionNotFoundError, assistantActionProposalRequestSchema, type AssistantAction, type AssistantActionRepository, type AssistantActionClaimResult, type AssistantActionStatus, type RecoveredAssistantAction } from "../src/domain/assistant/actions";
+import type { Clock } from "../src/application/ports";
 import { GetLoyaltyAccount } from "../src/application/loyalty/get-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { CreateTripGoal } from "../src/application/loyalty/create-trip-goal";
@@ -12,21 +13,29 @@ const owner = UserId.parse("owner");
 const other = UserId.parse("other");
 
 class MemoryActions implements AssistantActionRepository {
+  constructor(private readonly clock: Clock) {}
   readonly rows = new Map<string, AssistantAction>();
   readonly transitions: AssistantActionStatus[] = [];
   failSuccessJournal = false;
   async insert(action: AssistantAction) { if (!this.rows.has(action.id)) this.rows.set(action.id, structuredClone(action)); return structuredClone(this.rows.get(action.id)!); }
   async findOwned(id: string, userId: UserId) { const action = this.rows.get(id); return action?.userId === userId ? structuredClone(action) : null; }
   async listOwned(userId: UserId, limit: number) { return [...this.rows.values()].filter(row => row.userId === userId).slice(0, limit).map(row => structuredClone(row)); }
-  async claim(id: string, userId: UserId, now: Date) {
+  async claim(id: string, userId: UserId, now: Date): Promise<AssistantActionClaimResult> {
     const action = this.rows.get(id);
-    if (!action || action.userId !== userId || action.status !== "pending" || action.expiresAt <= now) return null;
-    const claimed = { ...action, status: "executing" as const, updatedAt: now };
-    this.rows.set(id, claimed); this.transitions.push("executing"); return structuredClone(claimed);
+    if (!action || action.userId !== userId || action.status !== "pending") return { outcome: "unavailable" };
+    const claimedAt = new Date(Math.max(now.getTime(), this.clock.now().getTime()));
+    if (action.expiresAt <= claimedAt) {
+      this.rows.set(id, { ...action, status: "expired", updatedAt: claimedAt }); this.transitions.push("expired");
+      return { outcome: "expired", transition: { id, kind: action.kind, status: "expired" } };
+    }
+    const claimed = { ...action, status: "executing" as const, updatedAt: claimedAt };
+    this.rows.set(id, claimed); this.transitions.push("executing"); return { outcome: "claimed", action: structuredClone(claimed) };
   }
   async settlePending(id: string, userId: UserId, status: "rejected" | "expired", now: Date) {
     const action = this.rows.get(id);
-    if (action?.userId === userId && action.status === "pending") { this.rows.set(id, { ...action, status, updatedAt: now }); this.transitions.push(status); }
+    if (action?.userId !== userId || action.status !== "pending" || (status === "expired" ? action.expiresAt > now : action.expiresAt <= now)) return null;
+    this.rows.set(id, { ...action, status, updatedAt: now }); this.transitions.push(status);
+    return { id, kind: action.kind, status };
   }
   async finish(id: string, userId: UserId, status: "succeeded" | "failed" | "unknown", now: Date, result: Record<string, unknown> | null, failureCode: string | null) {
     if (status === "succeeded" && this.failSuccessJournal) throw new Error("Journal unavailable");
@@ -50,7 +59,7 @@ async function fixture() {
   const goals = new InMemoryTripGoalRepository();
   const account = createLoyaltyAccount({ userId: owner, providerId: "hyatt", membershipNumber: "PRIVATE-MEMBER" });
   await accounts.insert(account);
-  const repository = new MemoryActions();
+  const repository = new MemoryActions(clock);
   const useCases = { getLoyaltyAccount: new GetLoyaltyAccount(accounts, balances, clock), recordManualBalance: new RecordManualBalance(accounts, balances, undefined, clock), createTripGoal: new CreateTripGoal(goals, accounts, balances, clock) };
   const audit = vi.fn();
   const service = new ManageAssistantActions(repository, useCases, clock, audit);
@@ -104,6 +113,75 @@ describe("persistent reviewed assistant actions", () => {
     expect(await f.service.reject(another.id, owner)).toMatchObject({ status: "rejected" });
     expect(await f.service.approve(another.id, owner)).toMatchObject({ status: "rejected" });
     expect(f.goals.rows.size).toBe(0);
+    expect(f.balances.rows).toHaveLength(0);
+  });
+
+  it("audits one pending expiry across concurrent list, approve, reject and repeated reads", async () => {
+    const f = await fixture(), action = await f.propose();
+    const row = f.repository.rows.get(action.id)!;
+    f.repository.rows.set("foreign", { ...row, id: "foreign", userId: other });
+    f.repository.rows.set("terminal", { ...row, id: "terminal", status: "succeeded" });
+    f.advance(15 * 60000); f.audit.mockClear();
+    const restarted = new ManageAssistantActions(f.repository, f.useCases, f.clock, f.audit);
+    await Promise.all([f.service.list(owner), restarted.approve(action.id, owner), f.service.reject(action.id, owner)]);
+    await f.service.list(owner); await f.service.reject(action.id, owner); await restarted.approve(action.id, owner);
+    expect(f.audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: "expired" }]]);
+    expect(f.repository.rows.get("foreign")?.status).toBe("pending");
+    expect(f.repository.rows.get("terminal")?.status).toBe("succeeded");
+    await expect(f.service.reject("foreign", owner)).rejects.toBeInstanceOf(AssistantActionNotFoundError);
+    expect(f.balances.rows).toHaveLength(0); expect(f.goals.rows.size).toBe(0);
+    expect(JSON.stringify(f.audit.mock.calls)).not.toMatch(/PRIVATE-MEMBER|40000|nonce|digest|executionWitness|payload|userId/);
+  });
+
+  it("audits concurrent rejection once and does not re-audit terminal reads", async () => {
+    const f = await fixture(), action = await f.propose(); f.audit.mockClear();
+    await Promise.all([f.service.reject(action.id, owner), f.service.reject(action.id, owner)]);
+    await f.service.reject(action.id, owner); await f.service.approve(action.id, owner); await f.service.list(owner);
+    expect(f.audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: "rejected" }]]);
+    expect(f.repository.transitions).toEqual(["rejected"]);
+    expect(f.balances.rows).toHaveLength(0);
+  });
+
+  it("audits expiry committed by claim after the clock advances while approval waits", async () => {
+    const f = await fixture(), action = await f.propose(); f.audit.mockClear();
+    const claim = f.repository.claim.bind(f.repository);
+    let release!: () => void, reached!: () => void;
+    const entered = new Promise<void>(resolve => { reached = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(f.repository, "claim").mockImplementation(async (...args) => { reached(); await gate; return claim(...args); });
+    const approval = f.service.approve(action.id, owner);
+    await entered; f.advance(15 * 60000); release();
+    expect(await approval).toMatchObject({ status: "expired" });
+    await f.service.approve(action.id, owner); await f.service.list(owner);
+    expect(f.audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: "expired" }]]);
+    expect(f.repository.transitions).toEqual(["expired"]);
+    expect(f.balances.rows).toHaveLength(0);
+  });
+
+  it("does not audit a stale rejection when approval wins its conditional transition", async () => {
+    const f = await fixture(), action = await f.propose(); f.audit.mockClear();
+    const settle = f.repository.settlePending.bind(f.repository);
+    let release!: () => void, reached!: () => void;
+    const entered = new Promise<void>(resolve => { reached = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(f.repository, "settlePending").mockImplementation(async (...args) => { reached(); await gate; return settle(...args); });
+    const rejection = f.service.reject(action.id, owner);
+    await entered;
+    expect(await f.service.approve(action.id, owner)).toMatchObject({ status: "succeeded" });
+    release(); expect(await rejection).toMatchObject({ status: "succeeded" });
+    expect(f.audit.mock.calls.map(([event]) => event.status)).toEqual(["executing", "succeeded"]);
+    expect(f.balances.rows).toHaveLength(1);
+    expect(f.repository.transitions).toEqual(["executing", "succeeded"]);
+  });
+
+  it.each(["expired", "rejected"] as const)("keeps committed %s visible and non-executing when transition audit throws", async status => {
+    const f = await fixture(), action = await f.propose();
+    if (status === "expired") f.advance(15 * 60000);
+    const audit = vi.fn(() => { throw new Error("synthetic telemetry unavailable"); });
+    const restarted = new ManageAssistantActions(f.repository, f.useCases, f.clock, audit);
+    expect(await restarted.reject(action.id, owner)).toMatchObject({ status });
+    await restarted.reject(action.id, owner); await restarted.list(owner); await restarted.approve(action.id, owner);
+    expect(audit).toHaveBeenCalledTimes(1);
     expect(f.balances.rows).toHaveLength(0);
   });
 

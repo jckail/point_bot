@@ -10,6 +10,31 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+Pending expiry/rejection now returns safe conditional-transition receipts. The
+service audits only those receipts in list/approve/reject, including claim expiry
+after its row lock. Repeated/concurrent losers add no receipt event; audit sink
+failures preserve outcomes. DTOs, schema, private account witnesses and mutation
+behavior are unchanged. This remains best-effort telemetry, not crash-durable
+audit delivery; exact candidate verification follows below.
+
+The latest merged observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
+at `dd6a9701b55df0ddcdfe3ab5bf6857c360153cf9` (source
+`b97413645630a6205d05781c2cf28e71137d2486`). All six merged-source verification
+jobs in [Deploy 37038650269](https://github.com/jckail/point_bot/actions/runs/37038650269)
+and [CodeQL 37038649758](https://github.com/jckail/point_bot/actions/runs/37038649758)
+passed with 1,722 workspace tests and one paid live skip. Failed terminal assistant
+runs now contribute bounded latency metrics. AWS deployment remained skipped for
+missing deployment-role configuration.
+
+[PR #35](https://github.com/jckail/point_bot/pull/35) aligned exact HTTP loopback
+permissions and recorded native popup evidence. Its merged commit
+`95b610e21851bf2356c30277d521fd95f314db1e` passed six
+[release jobs](https://github.com/jckail/point_bot/actions/runs/37037630570) and
+[CodeQL](https://github.com/jckail/point_bot/actions/runs/37037630107), with 1,714
+workspace tests and one paid live skip. An isolated native permission probe also
+verified real local fetches through localhost, IPv4 and IPv6; its scope and remaining
+application acceptance gates are in [Chrome evidence](chrome-extension-acceptance.md).
+
 CSV portability and cancellation fixes are merged at
 `7e4a5b23cdb7d1cc6bb91c17f267f2b70fff136a` through
 [PR #34](https://github.com/jckail/point_bot/pull/34). All six merged-source jobs

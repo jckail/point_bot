@@ -33,7 +33,14 @@ not verified transfer eligibility, a live redemption price or available inventor
 
 `POST /api/v1/assistant/actions/:id/approve` and `/reject` require a browser cookie session and reject personal-token and Clerk-bearer credentials. Their request body is empty or `{}`; payload overrides are rejected. The existing CSRF boundary protects cookie mutations. These endpoints return `{action: AssistantActionDto}` and use private, uncached responses.
 
-A proposal expires after 15 minutes. Approval atomically claims an unexpired pending row, rechecks account ownership and invokes the existing owner-checked use case with the saved payload. Concurrent approvals cannot claim twice; replay returns the durable outcome. Rejection and expiry never execute. Statuses are `pending`, `executing`, `succeeded`, `rejected`, `expired`, `failed` and `unknown`.
+A proposal expires after 15 minutes. Approval atomically claims an unexpired pending row, rechecks account ownership and invokes the existing owner-checked use case with the saved payload. Concurrent approvals cannot claim twice; replay returns the durable outcome. Rejection and expiry never execute. Pending settlement returns only safe metadata
+for the row actually transitioned; a competing or repeated caller gets no receipt.
+List, approval and rejection audit those receipts after persistence returns, including
+expiry after a claim waits for its row lock. Audit fields are action ID, kind and
+status, without proposal payloads or private account witnesses. Sink failures do
+not change the durable outcome. This is best-effort telemetry: a process crash after
+the database transition can still lose its event, and these logs are not a durable
+audit journal. Statuses are `pending`, `executing`, `succeeded`, `rejected`, `expired`, `failed` and `unknown`.
 
 Manual-balance proposals also retain private account-identity evidence: a fresh
 random nonce and digest bound to the owner, account, provider and exact saved

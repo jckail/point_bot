@@ -7,6 +7,24 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
+The latest merged observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
+at `dd6a9701b55df0ddcdfe3ab5bf6857c360153cf9` (source
+`b97413645630a6205d05781c2cf28e71137d2486`). All six merged-source verification
+jobs in [Deploy 37038650269](https://github.com/jckail/point_bot/actions/runs/37038650269)
+and [CodeQL 37038649758](https://github.com/jckail/point_bot/actions/runs/37038649758)
+passed with 1,722 workspace tests and one paid live skip. Failed terminal assistant
+runs now contribute bounded latency metrics. AWS deployment remained skipped for
+missing deployment-role configuration.
+
+[PR #35](https://github.com/jckail/point_bot/pull/35) aligned exact HTTP loopback
+permissions and recorded native popup evidence. Its merged commit
+`95b610e21851bf2356c30277d521fd95f314db1e` passed six
+[release jobs](https://github.com/jckail/point_bot/actions/runs/37037630570) and
+[CodeQL](https://github.com/jckail/point_bot/actions/runs/37037630107), with 1,714
+workspace tests and one paid live skip. An isolated native permission probe also
+verified real local fetches through localhost, IPv4 and IPv6; its scope and remaining
+application acceptance gates are in [Chrome evidence](chrome-extension-acceptance.md).
+
 The combined overhaul is merged to `master` at
 `cab150cc2eabcf9765350a1a4d39d5bb944ee95b` through
 [PR #16](https://github.com/jckail/point_bot/pull/16); PR #14's ancestry is included.
@@ -34,7 +52,10 @@ passed, with 1,687 workspace tests plus one paid live skip. AWS remains skipped
 for missing deployment-role configuration. The next recovery polish adds an
 always-available Chrome proposal-review control and bounded observations for
 actual stalled-execution recovery; preserve uncertainty and support references.
-Pending expiry telemetry and durable audit delivery remain separate open work.
+Pending expiry/rejection telemetry now follows exact conditional-transition
+receipts, including expiry after a claim waits for its row lock. Repeated/concurrent
+losers emit no receipt event. Durable audit delivery remains open; a process crash
+after database settlement can lose best-effort telemetry.
 
 Recovery polish [PR #33](https://github.com/jckail/point_bot/pull/33) is merged at
 `d65b0f1dd585c1ef9a5f54dcbe4cefb5a41ae271`. Its six master verification jobs
@@ -151,8 +172,10 @@ eligibility against primary terms before adding their numeric rules.
   retention policy and any DTO/access review. Existing processed-event retention is
   not proof that pending/dead-letter rows or backups expire. Preserve retry/delivery
   semantics and useful nonsecret correlation; test real retention/replay boundaries.
-- Extend durable proposal audit/operations coverage for pending expiry and stale
-  execution recovery. The success journal is authoritative; metrics/logs do not prove
+- Extend durable proposal audit delivery. Pending expiry/rejection and stale
+  execution recovery now emit bounded metadata from actual-transition receipts,
+  but a crash between persistence and emission can lose best-effort events. The
+  success journal is authoritative; metrics/logs do not prove
   completion. Verify production outbox delivery and observation replay/review recovery
   after deployment, preserving current credential/grant rechecks and original witnesses.
   Award-watch checks now lock and reread the current row after scraping, preserving

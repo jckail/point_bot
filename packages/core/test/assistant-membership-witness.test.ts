@@ -4,7 +4,7 @@ import { createAccountIdentityWitness } from "../src/application/loyalty/account
 import { GetLoyaltyAccount } from "../src/application/loyalty/get-loyalty-account";
 import { RecordManualBalance } from "../src/application/loyalty/record-manual-balance";
 import { CreateTripGoal } from "../src/application/loyalty/create-trip-goal";
-import { assistantActionProposalRequestSchema, toAssistantActionDto, type AssistantAction, type AssistantActionRepository } from "../src/domain/assistant/actions";
+import { assistantActionProposalRequestSchema, toAssistantActionDto, type AssistantAction, type AssistantActionRepository, type AssistantActionClaimResult } from "../src/domain/assistant/actions";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import { UserId, type LoyaltyAccountId } from "../src/domain/shared/ids";
 import { DrizzleAssistantActionRepository } from "../src/infrastructure/assistant/drizzle-action-repository";
@@ -18,8 +18,21 @@ class Journal implements AssistantActionRepository {
   async insert(action: AssistantAction) { if (!this.rows.has(action.id)) this.rows.set(action.id, structuredClone(action)); return structuredClone(this.rows.get(action.id)!); }
   async findOwned(id: string, userId: UserId) { const row = this.rows.get(id); return row?.userId === userId ? structuredClone(row) : null; }
   async listOwned(userId: UserId) { return [...this.rows.values()].filter(row => row.userId === userId).map(row => structuredClone(row)); }
-  async claim(id: string, userId: UserId, at: Date) { const row = await this.findOwned(id, userId); if (!row || row.status !== "pending" || row.expiresAt <= at) return null; const claimed = { ...row, status: "executing" as const, updatedAt: at }; this.rows.set(id, claimed); return structuredClone(claimed); }
-  async settlePending(id: string, userId: UserId, status: "expired" | "rejected", at: Date) { const row = await this.findOwned(id, userId); if (row?.status === "pending") this.rows.set(id, { ...row, status, updatedAt: at }); }
+  async claim(id: string, userId: UserId, at: Date): Promise<AssistantActionClaimResult> {
+    const row = this.rows.get(id);
+    if (row?.userId !== userId || row.status !== "pending") return { outcome: "unavailable" };
+    if (row.expiresAt <= at) {
+      this.rows.set(id, { ...row, status: "expired", updatedAt: at });
+      return { outcome: "expired", transition: { id, kind: row.kind, status: "expired" } };
+    }
+    const claimed = { ...row, status: "executing" as const, updatedAt: at };
+    this.rows.set(id, claimed); return { outcome: "claimed", action: structuredClone(claimed) };
+  }
+  async settlePending(id: string, userId: UserId, status: "expired" | "rejected", at: Date) {
+    const row = this.rows.get(id);
+    if (row?.userId !== userId || row.status !== "pending" || (status === "expired" ? row.expiresAt > at : row.expiresAt <= at)) return null;
+    this.rows.set(id, { ...row, status, updatedAt: at }); return { id, kind: row.kind, status };
+  }
   async finish(id: string, userId: UserId, status: "succeeded" | "failed" | "unknown", at: Date, result: Record<string, unknown> | null, failureCode: string | null) { const row = await this.findOwned(id, userId); if (row?.status !== "executing") throw new Error("Claim unavailable"); this.rows.set(id, { ...row, status, updatedAt: at, result, failureCode }); }
   async expireExecuting() { return []; }
 }
