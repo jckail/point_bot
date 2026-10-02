@@ -111,8 +111,11 @@ digest publication and prefix-check paths after the corrections above. The
 following are still real release requirements, not evidence of a deployed defect:
 
 - Establish valid AWS/OIDC access, actual stack/account/region ownership and
-  protected production environment controls. The previously expired local AWS
-  session and missing deployment secrets are not repaired by source changes.
+  protected production environment controls. The October 2 local STS
+  check now responds, superseding the expired-session result. Read-only inventory
+  found legacy PointUp Elastic Beanstalk; fresh GitHub secrets/environments remain
+  empty. Valid local credentials do not establish the required deployed OIDC role,
+  managed database lineage or protected workflow environment.
 - Inspect the real journal **and physical schema** before adopting this lineage.
   The automatic bounded readiness check detects missing required columns and
   named constraints/triggers; it cannot establish equivalent types, constraint

@@ -42,7 +42,7 @@ The migration advisory lock serializes migration hosts; it does not stop applica
 
 Keep the approved snapshot, prior images/task revisions and deployed template. Test restoration into a separate instance before relying on recovery. Migration failure blocks candidate activation; inspect journal/table state before a retry and never stamp history or automatically run down migrations. Application rollback after a successful migration requires old-code compatibility with the new schema. CloudFormation rollback does not restore PostgreSQL; a snapshot restore can lose later writes and requires an explicit recovery decision.
 
-External gates remain: valid AWS login and deployment-role secret, verified account/stack ownership, protected production environment, real application secrets, TLS/DNS, approved backup/restore access and live health/authenticated smoke. The current local AWS session is expired and the GitHub deployment secret list is empty. No production deployment is claimed.
+External gates remain: valid AWS login and deployment-role secret, verified account/stack ownership, protected production environment, real application secrets, TLS/DNS, approved backup/restore access and live health/authenticated smoke. Local AWS STS responded on October 2. Read-only us-east-1 inventory found the existing legacy PointUp Elastic Beanstalk environment, not a verified managed ECS deployment target. Fresh GitHub secrets and environment lists remain empty. No production deployment is claimed.
 
 ## Verification checkpoint
 

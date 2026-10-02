@@ -56,8 +56,11 @@ passed with 1,707 workspace tests and one paid live skip; AWS remains skipped.
 HTTP for exactly `localhost`, `127.0.0.1` and `[::1]`, matching accepted settings
 without changing frozen pending-capture identity. All 35 focused alignment/retry
 tests passed; the wrapped rebuild timed out in the shared verification queue
-(exit 75). Native acceptance of the new IPv6 pattern and actual loopback fetches
-remain open. Earlier synthetic fetch acceptance does not prove these network paths.
+(exit 75). PR #35 CI built the candidate. A separate minimal native Chrome probe accepted
+both new patterns and fetched a real no-CORS-header fixture over all three hosts;
+see [bounded probe evidence](chrome-extension-acceptance.md#native-loopback-permission-probe).
+Actual PointUp endpoint authentication and native candidate application installation
+remain open.
 
 ## Immediate release gates
 
@@ -102,9 +105,12 @@ eligibility against primary terms before adding their numeric rules.
    in PR #16; verify that candidate rather than adopting an older unconditional
    advice runtime. These passing checks do not establish production activation
    or live issuer/model/exporter behavior.
-2. Renew expired AWS authentication; renewal is pending. Configure the authorized
-   GitHub deployment role/application secrets and protected production environment.
-   The last repository secret inspection found none. Verify actual account/region,
+2. Local AWS STS responded on October 2, superseding the earlier expired-session
+   result. Read-only us-east-1 inspection found the existing legacy PointUp Elastic
+   Beanstalk environment and no managed PointUp ECS stack among completed stacks.
+   GitHub secrets and environments still list none. Configure the authorized
+   deployment role/application secrets and protected production environment; verify
+   the actual deployment target, account/region,
    stack ownership, deployed IAM and certificate/DNS/public HTTPS origin configuration.
 3. Inspect actual staging/production journals, tables and data before adopting managed
    history through 0021. Establish an approved recoverable backup and restore rehearsal,

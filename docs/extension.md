@@ -118,6 +118,7 @@ and SDK/exporter delivery remain separate checks. See
 Development HTTP endpoints are restricted to `localhost`, `127.0.0.1` and
 `[::1]`; the manifest grants those exact hosts across ports. Changing hosts
 changes the pending capture identity even when both addresses reach the same
-local server. Restore the original settings to retry a frozen capture. Native
-verification of the newly added IPv4/IPv6 grants remains queued; see
+local server. Restore the original settings to retry a frozen capture. A separate
+native Chrome probe verified these exact grants and real local fetches; candidate
+application installation and authenticated endpoint checks remain open. See
 [acceptance evidence](chrome-extension-acceptance.md).

@@ -72,6 +72,13 @@ PR14 accepts or generates the canonical `x-request-id` and echoes it; `X-PointUp
 
 The `pointup_assistant` log component records run and SDK lifecycle events, bounded outcomes, duration, turns, model requests and measured usage, including partial usage when available. The SDK reference is `sdkTraceId`, preserving the logger's existing OpenTelemetry `traceId` and `spanId`. Known usage fields become `inputTokenCount`, `outputTokenCount`, `totalTokenCount`, `cachedInputTokenCount` and `reasoningOutputTokenCount`; only nonnegative safe integers under these exact case-insensitive names bypass token-key redaction. Cached and reasoning counts are subsets of totals, not additional tokens. Counts do not establish billed cost.
 
+The `assistant_run_duration_ms` histogram records both completed and failed
+terminal runs, including timeout, cancellation and max-turn outcomes. Its dimensions
+are bounded source, mode and outcome; request, trace and tool identifiers stay out
+of metrics. Started runs and SDK lifecycle hooks add no duration samples. Invalid
+durations are omitted and sink failures remain isolated. These distributions
+measure operational latency, not billed cost or cloud delivery.
+
 A separate `pointup_assistant_http` component records `request_completed` or `request_failed`, the support reference, bounded surface, numeric `httpStatus` and duration. Authentication, admission and setup failures remain searchable without being counted as started SDK runs. Logs exclude prompts, replies, proposal payloads, user IDs, credentials and raw provider errors. Observer failures do not change the response.
 
 ## Trace privacy and verification
