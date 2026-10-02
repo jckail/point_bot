@@ -164,3 +164,36 @@ entry and real creation error. This is rendered-output coverage; native
 dispatch, hydration and server revalidation after this follow-up remain pending.
 The focused run including share-revocation controls passed 12 cases; web types
 and targeted lint passed after correcting two test-only type-assertion findings.
+
+
+## Agents access polish
+
+[PR #51](https://github.com/jckail/point_bot/pull/51) is merged from source
+`a879103535b2dfb7d46b63c5d41b7d5ccecdd65f` at master
+`99465f4366616e0f8220c0c42f89ca6794c6aae9`, equal tree
+`d32405ae4c678a015470a678e858531d73ba2943`. Candidate CI 37071626074,
+CodeQL 37071626050, Bugbot, master Deploy 37071997132 and CodeQL 37071996806
+passed with 1,857 workspace tests plus one paid live skip; AWS remained skipped.
+
+A further source audit found that clearing the optional token lifetime silently
+issued a non-expiring credential, and token/consent revocation returned silently
+when the session expired. The web action now requires a finite integer lifetime
+of 1–365 days before issuance; the form requires the same range. Core and API
+optional-lifetime contracts remain unchanged. Revocation uses bounded session
+and domain feedback, keeps owner authorization in the existing core use cases,
+and refreshes only after success. Unexpected repository errors propagate without
+being exposed as inline diagnostic text.
+
+The one-time result now uses a labeled readonly text field with keyboard focus
+and selection instructions, no submitted credential name or clipboard permission.
+The exact-token revocation visibility guard is preserved.
+
+Meaningful baseline runs produced 10 action failures, four passes and 14 skipped
+cases; rendered controls produced six failures and one pass. Old/new revoke
+signature mismatches were excluded from baseline execution. The patch passed
+41 focused cases across three files, including 28 actual-core action cases,
+seven rendered controls and the six previous visibility regressions. Web types,
+targeted lint and whitespace checks passed. Rendered controls use completed hook
+states; native keyboard selection, dispatch, expired-session lifecycle and
+revalidated props still require acceptance. A fresh local gate was occupied by
+Switchboard PID3259208; no app launcher was queued or retried.
