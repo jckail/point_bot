@@ -22,6 +22,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 
 ## Documentation
 
+- [docs/integration-status.md](./docs/integration-status.md) — native overhaul preservation, stacked integration, verification and remaining release gates
 - [docs/local-development.md](./docs/local-development.md) — one-command Docker stack, dev auth mode, topology and how it scales later
 - [docs/agents.md](./docs/agents.md) — MCP server, Claude plugin, ChatGPT Action, consented browser/computer-use write-back, security model
 - [docs/supabase.md](./docs/supabase.md) — run on Supabase (pooler, TLS, RLS)

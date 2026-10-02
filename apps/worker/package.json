@@ -15,7 +15,7 @@
     "@clerk/backend": "^2.29.5",
     "@pointup/core": "*",
     "drizzle-orm": "^0.45.2",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^10.0.13",
     "postgres": "^3.4.9",
     "zod": "^4.4.3"
   },

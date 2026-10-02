@@ -43,7 +43,11 @@ Every log line goes through `redact()` before it is written: values under keys
 matching `authorization|token|secret|password|cookie|api key|credential|signature`
 become `[REDACTED]` (ids like `tokenId` are kept), and inside any string
 `Bearer ...` and `pu_...` personal access tokens are scrubbed. `Error`s are
-serialised as `{name, message, stack, cause}` and scrubbed too. Cycles and
+serialised as fixed `{name, message, category}` metadata plus a validated public
+error code when present; original names, messages, stacks, causes and payloads
+are omitted. Structured `error`/`exception` fields receive the same treatment
+even for thrown strings or plain objects. OTel exception events/status messages
+use fixed metadata, and error/exception span attributes admit only public codes. Cycles and
 deep objects are truncated. Logging never throws.
 
 ### Use-case tracing

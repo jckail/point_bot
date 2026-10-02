@@ -55,9 +55,12 @@ and tests run against in-memory fakes *and* a real Postgres
    tokens only for what they hold. Token minting, **consent granting**, and
    confirming/rejecting held readings are session-only: a token can't create
    tokens or approve its own consent. `consents:manage` lets a token *revoke*
-   consents only. Cookie-session requests are also CSRF-checked (an `Origin`
-   that does not match the host is refused; request bodies must be
-   `application/json`); bearer tokens are exempt.
+   consents only. Browser-only actions reject any Authorization header, including
+   a verified Clerk bearer. Explicit credentials never fall back to cookies or
+   dev identity. Clerk JWTs are verified independently and must agree with Clerk
+   session identity. Cookie mutations require an Origin matching canonical
+   `APP_URL` or the direct host’s expected scheme; forwarded hosts grant no trust.
+   Request bodies must be `application/json`; verified bearers are exempt from CSRF.
 3. **Consent is separate from scope.** Even with `observations:write`, the write is
    refused (`CONSENT_REQUIRED`, 403) without an active per-provider consent. Consent
    is granted only by the signed-in user on *Dashboard → Agents* (the grant is

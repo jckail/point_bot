@@ -46,10 +46,26 @@ These are not full integration typechecks or a real PostgreSQL migration result.
 Local `npm ci` through `agent-heavy-check` exited 75 before installation because
 another project held the shared verification lock. Do not retry unchanged or
 claim the new worktree dependencies were installed. Root owns broad verification;
-the stacked branch needs its own remote CI result. Three new opt-in PostgreSQL
+the stacked branch needs its own complete remote CI result. At `b00103c`,
+Docker smoke (direct and transaction pooling), MCP HTTP smoke, plugin checks and
+infrastructure synthesis passed; application CI stopped at two strict test-type
+errors. Those fixture errors were corrected before the dependency patch. Three new opt-in PostgreSQL
 scenarios use isolated owned schemas/journals to check serialization, bounded
 contention and rollback/lock release. They passed focused strict TypeScript
 compilation but have not yet run against PostgreSQL.
+
+## Security dependency port
+
+The PR #14 tree's report-only production audit found six advisories (one critical,
+four high, one moderate). The integration now ports the already validated native
+Next/ESLint 16.3.8 and Nodemailer 10.0.13 manifests and exact registry lock entries,
+including patched sharp 0.35.5, PostCSS 8.5.23, nanoid 3.3.19 and browser mapping
+2.11.27. PR #14 feature dependencies and tsx 4.23.15 remain preserved. Static
+resolution checks covered 321 dependency-closure nodes and 77 manifest/lock
+requirements; no installation or fresh audit is claimed by those checks.
+Fresh CI installation, audit, full types and builds must verify this branch.
+The infrastructure bundled brace-expansion advisory and separate development
+advisories are not resolved by these application patches.
 
 ## Remaining integration and runtime gates
 

@@ -10,12 +10,16 @@ source of schema/migrations; PointUp's server talks to Postgres directly.
 
 | Use | String | Notes |
 | --- | --- | --- |
-| Migrations (`npm run db:migrate`) | Direct (`db.<ref>.supabase.co:5432`) or session pooler | needs DDL + prepared statements |
+| Migrations (`npm run db:migrate`) | Direct (`db.<ref>.supabase.co:5432`) or session pooler | needs DDL + session advisory locks |
 | Serverless / many short-lived instances | Transaction pooler (`…pooler.supabase.com:6543`) | `createDb` auto-sets `prepare:false` |
 | Long-running server (Fargate, Fly) | Direct or session pooler | |
 
 TLS is required by Supabase; `createDb` sets `ssl: "require"` for `*.supabase.co|com`
-hosts unless the URL already has `sslmode`.
+hosts unless the URL already has `sslmode`. CLI, bootstrap and worker migrations
+use a dedicated two-connection pool and bounded session advisory locking before
+reading the journal. Known transaction-pooler URLs (6432, 6543, or
+`pgbouncer=true`) are rejected for migrations; application transaction pooling
+remains supported. Use a direct/session migration URL separate from the app URL.
 
 ```bash
 DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres" # app
@@ -33,7 +37,7 @@ is enforced in the application layer (every use case scopes by `userId`).
 
 User ids are opaque strings in every table (`user_id varchar`), so identity is
 swappable. Today: Clerk sessions + PointUp personal access tokens. To move to
-Supabase Auth, replace `resolvePrincipal()` in `apps/web/src/server/http.ts` and
+Supabase Auth, replace `resolveRequestPrincipal()` in `apps/web/src/server/auth.ts` and
 `proxy.ts` — no domain or schema change is needed. If you later want per-user RLS
 (e.g. direct client access), add policies keyed on `auth.jwt()->>'sub'` in a new
 migration; it is intentionally not done now because it would split the

@@ -80,7 +80,7 @@ describe("exception privacy boundaries", () => {
 
   it("preserves successful return values and ends the span without failure events", async () => {
     const result = { reply: "ok" };
-    await expect(createOtelTracer().withSpan("assistant.chat", undefined, async () => result)).resolves.toBe(result);
+    await expect(createOtelTracer().withSpan("assistant.chat", {}, async () => result)).resolves.toBe(result);
     expect(capture.events).toEqual([]);
     expect(capture.statuses).toEqual([]);
     expect(capture.ended).toBe(1);
@@ -108,7 +108,9 @@ describe("exception privacy boundaries", () => {
       .error("unhandled_api_error", { error: new Error("PRIVATE_PROVIDER_RESPONSE"), durationMs: 17 });
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain("PRIVATE_");
-    expect(JSON.parse(lines[0])).toEqual({
+    const line = lines[0];
+    if (!line) throw new Error("Expected one captured log line");
+    expect(JSON.parse(line)).toEqual({
       time: "2026-10-01T00:00:00.000Z", level: "error", msg: "unhandled_api_error",
       traceId: "safe-trace", spanId: "safe-span", durationMs: 17,
       error: { name: "OperationError", message: "Operation failed", category: "operation_failed" },
