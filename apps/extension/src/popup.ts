@@ -93,6 +93,7 @@ async function init(): Promise<void> {
           ? INVALID_API_URL : "Settings could not be saved. Retry before recording or asking.";
         return;
       }
+      ($("question") as HTMLTextAreaElement).value = "";
       showChat([]);
       applyChatState({ ok: true, message: "", chat: [] });
       try {

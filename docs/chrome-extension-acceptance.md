@@ -87,3 +87,35 @@ server error handling, TLS, provider capture or a native installation of the new
 application build. Root uninstalled only the probe and stopped its identity-checked
 fixture process. Final browser inspection again showed no installed extensions
 and only the untouched original `about:blank` page; the probe opened no tab.
+
+## Native settings-save draft isolation
+
+Root built the current extension through the foreground shared verification gate
+and installed the actual unpacked application in isolated Chrome. The build used
+master `f88ac067d8c69a5f85d7fd008666f5c1b2a839a2` plus the successful-settings-save
+draft reset. Its popup source SHA-256 is
+`148b854d0ff222db8250621d61915846f72fb66b3d9e4d486aabce6e0438db36`.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Manifest, including PR #35 loopback grants | `73a0be6cb5ba948d24d381349b550c879dae340fa00f1c2d4ca9909470c5cabc` |
+| Popup bundle | `fae3e1ee7985aedbb59ed02dbe7d23f3999ef02d701bc91ca249a288a4578be0` |
+| Background bundle | `48988ad5dfda303a03105799c2dba73cc7670f46d7019d62b3a072278adcd672` |
+
+One owned privileged popup was reused for three cases with synthetic unusable
+credentials. Real Chrome storage persisted a changed token while preserving its
+origin, then a changed canonical endpoint while preserving its token. Each
+successful Save cleared the unsent old-scope draft. An invalid HTTP non-loopback
+URL preserved the draft and both stored credentials. Controls recovered after
+each case. The service worker recorded zero outgoing requests; its fetch adapter
+blocked every attempted request. No Ask, API/model request, provider visit or
+portfolio/capture mutation was performed.
+
+This establishes current application installation, popup behavior and real
+settings persistence for those cases. Busy-worker responses and storage-write
+failures remain covered by focused fake-DOM tests, not this native run. Live
+identity rotation, authenticated endpoints, MV3 termination, inference, provider
+capture and exporter delivery remain open. Root cleared only the test extension's
+storage, closed its popup, uninstalled it and stopped the owned loopback
+verification server. The wrapped check exited successfully; the original
+`about:blank` page was untouched.
