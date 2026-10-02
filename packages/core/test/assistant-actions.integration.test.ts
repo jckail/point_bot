@@ -9,6 +9,7 @@ import { AssistantActionNotFoundError } from "../src/domain/assistant/actions";
 import { createLoyaltyAccount } from "../src/domain/loyalty/loyalty-account";
 import { UserId } from "../src/domain/shared/ids";
 import { createDb } from "../src/infrastructure/db/client";
+import { DrizzleAssistantActionRepository } from "../src/infrastructure/assistant/drizzle-action-repository";
 import { assertMigrationConnectionString } from "../src/infrastructure/db/migrations";
 
 // CI applies the managed migrations first. Never opt in via application env.
@@ -70,7 +71,7 @@ suite("reviewed proposals and outbox on dedicated PostgreSQL", () => {
     };
     const service = new ManageAssistantActions(repository, useCases, clock, undefined, eventing.unitOfWork);
     const propose = () => service.proposeManualBalance({ userId: owner, requestId: "fixture-request", accountId: account.id, points: 100 });
-    return { owner, account, repos, repository, useCases, eventing, service, propose,
+    return { owner, account, repos, repository, useCases, eventing, service, propose, clock,
       advance: (milliseconds: number) => { now = new Date(now.getTime() + milliseconds); } };
   }
 
@@ -146,4 +147,144 @@ suite("reviewed proposals and outbox on dedicated PostgreSQL", () => {
       expect(await db.$client`SELECT id FROM domain_event_outbox WHERE user_id = ${f.owner}`).toHaveLength(0);
     } finally { spy.mockRestore(); }
   });
+
+  async function expectNoMutation(f: Awaited<ReturnType<typeof fixture>>) {
+    expect(await f.repos.balanceSnapshots.findByAccountId(f.account.id, 10)).toHaveLength(0);
+    expect(await db.$client`SELECT id FROM activity_event WHERE user_id = ${f.owner}`).toHaveLength(0);
+    expect(await db.$client`SELECT id FROM domain_event_outbox WHERE user_id = ${f.owner}`).toHaveLength(0);
+  }
+
+  it.each(["rejected", "expired"] as const)("returns one safe %s receipt across concurrent and repeated settlement", async status => {
+    const f = await fixture(), action = await f.propose();
+    if (status === "expired") f.advance(15 * 60_000);
+    const receipts = await Promise.all([
+      f.repository.settlePending(action.id, f.owner, status, f.clock.now()),
+      f.repository.settlePending(action.id, f.owner, status, f.clock.now()),
+    ]);
+    expect(receipts.filter(receipt => receipt !== null)).toEqual([{ id: action.id, kind: "manual_balance", status }]);
+    expect(await f.repository.settlePending(action.id, f.owner, status, f.clock.now())).toBeNull();
+    expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe(status);
+    expect(JSON.stringify(receipts)).not.toMatch(/synthetic-fixture|payload|userId|nonce|digest|executionWitness|points/);
+    await expectNoMutation(f);
+  });
+
+  it.each(["list", "reject"] as const)("audits one actual transition across concurrent %s calls", async operation => {
+    const f = await fixture(), action = await f.propose(), audit = vi.fn();
+    const service = new ManageAssistantActions(f.repository, f.useCases, f.clock, audit, f.eventing.unitOfWork);
+    if (operation === "list") f.advance(15 * 60_000);
+    const call = () => operation === "list" ? service.list(f.owner) : service.reject(action.id, f.owner);
+    await Promise.all([call(), call()]);
+    await call();
+    expect(audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: operation === "list" ? "expired" : "rejected" }]]);
+    expect(JSON.stringify(audit.mock.calls)).not.toMatch(/synthetic-fixture|payload|userId|nonce|digest|executionWitness|points/);
+    await expectNoMutation(f);
+  });
+
+  it("returns no receipt for foreign, terminal or premature-expiry rows", async () => {
+    const f = await fixture(), action = await f.propose();
+    expect(await f.repository.settlePending(action.id, UserId.parse(`${prefix}-foreign`), "rejected", f.clock.now())).toBeNull();
+    expect(await f.repository.settlePending(action.id, f.owner, "expired", f.clock.now())).toBeNull();
+    expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe("pending");
+    const claimed = await f.repository.claim(action.id, f.owner, f.clock.now());
+    expect(claimed.outcome).toBe("claimed");
+    await f.repository.finish(action.id, f.owner, "succeeded", f.clock.now(), { synthetic: true }, null);
+    f.advance(16 * 60_000);
+    expect(await f.repository.settlePending(action.id, f.owner, "expired", f.clock.now())).toBeNull();
+    expect(await f.repository.settlePending(action.id, f.owner, "rejected", f.clock.now())).toBeNull();
+    expect(await f.repository.claim(action.id, f.owner, f.clock.now())).toEqual({ outcome: "unavailable" });
+    expect(await f.repository.findOwned(action.id, f.owner)).toMatchObject({ status: "succeeded", result: { synthetic: true } });
+    await expectNoMutation(f);
+  });
+
+  it("lets only one concurrent claim or rejection win", async () => {
+    const f = await fixture(), action = await f.propose();
+    const [claim, settled] = await Promise.all([
+      f.repository.claim(action.id, f.owner, f.clock.now()),
+      f.repository.settlePending(action.id, f.owner, "rejected", f.clock.now()),
+    ]);
+    if (claim.outcome === "claimed") {
+      expect(settled).toBeNull();
+      expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe("executing");
+    } else {
+      expect(claim).toEqual({ outcome: "unavailable" });
+      expect(settled).toEqual({ id: action.id, kind: "manual_balance", status: "rejected" });
+      expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe("rejected");
+    }
+    await expectNoMutation(f);
+  });
+
+  it.each(["claim", "settle"] as const)("preserves the %s winner against a later competing transition", async winner => {
+    const f = await fixture(), action = await f.propose();
+    if (winner === "claim") {
+      expect((await f.repository.claim(action.id, f.owner, f.clock.now())).outcome).toBe("claimed");
+      expect(await f.repository.settlePending(action.id, f.owner, "rejected", f.clock.now())).toBeNull();
+      expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe("executing");
+    } else {
+      expect(await f.repository.settlePending(action.id, f.owner, "rejected", f.clock.now())).toEqual({ id: action.id, kind: "manual_balance", status: "rejected" });
+      expect(await f.repository.claim(action.id, f.owner, f.clock.now())).toEqual({ outcome: "unavailable" });
+      expect((await f.repository.findOwned(action.id, f.owner))?.status).toBe("rejected");
+    }
+    await expectNoMutation(f);
+  });
+
+  it("audits expiry once when concurrent approvals cross expiry during a real row-lock wait", async () => {
+    const f = await fixture(), action = await f.propose(), audit = vi.fn();
+    // The expiry path does not mutate balances; this clock-aware production
+    // adapter deliberately uses independent transactions for its durable claims.
+    const repository = new DrizzleAssistantActionRepository(db, f.clock);
+    const first = new ManageAssistantActions(repository, f.useCases, f.clock, audit, f.eventing.unitOfWork);
+    const second = new ManageAssistantActions(repository, f.useCases, f.clock, audit, f.eventing.unitOfWork);
+    let release!: () => void, ready!: (pid: number) => void, failed!: (error: unknown) => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const locked = new Promise<number>((resolve, reject) => { ready = resolve; failed = reject; });
+    const blocker = db.$client.begin(async tx => {
+      await tx`SELECT id FROM assistant_action WHERE id = ${action.id} FOR UPDATE`;
+      const [row] = await tx`SELECT pg_backend_pid() AS pid`;
+      ready(Number(row?.pid));
+      await gate;
+    });
+    // Observe failures immediately, including assertion failures before release.
+    void blocker.catch(failed);
+    const pid = await locked;
+    const approvals = Promise.all([first.approve(action.id, f.owner), second.approve(action.id, f.owner)]);
+    void approvals.catch(() => {});
+    try {
+      const deadline = Date.now() + 5000;
+      let waiting = false;
+      while (Date.now() < deadline) {
+        const [row] = await db.$client`
+          WITH RECURSIVE blocked AS (
+            SELECT pid FROM pg_stat_activity WHERE ${pid} = ANY(pg_blocking_pids(pid))
+            UNION
+            SELECT activity.pid FROM pg_stat_activity activity
+            JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+          ) SELECT count(*)::int AS count FROM blocked`;
+        if (Number(row?.count) >= 2) { waiting = true; break; }
+      }
+      expect(waiting, "both claims must reach the actual blocked row lock").toBe(true);
+      f.advance(15 * 60_000);
+    } finally { release(); await blocker; await Promise.allSettled([approvals]); }
+    expect(await approvals).toMatchObject([{ status: "expired" }, { status: "expired" }]);
+    await first.approve(action.id, f.owner);
+    await first.list(f.owner);
+    expect(audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status: "expired" }]]);
+    expect(JSON.stringify(audit.mock.calls)).not.toMatch(/synthetic-fixture|payload|userId|nonce|digest|executionWitness|points/);
+    await expectNoMutation(f);
+  }, 10_000);
+
+  it.each(["rejected", "expired"] as const)("keeps committed %s visible and single-use when audit throws", async status => {
+    const f = await fixture(), action = await f.propose();
+    const audit = vi.fn(() => { throw new Error("PRIVATE_SYNTHETIC_AUDIT_FAILURE"); });
+    const service = new ManageAssistantActions(f.repository, f.useCases, f.clock, audit, f.eventing.unitOfWork);
+    if (status === "expired") f.advance(15 * 60_000);
+    const result = status === "expired" ? await service.approve(action.id, f.owner) : await service.reject(action.id, f.owner);
+    expect(result).toMatchObject({ id: action.id, status });
+    await service.reject(action.id, f.owner);
+    await service.approve(action.id, f.owner);
+    await service.list(f.owner);
+    expect(audit.mock.calls).toEqual([[{ event: "assistant_action", actionId: action.id, kind: "manual_balance", status }]]);
+    expect(JSON.stringify([result, audit.mock.calls])).not.toMatch(/PRIVATE_SYNTHETIC|synthetic-fixture|nonce|digest|executionWitness/);
+    await expectNoMutation(f);
+  });
+
 });

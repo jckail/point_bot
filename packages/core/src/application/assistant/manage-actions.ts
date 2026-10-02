@@ -39,7 +39,10 @@ export class ManageAssistantActions {
     const now = this.clock.now();
     const actions = await this.repository.listOwned(userId, 50);
     for (const action of actions) {
-      if (action.status === "pending" && action.expiresAt <= now) await this.repository.settlePending(action.id, userId, "expired", now);
+      if (action.status === "pending" && action.expiresAt <= now) {
+        const transition = await this.repository.settlePending(action.id, userId, "expired", now);
+        if (transition) this.record(transition);
+      }
     }
     return (await this.repository.listOwned(userId, 50)).map(toAssistantActionDto);
   }
@@ -83,9 +86,9 @@ export class ManageAssistantActions {
     await this.refresh(userId);
     const action = await this.owned(id, userId);
     const now = this.clock.now();
-    await this.repository.settlePending(id, userId, action.expiresAt <= now ? "expired" : "rejected", now);
+    const transition = await this.repository.settlePending(id, userId, action.expiresAt <= now ? "expired" : "rejected", now);
+    if (transition) this.record(transition);
     const stored = await this.owned(id, userId);
-    this.record(stored);
     return toAssistantActionDto(stored);
   }
 
@@ -95,11 +98,16 @@ export class ManageAssistantActions {
     const now = this.clock.now();
     if (existing.status !== "pending") return toAssistantActionDto(existing);
     if (existing.expiresAt <= now) {
-      await this.repository.settlePending(id, userId, "expired", now);
+      const transition = await this.repository.settlePending(id, userId, "expired", now);
+      if (transition) this.record(transition);
       return toAssistantActionDto(await this.owned(id, userId));
     }
-    const action = await this.repository.claim(id, userId, now);
-    if (!action) return toAssistantActionDto(await this.owned(id, userId));
+    const claim = await this.repository.claim(id, userId, now);
+    if (claim.outcome !== "claimed") {
+      if (claim.outcome === "expired") this.record(claim.transition);
+      return toAssistantActionDto(await this.owned(id, userId));
+    }
+    const action = claim.action;
     const started = performance.now();
     this.record(action);
     // Recheck ownership immediately before mutation. Proposal creation grants no future ownership.
