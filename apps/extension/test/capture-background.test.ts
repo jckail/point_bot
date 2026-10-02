@@ -46,6 +46,30 @@ it("persists exact retries over worker restart and refuses changed settings", as
   expect(calls[1]).toBe(calls[0]);
   expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
 });
+it.each(["localhost", "127.0.0.1", "[::1]"])("preserves the frozen %s origin through restart and rejects a different loopback host", async host => {
+  const { saveConfig } = await import("../src/config");
+  const origin = `http://${host}:3000`;
+  await saveConfig({ baseUrl: `${origin}/dashboard`, token: "pu_original" });
+  await deliver();
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => { throw new Error("response lost"); });
+  vi.stubGlobal("fetch", fetchMock);
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false });
+  expect(fetchMock.mock.calls[0]?.[0]).toBe(`${origin}/api/v1/agent/observations`);
+  const frozen = structuredClone(stored.captureState);
+  const firstRequest = fetchMock.mock.calls[0]?.[1]?.body;
+  await startWorker();
+  await saveConfig({ baseUrl: `http://${host === "localhost" ? "127.0.0.1" : "localhost"}:3000`, token: "pu_original" });
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("settings changed") });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(stored.captureState).toEqual(frozen);
+  await saveConfig({ baseUrl: origin, token: "pu_original" });
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const retried = fetchMock.mock.calls[1];
+  expect(retried?.[0]).toBe(`${origin}/api/v1/agent/observations`);
+  expect(retried?.[1]?.body).toBe(firstRequest);
+  expect(stored.captureState).toEqual(frozen);
+});
 it("keeps a held receipt for dashboard recovery and deliberately discards only the pending review", async () => {
   await deliver();
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ outcome: "needs_review", accountId: "a", points: 123, previousPoints: 1, message: "Held", reviewId: "review", observationId: "receipt" }))));

@@ -41,9 +41,23 @@ Recovery polish [PR #33](https://github.com/jckail/point_bot/pull/33) is merged 
 in [Deploy 37030692963](https://github.com/jckail/point_bot/actions/runs/37030692963)
 and [CodeQL 37030692749](https://github.com/jckail/point_bot/actions/runs/37030692749)
 passed with 1,694 workspace tests and one paid live skip; AWS deployment remains
-skipped. Native Chrome extension acceptance can now use the newly enabled shared
-extension tools, but this session's build was blocked by heavy-check exit 75.
-No native acceptance, provider DOM compatibility or live inference is inferred.
+skipped. The prior native build queue failure (exit 75) was followed by a successful
+wrapped build after contention cleared and bounded actual Chrome popup acceptance.
+See [native acceptance evidence](chrome-extension-acceptance.md); provider/API/model
+and worker-termination behavior remain unverified.
+
+CSV portability/cancellation [PR #34](https://github.com/jckail/point_bot/pull/34)
+is merged at `7e4a5b23cdb7d1cc6bb91c17f267f2b70fff136a`. Its six master verification
+jobs in [Deploy 37033664518](https://github.com/jckail/point_bot/actions/runs/37033664518)
+and [CodeQL 37033664139](https://github.com/jckail/point_bot/actions/runs/37033664139)
+passed with 1,707 workspace tests and one paid live skip; AWS remains skipped.
+
+**Verify local extension endpoint acceptance in Chrome.** The manifest now grants
+HTTP for exactly `localhost`, `127.0.0.1` and `[::1]`, matching accepted settings
+without changing frozen pending-capture identity. All 35 focused alignment/retry
+tests passed; the wrapped rebuild timed out in the shared verification queue
+(exit 75). Native acceptance of the new IPv6 pattern and actual loopback fetches
+remain open. Earlier synthetic fetch acceptance does not prove these network paths.
 
 ## Immediate release gates
 

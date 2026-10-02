@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Capture loyalty balances from provider pages you visit and record them in PointUp — sync without sharing credentials.",
   "permissions": ["storage"],
-  "host_permissions": ["https://*/*", "http://localhost/*"],
+  "host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*", "http://[::1]/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "PointUp" },
   "content_scripts": [

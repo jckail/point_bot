@@ -10,6 +10,14 @@ iOS remains deferred at the user's request. Concrete next actions are in
 
 ## Current evidence and release state
 
+CSV portability and cancellation fixes are merged at
+`7e4a5b23cdb7d1cc6bb91c17f267f2b70fff136a` through
+[PR #34](https://github.com/jckail/point_bot/pull/34). All six merged-source jobs
+in [Deploy 37033664518](https://github.com/jckail/point_bot/actions/runs/37033664518)
+and [CodeQL 37033664139](https://github.com/jckail/point_bot/actions/runs/37033664139)
+passed with 1,707 workspace tests and one paid live skip. AWS deployment remained
+skipped for missing deployment-role configuration.
+
 The recovery polish is merged at
 `d65b0f1dd585c1ef9a5f54dcbe4cefb5a41ae271` through
 [PR #33](https://github.com/jckail/point_bot/pull/33). All six merged-source jobs
@@ -18,12 +26,14 @@ and [CodeQL 37030692749](https://github.com/jckail/point_bot/actions/runs/370306
 passed: 1,694 workspace tests plus one paid live skip. AWS remained explicitly
 skipped for missing deployment-role configuration.
 
-Shared Chrome extension tools are now available after the coordinated restart.
-This session acknowledged idle Chrome and verified the completion marker before
-browser discovery. A native extension verification build hit the shared heavy
-queue limit (exit 75), so no extension was installed or tab opened. This is an
-unresolved verification limit, not a Chrome acceptance pass; full committed-source
-bundling evidence above remains valid.
+Shared Chrome extension tools are available after the coordinated restart. The
+prior native build attempt hit the shared queue limit (exit 75). After contention
+cleared, the wrapped build and actual Chrome action-popup acceptance passed for
+synthetic offline recovery, reopen, in-flight controls, Clear and review-tab reuse.
+Two explicit intercepted chat attempts occurred, with none from reopening/review.
+Own test storage, popup/review pages and extension were cleaned up; the existing
+tab was preserved. This does not establish provider/API/model or worker-termination
+acceptance. See [exact evidence and limits](chrome-extension-acceptance.md).
 
 The claim/identity/goal fixes below are merged at
 `e3e33b5d6a98ffe416af180c98b0b3aca909ff29` through
@@ -52,8 +62,8 @@ after a first uncertain request, preserving its support reference during
 navigation. Stalled assistant executions now emit bounded audit/metric metadata
 only for rows actually recovered to `unknown`. Root passed 17 popup, 31 assistant
 unit and four actual PostgreSQL cases, including repeated/concurrent recovery
-and telemetry failure isolation. The successor requires its own committed-source
-gate; recovery telemetry remains best effort rather than a durable audit journal.
+and telemetry failure isolation. Its merged-source gate is recorded above;
+recovery telemetry remains best effort rather than a durable audit journal.
 
 | Source | Verified evidence | Limits |
 | --- | --- | --- |
