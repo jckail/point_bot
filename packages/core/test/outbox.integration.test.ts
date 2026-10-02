@@ -114,7 +114,7 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     const again = await store.claim({ limit: 1000, now: new Date(), leaseMs: 60_000, maxAttempts: 5 });
     expect(again.find((c) => c.event.id === e.id)).toBeUndefined();
 
-    await store.markProcessed(e.id, new Date());
+    expect(await store.markProcessed(e.id, new Date(), claimed!)).toBe(true);
     const [row] = await rowsFor(userId);
     expect(row?.processedAt).toBeInstanceOf(Date);
     expect(row?.correlationId).toBe("req-42");
@@ -203,6 +203,69 @@ describe.skipIf(!url)("domain event outbox on Postgres", () => {
     expect(await store.deadLetterExhausted(2, t2)).toBeGreaterThanOrEqual(2);
     const rows = await rowsFor(userId);
     expect(rows.every((r) => r.deadLetteredAt !== null)).toBe(true);
+  });
+
+  it("rejects stale outcomes without shortening a reclaimed row's live lease", async () => {
+    const userId = user("stale-lease");
+    const start = new Date();
+    const e = ev(userId, 0, start);
+    await publisher.publish([e]);
+    const first = (await store.claim({ limit: 1000, now: start, leaseMs: 1000, maxAttempts: 8 }))
+      .find(item => item.event.id === e.id)!;
+    const reclaimedAt = new Date(start.getTime() + 1000);
+    const current = (await store.claim({ limit: 1000, now: reclaimedAt, leaseMs: 60_000, maxAttempts: 8 }))
+      .find(item => item.event.id === e.id)!;
+    expect([first.attempts, current.attempts]).toEqual([1, 2]);
+    const [before] = await rowsFor(userId);
+    expect(await store.scheduleRetry(e.id, new Date(reclaimedAt.getTime() + 5000), "stale retry", first)).toBe(false);
+    expect(await store.markProcessed(e.id, reclaimedAt, first)).toBe(false);
+    expect(await store.deadLetter(e.id, reclaimedAt, "stale dead letter", first)).toBe(false);
+    expect(await rowsFor(userId)).toEqual([before]);
+    expect((await store.claim({ limit: 1000, now: new Date(reclaimedAt.getTime() + 5000), leaseMs: 60_000, maxAttempts: 8 }))
+      .some(item => item.event.id === e.id)).toBe(false);
+    expect(await store.markProcessed(e.id, reclaimedAt, current)).toBe(true);
+    expect((await rowsFor(userId))[0]).toMatchObject({ attempts: 2, processedAt: reclaimedAt, lastError: null });
+  });
+
+  it("keeps a dead letter terminal even when its matching claimant finishes later", async () => {
+    const userId = user("terminal-claim");
+    const start = new Date();
+    const e = ev(userId, 0, start);
+    await publisher.publish([e]);
+    const claim = (await store.claim({ limit: 1000, now: start, leaseMs: 1000, maxAttempts: 1 }))
+      .find(item => item.event.id === e.id)!;
+    const later = new Date(start.getTime() + 1000);
+    expect(await store.deadLetterExhausted(1, later)).toBeGreaterThanOrEqual(1);
+    const [before] = await rowsFor(userId);
+    expect(before?.deadLetteredAt).toEqual(later);
+    expect(await store.markProcessed(e.id, later, claim)).toBe(false);
+    expect(await store.scheduleRetry(e.id, later, "late failure", claim)).toBe(false);
+    expect(await store.deadLetter(e.id, later, "replace reason", claim)).toBe(false);
+    expect(await rowsFor(userId)).toEqual([before]);
+  });
+
+  it("fences the old generation after manual replay reuses its attempt number", async () => {
+    const userId = user("replay-generation");
+    const start = new Date();
+    const e = ev(userId, 0, start);
+    await publisher.publish([e]);
+    const first = (await store.claim({ limit: 1000, now: start, leaseMs: 1000, maxAttempts: 1 }))
+      .find(item => item.event.id === e.id)!;
+    const replayAt = new Date(start.getTime() + 2000);
+    await store.deadLetterExhausted(1, replayAt);
+    // Replay only this test-owned row, following the existing documented procedure.
+    await db.update(domainEventOutbox).set({ attempts: 0, deadLetteredAt: null, availableAt: replayAt })
+      .where(eq(domainEventOutbox.id, e.id));
+    const current = (await store.claim({ limit: 1000, now: replayAt, leaseMs: 60_000, maxAttempts: 1 }))
+      .find(item => item.event.id === e.id)!;
+    expect(current.attempts).toBe(first.attempts);
+    expect(current.leaseUntil).not.toEqual(first.leaseUntil);
+    const [before] = await rowsFor(userId);
+    expect(await store.deadLetter(e.id, replayAt, "stale failure", first)).toBe(false);
+    expect(await store.scheduleRetry(e.id, replayAt, "stale retry", first)).toBe(false);
+    expect(await store.markProcessed(e.id, replayAt, first)).toBe(false);
+    expect(await rowsFor(userId)).toEqual([before]);
+    expect(await store.markProcessed(e.id, replayAt, current)).toBe(true);
   });
 
   it("concurrent workers never process an event twice", async () => {

@@ -2,6 +2,13 @@
 
 Status: implemented candidate in the integration branch, pending committed-head CI and actual AWS verification. This document describes source behavior, not a production deployment. Root owns release operations and aggregate checks; agents own bounded helper, infrastructure, migration and review changes. Independent findings and remaining limits are recorded in [production rollout review](production-rollout-review.md).
 
+The current source has passed merged-master release verification through PR #31,
+but AWS activation was skipped for missing role configuration. A fresh public
+homepage GET on 2026-10-02 returned HTTP 200 HTML without Next.js asset markers.
+That response establishes public reachability, not adoption of this Next.js source,
+its hosting account, database lineage or a compatible rollout target. Establish
+the actual serving stack and data ownership during the environment inventory below.
+
 The protected workflow runs complete reusable CI, publishes candidate assets, verifies an immutable candidate migration task and its managed journal, then activates candidate services and schedules. Verification-only dispatch and missing deployment-role configuration skip AWS. See [workflow](../.github/workflows/deploy.yml), [helper](../scripts/deployment/rollout.mjs), [CDK configuration](../infra/lib/rollout-config.ts) and [migration gate](../packages/core/src/infrastructure/db/migrations.ts).
 
 ## Existing stack

@@ -454,6 +454,12 @@ function toTripGoal(row: TripGoalRow): TripGoal {
 export class DrizzleTripGoalRepository implements TripGoalRepository {
   constructor(private readonly db: Database) {}
 
+  async lockById(id: TripGoalId): Promise<TripGoal | null> {
+    const [row] = await this.db.select({ id: tripGoals.id }).from(tripGoals)
+      .where(eq(tripGoals.id, id)).for("update");
+    return row ? this.findById(id) : null;
+  }
+
   async findById(id: TripGoalId): Promise<TripGoal | null> {
     const row = await this.db.query.tripGoals.findFirst({
       where: eq(tripGoals.id, id),
@@ -490,7 +496,7 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
     });
   }
 
-  async update(goal: TripGoal): Promise<void> {
+  async update(goal: TripGoal, options?: { readonly replaceAccountIds?: boolean }): Promise<void> {
     safeIntegerFromDatabase(goal.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError());
     if (!TRIP_GOAL_STATUSES.includes(goal.status)) throw new Error("Goal status is invalid");
     await this.db.transaction(async (tx) => {
@@ -507,7 +513,9 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
         .where(and(eq(tripGoals.id, goal.id), eq(tripGoals.userId, goal.userId)))
         .returning({ id: tripGoals.id });
       if (changed.length !== 1) throw new TripGoalNotFoundError(goal.id);
-      await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
+      if (options?.replaceAccountIds !== false) {
+        await replaceGoalAccounts(tx, goal.id, goal.userId, goal.accountIds);
+      }
     });
   }
 

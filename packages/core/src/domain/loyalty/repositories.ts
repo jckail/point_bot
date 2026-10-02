@@ -76,10 +76,12 @@ export interface ActivityEventRepository {
 }
 
 export interface TripGoalRepository {
+  /** Row serialization inside an ambient mutation unit of work. */
+  lockById?(id: TripGoalId): Promise<TripGoal | null>;
   findById(id: TripGoalId): Promise<TripGoal | null>;
   findByUserId(userId: UserId): Promise<TripGoal[]>;
   insert(goal: TripGoal): Promise<void>;
-  update(goal: TripGoal): Promise<void>;
+  update(goal: TripGoal, options?: { readonly replaceAccountIds?: boolean }): Promise<void>;
   delete(id: TripGoalId): Promise<void>;
 }
 

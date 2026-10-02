@@ -1,4 +1,10 @@
-# Codebase review (October 2026)
+# Initial codebase review (October 2026 snapshot)
+
+This records the initial `4ebba1f` review and its original verification scope.
+For the current merged source, subsequent audits, passing builds and outstanding
+production/live-integration gates, use [integration status](integration-status.md)
+and the [release backlog](release-backlog.md). Historical “not verified” notes
+below describe that initial review; they do not override later evidence.
 
 Scope: whole repository at `4ebba1f`. Baseline: lint clean, typecheck clean, 141
 tests green before changes.

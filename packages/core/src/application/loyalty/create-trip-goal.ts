@@ -10,7 +10,7 @@ import {
   createTripGoal,
   type TripGoal,
 } from "../../domain/loyalty/trip-goal";
-import { LoyaltyAccountNotFoundError } from "../../domain/errors";
+import { lockGoalAccountReferences } from "./goal-account-references";
 import type { Clock } from "../ports";
 import { systemClock } from "../ports";
 
@@ -38,19 +38,6 @@ export interface TripGoalReadModel {
   readonly achieved: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
-}
-
-async function assertOwnedAccounts(
-  accounts: LoyaltyAccountRepository,
-  userId: UserId,
-  accountIds: readonly LoyaltyAccountId[],
-): Promise<void> {
-  for (const accountId of accountIds) {
-    const account = await accounts.findById(accountId);
-    if (!account || account.userId !== userId) {
-      throw new LoyaltyAccountNotFoundError(accountId);
-    }
-  }
 }
 
 async function toReadModel(
@@ -92,7 +79,6 @@ export class CreateTripGoal {
 
   async execute(input: CreateTripGoalInput): Promise<TripGoalReadModel> {
     const accountIds = input.accountIds ?? [];
-    await assertOwnedAccounts(this.accounts, input.userId, accountIds);
 
     const goal = createTripGoal({
       userId: input.userId,
@@ -105,6 +91,7 @@ export class CreateTripGoal {
     });
 
     await this.eventing.unitOfWork.run(async () => {
+      await lockGoalAccountReferences(this.accounts, input.userId, goal.accountIds, this.eventing);
       await this.goals.insert(goal);
       await this.eventing.publisher.publish([
         createDomainEvent("goal.created", {

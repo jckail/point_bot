@@ -91,6 +91,12 @@ link/record use cases they call.
   while handlers run. If a worker dies, the row reappears when the lease lapses.
 - **Retry.** On handler failure the row gets `available_at = now + base * 2^(attempts-1)`
   (base 5s, cap 1h) and `last_error`.
+- **Outcome ownership.** Claim returns the attempt number and exact lease deadline.
+  Processing, retry and dead-letter writes require both values to match the current
+  nonterminal row. A late worker cannot shorten a newer lease, finalize its claim
+  or overwrite a terminal outcome. Rejected writes contribute no processed/retry/
+  dead-letter count or hook. This fences bookkeeping; it does not undo a handler's
+  external side effect or replace idempotency.
 - **Dead letter.** After `OUTBOX_MAX_ATTEMPTS` (default 8) the row is parked
   with `dead_lettered_at` and its `last_error`, and is never claimed again. Rows
   that exhaust attempts by crashing are parked on the next run. Parked rows stay
@@ -99,7 +105,8 @@ link/record use cases they call.
   `onDeadLetter` callback (and `onBatch`) as the metrics hook;
   `DrizzleOutboxStore.countDeadLettered()` supports a gauge.
 - Events with no registered handler are marked processed.
-- Processed rows are not deleted yet (see leftovers).
+- Processed rows are removed by the bounded [retention job](#retention-purge-job).
+  Pending/dead-letter rows retain the separate inspection/replay policy below.
 
 ```mermaid
 sequenceDiagram

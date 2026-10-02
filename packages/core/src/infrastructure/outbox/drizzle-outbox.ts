@@ -5,6 +5,7 @@ import { and, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import type {
   ClaimedEvent,
   ClaimOptions,
+  OutboxClaim,
   OutboxStore,
 } from "../../application/events/outbox";
 import type {
@@ -101,7 +102,7 @@ function toClaimed(row: OutboxRow): ClaimedEvent {
     payload: row.payload,
     ...(row.correlationId ? { correlationId: row.correlationId } : {}),
   } as DomainEvent;
-  return { event, attempts: row.attempts };
+  return { event, attempts: row.attempts, leaseUntil: row.availableAt };
 }
 
 const iso = (date: Date) => date.toISOString();
@@ -154,28 +155,37 @@ export class DrizzleOutboxStore implements OutboxStore {
       );
   }
 
-  async markProcessed(id: EventId, now: Date): Promise<void> {
-    await this.db.execute(sql`
+  async markProcessed(id: EventId, now: Date, claim: OutboxClaim): Promise<boolean> {
+    const rows = await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET processed_at = ${iso(now)}::timestamptz, last_error = NULL
-      WHERE id = ${id} AND processed_at IS NULL
+      WHERE id = ${id} AND processed_at IS NULL AND dead_lettered_at IS NULL
+        AND attempts = ${claim.attempts} AND available_at = ${iso(claim.leaseUntil)}::timestamptz
+      RETURNING id
     `);
+    return rows.length > 0;
   }
 
-  async scheduleRetry(id: EventId, retryAt: Date, error: string): Promise<void> {
-    await this.db.execute(sql`
+  async scheduleRetry(id: EventId, retryAt: Date, error: string, claim: OutboxClaim): Promise<boolean> {
+    const rows = await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET available_at = ${iso(retryAt)}::timestamptz, last_error = ${error}
-      WHERE id = ${id} AND processed_at IS NULL
+      WHERE id = ${id} AND processed_at IS NULL AND dead_lettered_at IS NULL
+        AND attempts = ${claim.attempts} AND available_at = ${iso(claim.leaseUntil)}::timestamptz
+      RETURNING id
     `);
+    return rows.length > 0;
   }
 
-  async deadLetter(id: EventId, now: Date, error: string): Promise<void> {
-    await this.db.execute(sql`
+  async deadLetter(id: EventId, now: Date, error: string, claim: OutboxClaim): Promise<boolean> {
+    const rows = await this.db.execute(sql`
       UPDATE domain_event_outbox
       SET dead_lettered_at = ${iso(now)}::timestamptz, last_error = ${error}
-      WHERE id = ${id} AND processed_at IS NULL
+      WHERE id = ${id} AND processed_at IS NULL AND dead_lettered_at IS NULL
+        AND attempts = ${claim.attempts} AND available_at = ${iso(claim.leaseUntil)}::timestamptz
+      RETURNING id
     `);
+    return rows.length > 0;
   }
 
   async deadLetterExhausted(maxAttempts: number, now: Date): Promise<number> {
@@ -201,4 +211,3 @@ export class DrizzleOutboxStore implements OutboxStore {
     return rows[0]?.n ?? 0;
   }
 }
-

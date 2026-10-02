@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { getContainer } from "@/server/container";
+import { manualCaptureDate } from "@/lib/manual-capture-date";
 
 /**
  * Server actions used by the web dashboard. Like the API route handlers,
@@ -101,12 +102,10 @@ export async function recordManualBalanceAction(
   const accountId = String(formData.get("accountId") ?? "");
   const points = Number(formData.get("points") ?? Number.NaN);
 
-  // Optional backfill date from an <input type="date">; anchor to midday UTC
-  // so the calendar day survives timezone conversion.
-  const capturedOn = String(formData.get("capturedOn") ?? "");
-  const capturedAt = capturedOn
-    ? new Date(`${capturedOn}T12:00:00.000Z`)
-    : undefined;
+  // Historical calendar dates use noon UTC; today's date must not invent
+  // a future instant before noon. The core still enforces capture-time safety.
+  const capturedAt = manualCaptureDate(String(formData.get("capturedOn") ?? ""));
+  if (capturedAt === null) return { status: "error", message: "Choose a valid UTC date that is not in the future." };
 
   const result = await toActionResult(async () => {
     await getContainer().useCases.recordManualBalance.execute({

@@ -6,7 +6,7 @@ import { systemClock } from "../ports";
 import type { ClaimedEvent, OutboxStore } from "./outbox";
 
 /** Result of delivering one claimed event. */
-export const DISPATCH_OUTCOMES = ["processed", "retried", "dead"] as const;
+export const DISPATCH_OUTCOMES = ["processed", "retried", "dead", "stale"] as const;
 export type DispatchOutcome = (typeof DISPATCH_OUTCOMES)[number];
 
 /**
@@ -122,7 +122,7 @@ export class OutboxProcessor {
       const outcome = await this.dispatch(item);
       if (outcome === "processed") processed += 1;
       else if (outcome === "retried") retried += 1;
-      else deadLettered += 1;
+      else if (outcome === "dead") deadLettered += 1;
     }
 
     const result = { claimed: claimed.length, processed, retried, deadLettered };
@@ -152,13 +152,13 @@ export class OutboxProcessor {
       for (const handler of this.registry.handlersFor(event.type)) {
         await handler.handle(event);
       }
-      await this.store.markProcessed(event.id, this.clock.now());
-      return "processed";
+      return await this.store.markProcessed(event.id, this.clock.now(), item)
+        ? "processed" : "stale";
     } catch {
       const message = failureReference();
       const now = this.clock.now();
       if (attempts >= this.maxAttempts) {
-        await this.store.deadLetter(event.id, now, message);
+        if (!await this.store.deadLetter(event.id, now, message, item)) return "stale";
         this.options.onDeadLetter?.({ event, attempts, error: message });
         return "dead";
       }
@@ -167,12 +167,13 @@ export class OutboxProcessor {
         this.options.baseBackoffMs,
         this.options.maxBackoffMs,
       );
-      await this.store.scheduleRetry(
+      const applied = await this.store.scheduleRetry(
         event.id,
         new Date(now.getTime() + delay),
         message,
+        item,
       );
-      return "retried";
+      return applied ? "retried" : "stale";
     }
   }
 }

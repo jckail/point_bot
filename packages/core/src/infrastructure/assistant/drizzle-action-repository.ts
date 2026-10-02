@@ -3,16 +3,22 @@ import { systemClock, type Clock } from "../../application/ports";
 import { and, desc, eq, gt, lte } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { assistantActions } from "../db/schema";
-import { assistantProposalSchema, assistantActionStatusSchema, type AssistantAction, type AssistantActionRepository } from "../../domain/assistant/actions";
+import { assistantProposalSchema, assistantActionStatusSchema, manualBalanceAccountWitnessSchema, type AssistantAction, type AssistantActionRepository } from "../../domain/assistant/actions";
 
 function fromRow(row: typeof assistantActions.$inferSelect): AssistantAction {
-  const proposal = assistantProposalSchema.parse({ kind: row.kind, payload: row.payload });
-  return { ...proposal, id: row.id, userId: UserId.parse(row.userId), status: assistantActionStatusSchema.parse(row.status), createdAt: row.createdAt, updatedAt: row.updatedAt, expiresAt: row.expiresAt, result: row.result, failureCode: row.failureCode };
+  const { __pointupExecutionWitness, ...payload } = row.payload;
+  const proposal = assistantProposalSchema.parse({ kind: row.kind, payload });
+  const witness = manualBalanceAccountWitnessSchema.safeParse(__pointupExecutionWitness);
+  return { ...proposal, executionWitness: proposal.kind === "manual_balance" && witness.success ? witness.data : null, id: row.id, userId: UserId.parse(row.userId), status: assistantActionStatusSchema.parse(row.status), createdAt: row.createdAt, updatedAt: row.updatedAt, expiresAt: row.expiresAt, result: row.result, failureCode: row.failureCode };
 }
 export class DrizzleAssistantActionRepository implements AssistantActionRepository {
   constructor(private readonly db: Database, private readonly clock: Clock = systemClock) {}
   async insert(action: AssistantAction) {
-    const rows = await this.db.insert(assistantActions).values(action).onConflictDoNothing().returning();
+    const { executionWitness, ...record } = action;
+    const payload = action.kind === "manual_balance" && executionWitness
+      ? { ...action.payload, __pointupExecutionWitness: manualBalanceAccountWitnessSchema.parse(executionWitness) }
+      : action.payload;
+    const rows = await this.db.insert(assistantActions).values({ ...record, payload }).onConflictDoNothing().returning();
     if (rows[0]) return fromRow(rows[0]);
     const stored = await this.findOwned(action.id, action.userId);
     if (!stored) throw new Error("Assistant action insertion failed");
