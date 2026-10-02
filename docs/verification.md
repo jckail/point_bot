@@ -6,6 +6,22 @@ requirements.
 
 Current source at `326b2e50e1523bbeb4e97594ff250d6845dfbdee` passed all four jobs in [GitHub Actions run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868). Infrastructure also passed eight contract tests (including eleven Python migration lifecycle cases), typechecking and CDK synthesis. Production deployment and rendered authenticated flows remain unverified.
 
+## Follow-up trace privacy and evaluation readiness
+
+After the successful CI checkpoint, real SDK response-model tests found provider
+exception text/data retained in error spans even with sensitive-data tracing
+disabled. The follow-up installs a once-per-provider exporter processor that
+sanitizes cloned span errors before export, preserving safe identifiers, timing
+and usage. Mocked HTTP 400 and concurrent production-bootstrap tests inspect
+actual ingestion payloads without network or live inference. Evaluation reports
+also check actual SDK readiness; only the opted-in live harness enables tracing
+under Vitest, and both SDK kill-switch values (`1`/`true`) remain honored.
+
+Focused SDK/privacy checks passed 15 tests; evaluation checks passed 18 tests with
+one live test skipped. Web TypeScript and affected-file lint passed on the exact
+source mirror. Aggregate CI below belongs to `326b2e5` and predates this follow-up;
+the new commit needs its own CI result. Live exporter delivery remains unverified.
+
 ## Automated evidence
 
 | Check | Result |

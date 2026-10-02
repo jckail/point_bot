@@ -8,6 +8,7 @@ import type { AssistantConfig } from "./config";
 import { createPortfolioTools } from "./tools";
 import { withinDeadline } from "./deadline";
 import { observedUsage } from "./usage";
+import { initializePrivateTracing } from "./private-tracing";
 
 export type AgentUseCases = Pick<Container["useCases"], "getPortfolioSummary" | "listLoyaltyAccounts" | "listTripGoals" | "getValueAdvice" | "chatWithAssistant">;
 export type Observation = {
@@ -69,6 +70,9 @@ export async function runPortfolioAssistant(input: {
       signal.throwIfAborted();
       reply = legacy.reply;
     } else {
+      // Controlled injected models own their in-process test processors. Live
+      // web, extension and evaluation runs install the safe exporter once.
+      if (input.config.tracing && !input.model) initializePrivateTracing();
       const agent = new Agent({ name: "PointUp portfolio assistant", instructions, model: input.model ?? input.config.model, tools: createPortfolioTools(input.useCases, input.userId, signal, emit, input.actions ? { service: input.actions, requestId, onProposed: action => { if (!proposals.some(existing => existing.id === action.id)) proposals.push(action); } } : undefined), modelSettings: { maxTokens: 1200, store: false } });
       const runner = new Runner({
         modelProvider: input.model ? undefined : new OpenAIProvider({ apiKey: input.config.apiKey, useResponses: true }),

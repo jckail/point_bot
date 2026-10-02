@@ -11,8 +11,13 @@ Enable `ASSISTANT_RUNTIME=agents`, configure server-only `OPENAI_API_KEY`, and s
 an explicit `ASSISTANT_MODEL` that your OpenAI project can access. Inference and
 trace export can incur charges. `ASSISTANT_TRACING_ENABLED=true` opts into SDK
 model, tool, task and turn spans. Sensitive span data stays disabled and model
-response storage is disabled. `OPENAI_AGENTS_DISABLE_TRACING=1` disables SDK export
-globally. Request IDs correlate replies and lifecycle logs; trace IDs identify
+response storage is disabled. `OPENAI_AGENTS_DISABLE_TRACING=1` or `true` disables
+SDK export globally. A process-initialized wrapper replaces the default exporter
+processor and sanitizes cloned span errors before export. This also covers the
+installed SDK response model, whose provider exceptions can otherwise survive
+the sensitive-data setting. The wrapper preserves identifiers, timing, usage and
+safe span metadata; error messages/data become a fixed category. Synthetic tests
+exercise thrown provider errors and mocked HTTP 400 responses without live calls. Request IDs correlate replies and lifecycle logs; trace IDs identify
 requested traces and do not confirm that export succeeded.
 
 This ECS application runs as a persistent process, letting the SDK's batch

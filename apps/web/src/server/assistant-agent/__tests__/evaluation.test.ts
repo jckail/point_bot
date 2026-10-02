@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { Usage, type Model, type ModelRequest, type AgentOutputItem } from "@openai/agents";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Usage, getGlobalTraceProvider, setTracingDisabled, type Model, type ModelRequest, type AgentOutputItem } from "@openai/agents";
 import { runPortfolioAssistant, type Observation } from "../index";
 import { assistantConfig } from "../config";
 import { evaluationCases } from "../evaluation/cases";
 import { createEvaluationFixture, privateCanaries, syntheticOwner } from "../evaluation/fixture";
-import { flushEvaluationTraces, runEvaluationCase, runEvaluationSuite, scoreEvaluation } from "../evaluation/run";
+import { enableLiveEvaluationTracing, evaluationTracingEnabled, flushEvaluationTraces, runEvaluationCase, runEvaluationSuite, scoreEvaluation } from "../evaluation/run";
 
 const config = assistantConfig({ ASSISTANT_RUNTIME: "agents", ASSISTANT_MODEL: "injected", OPENAI_API_KEY: "no-network" });
 const text = (reply: string): AgentOutputItem => ({ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: reply }] });
@@ -142,5 +142,49 @@ describe("synthetic portfolio evaluation contracts", () => {
     expect(report.results).toHaveLength(1);
     expect(JSON.stringify(report)).not.toContain(evaluationCases[0]!.message);
     expect(sdk.requests).toHaveLength(2);
+  });
+});
+
+describe("evaluation tracing readiness", () => {
+  beforeEach(() => {
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", "0");
+    setTracingDisabled(true);
+  });
+  afterEach(() => { setTracingDisabled(true); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+  it("reads the actual disabled SDK state in tests rather than assuming trace intent enables it", () => {
+    expect(process.env.NODE_ENV).toBe("test");
+    expect(evaluationTracingEnabled()).toBe(false);
+    setTracingDisabled(false);
+    expect(evaluationTracingEnabled()).toBe(true);
+    setTracingDisabled(true);
+    expect(evaluationTracingEnabled()).toBe(false);
+  });
+  it("explicit live opt-in enables test-default tracing without starting or exporting a probe", () => {
+    const flush = vi.spyOn(getGlobalTraceProvider(), "forceFlush");
+    const dispatch = vi.spyOn(getGlobalTraceProvider(), "dispatchTrace");
+    expect(enableLiveEvaluationTracing(false)).toBe(false);
+    expect(evaluationTracingEnabled()).toBe(false);
+    expect(enableLiveEvaluationTracing(true)).toBe(true);
+    expect(flush).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+  it.each(["1", "true"])("preserves the SDK kill switch %s even when its provider was enabled", flag => {
+    setTracingDisabled(false);
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", flag);
+    expect(enableLiveEvaluationTracing(true)).toBe(false);
+    expect(evaluationTracingEnabled()).toBe(false);
+  });
+  it.each(["0", "false"])("honors the SDK non-disabling flag %s for explicit live opt-in", flag => {
+    vi.stubEnv("OPENAI_AGENTS_DISABLE_TRACING", flag);
+    expect(enableLiveEvaluationTracing(true)).toBe(true);
+  });
+  it("keeps injected suites untraced despite requested tracing and an enabled provider", async () => {
+    enableLiveEvaluationTracing(true);
+    const flush = vi.spyOn(getGlobalTraceProvider(), "forceFlush");
+    const sdk = script([[call("portfolio_summary")], [text("Estimated 90,000 points worth $1,170.")]]);
+    const report = await runEvaluationSuite({ modelName: "injected", model: sdk.model, tracing: true, caseIds: ["portfolio-grounding"] });
+    expect(report).toMatchObject({ passed: true, tracingRequested: true, tracingEffective: false, traceFlush: "not_requested", traceDeliveryVerified: false });
+    expect(flush).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,8 @@
 
 Native work was committed and pushed as `326b2e5` on `codex/pointup-overhaul-20261001`, with [draft PR #15](https://github.com/jckail/point_bot/pull/15). All four jobs in [CI run 36966931868](https://github.com/jckail/point_bot/actions/runs/36966931868) passed: 358 unit tests, 47 PostgreSQL tests, application bundles, eight infrastructure contracts, typechecks and synthesis. PR #15 has not been merged or deployed. The local portfolio fixture is stopped, with its data retained.
 
+A follow-up privacy/evaluation change sanitizes SDK response-span provider errors before export and checks actual evaluation tracing readiness. Focused SDK/privacy checks passed 15 tests, evaluations 18 tests (one live skip), web TypeScript and affected lint. The aggregate CI evidence above predates this follow-up; observe its own CI before release.
+
 The active native repository is `/home/jkail/projects/point_bot`; its Linux validation mirror is `/tmp/pointup-verification`. Native HEAD and the inspected `origin/master` are `4ebba1f2b07895017f2ab9fe1a8a50b505ddaed0`, with substantial uncommitted overhaul work. PR [#14](https://github.com/jckail/point_bot/pull/14), branch `origin/claude/charming-cannon-d6xxhc`, was inspected at `e04725fd01df49ce02ac3e0b14f4da96640ded41`. These references must be refreshed before release integration; this document records the inspected state, not a completed merge or deployment.
 
 PR #14 and native implement overlapping agent features independently. Preserve PR #14's contributions. Do not replace its tree with the native snapshot or merge their migration histories blindly.

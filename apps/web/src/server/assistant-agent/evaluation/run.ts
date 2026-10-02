@@ -1,8 +1,22 @@
-import { getGlobalTraceProvider, type Model } from "@openai/agents";
+import { getGlobalTraceProvider, setTracingDisabled, type Model } from "@openai/agents";
 import { runPortfolioAssistant, type Observation } from "../index";
 import { assistantConfig } from "../config";
 import { evaluationCases, type EvaluationCase } from "./cases";
 import { createEvaluationFixture, privateCanaries, syntheticOwner } from "./fixture";
+import { isTracingKillSwitchEnabled } from "../private-tracing";
+
+/** Read actual SDK state without starting a trace or invoking export processors. */
+export function evaluationTracingEnabled(): boolean {
+  return !isTracingKillSwitchEnabled()
+    && getGlobalTraceProvider().createTrace({ name: "PointUp evaluation readiness", started: false }).toJSON() !== null;
+}
+
+/** Only the explicitly opted-in live CLI harness may override the SDK test default. */
+export function enableLiveEvaluationTracing(requested: boolean): boolean {
+  if (!requested || isTracingKillSwitchEnabled()) return false;
+  setTracingDisabled(false);
+  return evaluationTracingEnabled();
+}
 
 type Check = { name: string; passed: boolean };
 export interface EvaluationResult {
@@ -40,12 +54,13 @@ export function scoreEvaluation(testCase: EvaluationCase, reply: string, fixture
 export async function runEvaluationCase(testCase: EvaluationCase, options: { modelName: string; apiKey?: string; model?: Model; tracing?: boolean; timeoutMs?: number }): Promise<EvaluationResult> {
   if (!options.modelName.trim() || (!options.model && !options.apiKey?.trim())) throw new Error("Evaluation requires an explicit model and API key or an injected model.");
   const fixture = createEvaluationFixture(testCase);
+  const tracing = options.tracing === true && !options.model && evaluationTracingEnabled();
   const events: Observation[] = [];
   const started = performance.now();
   let checks: Check[] = [];
   let status: EvaluationResult["status"] = "unavailable";
   try {
-    const result = await runPortfolioAssistant({ userId: syntheticOwner, body: { message: testCase.message }, useCases: fixture.useCases, actions: testCase.proposalAuthority ? fixture.actions : undefined, model: options.model, config: assistantConfig({ ASSISTANT_RUNTIME: "agents", ASSISTANT_MODEL: options.modelName, OPENAI_API_KEY: options.apiKey ?? "injected-no-network", ASSISTANT_TRACING_ENABLED: options.tracing ? "true" : "false", ASSISTANT_TIMEOUT_MS: options.timeoutMs ?? 30000, ASSISTANT_MAX_TURNS: 5 }), observe: event => events.push(event) });
+    const result = await runPortfolioAssistant({ userId: syntheticOwner, body: { message: testCase.message }, useCases: fixture.useCases, actions: testCase.proposalAuthority ? fixture.actions : undefined, model: options.model, config: assistantConfig({ ASSISTANT_RUNTIME: "agents", ASSISTANT_MODEL: options.modelName, OPENAI_API_KEY: options.apiKey ?? "injected-no-network", ASSISTANT_TRACING_ENABLED: tracing ? "true" : "false", ASSISTANT_TIMEOUT_MS: options.timeoutMs ?? 30000, ASSISTANT_MAX_TURNS: 5 }), observe: event => events.push(event) });
     checks = scoreEvaluation(testCase, result.reply, fixture, events);
     status = checks.every(check => check.passed) ? "passed" : "failed";
   } catch {
@@ -72,10 +87,11 @@ export async function runEvaluationSuite(options: { modelName: string; apiKey?: 
   const cases = options.caseIds ? evaluationCases.filter(testCase => options.caseIds?.includes(testCase.id)) : evaluationCases;
   if (!cases.length || options.caseIds?.some(id => !evaluationCases.some(testCase => testCase.id === id))) throw new Error("Unknown evaluation case.");
   const results: EvaluationResult[] = [];
-  // Sequential requests bound concurrency, tools, and the maximum number of paid model turns.
-  for (const testCase of cases) results.push(await runEvaluationCase(testCase, options));
   const tracingRequested = options.tracing === true;
-  const tracingEffective = tracingRequested && process.env.OPENAI_AGENTS_DISABLE_TRACING !== "1";
+  // Injected test models never export, even when trace intent is being tested.
+  const tracingEffective = tracingRequested && !options.model && evaluationTracingEnabled();
+  // Sequential requests bound concurrency, tools, and the maximum number of paid model turns.
+  for (const testCase of cases) results.push(await runEvaluationCase(testCase, { ...options, tracing: tracingEffective }));
   const traceFlush = tracingEffective ? await flushEvaluationTraces() : "not_requested";
   return { schemaVersion: 1, datasetVersion: "synthetic-portfolio-v1", mode: options.model ? "injected" : "live", model: options.modelName, semanticReviewRequired: true, tracingRequested, tracingEffective, traceFlush, traceDeliveryVerified: false, results, passed: results.every(result => result.status === "passed") };
 }

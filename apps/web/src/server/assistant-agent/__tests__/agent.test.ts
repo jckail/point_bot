@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Usage, setTraceProcessors, setTracingDisabled, type TracingProcessor, type Model, type ModelRequest, type ModelResponse, type AgentOutputItem } from "@openai/agents";
 import { runPortfolioAssistant, type AgentUseCases, type Observation } from "../index";
 import { assistantConfig } from "../config";
+import { privateTracingProcessor } from "../private-tracing";
 
 const config = assistantConfig({ ASSISTANT_RUNTIME: "agents", OPENAI_API_KEY: "test-only-no-network", ASSISTANT_MODEL: "injected-test-model" });
 function fixture() {
@@ -90,7 +91,7 @@ describe("OpenAI Agents portfolio runtime", () => {
       async forceFlush() {},
     };
     // Replace the exporter for this isolated test worker: no outbound telemetry.
-    setTraceProcessors([processor]);
+    setTraceProcessors([privateTracingProcessor(processor)]);
     setTracingDisabled(false);
     try {
       const result = await runPortfolioAssistant({ userId: "private-user", body: { message: "private-message" }, useCases: f.useCases as unknown as AgentUseCases, config: { ...config, tracing: true }, model, observe: f.observe, requestId: "trace-test-request", source: "extension" });
