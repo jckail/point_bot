@@ -345,3 +345,33 @@ ChatGPT sign-in, live assistant/exporter/provider/extension checks, remaining ca
 deal/rate integrity, public OAuth MCP/plugin onboarding and provider partnerships.
 iOS remains deferred. Original active overhaul goal and other preserved branches
 remain; this candidate is not a completed goal or production deployment.
+
+## Verified numeric/frontend release checkpoint6b424f6
+
+Exact runtime6b424f64a94d89d6355dd851af7e1e74c59517b0 passes all six
+[CI36986531693](https://github.com/jckail/point_bot/actions/runs/36986531693)
+jobs and [CodeQL36986531747](https://github.com/jckail/point_bot/actions/runs/36986531747).
+CI confirms943 workspace tests (one paid live evaluation skipped), managed migration20,
+lint/types/hygiene, all five bundles, infrastructure checks, plugin/Action contracts,
+HTTP MCP and Docker direct/PgBouncer smoke. Application production audit reports
+zero vulnerabilities; infrastructure/development advisories remain tracked separately.
+The local aggregate exit75 is retained as an accurate resource result; fresh CI
+provides authoritative aggregate evidence for this committed source.
+
+Root-owned PostgreSQL fixture pointup-sdk-pg-root-20261002 is stopped with data
+retained. Shared whole-corpus Graphify refresh completed164478nodes; PointUp code
+coverage remains absent. Agent Hub checkpoint was refused because the worktree
+has no configured memory scope; curated repository docs carry continuity. A fresh
+AWS identity check still requires aws login; GitHub deployment secret list is empty.
+No production deployment, legacy repair/constraint validation, branch merge or
+approved-client/live provider/model/exporter verification occurred.
+
+Next active ownership: SDK agent owns deploy workflow and candidate migration
+helper/offline tests; migration agent owns CDK inactive bootstrap/TLS/DB-only migration
+task configuration; assistant agent owns baked migration manifest/journal attestation;
+release-review agent independently audits rollout. Root owns pinned cdk-assets
+dependency/lock, aggregate checks, actualPG/AWS/release and integration. Source plans
+are production-rollout-plan.md; preserve constructidentities and enforce migration
+BEFORE host/schedule activation. These next changes are not included in6b424f6 evidence.
+Standalone ChatGPT sign-in, live extension/assistant/tracing, remaining rate/deal/cash
+integrity and provider/developer onboarding remain open in the original active goal.
