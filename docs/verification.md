@@ -110,6 +110,7 @@ with the checked-in lockfiles; no existing cache was cleared.
 Agent Hub does not currently map the actual `point_bot` repository to a memory
 scope. Its checkpoint command declined the write; these repository documents are
 the local verified handoff. No remote memory was uploaded. The shared Graphify
-query lacked PointUp source coverage. A shared refresh was requested and remains
-queued/running behind the shared refresh lock; do not replace the corpus with a
-PointUp-only graph or claim it has indexed this repository.
+query lacked PointUp source coverage. The shared refresh completed after the final source edits and published the
+whole existing corpus. Its synchronized repositories still do not include
+PointUp, so this does not establish PointUp code coverage. Do not replace the
+corpus with a PointUp-only graph; continue targeted live-source review here.
