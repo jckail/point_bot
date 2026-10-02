@@ -163,24 +163,39 @@ removes data that is only useful for a limited time, in bounded batches:
 
 | Table | Deleted when | Env |
 | --- | --- | --- |
-| `domain_event_outbox` | `processed_at` older than `OUTBOX_RETENTION_DAYS` (default 14) | |
+| `domain_event_outbox` | `processed_at` older than `OUTBOX_RETENTION_DAYS` (default 14), with `dead_lettered_at` null | |
 | `activity_event` | `occurred_at` older than `ACTIVITY_RETENTION_DAYS` (default 365) | |
 | `access_token` | revoked, or expired, more than 90 days ago | fixed |
 | `consent_grant` | revoked, or expired, more than 365 days ago | fixed |
 
-**Kept on purpose:** dead-lettered outbox rows (kept for inspection and replay;
-they never have `processed_at` set), `balance_snapshot` (the history is the
+**Kept on purpose:** dead-lettered outbox rows (kept for inspection and replay,
+even if `processed_at` is also set), `balance_snapshot` (the history is the
 product; see [performance.md](./performance.md) for the partitioning plan) and
 `agent_observation` (the audit trail of agent write-backs). The purge code has
 no statement that touches those tables.
 
-Each batch is `DELETE ... WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP
-LOCKED)`: bounded work per statement, and several workers can purge at once
-without deleting a row twice or waiting on each other. `PURGE_BATCH_SIZE`
-(1000) is the rows per statement; `PURGE_MAX_ROWS_PER_RUN` (50000) caps one
+Each batch claims at most `n` eligible IDs once with
+`WITH selected AS MATERIALIZED (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)`.
+`DELETE ... USING selected WHERE table.id = selected.id RETURNING table.id`
+then deletes only those claimed IDs. Concurrent workers skip already-locked
+rows; each statement uses one short transaction. `PURGE_BATCH_SIZE` (1000)
+is the maximum rows per statement; `PURGE_MAX_ROWS_PER_RUN` (50000) caps one
 run per table (the rest waits for the next run, and the log line says
 `capped: true`). One failing table does not stop the others; the job exits
 non-zero afterwards.
+
+The former locking `IN (SELECT ... LIMIT n ...)` selector could be reevaluated
+for different outer rows, so its `LIMIT` did not bound the entire deletion.
+[PostgreSQL's explanation](https://www.postgresql.org/message-id/16497.1553640836@sss.pgh.pa.us)
+describes this behavior; explicit materialization forces a separate selector
+calculation ([CTE documentation](https://www.postgresql.org/docs/17/queries-with.html#QUERIES-WITH-CTE-MATERIALIZATION)).
+On 2026-10-02, master CI observed 25 deletions in one batch requested at 10,
+exceeding the run cap of 20. The failed runner's exact execution plan is unknown.
+Workers must run the materialized-selector code to establish these bounds;
+source changes alone do not prove a production rollout. The local focused
+PostgreSQL check was blocked before execution by the shared verification queue
+(exit 75), without an unchanged retry. Committed-source database verification
+remains pending.
 
 Each run logs one JSON line:
 

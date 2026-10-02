@@ -1,4 +1,9 @@
 import { eq, inArray, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "../src/infrastructure/db/schema";
+import { assertMigrationConnectionString } from "../src/infrastructure/db/migrations";
+import type { RetentionTarget } from "../src/infrastructure/retention/retention";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDb } from "../src/infrastructure/db/client";
@@ -19,16 +24,36 @@ import {
 
 /**
  * Retention against a real, migrated Postgres (TEST_DATABASE_URL). Rows are
- * keyed by a unique prefix and cleaned up; purges are global but only match
- * rows older than the cutoffs, which no other test creates.
+ * isolated in owned schemas cloned from migrated table definitions. Purges
+ * cannot reach public fixtures, even when other suites create old rows.
  */
 const url = process.env.TEST_DATABASE_URL;
 const NOW = new Date("2026-10-01T12:00:00.000Z");
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
 
 describe.skipIf(!url)("retention purge on Postgres", () => {
-  const db = createDb(url ?? "postgresql://unused");
-  const store = new DrizzleRetentionStore(db);
+  let admin: ReturnType<typeof createDb>;
+  let db: ReturnType<typeof createDb>;
+  let store: DrizzleRetentionStore;
+  const clients: ReturnType<typeof postgres>[] = [];
+  const schemas: string[] = [];
+  const tables = ["domain_event_outbox", "activity_event", "access_token", "consent_grant", "loyalty_account", "balance_snapshot", "agent_observation"] as const;
+  async function isolatedFixture() {
+    const name = `pointup_retention_fixture_${crypto.randomUUID().replaceAll("-", "")}`;
+    schemas.push(name);
+    await admin.$client.unsafe(`CREATE SCHEMA "${name}"`);
+    for (const table of tables) {
+      await admin.$client.unsafe(`CREATE TABLE "${name}"."${table}" (LIKE public."${table}" INCLUDING ALL)`);
+    }
+    // Pin every pooled connection to our own tables and force the adverse
+    // nested-loop plan that can rescan a non-materialized locking selector.
+    const client = postgres(url!, { max: 4, connection: { search_path: name,
+      enable_hashjoin: "off", enable_mergejoin: "off", enable_material: "off", enable_nestloop: "on" }, onnotice: () => {} });
+    clients.push(client);
+    const scoped = drizzle(client, { schema });
+    expect((await client`SELECT current_schema() AS name`)[0]?.name).toBe(name);
+    return { db: scoped, store: new DrizzleRetentionStore(scoped) };
+  }
   const p = `ret-${crypto.randomUUID().slice(0, 8)}`;
   const id = (name: string) => `${p}-${name}`;
   const user = id("user");
@@ -59,6 +84,14 @@ describe.skipIf(!url)("retention purge on Postgres", () => {
   }
 
   beforeAll(async () => {
+    assertMigrationConnectionString(url!);
+    const parsed = new URL(url!);
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)
+      || parsed.pathname !== "/app" || parsed.username !== "postgres") {
+      throw new Error("Retention tests require the dedicated loopback postgres/app fixture.");
+    }
+    admin = createDb(url!, { max: 2 });
+    ({ db, store } = await isolatedFixture());
     await db.insert(domainEventOutbox).values([
       outbox("ob-old-processed", { processedAt: daysAgo(30) }),
       outbox("ob-old-processed-2", { processedAt: daysAgo(15) }),
@@ -97,11 +130,14 @@ describe.skipIf(!url)("retention purge on Postgres", () => {
   });
 
   afterAll(async () => {
-    for (const t of [domainEventOutbox, activityEvents, accessTokens, consentGrants]) {
-      await db.delete(t).where(sql`${t.id} like ${`${p}-%`}`);
-    }
-    await db.delete(agentObservations).where(eq(agentObservations.userId, user));
-    await db.delete(loyaltyAccounts).where(eq(loyaltyAccounts.userId, user));
+    if (!admin) return;
+    try {
+      for (const client of clients) await client.end({ timeout: 5 });
+      for (const name of schemas) {
+        if (!/^pointup_retention_fixture_[a-f0-9]{32}$/.test(name)) throw new Error("Refusing to remove an unowned retention schema.");
+        await admin.$client.unsafe(`DROP SCHEMA IF EXISTS "${name}" CASCADE`);
+      }
+    } finally { await admin.$client.end({ timeout: 5 }); }
   });
 
   it("purges only what the policy allows, per table", async () => {
@@ -126,7 +162,7 @@ describe.skipIf(!url)("retention purge on Postgres", () => {
     expect(await remaining("outbox")).toHaveLength(3);
   });
 
-  it("honours batch size and run cap, and two concurrent purges never double-delete", async () => {
+  it("honours batch size and run cap, and concurrent purges never double-delete", async () => {
     const ids = Array.from({ length: 25 }, (_, i) => id(`bulk-${String(i).padStart(2, "0")}`));
     const seed = () =>
       db.insert(domainEventOutbox).values(
@@ -195,4 +231,53 @@ describe.skipIf(!url)("retention purge on Postgres", () => {
     expect(await db.select({ id: balanceSnapshots.id }).from(balanceSnapshots).where(eq(balanceSnapshots.id, id("snap")))).toHaveLength(1);
     expect(await db.select({ id: agentObservations.id }).from(agentObservations).where(eq(agentObservations.id, id("obs")))).toHaveLength(1);
   });
+
+  const targetTables = { outbox: domainEventOutbox, activity: activityEvents, access_tokens: accessTokens, consents: consentGrants };
+  async function seedTarget(target: RetentionTarget, scoped: ReturnType<typeof createDb>, prefix: string) {
+    const ids = Array.from({ length: 25 }, (_, i) => `${prefix}-${i}`);
+    if (target === "outbox") await scoped.insert(domainEventOutbox).values(ids.map(id => ({ id, type: "balance.recorded", userId: user, aggregateId: id, payload: {}, occurredAt: daysAgo(500), availableAt: daysAgo(500), processedAt: daysAgo(400) })));
+    if (target === "activity") await scoped.insert(activityEvents).values(ids.map(id => ({ id, userId: user, type: "balance_recorded", summary: "synthetic old activity", occurredAt: daysAgo(500) })));
+    if (target === "access_tokens") await scoped.insert(accessTokens).values(ids.map(id => ({ id, userId: user, name: "synthetic", displayPrefix: "pu_x", tokenHash: id, scopes: "portfolio:read", createdAt: daysAgo(900), expiresAt: daysAgo(500) })));
+    if (target === "consents") await scoped.insert(consentGrants).values(ids.map(id => ({ id, userId: user, providerId: "united", grantedAt: daysAgo(900), expiresAt: daysAgo(500), revokedAt: daysAgo(500) })));
+    return ids;
+  }
+
+  it.each(["outbox", "activity", "access_tokens", "consents"] as const)("bounds %s under nested-loop planning and enforces the run cap", async target => {
+    const f = await isolatedFixture();
+    const table = targetTables[target];
+    await seedTarget(target, f.db, `${p}-direct-${target}`);
+    for (const limit of [1, 3, 5]) {
+      const before = (await f.db.select({ id: table.id }).from(table)).length;
+      expect(await f.store.purgeBatch(target, daysAgo(90), limit)).toBe(limit);
+      expect((await f.db.select({ id: table.id }).from(table)).length).toBe(before - limit);
+    }
+    await f.db.delete(table);
+    await seedTarget(target, f.db, `${p}-cap-${target}`);
+    const capped = await purgeExpired(f.store, { ...DEFAULT_RETENTION_POLICY, batchSize: 10, maxRowsPerRun: 20 }, NOW);
+    expect(capped.targets.find(result => result.target === target)).toMatchObject({ deleted: 20, batches: 2, capped: true });
+    expect(capped.targets.every(result => !result.error)).toBe(true);
+    expect(await f.db.select({ id: table.id }).from(table)).toHaveLength(5);
+  });
+
+  it.each(["outbox", "activity", "access_tokens", "consents"] as const)("concurrent capped %s workers claim each row at most once", async target => {
+    const f = await isolatedFixture();
+    const table = targetTables[target];
+    await seedTarget(target, f.db, `${p}-concurrent-${target}`);
+    const runs = await Promise.all(Array.from({ length: 4 }, () => purgeExpired(f.store,
+      { ...DEFAULT_RETENTION_POLICY, batchSize: 3, maxRowsPerRun: 6 }, NOW)));
+    const receipts = runs.map(run => run.targets.find(result => result.target === target)!);
+    for (const receipt of receipts) {
+      expect(receipt.error).toBeUndefined();
+      expect(receipt.deleted).toBeLessThanOrEqual(6);
+    }
+    const deleted = receipts.reduce((sum, receipt) => sum + receipt.deleted, 0);
+    expect(deleted).toBeGreaterThan(0);
+    expect(deleted).toBeLessThanOrEqual(24);
+    expect(await f.db.select({ id: table.id }).from(table)).toHaveLength(25 - deleted);
+    const drained = await purgeExpired(f.store, { ...DEFAULT_RETENTION_POLICY, batchSize: 3 }, NOW);
+    expect(drained.targets.every(result => !result.error)).toBe(true);
+    expect(deleted + drained.targets.find(result => result.target === target)!.deleted).toBe(25);
+    expect(await f.db.select({ id: table.id }).from(table)).toHaveLength(0);
+  });
+
 });
