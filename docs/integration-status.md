@@ -39,20 +39,24 @@ not the final combined release or production deployment.
 - Test workspace scripts bound Vitest to two workers. The migration CLI is included
   in core TypeScript checks. Compose configuration parsed successfully locally.
 
-Focused auth/policy checks passed 46 tests on exact source using existing mirror
-binaries, actual integration domain modules and mocked framework seams. Migration
-helper checks passed 13 mocked tests and focused strict TypeScript compilation.
-These are not full integration typechecks or a real PostgreSQL migration result.
-Local `npm ci` through `agent-heavy-check` exited 75 before installation because
-another project held the shared verification lock. Do not retry unchanged or
-claim the new worktree dependencies were installed. Root owns broad verification;
-the stacked branch needs its own complete remote CI result. At `b00103c`,
-Docker smoke (direct and transaction pooling), MCP HTTP smoke, plugin checks and
-infrastructure synthesis passed; application CI stopped at two strict test-type
-errors. Those fixture errors were corrected before the dependency patch. Three new opt-in PostgreSQL
-scenarios use isolated owned schemas/journals to check serialization, bounded
-contention and rollback/lock release. They passed focused strict TypeScript
-compilation but have not yet run against PostgreSQL.
+Runtime commit `74ad309c1184231187a85abbe4aa6f3b1c660b62` passed all six jobs in
+[CI run 36971599307](https://github.com/jckail/point_bot/actions/runs/36971599307)
+and [CodeQL](https://github.com/jckail/point_bot/actions/runs/36971599374).
+The fresh lockfile installation, root lint, hygiene, all workspace TypeScript,
+504 workspace tests including real PostgreSQL integration, production web and
+worker/bot/MCP/extension bundles, plugin/spec checks, infrastructure synthesis,
+nine HTTP MCP smoke tests, and Docker smoke in both direct and transaction-pooler
+modes passed. The three isolated migration-lock PostgreSQL tests passed, covering
+concurrent journal reads, bounded contention and rollback/lock release. This
+fixture evidence does not establish the production database's schema state.
+
+Earlier focused auth/policy checks passed 46 tests, migration helper checks 13,
+and privacy/assistant checks 19 on exact source with existing mirror binaries.
+Two strict privacy-test fixture errors found by CI were corrected before the
+successful aggregate run. Local `npm ci` through `agent-heavy-check` exited 75
+before installation because another project held the resource lock. Do not retry
+unchanged or claim local worktree dependencies were installed. Root owns broad
+verification; the passing aggregate evidence comes from this branch's fresh CI.
 
 ## Security dependency port
 
@@ -63,7 +67,9 @@ including patched sharp 0.35.5, PostCSS 8.5.23, nanoid 3.3.19 and browser mappin
 2.11.27. PR #14 feature dependencies and tsx 4.23.15 remain preserved. Static
 resolution checks covered 321 dependency-closure nodes and 77 manifest/lock
 requirements; no installation or fresh audit is claimed by those checks.
-Fresh CI installation, audit, full types and builds must verify this branch.
+Fresh CI then verified installation, full types and builds, and its application
+production audit reported **zero vulnerabilities**. This result covers the
+current lockfile and observed advisory database, not future advisories.
 The infrastructure bundled brace-expansion advisory and separate development
 advisories are not resolved by these application patches.
 
