@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "autocannon": "^8.0.0",
-    "eslint": "^9.0.0",
+    "eslint": "^10.11.0",
     "eslint-config-next": "^16.3.8",
     "tsx": "^4.23.15",
     "typescript": "^5.9.0"
