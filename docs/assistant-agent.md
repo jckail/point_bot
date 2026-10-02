@@ -42,6 +42,20 @@ not change the durable outcome. This is best-effort telemetry: a process crash a
 the database transition can still lose its event, and these logs are not a durable
 audit journal. Statuses are `pending`, `executing`, `succeeded`, `rejected`, `expired`, `failed` and `unknown`.
 
+The transition receipt changes are merged through [PR #37](https://github.com/jckail/point_bot/pull/37)
+at master `26643eccf2087f19df36e3299ed577627387263b`, from source
+`b65afd58c8f8862198e4fd57e9c96e8c7683c097` (tree
+`bb774ef7501810d354feca0c733d8a32f427d44f`). Candidate
+[CI 37042066067](https://github.com/jckail/point_bot/actions/runs/37042066067),
+[CodeQL 37042066082](https://github.com/jckail/point_bot/actions/runs/37042066082)
+and Bugbot passed;
+merged-master [verification](https://github.com/jckail/point_bot/actions/runs/37042811100)
+and [CodeQL](https://github.com/jckail/point_bot/actions/runs/37042810552) passed.
+The 1,739 passing workspace tests include 17 actual PostgreSQL assistant-action
+cases, with one paid live skip. The local database attempt was blocked before
+execution by the shared gate (exit 75); CI supplies the database evidence. AWS
+activation remains skipped for missing deployment-role configuration.
+
 Manual-balance proposals also retain private account-identity evidence: a fresh
 random nonce and digest bound to the owner, account, provider and exact saved
 membership number. Neither the number nor this evidence is returned in proposal
@@ -129,6 +143,13 @@ Clear chat removes recovery. Storage denial or quota failure leaves the current 
 usable and reports unavailable recovery; credentials, exception text and proposal
 payloads are not stored. Owner replacement/unmount invalidates the old persistence
 lease, and aborted late responses cannot become confirmed answers.
+
+The current agents-page follow-up keys both its management and proposal-review
+panels by the authoritative signed-in owner. Owner replacement remounts both;
+same-owner refresh preserves local state. Independent source review and focused
+lint/type checks passed. The controlled native fixture did not execute because
+the shared verification queue returned exit 75; it was not retried unchanged.
+This source change adds no browser or live-auth acceptance claim.
 
 Root exercised the actual development React/Next dashboard in one isolated Chrome
 tab with synthetic requests: draft reload, stop followed by an abort-ignoring late

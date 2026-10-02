@@ -15,9 +15,23 @@ service audits only those receipts in list/approve/reject, including claim expir
 after its row lock. Repeated/concurrent losers add no receipt event; audit sink
 failures preserve outcomes. DTOs, schema, private account witnesses and mutation
 behavior are unchanged. This remains best-effort telemetry, not crash-durable
-audit delivery; exact candidate verification follows below.
+audit delivery; merged-source verification follows below.
 
-The latest merged observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
+The latest merged proposal-transition release is [PR #37](https://github.com/jckail/point_bot/pull/37)
+at master `26643eccf2087f19df36e3299ed577627387263b` (source
+`b65afd58c8f8862198e4fd57e9c96e8c7683c097`, tree
+`bb774ef7501810d354feca0c733d8a32f427d44f`). All six candidate verification jobs
+in [CI 37042066067](https://github.com/jckail/point_bot/actions/runs/37042066067),
+[CodeQL 37042066082](https://github.com/jckail/point_bot/actions/runs/37042066082)
+and Bugbot passed. All six merged-master verification jobs in
+[Deploy 37042811100](https://github.com/jckail/point_bot/actions/runs/37042811100)
+and [CodeQL 37042810552](https://github.com/jckail/point_bot/actions/runs/37042810552)
+passed with 1,739 workspace tests and one paid live skip, including 17 actual
+PostgreSQL assistant-action cases. The local PostgreSQL check did not execute:
+the shared heavy-check gate returned exit 75. Database evidence comes from CI.
+AWS deployment remained skipped for missing deployment-role configuration.
+
+The preceding observability release is [PR #36](https://github.com/jckail/point_bot/pull/36)
 at `dd6a9701b55df0ddcdfe3ab5bf6857c360153cf9` (source
 `b97413645630a6205d05781c2cf28e71137d2486`). All six merged-source verification
 jobs in [Deploy 37038650269](https://github.com/jckail/point_bot/actions/runs/37038650269)
@@ -279,6 +293,14 @@ LLM transport, fixed IngestDealPage failures, redirect-safe webhooks and generat
 reference-only new outbox retry/dead-letter diagnostics. Actual PostgreSQL cases cover
 private notifier failures through persistence. Historical outbox error scrubbing,
 finite dead-letter/replay retention and backup-retention policy are still unimplemented.
+
+The current `/dashboard/agents` follow-up keys both management and proposal-review
+panels by the authoritative signed-in owner. An owner change remounts both panels;
+same-owner refresh preserves their local state. Independent source review and
+focused lint/type checks passed. The controlled native fixture did not execute:
+the shared verification queue returned exit 75. No tab or fixture server opened,
+and the attempt was not retried unchanged. Native lifecycle and live Clerk
+owner-switching acceptance remain open.
 
 ## Deployment and identity boundaries
 

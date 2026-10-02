@@ -49,6 +49,7 @@ export default async function AgentsPage() {
         <Link href="/dashboard/settings#connected-identities">Connected identities</Link>
       </nav>
       <AgentsPanel
+        key={`agents:${userId}`}
         tokens={tokens.map((t) => ({ ...t, scopes: [...t.scopes] }))}
         consents={consents.map((c) => ({
           id: c.id,
@@ -78,7 +79,7 @@ export default async function AgentsPage() {
         providers={PROVIDER_CATALOG.map((p) => ({ id: p.id, name: p.displayName }))}
         mcpUrl={process.env.NEXT_PUBLIC_MCP_URL ?? "http://localhost:8787/mcp"}
       />
-      <ReviewedAssistantActions />
+      <ReviewedAssistantActions key={`review:${userId}`} />
     </main>
   );
 }
