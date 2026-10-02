@@ -139,3 +139,24 @@ internal HTTP origin while retaining default HTTPS and redirect rejection.
 Docker also exposed empty optional worker integration values; they now match the
 web host's empty-string convention. Focused regressions, root lint and workspace
 types pass. Fresh aggregate verification follows the fix commit.
+
+## Verified combined assistant milestone
+
+Runtime commit `3e21e4ea3dc75c67465f6461fa468ac4449995b6` passed all six jobs in
+[CI 36975269376](https://github.com/jckail/point_bot/actions/runs/36975269376) and
+[CodeQL 36975269389](https://github.com/jckail/point_bot/actions/runs/36975269389).
+Fresh installation, root lint, import-cycle and duplication checks, all workspace
+types, full managed migrations, **661 workspace tests** (one paid live evaluation
+skipped), web/worker/bot/MCP/extension production bundles, 23-operation ChatGPT
+spec validation, nine HTTP MCP smoke tests, default/MCP infrastructure synthesis,
+six assistant template tests, existing TLS guard, and Docker smoke in direct and
+transaction-pooler modes passed. The observed application production audit remains
+zero vulnerabilities; development and bundled infrastructure advisories remain.
+
+This verifies the combined source and isolated fixtures, not production deployment,
+live Clerk/OpenAI behavior, Chrome browser execution, trace exporter delivery,
+CloudWatch event arrival or production database adoption. The root-owned fixture
+`pointup-sdk-pg-root-20261002` (loopback port 55443) is stopped, with its data retained.
+No development server or browser tab was opened during this milestone. Root remains
+the aggregate verification/release owner. Continue with the gates and priorities in
+[release-backlog.md](release-backlog.md), preserving PR #14, #15 and #16 histories.
