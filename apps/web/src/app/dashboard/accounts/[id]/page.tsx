@@ -11,6 +11,7 @@ import {
 } from "@/app/actions";
 import { AccountCardProductForm } from "@/components/account-card-product-form";
 import { AccountNotesForm } from "@/components/account-notes-form";
+import { AccountValuationForm } from "@/components/account-valuation-form";
 import { ManualBalanceForm } from "@/components/manual-balance-form";
 import { MembershipNumberForm } from "@/components/membership-number-form";
 import { BalanceTrendChips } from "@/components/balance-trend";
@@ -197,6 +198,11 @@ export default async function AccountDetailPage({
               accountId={account.id}
               membershipNumber={account.membershipNumber}
             />
+          </div>
+
+          <div id="valuation" className="dashboard-section">
+            <h2 className="font-display text-lg font-semibold text-ink">Your point value</h2>
+            <AccountValuationForm key={`${userId}:${account.id}`} account={account} />
           </div>
 
           {account.provider.id === "chase-ultimate-rewards" && (

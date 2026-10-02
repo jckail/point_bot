@@ -331,7 +331,7 @@ Response:
 
 ### `DELETE /api/v1/loyalty-accounts/{id}`
 
-Unlink the account. Balance history cascades at the database layer. Returns `204` with no body.
+Soft-delete the account, retaining history during the existing restore window. Final purge after that window removes dependent data. Returns `204` with no body.
 
 ### `GET /api/v1/valuations`
 
@@ -343,7 +343,7 @@ List the caller's custom cents-per-point overrides. Each account's `estimatedVal
 
 ### `PUT /api/v1/valuations/{providerId}`
 
-Set (or replace) a provider's cents-per-point override (`0 < v ≤ 100`). Returns the saved valuation.
+Set (or replace) the caller's provider-wide US-cents-per-point override (`0 < v ≤ 100`, finite). Core rounds to three decimals and rejects values that round to zero. Returns the normalized saved valuation. The web account-detail form exposes Save custom value and Reset to catalog using the same use cases; its provider is derived from the owned account.
 
 ```json
 { "centsPerPoint": 2.05 }

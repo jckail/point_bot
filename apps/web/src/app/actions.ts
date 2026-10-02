@@ -1,8 +1,8 @@
 "use server";
 
 import { getSessionUserId } from "@/server/auth";
-import { DomainError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
-import { createPortfolioShareRequestSchema } from "@pointup/core/contracts";
+import { DomainError, InvalidValuationError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
+import { createPortfolioShareRequestSchema, setCustomValuationRequestSchema } from "@pointup/core/contracts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -389,5 +389,47 @@ export async function revokePortfolioShareAction(
   });
 
   if (result.status === "success") revalidatePath("/dashboard");
+  return result;
+}
+
+export async function updateAccountValuationAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const userId = await getSessionUserId();
+  if (!userId) return UNAUTHENTICATED;
+
+  const accountId = String(formData.get("accountId") ?? "");
+  const result = await toActionResult(async () => {
+    const intent = String(formData.get("intent") ?? "");
+    if (intent !== "save" && intent !== "reset") throw new InvalidValuationError();
+
+    const { useCases } = getContainer();
+    const account = await useCases.getLoyaltyAccount.execute(
+      userId,
+      LoyaltyAccountId.parse(accountId),
+    );
+    // The owned account supplies the provider; never trust a submitted provider
+    // or owner. Valuations remain per user/program, not per account/card.
+    if (intent === "reset") {
+      await useCases.deleteCustomValuation.execute(userId, account.provider.id);
+      return;
+    }
+
+    const parsed = setCustomValuationRequestSchema.safeParse({
+      centsPerPoint: Number(String(formData.get("centsPerPoint") ?? "").trim()),
+    });
+    if (!parsed.success) throw new InvalidValuationError();
+    await useCases.setCustomValuation.execute({
+      userId,
+      providerId: account.provider.id,
+      centsPerPoint: parsed.data.centsPerPoint,
+    });
+  });
+
+  if (result.status === "success") {
+    revalidatePath("/dashboard");
+    revalidatePath(`/dashboard/accounts/${accountId}`);
+  }
   return result;
 }
