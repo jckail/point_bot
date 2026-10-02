@@ -13,7 +13,7 @@ import type { Observation, Observer } from "./observation";
 import type { AgentUseCases } from "./use-cases";
 export type { Observation, Observer } from "./observation";
 export type { AgentUseCases } from "./use-cases";
-import { initializePrivateTracing } from "./private-tracing";
+import { initializePrivateTracing, isSdkTracingEnabled } from "./private-tracing";
 
 export const logObservation: Observer = event => {
   const { inputTokens, outputTokens, totalTokens, cachedInputTokens, reasoningOutputTokens, ...metadata } = event;
@@ -47,7 +47,9 @@ export async function runPortfolioAssistant(input: {
   const body = chatAssistantRequestSchema.parse(input.body);
   const requestId = input.requestId ?? randomUUID();
   const mode = input.config.runtime === "agents" ? "agents" : "fallback";
-  const traceId = mode === "agents" && input.config.tracing ? (input.traceId ?? generateTraceId()) : undefined;
+  const tracingEnabled = mode === "agents" && input.config.tracing && isSdkTracingEnabled();
+  // This is allocated SDK correlation, not proof of creation/export/delivery.
+  const traceId = tracingEnabled ? (input.traceId ?? generateTraceId()) : undefined;
   const startedAt = performance.now();
   const observer = input.observe ?? logObservation;
   const emit = (event: Omit<Observation, "requestId" | "mode" | "sdkTraceId">) => {
@@ -70,11 +72,11 @@ export async function runPortfolioAssistant(input: {
     } else {
       // Controlled injected models own their in-process test processors. Live
       // web, extension and evaluation runs install the safe exporter once.
-      if (input.config.tracing && !input.model) initializePrivateTracing();
+      if (tracingEnabled && !input.model) initializePrivateTracing();
       const agent = new Agent({ name: "PointUp portfolio assistant", instructions, model: input.model ?? input.config.model, tools: createPortfolioTools(input.useCases, input.userId, signal, emit, input.actions ? { service: input.actions, requestId, onProposed: action => { if (!proposals.some(existing => existing.id === action.id)) proposals.push(action); } } : undefined), modelSettings: { maxTokens: 1200, store: false } });
       const runner = new Runner({
         modelProvider: input.model ? undefined : new OpenAIProvider({ apiKey: input.config.apiKey, useResponses: true }),
-        tracingDisabled: !input.config.tracing,
+        tracingDisabled: !tracingEnabled,
         traceIncludeSensitiveData: false,
         workflowName: "PointUp portfolio assistant",
         traceId,

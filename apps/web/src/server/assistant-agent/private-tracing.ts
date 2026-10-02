@@ -31,6 +31,16 @@ export function isTracingKillSwitchEnabled(): boolean {
   return disabled === "1" || disabled === "true";
 }
 
+/** Observe SDK capability without starting a trace or dispatching processors.
+ * An enabled provider does not prove trace export or remote delivery.
+ */
+export function isSdkTracingEnabled(): boolean {
+  if (isTracingKillSwitchEnabled()) return false;
+  try {
+    return getGlobalTraceProvider().createTrace({ name: "PointUp tracing readiness", started: false }).toJSON() !== null;
+  } catch { return false; /* Observation failure must not change chat success. */ }
+}
+
 /** Synchronous process/HMR initialization, before the first traced live run. */
 export function initializePrivateTracing(): void {
   if (isTracingKillSwitchEnabled()) return;

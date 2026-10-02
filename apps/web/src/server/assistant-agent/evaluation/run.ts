@@ -3,12 +3,11 @@ import { runPortfolioAssistant, type Observation } from "../index";
 import { assistantConfig } from "../config";
 import { evaluationCases, type EvaluationCase } from "./cases";
 import { createEvaluationFixture, privateCanaries, syntheticOwner } from "./fixture";
-import { isTracingKillSwitchEnabled } from "../private-tracing";
+import { isTracingKillSwitchEnabled, isSdkTracingEnabled } from "../private-tracing";
 
 /** Read actual SDK state without starting a trace or invoking export processors. */
 export function evaluationTracingEnabled(): boolean {
-  return !isTracingKillSwitchEnabled()
-    && getGlobalTraceProvider().createTrace({ name: "PointUp evaluation readiness", started: false }).toJSON() !== null;
+  return isSdkTracingEnabled();
 }
 
 /** Only the explicitly opted-in live CLI harness may override the SDK test default. */
