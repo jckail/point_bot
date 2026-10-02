@@ -194,8 +194,16 @@ exceeding the run cap of 20. The failed runner's exact execution plan is unknown
 Workers must run the materialized-selector code to establish these bounds;
 source changes alone do not prove a production rollout. The local focused
 PostgreSQL check was blocked before execution by the shared verification queue
-(exit 75), without an unchanged retry. Committed-source database verification
-remains pending.
+(exit 75), without an unchanged retry. Candidate [PR #41 CI 37049660507](https://github.com/jckail/point_bot/actions/runs/37049660507)
+passed all 12 actual PostgreSQL retention cases, including all four targets under
+adverse planner settings, run caps, concurrent deletion counts and isolated-schema
+cleanup. Candidate CodeQL and Bugbot passed; merged-master
+[Deploy 37050353563](https://github.com/jckail/point_bot/actions/runs/37050353563)
+passed all six release verification jobs and configuration verification, including
+the same 12 actual PostgreSQL cases (1,760 workspace tests and one paid live skip).
+[Master CodeQL 37050352459](https://github.com/jckail/point_bot/actions/runs/37050352459)
+passed; AWS deployment was skipped for missing deployment-role configuration.
+This establishes candidate and exact merged-master fixture behavior, not production rollout.
 
 Each run logs one JSON line:
 

@@ -4,7 +4,45 @@ The web dashboard and extension share authenticated `POST /api/v1/assistant/chat
 
 The route retains PR14's shared authentication, rate limiting, CSRF checks, request telemetry and error mapping. Chat requires `portfolio:read`. Cookie sessions and tokens with `portfolio:write` receive proposal tools; read-only tokens receive only read tools. Legacy chat does not propose changes. No model or token can approve a proposal through a chat tool.
 
-The latest merged extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
+The latest merged retention-bounds release is [PR #41](https://github.com/jckail/point_bot/pull/41)
+at master `5c52f47ba5a0e8d9e37ead82fa8e549bc73317e2` (source
+`92c3d07333e42dbb2e7a407019152ed6c9cb332d`). Both have the same tree,
+`1f316ace91178aac457bef22b4b605023f560183`. All six candidate verification jobs
+in [CI 37049660507](https://github.com/jckail/point_bot/actions/runs/37049660507),
+[CodeQL 37049660366](https://github.com/jckail/point_bot/actions/runs/37049660366)
+and Bugbot passed without findings. The 1,760 workspace tests and one paid live
+skip include all 12 actual PostgreSQL retention cases. Merged-master
+[Deploy 37050353563](https://github.com/jckail/point_bot/actions/runs/37050353563)
+passed all six release verification jobs and configuration verification, with
+1,760 workspace tests and one paid live skip, including all 12 actual PostgreSQL
+retention cases. [Master CodeQL 37050352459](https://github.com/jckail/point_bot/actions/runs/37050352459)
+also passed. AWS deployment was skipped for missing deployment-role configuration.
+Production rollout
+and the broader identity, model/provider and native acceptance gates remain open.
+
+The unmerged extension hydration refinement retains the Ask/Clear dispatch
+fence against delayed initial `getChat` results. A bare failure, transport error
+or malformed response starts one asynchronous fresh state-only `getChat` recovery;
+it never resends the mutation. An authoritative failed chat envelope is applied
+directly without an extra read. A second valid review finding showed that a bare
+structured failed read could clear an existing pending question before reporting
+failure. Such failed reads now preserve the question, guidance and controls;
+a successful empty state still clears them. Failed polling shows explicit reopen
+guidance without automatically repeating failed polls; recovery reads preserve
+an existing pending timer. Failed recovery retains the primary error with reopen
+guidance. Successful settings-save fencing is unchanged.
+
+Nine earlier regressions produced seven failures on the original candidate.
+The second finding adds three regressions that all failed against `281c261`;
+all 41 focused popup tests now pass, with extension typecheck, lint and whitespace
+checks passing and independent source review approved without blockers. Both
+valid Bugbot findings are addressed in source; the earlier skipped review status
+is not an approval. The previous full CI result of 1,775 tests and one paid live
+skip applies to `281c261`, not this refinement. Fresh candidate CI is pending;
+no native browser proof or PR #42 merged-master success is claimed. PR #41's
+completed release evidence remains unchanged.
+
+The preceding extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
 at master `464cb0ec0c7de73403c5aaf5fb24fd5495a78a81` (source
 `30a29d6975a7b3375f633c011483c06106a3ea7e`, tree
 `6d496fcfd67ae3c53cd0e0c24fe64617ae6314c3`). Candidate
@@ -17,18 +55,18 @@ failed the existing PostgreSQL retention cap test: batch size 10 and run cap 20
 should delete 20 rows in two batches, but deleted 25 in one. The other five release
 verification jobs and [master CodeQL 37047565755](https://github.com/jckail/point_bot/actions/runs/37047565755)
 passed. AWS deployment remained skipped for missing deployment-role configuration;
-the merged-master release gate is not green.
+that PR #40 merged-master verification failed; successor evidence is above.
 
-The current retention correction claims one materialized ID set per batch, then
+The merged PR #41 retention correction claims one materialized ID set per batch, then
 uses `DELETE USING` for all four targets without changing retention policy. Twelve
-PostgreSQL cases, including eight new cases, are prepared in uniquely owned schemas
+PostgreSQL cases, including eight new cases, passed in candidate CI using uniquely owned schemas
 cloned from migrated tables. They cover small direct limits, run caps and concurrent
 claims across all targets under adverse planner settings. Independent review, core
 typecheck and focused lint passed. The wrapped local PostgreSQL red/green attempt
 returned exit 75 before execution: no source substitution or test schemas occurred,
 the retained public fixture's 16 outbox rows and 22 migration journal entries were
-unchanged, and its container was stopped. No unchanged retry occurred. Fresh
-committed CI is pending. PostgreSQL's documented selector-rescan mechanism supports
+unchanged, and its container was stopped. No unchanged retry occurred. The later
+committed candidate CI supplied the actual database proof. PostgreSQL's documented selector-rescan mechanism supports
 the fix; the exact failed runner plan was not observed and remains an inference.
 See [retention mechanism and boundaries](events.md#retention-purge-job). This does not complete
 production, identity, model/provider, licensing or native web-owner acceptance.
