@@ -19,7 +19,7 @@
     "@types/node": "^24.0.0",
     "aws-cdk": "^2.1129.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.9.0",
+    "typescript": "^7.0.2",
     "cdk-assets": "4.7.3"
   },
   "engines": {
