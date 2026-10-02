@@ -1,6 +1,6 @@
 # Numeric integrity and backfill preservation: proposed additive 0020
 
-Status: read-only source audit following observation integration `d9ffc38`.
+Status: original audit after observation integration `d9ffc38`; the bounded source phase below is now implemented locally, with exact release CI recorded separately in integration-status.md.
 The changes below are a proposed next phase, not implemented migration SQL or
 verified production data. Only this document was added. Root owns verification
 of that release checkpoint, schema changes, database access and deployment.
@@ -245,3 +245,65 @@ migration-before-host production gate and direct/session-pooler migration policy
 
 Original live provider/browser/OpenAI verification, numeric/RLS review beyond
 this bounded phase and release gates remain in [release-backlog.md](release-backlog.md).
+
+## Implemented bounded backfill metadata policy
+
+Manual and agent balance recording now compares the capture time against both
+latest balance capture and locked account `updatedAt`. If the capture precedes
+either timestamp, the write retains current expiry, including an explicit
+override or NULL. Forward readings retain PR14's activity-derived expiry refresh
+from capture time; this compatibility change does not establish provider evidence
+of qualifying activity or change sync behavior. Account metadata uses the fresh
+transaction mutation clock rather than historical capture time. A stored future
+`updatedAt` is deliberately retained instead of silently repaired by a reading.
+The exact inserted snapshot ID, historical activity timestamp and existing
+transaction/outbox boundaries are unchanged. Focused fake-adapter tests verify
+this policy; production PostgreSQL race/rollback validation is a separate gate.
+
+Sync uses the same metadata guard after acquiring the account lock: its provider
+reading retains the original capture time, while a newer reading or metadata
+edit preserves locked expiry. Ordinary forward sync still refreshes expiry.
+Metadata mutation uses the fresh post-wait clock and preserves a stored future
+timestamp. Focused simulated lock-race tests cover explicit and NULL expiry;
+production PostgreSQL barriers remain separately owned verification.
+
+Optimizer capacity and funding comparisons now use exact integer intermediates;
+point DTO sums/products must remain representable. Coverage calculations invert
+the shared two-stage transfer flooring exactly, including decimal catalog ratios.
+Normal milli-cent funding/ranking rounding and zero valuations retain existing
+policy; large internal milli-cent costs use exact decimal intermediates rather
+than unsafe integer sums. Monetary DTOs reject unrepresentable/nonfinite outputs.
+Trend deltas validate source points and compute signed differences exactly.
+This bounded pass does not close the separately deferred rate/deal/cash parsing
+gaps identified earlier in this plan.
+
+## Bounded numeric storage and calculation implementation
+
+Additive migration 0020 adds seven NOT VALID checks for safe snapshot points,
+all three snapshot sources, positive safe goal targets/status, positive normalized
+valuation/watch thresholds, and nonnegative observed watch rates. Previous migration
+history is preserved. Raw lateral balance reads project integer text before
+conversion; all mapped point/goal values and persisted rate reads reject invalid
+history instead of silently rounding or replacing it. Invalid old rows remain
+unchanged and require explicit repair before validating these constraints.
+
+Direct domain callers enforce safe integers; valuation/watch thresholds normalize
+once to nearest milli-cents before responses and storage. Values that round to zero
+are rejected. Observed watch rates retain their distinct nonnegative int4-milli
+range and unknown NULL. Invalid observed outcomes do not publish hits/events.
+
+Shared point math uses BigInt for exact integer sums/ratios and interprets published
+Number.toString decimal valuations as rational numbers, rounding nonnegative cents
+up at ties. Portfolio and goal totals, account values, provider estimates and
+transfer estimates reject outputs outside existing number DTOs. Transfer conversion
+keeps its existing three-decimal ratio policy and separate base/bonus floors. CSV
+imports accept exact decimal integers, including integral scientific notation;
+fractional claims that Number would round to an integer and unsafe/nondecimal
+claims are skipped through the existing import result, without clamping.
+
+Root actual PostgreSQL checks passed eight numeric/adoption cases after correcting
+a test-only outbox fixture column omission, plus eight production metadata cases.
+These prove actual UOW rollback for snapshot/account/activity/outbox and a real
+sync lock-wait barrier. Managed migration through 0020 passed on the owned fixture.
+No production legacy rows were inspected or constraints validated. Remaining
+scraped rate/deal/cash parsing and broader RLS/rollout audits remain open.

@@ -1,4 +1,5 @@
 import { InvalidGoalTitleError, InvalidGoalTargetError } from "../errors";
+import { checkedPointSum } from "../shared/point-math";
 
 import { type LoyaltyAccountId, TripGoalId, type UserId } from "../shared/ids";
 
@@ -64,7 +65,7 @@ function normalizeNotes(notes: string | null | undefined): string | null {
 }
 
 function assertTargetPoints(points: number): void {
-  if (!Number.isInteger(points) || points <= 0) {
+  if (!Number.isSafeInteger(points) || points <= 0) {
     throw new InvalidGoalTargetError();
   }
 }
@@ -123,9 +124,8 @@ export function computeGoalProgress(
   goal: TripGoal,
   balancesByAccountId: ReadonlyMap<string, number>,
 ): TripGoalProgress {
-  const current = goal.accountIds.reduce(
-    (sum, accountId) => sum + (balancesByAccountId.get(accountId) ?? 0),
-    0,
+  const current = checkedPointSum(
+    goal.accountIds.map(accountId => balancesByAccountId.get(accountId) ?? 0),
   );
   const remaining = Math.max(0, goal.targetPoints - current);
   const percentComplete =

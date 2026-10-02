@@ -35,6 +35,25 @@ export interface NewAwardWatch {
 const MAX_LABEL_LENGTH = 120;
 const MAX_CENTS_PER_POINT = 100;
 
+/** Thresholds share the existing 100-cent cap and nearest-milli policy. */
+export function normalizeAwardWatchThreshold(value: number): number {
+  if (!Number.isFinite(value) || value <= 0 || value > MAX_CENTS_PER_POINT) {
+    throw new InvalidAwardWatchError("Threshold must be positive and at most 100 cents per point");
+  }
+  const milli = Math.round(value * 1000);
+  if (milli < 1) throw new InvalidAwardWatchError("Threshold must round to at least one milli-cent per point");
+  return milli / 1000;
+}
+
+/** Observed rates are not threshold-capped; their persisted milli value is int4. */
+export function normalizeObservedCentsPerPoint(value: number | null): number | null {
+  if (value === null) return null;
+  if (!Number.isFinite(value) || value < 0 || value > 2_147_483_647 / 1000) {
+    throw new InvalidAwardWatchError("Observed rate must fit nonnegative integer milli-cents");
+  }
+  return Math.round(value * 1000) / 1000;
+}
+
 function assertHttpUrl(url: string): string {
   let parsed: URL;
   try {
@@ -56,15 +75,7 @@ export function createAwardWatch(input: NewAwardWatch): AwardWatch {
       `Label must be 1-${MAX_LABEL_LENGTH} characters`,
     );
   }
-  if (
-    !Number.isFinite(input.minCentsPerPoint) ||
-    input.minCentsPerPoint <= 0 ||
-    input.minCentsPerPoint > MAX_CENTS_PER_POINT
-  ) {
-    throw new InvalidAwardWatchError(
-      `Threshold must be greater than 0 and at most ${MAX_CENTS_PER_POINT} cents per point`,
-    );
-  }
+  const minCentsPerPoint = normalizeAwardWatchThreshold(input.minCentsPerPoint);
 
   const now = input.now ?? new Date();
   return {
@@ -72,7 +83,7 @@ export function createAwardWatch(input: NewAwardWatch): AwardWatch {
     userId: input.userId,
     url: assertHttpUrl(input.url.trim()),
     label,
-    minCentsPerPoint: input.minCentsPerPoint,
+    minCentsPerPoint,
     bestSeenCentsPerPoint: null,
     lastCheckedAt: null,
     lastNotifiedAt: null,
@@ -90,6 +101,7 @@ export function shouldNotify(
   watch: AwardWatch,
   bestRealizedCpp: number | null,
 ): boolean {
+  bestRealizedCpp = normalizeObservedCentsPerPoint(bestRealizedCpp);
   if (bestRealizedCpp === null) return false;
   if (bestRealizedCpp < watch.minCentsPerPoint) return false;
   return (
@@ -103,13 +115,14 @@ export function recordCheck(
   watch: AwardWatch,
   outcome: { bestRealizedCpp: number | null; notified: boolean; now: Date },
 ): AwardWatch {
+  const bestRealizedCpp = normalizeObservedCentsPerPoint(outcome.bestRealizedCpp);
   return {
     ...watch,
     bestSeenCentsPerPoint:
-      outcome.bestRealizedCpp !== null &&
+      bestRealizedCpp !== null &&
       (watch.bestSeenCentsPerPoint === null ||
-        outcome.bestRealizedCpp > watch.bestSeenCentsPerPoint)
-        ? outcome.bestRealizedCpp
+        bestRealizedCpp > watch.bestSeenCentsPerPoint)
+        ? bestRealizedCpp
         : watch.bestSeenCentsPerPoint,
     lastCheckedAt: outcome.now,
     lastNotifiedAt: outcome.notified ? outcome.now : watch.lastNotifiedAt,

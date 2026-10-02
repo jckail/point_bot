@@ -47,7 +47,7 @@ export default async function PublicSharePage({
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Logo />
         <Link
           href="/"
@@ -58,10 +58,10 @@ export default async function PublicSharePage({
       </div>
 
       <header>
-        <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+        <p className="text-sm font-medium text-ink-faint">
           Shared portfolio
         </p>
-        <h1 className="font-display mt-1 text-3xl font-bold text-ink">
+        <h1 className="break-words font-display mt-1 text-3xl font-bold text-ink">
           {snapshot.label ?? "Point balances"}
         </h1>
         <p className="mt-2 text-ink-muted">
@@ -72,14 +72,14 @@ export default async function PublicSharePage({
         </p>
       </header>
 
-      <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-midnight/40">
+      <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-surface">
         {snapshot.programs.map((program) => (
           <li
             key={`${program.kind}-${program.displayName}`}
             className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-4"
           >
             <div>
-              <p className="font-display font-semibold text-ink">
+              <p className="break-words font-display font-semibold text-ink">
                 {program.displayName}
               </p>
               <p className="text-xs text-ink-faint">
@@ -99,7 +99,7 @@ export default async function PublicSharePage({
       </ul>
 
       <p className="text-center text-xs text-ink-faint">
-        Membership numbers are never shared. Snapshot generated{" "}
+        Values are estimates. Membership numbers are never shared. Snapshot generated{" "}
         {snapshot.generatedAt.toLocaleString("en-US", {
           dateStyle: "medium",
           timeStyle: "short",

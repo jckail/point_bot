@@ -8,7 +8,7 @@ import { AgentsPanel } from "@/components/agents-panel";
 import { ReviewedAssistantActions } from "@/components/reviewed-assistant-actions";
 import { getContainer } from "@/server/container";
 
-export const metadata: Metadata = { title: "Agents" };
+export const metadata: Metadata = { title: "Agents & access" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentsPage() {
@@ -30,16 +30,24 @@ export default async function AgentsPage() {
     PROVIDER_CATALOG.find((p) => p.id === id)?.displayName ?? id;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-7 px-5 py-10 sm:px-6">
       <div>
-        <Link href="/dashboard" className="text-sm text-ink-faint no-underline hover:text-ink">
-          ← Dashboard
+        <Link href="/dashboard" className="text-sm font-semibold text-brand hover:underline">
+          Back to your portfolio
         </Link>
-        <h1 className="mt-2 font-display text-3xl font-semibold text-ink">Agents</h1>
+        <h1 className="mt-2 font-display text-3xl font-bold text-ink">Agents &amp; access</h1>
         <p className="mt-1 text-ink-muted">
-          Connect Claude, ChatGPT, or your own scripts - with consent you control.
+          Choose what agents can do, allow program capture, and review proposed changes or unusual balances.
         </p>
       </div>
+      <nav className="dashboard-nav" aria-label="Agent access sections">
+        <a href="#review-actions">Proposed changes</a>
+        <a href="#balance-reviews">Captured balances</a>
+        <a href="#capture-consent">Capture consent</a>
+        <a href="#agent-tokens">Access tokens</a>
+        <a href="#capture-history">Capture history</a>
+        <Link href="/dashboard/settings#connected-identities">Connected identities</Link>
+      </nav>
       <AgentsPanel
         tokens={tokens.map((t) => ({ ...t, scopes: [...t.scopes] }))}
         consents={consents.map((c) => ({

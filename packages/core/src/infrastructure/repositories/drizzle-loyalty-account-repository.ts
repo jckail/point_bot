@@ -1,9 +1,10 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { DuplicateLoyaltyAccountError, LoyaltyAccountNotFoundError, TripGoalNotFoundError } from "../../domain/errors";
+import { DuplicateLoyaltyAccountError, InvalidBalanceError, InvalidGoalTargetError, LoyaltyAccountNotFoundError, TripGoalNotFoundError } from "../../domain/errors";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { parseProviderId } from "../../domain/loyalty/provider";
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
+import { BALANCE_SOURCES } from "../../domain/loyalty/balance-snapshot";
 import type {
   ActivityEventRepository,
   BalanceSnapshotRepository,
@@ -16,6 +17,7 @@ import type { ActivityEvent } from "../../domain/loyalty/activity";
 import type { PortfolioShare } from "../../domain/loyalty/portfolio-share";
 import type { Database } from "../db/client";
 import { lockAccountForWrite } from "../db/account-write-lock";
+import { safeIntegerFromDatabase } from "../db/numeric-values";
 import {
   accountTags,
   activityEvents,
@@ -26,6 +28,7 @@ import {
   tripGoals,
 } from "../db/schema";
 import type { TripGoal } from "../../domain/loyalty/trip-goal";
+import { TRIP_GOAL_STATUSES } from "../../domain/loyalty/trip-goal";
 import { LoyaltyAccountId, ShareId, TripGoalId, UserId } from "../../domain/shared/ids";
 
 const PG_UNIQUE_VIOLATION = "23505";
@@ -65,10 +68,12 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
 }
 
 function toBalanceSnapshot(row: BalanceSnapshotRow): BalanceSnapshot {
+  const points = safeIntegerFromDatabase(row.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+  if (!BALANCE_SOURCES.includes(row.source)) throw new Error("Stored balance source requires repair");
   return {
     id: row.id,
     loyaltyAccountId: LoyaltyAccountId.parse(row.loyaltyAccountId),
-    points: row.points,
+    points,
     source: row.source,
     capturedAt: row.capturedAt,
   };
@@ -80,7 +85,7 @@ interface LateralSnapshotRow extends Record<string, unknown> {
   kind: string;
   account_id: string;
   id: string;
-  points: number | string;
+  points: string;
   source: BalanceSnapshot["source"];
   /** ISO-8601 UTC with millisecond precision (see `snapshotColumns`). */
   captured_at: string;
@@ -92,14 +97,16 @@ interface LateralSnapshotRow extends Record<string, unknown> {
  * (Drizzle swaps them for pass-through strings).
  */
 const snapshotColumns = sql.raw(
-  `b.id, b.points, b.source, to_char(b.captured_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as captured_at`,
+  `b.id, b.points::text as points, b.source, to_char(b.captured_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as captured_at`,
 );
 
 function fromLateralRow(row: LateralSnapshotRow): BalanceSnapshot {
+  const points = safeIntegerFromDatabase(row.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+  if (!BALANCE_SOURCES.includes(row.source)) throw new Error("Stored balance source requires repair");
   return {
     id: row.id,
     loyaltyAccountId: LoyaltyAccountId.parse(row.account_id),
-    points: Number(row.points),
+    points,
     source: row.source,
     capturedAt: new Date(row.captured_at),
   };
@@ -253,6 +260,8 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   constructor(private readonly db: Database) {}
 
   async insert(snapshot: BalanceSnapshot): Promise<void> {
+    safeIntegerFromDatabase(snapshot.points, 0, Number.MAX_SAFE_INTEGER, () => new InvalidBalanceError());
+    if (!BALANCE_SOURCES.includes(snapshot.source)) throw new Error("Balance source is invalid");
     await this.db.transaction(async tx => {
       const account = await lockAccountForWrite(tx, snapshot.loyaltyAccountId);
       if (!account || account.deletedAt) throw new LoyaltyAccountNotFoundError(snapshot.loyaltyAccountId);
@@ -348,7 +357,7 @@ export class DrizzleBalanceSnapshotRepository implements BalanceSnapshotReposito
   ): Promise<BalanceSnapshot[]> {
     const rows = await this.db.query.balanceSnapshots.findMany({
       where: eq(balanceSnapshots.loyaltyAccountId, accountId),
-      orderBy: (table, { desc: d }) => [d(table.capturedAt)],
+      orderBy: (table, { desc: d }) => [d(table.capturedAt), d(table.id)],
       limit,
     });
     return rows.map(toBalanceSnapshot);
@@ -413,11 +422,12 @@ async function replaceGoalAccounts(
 }
 
 function toTripGoal(row: TripGoalRow): TripGoal {
+  if (!TRIP_GOAL_STATUSES.includes(row.status)) throw new Error("Stored goal status requires repair");
   return {
     id: TripGoalId.parse(row.id),
     userId: UserId.parse(row.userId),
     title: row.title,
-    targetPoints: row.targetPoints,
+    targetPoints: safeIntegerFromDatabase(row.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError()),
     targetDate: row.targetDate,
     accountIds: row.accounts.map((a) => LoyaltyAccountId.parse(a.accountId)),
     status: row.status,
@@ -448,6 +458,8 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
   }
 
   async insert(goal: TripGoal): Promise<void> {
+    safeIntegerFromDatabase(goal.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError());
+    if (!TRIP_GOAL_STATUSES.includes(goal.status)) throw new Error("Goal status is invalid");
     await this.db.transaction(async (tx) => {
       await tx.insert(tripGoals).values({
         id: goal.id,
@@ -465,6 +477,8 @@ export class DrizzleTripGoalRepository implements TripGoalRepository {
   }
 
   async update(goal: TripGoal): Promise<void> {
+    safeIntegerFromDatabase(goal.targetPoints, 1, Number.MAX_SAFE_INTEGER, () => new InvalidGoalTargetError());
+    if (!TRIP_GOAL_STATUSES.includes(goal.status)) throw new Error("Goal status is invalid");
     await this.db.transaction(async (tx) => {
       const changed = await tx
         .update(tripGoals)

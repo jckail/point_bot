@@ -38,12 +38,12 @@ export function Sparkline({
     >
       <defs>
         <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#7C5CFF" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#7C5CFF" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--color-brand)" stopOpacity="0.35" />
+          <stop offset="1" stopColor="var(--color-brand)" stopOpacity="0" />
         </linearGradient>
         <linearGradient id="spark-line" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#A78BFA" />
-          <stop offset="1" stopColor="#FFB547" />
+          <stop offset="0" stopColor="var(--color-brand)" />
+          <stop offset="1" stopColor="var(--color-brand-strong)" />
         </linearGradient>
       </defs>
       <polygon points={area} fill="url(#spark-fill)" />
@@ -55,7 +55,7 @@ export function Sparkline({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      <circle cx={lastPoint[0]} cy={lastPoint[1]} r="4" fill="#FFB547" />
+      <circle cx={lastPoint[0]} cy={lastPoint[1]} r="4" fill="var(--color-brand-strong)" />
     </svg>
   );
 }

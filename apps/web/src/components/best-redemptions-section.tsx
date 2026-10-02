@@ -39,7 +39,7 @@ export function BestRedemptionsSection({
         </p>
       )}
       {plans.length === 0 ? (
-        <p className="rounded-2xl border border-line bg-midnight/40 p-4 text-sm text-ink-muted">
+        <p className="rounded-2xl border border-line bg-surface p-4 text-sm text-ink-muted">
           {result.notes[0] ??
             "No matching redemption for your balances yet."}
         </p>
@@ -56,9 +56,9 @@ export function BestRedemptionsSection({
 
 function PlanCard({ plan }: { plan: RedemptionPlanDto }) {
   return (
-    <li className="rounded-2xl border border-line bg-midnight/40 p-4 text-sm">
+    <li className="rounded-2xl border border-line bg-surface p-4 text-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-medium text-ink">
+        <p className="break-words font-medium text-ink">
           {plan.title}
           {plan.units > 1 ? ` x${plan.units}` : ""}
         </p>
@@ -71,7 +71,7 @@ function PlanCard({ plan }: { plan: RedemptionPlanDto }) {
           <li key={index}>{step.text}</li>
         ))}
       </ol>
-      <p className="mt-2 text-[11px] text-ink-faint">
+      <p className="mt-2 text-xs text-ink-faint">
         {plan.status === "fundable"
           ? `~${formatUsdFromCents(plan.valueCents)} value · spends ${formatPoints(plan.totalSourcePoints)} pts`
           : `Short ${formatPoints(plan.shortfall?.pointsNeeded ?? 0)} pts`}
@@ -79,8 +79,8 @@ function PlanCard({ plan }: { plan: RedemptionPlanDto }) {
         {plan.confidence}
         {plan.expiryUrgency !== "none" ? ` · uses expiring points (${plan.expiryUrgency})` : ""}
       </p>
-      <p className="mt-1 text-[11px] text-ink-faint">
-        {plan.caveats[0]}
+      <p className="mt-1 text-xs text-ink-faint">
+        {plan.caveats.join(" ")}
       </p>
     </li>
   );

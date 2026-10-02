@@ -1,23 +1,17 @@
-import Link from "next/link";
+"use client";
 
-const LINK =
-  "rounded-full px-4 py-2 text-sm font-semibold text-ink-muted no-underline transition hover:text-ink";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const destinations = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/agents", label: "Agents" },
+  { href: "/dashboard/settings", label: "Settings" },
+];
 
 export function NavLinks() {
-  return (
-    <>
-      <Link href="/dashboard" className={LINK}>
-        Dashboard
-      </Link>
-      <Link href="/dashboard/agents" className={LINK}>
-        Agents
-      </Link>
-      <Link href="/dashboard/settings" className={LINK}>
-        Settings
-      </Link>
-      <span className="hidden text-xs text-ink-faint sm:inline">
-        Ask PointUp on the dashboard
-      </span>
-    </>
-  );
+  const pathname = usePathname();
+  return <>{destinations.map(({ href, label }) => (
+    <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined} className="site-nav-link">{label}</Link>
+  ))}</>;
 }

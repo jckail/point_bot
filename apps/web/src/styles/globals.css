@@ -1,59 +1,99 @@
 @import "tailwindcss";
 
-/**
- * PointUp design tokens - the single source of truth for brand color and
- * type in the web app. See docs/brand.md for the full brand kit.
- */
+/** PointUp travel palette. Keep web, auth and brand assets in sync with docs/brand.md. */
 @theme {
-  /* Core palette */
-  --color-midnight: #0b1020;
-  --color-surface: #121a30;
-  --color-surface-raised: #1a2342;
-  --color-line: rgb(148 163 216 / 0.14);
-
-  --color-brand: #7c5cff;
-  --color-brand-strong: #5b3df5;
-  --color-brand-soft: #a78bfa;
-  --color-gold: #ffb547;
-  --color-gold-soft: #ffd394;
-
-  --color-ink: #f4f6ff;
-  --color-ink-muted: #9aa5cb;
-  --color-ink-faint: #5f6a8f;
-
-  --color-positive: #34d399;
-  --color-danger: #fb7185;
-
-  /* Typography (loaded via next/font in layout.tsx) */
+  --color-midnight: #f3f7fb;
+  --color-surface: #ffffff;
+  --color-surface-raised: #e5eef9;
+  --color-line: #d4deea;
+  --color-brand: #215bcc;
+  --color-brand-strong: #17449e;
+  --color-brand-soft: #215bcc;
+  --color-gold: #8a6200;
+  --color-gold-soft: #f7df93;
+  --color-ink: #152b46;
+  --color-ink-muted: #4b6077;
+  --color-ink-faint: #596d82;
+  --color-positive: #147450;
+  --color-danger: #b82f46;
   --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
-  body {
-    background-color: var(--color-midnight);
-    color: var(--color-ink);
-  }
-
-  ::selection {
-    background-color: var(--color-brand);
-    color: white;
-  }
+  body { background: var(--color-midnight); color: var(--color-ink); }
+  ::selection { background: var(--color-gold-soft); color: var(--color-ink); }
+  button:not(:disabled), select { cursor: pointer; }
+  button:disabled { cursor: wait; opacity: 0.55; }
+  input, select, textarea { min-width: 0; }
+  [id] { scroll-margin-top: 8rem; }
 }
 
-@utility text-gradient-brand {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-brand-soft),
-    var(--color-brand) 45%,
-    var(--color-gold)
-  );
-  background-clip: text;
-  color: transparent;
-}
+/* An unlayered rule intentionally wins over existing outline-none form utilities. */
+:focus-visible { outline: 3px solid var(--color-brand); outline-offset: 3px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 2px; }
 
 @utility card-surface {
-  border-radius: var(--radius-2xl);
+  border-radius: 1rem;
   border: 1px solid var(--color-line);
   background-color: var(--color-surface);
+}
+@utility text-gradient-brand { color: var(--color-brand); }
+
+.skip-link { position: fixed; inset: 0.75rem auto auto 1rem; z-index: 100; transform: translateY(-200%); border-radius: 0.5rem; padding: 0.75rem 1rem; background: var(--color-surface); color: var(--color-brand-strong); font-weight: 600; }
+.skip-link:focus { transform: translateY(0); }
+.site-header { background: rgb(255 255 255 / 0.96); }
+.site-nav-link { border-radius: 0.5rem; padding: 0.5rem 0.65rem; color: var(--color-ink-muted); font-size: 0.875rem; font-weight: 600; }
+.site-nav-link:hover, .site-nav-link[aria-current="page"] { background: var(--color-surface-raised); color: var(--color-brand); }
+.hero-cta { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.85rem 1.5rem; background: var(--color-brand); color: white; font-weight: 600; text-decoration: none; }
+.hero-cta:hover { background: var(--color-brand-strong); }
+.landing-hero { background: #dfebf8; overflow: hidden; }
+.hero-layout { display: grid; grid-template-columns: 1.05fr 1fr; gap: 4rem; align-items: center; padding-block: 5.5rem; }
+.hero-title { max-width: 11ch; font-size: clamp(2.8rem, 5.3vw, 4.8rem); line-height: 1.08; letter-spacing: -0.05em; font-weight: 700; }
+.hero-description { max-width: 42ch; font-size: 1.1rem; line-height: 1.7; }
+.hero-visual { min-width: 0; padding-top: 1rem; }
+.route-map { display: block; width: 100%; height: 150px; }
+.travel-ticket { overflow: hidden; border: 1px solid #bdcfe4; border-radius: 1.25rem; background: white; box-shadow: 0 20px 45px rgb(38 73 114 / 0.12); }
+.ticket-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; padding: 1rem 1.5rem; background: var(--color-gold-soft); color: #44340d; }
+.ticket-body { padding: 1.5rem; }
+.ticket-route { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.ticket-route-rule { flex: 1; border-top: 2px dashed #bdcfe4; }
+.ticket-program { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; border-top: 1px solid var(--color-line); padding: 0.8rem 0; }
+.ticket-program strong { font-variant-numeric: tabular-nums; }
+.ticket-caption { border-top: 1px dashed #bdcfe4; background: #f8fbfe; padding: 0.9rem 1.5rem; font-size: 0.8rem; line-height: 1.6; color: var(--color-ink-faint); }
+.program-strip { border-bottom: 1px solid var(--color-line); background: white; padding-block: 1.8rem; }
+.program-list { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
+.program-pill { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 0.4rem; background: var(--color-midnight); padding: 0.5rem 0.8rem; font-size: 0.85rem; color: var(--color-ink-muted); }
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem; }
+.feature-symbol { display: grid; width: 2.8rem; height: 2.8rem; place-items: center; border-radius: 0.75rem; background: var(--color-surface-raised); color: var(--color-brand); margin-bottom: 1.2rem; }
+.feature-symbol svg { width: 24px; height: 24px; }
+.start-panel { display: grid; grid-template-columns: 1fr 1.5fr; gap: 3rem; border-radius: 1.5rem; background: var(--color-ink); color: white; padding: 3rem; }
+.start-steps { display: flex; flex-direction: column; gap: 1.5rem; }
+.start-step { display: flex; gap: 1rem; }
+.step-number { display: grid; width: 2rem; height: 2rem; flex-shrink: 0; place-items: center; border: 1px solid #8ca4c2; border-radius: 50%; color: var(--color-gold-soft); }
+.dashboard-nav { display: flex; gap: 0.3rem; overflow-x: auto; border-bottom: 1px solid var(--color-line); padding-top: 0.3rem; padding-bottom: 0.7rem; }
+.dashboard-nav a { border-radius: 0.5rem; padding: 0.6rem 0.9rem; white-space: nowrap; color: var(--color-ink-muted); font-size: 0.9rem; font-weight: 600; }
+.dashboard-nav a:hover { background: var(--color-surface-raised); color: var(--color-brand); }
+.dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); overflow: hidden; border: 1px solid var(--color-line); border-radius: 1rem; background: white; }
+.stat-cell { padding: 1.4rem; border-right: 1px solid var(--color-line); }
+.stat-cell:first-child { background: var(--color-surface-raised); }
+.dashboard-section { display: flex; flex-direction: column; gap: 1.3rem; }
+.account-card { border-top: 4px solid var(--color-brand); }
+.account-tools { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; }
+.account-search { display: flex; flex-direction: column; gap: 0.35rem; width: min(100%, 22rem); font-size: 0.85rem; }
+
+@media (max-width: 850px) {
+  .hero-layout { grid-template-columns: 1fr; gap: 2rem; padding-block: 3rem; }
+  .hero-title { max-width: 13ch; }
+  .hero-visual { width: 100%; max-width: 34rem; margin-inline: auto; }
+  .feature-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .start-panel { grid-template-columns: 1fr; gap: 2rem; padding: 2rem; }
+}
+@media (max-width: 380px) {
+  .ticket-body { padding: 1rem; }
+  .ticket-top, .ticket-caption { padding-inline: 1rem; }
+  .start-panel { padding: 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

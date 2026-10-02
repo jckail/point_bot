@@ -1,9 +1,10 @@
 import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
-import { AwardWatchNotFoundError } from "../../domain/errors";
+import { AwardWatchNotFoundError, InvalidAwardWatchError } from "../../domain/errors";
 import {
   createAwardWatch,
   recordCheck,
+  normalizeObservedCentsPerPoint,
   shouldNotify,
   type AwardWatch,
   type AwardWatchRepository,
@@ -99,13 +100,15 @@ export class CheckAwardWatches {
         const result = await this.ingestDealPage.execute({ url: watch.url });
         pageTitle = result.pageTitle;
         for (const deal of result.deals) {
-          const cpp = realizedCpp(deal);
+          const cpp = normalizeObservedCentsPerPoint(realizedCpp(deal));
           if (cpp !== null && (best === null || cpp > best.cpp)) {
             best = { cpp, title: deal.title };
           }
         }
-      } catch {
+      } catch (error) {
         failed += 1;
+        // Invalid numeric claims must not change bookkeeping or publish a hit.
+        if (error instanceof InvalidAwardWatchError) continue;
         await this.watches.update(
           recordCheck(watch, { bestRealizedCpp: null, notified: false, now }),
         );

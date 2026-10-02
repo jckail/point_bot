@@ -17,10 +17,18 @@ export interface CustomValuation {
 /** Upper bound guards against fat-finger inputs; 100¢/pt is already extreme. */
 export const MAX_CENTS_PER_POINT = 100;
 
-export function assertValidCentsPerPoint(value: number): void {
+/** Normalize once so immediate responses and milli-cents storage agree. */
+export function normalizeCentsPerPoint(value: number): number {
   if (!Number.isFinite(value) || value <= 0 || value > MAX_CENTS_PER_POINT) {
     throw new InvalidValuationError();
   }
+  const milli = Math.round(value * 1000);
+  if (milli < 1) throw new InvalidValuationError();
+  return milli / 1000;
+}
+
+export function assertValidCentsPerPoint(value: number): void {
+  normalizeCentsPerPoint(value);
 }
 
 export interface CustomValuationRepository {

@@ -17,6 +17,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <p className="mt-2 text-ink-muted">Manage identities connected to your PointUp account.</p>
       <Link href="/dashboard/agents" className="mt-3 inline-block text-sm font-semibold text-brand">Agent access and proposed changes</Link>
     </div>
+    <nav className="dashboard-nav" aria-label="Account settings sections"><a href="#connected-identities">Connected identities</a><Link href="/dashboard/agents">Agent access</Link><Link href="/dashboard/agents#review-actions">Proposed changes</Link></nav>
     <ChatGptIdentitySettings callbackStatus={chatgpt === "linked" || chatgpt === "error" ? chatgpt : undefined} />
   </main>;
 }

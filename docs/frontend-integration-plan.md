@@ -65,3 +65,31 @@ Static source review is insufficient to claim responsive layout, keyboard access
 6. Auth-mode source/route gate and production rendering: keep conditional auth loading and local font assets; verify Clerk appearance only with root-approved auth fixture. Inspect generated favicon/social image after the cohesive asset update. Run final required project checks once after changes settle.
 
 The repository's existing `e2e/playwright.config.ts` explicitly tests MCP through HTTP `APIRequestContext` with **no browser**. Those passing tests do not establish the frontend browser gates above. Add only bounded functional/browser checks needed for changed behavior; do not label backend/API CI as visual acceptance. Missing browser evidence should be reported precisely as unverified rendering/interaction, without inventing screenshots or claiming no regressions.
+
+## Implemented local frontend milestone
+
+The cohesive light travel palette, landing ticket illustration, auth/brand/social
+assets, navigation, focus/reduced-motion styles and skip target are implemented.
+Landing examples are bounded to 14 actual catalog entries spanning all nine kinds;
+copy distinguishes linking from capture/sync support and labels illustrative balances.
+Portfolio section navigation, search/type/tag intersection/reset/live count, pending
+controls, goal progress semantics, wrapped URLs and clearer capability copy are
+implemented while retaining the optimizer and current server/auth contracts.
+Agents/settings retain the four scopes, provider-wide consent, browser-only reviews,
+canonical review-actions anchor and identity linking semantics.
+
+Root used one owned isolated Chrome tab (7, context pointup-root-travel-20261002),
+reusing it for landing, empty/demo dashboard, Agents, settings and account detail.
+390px mobile views had no page-level horizontal overflow; desktop landing/sample
+portfolio at 1440px retained the three-column program grid. Real search/type selection
+narrowed five demo programs to United; reset restored five. The goal exposes a named
+progressbar. Enter on the skip link focused main-content; assistant opening focused
+its input and Escape returned focus to Ask PointUp. Landing screenshots were visually
+inspected. The demo fixture is synthetic, not live provider data.
+
+The temporary server (PID3576068, child3576080, port3102, log
+/tmp/pointup-travel-dev-root.log) and owned tab were stopped/closed afterward; no
+other browser tabs or sessions were changed. This bounded check does not verify
+Clerk modal rendering, every long-value/zoom/error/pending flow, public-share interaction,
+reduced-motion emulation, real extension/provider captures or live assistant inference.
+Those gates remain pending; source styles and API smoke are not substitutes.

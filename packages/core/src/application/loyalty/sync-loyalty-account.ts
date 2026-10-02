@@ -88,8 +88,16 @@ export class SyncLoyaltyAccount {
       );
       await this.balances.insert(snapshot);
 
-      // Activity resets the inactivity clock for programs that expire.
-      await this.accounts.update(refreshExpiryFromActivity(current, now));
+      // Provider capture happened before the account lock. A concurrent newer
+      // reading or metadata edit must retain its expiry, including explicit NULL.
+      const historical = now.getTime() < current.updatedAt.getTime()
+        || (previous !== undefined && now.getTime() < previous.capturedAt.getTime());
+      const refreshed = historical ? current : refreshExpiryFromActivity(current, now);
+      const mutationTime = this.clock.now();
+      await this.accounts.update({
+        ...refreshed,
+        updatedAt: new Date(Math.max(mutationTime.getTime(), current.updatedAt.getTime())),
+      });
 
       await recordActivity(this.activity, {
         userId: input.userId,

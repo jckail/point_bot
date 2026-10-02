@@ -21,7 +21,7 @@ import { SharePortfolioSection } from "@/components/share-portfolio-section";
 import { StatCard } from "@/components/stat-card";
 import { TripGoalsSection } from "@/components/trip-goals-section";
 import { ValueDealsSection } from "@/components/value-deals-section";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getSessionUser, getSessionUserId } from "@/server/auth";
 import { getContainer } from "@/server/container";
@@ -100,9 +100,7 @@ export default async function DashboardPage() {
         {accounts.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <form action={syncAllLoyaltyAccountsAction}>
-              <Button type="submit" size="sm">
-                Sync all programs
-              </Button>
+              <SubmitButton size="sm" pendingLabel="Syncing programs…">Sync all programs</SubmitButton>
             </form>
             <a
               href="/api/v1/export?format=csv"
@@ -126,7 +124,10 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <nav aria-label="Portfolio sections" className="dashboard-nav">
+        <a href="#programs">Programs</a><a href="#opportunities">Opportunities</a><a href="#trip-goals">Trip goals</a><a href="#activity">Activity</a><a href="#manage">Manage</a>
+      </nav>
+      <div className="dashboard-stats">
         <StatCard
           label="Points tracked"
           value={formatPoints(summary.totalPoints)}
@@ -135,10 +136,10 @@ export default async function DashboardPage() {
         <StatCard
           label="Estimated value"
           value={formatUsdFromCents(summary.totalValueCents)}
-          hint="At editorial cents-per-point"
+          hint="Your valuations or editorial estimates"
         />
         <StatCard
-          label="Last sync"
+          label="Last balance update"
           value={
             summary.lastSyncedAt
               ? summary.lastSyncedAt.toLocaleDateString("en-US", {
@@ -152,7 +153,7 @@ export default async function DashboardPage() {
               ? summary.lastSyncedAt.toLocaleTimeString("en-US", {
                   timeStyle: "short",
                 })
-              : "No syncs yet"
+              : "No balances yet"
           }
         />
         {kindBreakdown.map(([kind, stats]) => (
@@ -165,25 +166,26 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {accounts.length === 0 && <DemoPortfolioCta />}
-
-      {accounts.length > 0 && <AccountGrid accounts={accounts} />}
-
-      <RecentlyUnlinked accounts={deleted} />
-      <ExpiryWarnings accounts={expiring} />
-      {accounts.length > 0 && (
-        <BestRedemptionsSection result={toPlanRedemptionResultDto(bestPlans)} />
-      )}
-      {accounts.length > 0 && <ValueDealsSection initialAdvice={adviceDto} />}
-      <TripGoalsSection goals={goals} accounts={accounts} />
-      <ActivityFeed events={activity} />
-
-      {accounts.length > 0 && (
-        <SharePortfolioSection shares={shares} baseUrl={baseUrl} />
-      )}
-
-      <LinkAccountForm providers={availableProviders} />
-      <ImportPortfolioForm />
+      <section id="programs" className="dashboard-section flex flex-col gap-5" aria-labelledby="programs-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><h2 id="programs-heading" className="font-display text-2xl font-semibold text-ink">Your programs</h2><p className="mt-1 text-sm text-ink-muted">Balances, expiry dates and memberships in one place.</p></div>
+          <a href="#link-program" className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-brand no-underline">Link a program</a>
+        </div>
+        {accounts.length === 0 ? <><div className="card-surface p-6"><p className="font-semibold text-ink">Start with a program you already use.</p><p className="mt-2 text-sm text-ink-muted">Link its membership number, then record the balance you see on the provider’s site.</p></div><DemoPortfolioCta /></> : <AccountGrid accounts={accounts} />}
+      </section>
+      <section id="opportunities" className="dashboard-section flex flex-col gap-8" aria-label="Points opportunities">
+        <ExpiryWarnings accounts={expiring} />
+        {accounts.length > 0 ? <><BestRedemptionsSection result={toPlanRedemptionResultDto(bestPlans)} /><ValueDealsSection initialAdvice={adviceDto} /></> : <p className="text-sm text-ink-muted">Add a balance to explore redemption estimates and expiry reminders.</p>}
+      </section>
+      <div id="trip-goals" className="dashboard-section"><TripGoalsSection goals={goals} accounts={accounts} /></div>
+      <div id="activity" className="dashboard-section"><ActivityFeed events={activity} /></div>
+      <section id="manage" className="dashboard-section flex flex-col gap-6" aria-labelledby="manage-heading">
+        <div><h2 id="manage-heading" className="font-display text-2xl font-semibold text-ink">Manage your portfolio</h2><p className="mt-1 text-sm text-ink-muted">Link programs, import existing balances, share totals or restore recently unlinked memberships.</p></div>
+        <div id="link-program" className="dashboard-section"><LinkAccountForm providers={availableProviders} /></div>
+        <ImportPortfolioForm />
+        {accounts.length > 0 && <SharePortfolioSection shares={shares} baseUrl={baseUrl} />}
+        <RecentlyUnlinked accounts={deleted} />
+      </section>
       <AssistantPanel />
     </main>
   );

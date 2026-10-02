@@ -15,7 +15,7 @@ import { MembershipNumberForm } from "@/components/membership-number-form";
 import { BalanceTrendChips } from "@/components/balance-trend";
 import { ProviderBadge } from "@/components/provider-badge";
 import { Sparkline } from "@/components/sparkline";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/form-feedback";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 import { getContainer } from "@/server/container";
 
@@ -56,7 +56,7 @@ export default async function AccountDetailPage({
           &larr; Back to dashboard
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-bold text-ink">
+          <h1 className="break-words font-display text-3xl font-bold text-ink">
             {account.pinnedAt ? "★ " : ""}
             {account.provider.displayName}
           </h1>
@@ -76,7 +76,7 @@ export default async function AccountDetailPage({
             </button>
           </form>
         </div>
-        <p className="text-ink-muted">
+        <p className="break-all text-ink-muted">
           Member #{account.membershipNumber}
           {account.hasStoredCredential && " · credential vault connected"}
         </p>
@@ -86,7 +86,7 @@ export default async function AccountDetailPage({
       <section className="card-surface flex flex-col gap-6 p-6 md:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+            <p className="text-sm font-medium text-ink-faint">
               Current balance
             </p>
             <p className="font-display mt-1 text-4xl font-bold text-ink">
@@ -106,7 +106,7 @@ export default async function AccountDetailPage({
                     dateStyle: "medium",
                     timeStyle: "short",
                   })}{" "}
-                  · {account.latestBalance.source === "sync" ? "synced" : "manual entry"}
+                  · {account.latestBalance.source === "sync" ? "synced" : account.latestBalance.source === "agent" ? "agent capture" : "manual entry"}
                 </p>
                 <div className="mt-3">
                   <BalanceTrendChips trend={account.trend} />
@@ -116,9 +116,9 @@ export default async function AccountDetailPage({
           </div>
           <form action={syncLoyaltyAccountAction}>
             <input type="hidden" name="accountId" value={account.id} />
-            <Button variant="secondary" size="sm" type="submit">
+            <SubmitButton variant="secondary" size="sm" pendingLabel="Syncing…">
               Sync now
-            </Button>
+            </SubmitButton>
           </form>
         </div>
 
@@ -126,7 +126,7 @@ export default async function AccountDetailPage({
           <Sparkline values={chartValues} />
         ) : (
           <p className="text-sm text-ink-faint">
-            Balance history will chart here after a couple of syncs.
+            Balance history will chart here after two recorded balances.
           </p>
         )}
       </section>
@@ -144,7 +144,7 @@ export default async function AccountDetailPage({
               {history.slice(0, 8).map((entry) => (
                 <li
                   key={entry.capturedAt.toISOString()}
-                  className="flex items-center justify-between py-2.5 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                 >
                   <span className="text-ink">
                     {formatPoints(entry.points)}
@@ -214,9 +214,9 @@ export default async function AccountDetailPage({
         </div>
         <form action={unlinkLoyaltyAccountAction}>
           <input type="hidden" name="accountId" value={account.id} />
-          <Button variant="danger" size="sm" type="submit">
+          <SubmitButton variant="danger" size="sm" pendingLabel="Unlinking…">
             Unlink account
-          </Button>
+          </SubmitButton>
         </form>
       </section>
     </main>

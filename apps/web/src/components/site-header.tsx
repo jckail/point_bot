@@ -12,13 +12,13 @@ export async function SiteHeader() {
     : (await import("@/components/clerk-nav")).ClerkNav;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-midnight/80 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+    <header className="site-header sticky top-0 z-40 border-b border-line backdrop-blur">
+      <div className="mx-auto flex min-h-16 w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 sm:px-6">
         <Link href="/" className="no-underline">
           <Logo size={30} />
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-1">
           {ClerkNav ? (
             <ClerkNav />
           ) : (
@@ -26,7 +26,7 @@ export async function SiteHeader() {
               <NavLinks />
               <span
                 title="AUTH_PROVIDER=dev: no sign-in, fixed local user"
-                className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-ink-faint"
+                className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-ink-faint"
               >
                 Dev mode
               </span>

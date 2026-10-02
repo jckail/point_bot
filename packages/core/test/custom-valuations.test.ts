@@ -37,7 +37,7 @@ describe("SetCustomValuation", () => {
 
   it("rejects out-of-range cents-per-point", async () => {
     const repo = new InMemoryCustomValuationRepository();
-    for (const bad of [0, -1, 101, Number.NaN]) {
+    for (const bad of [0, 0.0001, -1, 101, Number.NaN, Number.POSITIVE_INFINITY]) {
       await expect(
         new SetCustomValuation(repo).execute({
           userId: asUserId("u"),
@@ -46,6 +46,15 @@ describe("SetCustomValuation", () => {
         }),
       ).rejects.toBeInstanceOf(InvalidValuationError);
     }
+  });
+
+  it("returns and persists the same normalized milli-cents value", async () => {
+    const repo = new InMemoryCustomValuationRepository();
+    const result = await new SetCustomValuation(repo).execute({
+      userId: asUserId("u"), providerId: "united", centsPerPoint: 1.2345,
+    });
+    expect(result.centsPerPoint).toBe(1.235);
+    expect(await new ListCustomValuations(repo).execute(asUserId("u"))).toEqual([result]);
   });
 
   it("upserts a valuation with the clock's timestamp", async () => {

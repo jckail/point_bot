@@ -142,3 +142,35 @@ Root retains aggregate verification, PostgreSQL and release operations. Plans:
 [production rollout](production-rollout-plan.md). These plans are not completed runtime claims.
 Migration-first deployment, real standalone ChatGPT sign-in, live assistant/exporter and
 extension checks, remaining arithmetic limits and access-screen visual integration remain open.
+
+## Numeric and travel-interface candidate (local verified checkpoint)
+
+Implemented additive numeric migration0020, safe domain/adapter boundaries,
+normalized valuation/watch rates, exact point totals/transfer intermediates and
+bounded optimizer arithmetic. Backfill/manual/agent/sync readings preserve newer
+expiry metadata and use a fresh monotonic mutation timestamp while retaining
+original capture provenance. Seven staged NOT VALID constraints preserve historical
+rows; production inspection/repair/validation is still required.
+
+The light travel landing, consistent brand/auth assets, responsive portfolio
+sections/search/type/tag/reset, pending form controls and access/settings hierarchy
+are integrated. All nine catalog kinds, the PR14 optimizer and existing auth,
+review, consent and identity semantics are retained. Detailed implemented scope
+and browser limits are in numeric-integrity-plan.md and frontend-integration-plan.md.
+
+Root verification:108 focused numeric/backfill/optimizer cases,16 actual PostgreSQL
+adoption/production metadata cases, managed migration20, full lint, all workspace
+types and hygiene pass (no cycles,0.17% duplication). The final local aggregate
+workspace command did NOT start: shared agent-heavy-check queue returned75 after
+its bounded wait; log /tmp/pointup-numeric-travel-full-test.log preserved, no bypass
+or unchanged retry. Fresh committed-head CI is required for aggregate/build evidence.
+One owned browser tab/server checked 390px/1440px layouts, filtering/reset, named
+goal progress, working skip focus and assistant Escape/focus return; both stopped.
+
+Production deployment remains blocked by unavailable AWS/GitHub deployment access
+and the migration-before-host/TLS rollout work, not by overall source progress.
+Continue production-rollout-plan.md implementation, approved-client standalone
+ChatGPT sign-in, live assistant/exporter/provider/extension checks, remaining cash/
+deal/rate integrity, public OAuth MCP/plugin onboarding and provider partnerships.
+iOS remains deferred. Original active overhaul goal and other preserved branches
+remain; this candidate is not a completed goal or production deployment.

@@ -141,6 +141,13 @@
       "when": 1790927221702,
       "tag": "0019_observation_provenance_replay",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790930170858,
+      "tag": "0020_numeric_integrity",
+      "breakpoints": true
     }
   ]
 }

@@ -8,13 +8,13 @@ export function BrandedClerkProvider({
     <ClerkProvider
       appearance={{
         variables: {
-          colorPrimary: "#7c5cff",
-          colorBackground: "#121a30",
-          colorForeground: "#f4f6ff",
-          colorMutedForeground: "#9aa5cb",
-          colorInput: "#0b1020",
-          colorInputForeground: "#f4f6ff",
-          colorBorder: "rgba(148, 163, 216, 0.14)",
+          colorPrimary: "#215bcc",
+          colorBackground: "#ffffff",
+          colorForeground: "#152b46",
+          colorMutedForeground: "#4b6077",
+          colorInput: "#f3f7fb",
+          colorInputForeground: "#152b46",
+          colorBorder: "#d4deea",
           borderRadius: "0.75rem",
         },
       }}

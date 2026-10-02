@@ -1,3 +1,5 @@
+import { checkedPointRatio } from "../shared/point-math";
+
 /**
  * Applies a bonus with integer math: floor(base * permille / 1000), where
  * `base` is the already-converted destination amount. This is the single
@@ -6,5 +8,5 @@
  * without depending on each other.
  */
 export function applyBonusPermille(base: number, permille: number): number {
-  return Math.floor((base * permille) / 1000);
+  return checkedPointRatio(base, permille, 1000);
 }

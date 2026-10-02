@@ -135,6 +135,8 @@ export const balanceSnapshots = pgTable(
       snapshot.loyaltyAccountId,
       snapshot.capturedAt,
     ),
+    check("balance_snapshot_points_check", sql`${snapshot.points} BETWEEN 0 AND 9007199254740991`),
+    check("balance_snapshot_source_check", sql`${snapshot.source} IN ('sync', 'manual', 'agent')`),
   ],
 );
 
@@ -195,6 +197,8 @@ export const tripGoals = pgTable(
   (goal) => [
     index("trip_goal_user_id_idx").on(goal.userId),
     uniqueIndex("trip_goal_id_user_unique").on(goal.id, goal.userId),
+    check("trip_goal_target_points_check", sql`${goal.targetPoints} BETWEEN 1 AND 9007199254740991`),
+    check("trip_goal_status_check", sql`${goal.status} IN ('active', 'achieved', 'archived')`),
   ],
 );
 
@@ -239,7 +243,10 @@ export const userProviderValuations = pgTable(
     centsPerPointMilli: integer("cents_per_point_milli").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (row) => [primaryKey({ columns: [row.userId, row.providerId] })],
+  (row) => [
+    primaryKey({ columns: [row.userId, row.providerId] }),
+    check("user_provider_valuation_milli_check", sql`${row.centsPerPointMilli} BETWEEN 1 AND 100000`),
+  ],
 );
 
 // ─── User settings ─────────────────────────────────────────────────────────
@@ -270,7 +277,11 @@ export const awardWatches = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (watch) => [index("award_watch_user_id_idx").on(watch.userId)],
+  (watch) => [
+    index("award_watch_user_id_idx").on(watch.userId),
+    check("award_watch_threshold_milli_check", sql`${watch.minCentsPerPointMilli} BETWEEN 1 AND 100000`),
+    check("award_watch_best_milli_check", sql`${watch.bestSeenCentsPerPointMilli} IS NULL OR ${watch.bestSeenCentsPerPointMilli} >= 0`),
+  ],
 );
 
 // ─── Public portfolio shares ───────────────────────────────────────────────

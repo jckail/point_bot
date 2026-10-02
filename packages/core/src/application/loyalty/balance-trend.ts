@@ -1,3 +1,4 @@
+import { exactPoints } from "../../domain/shared/point-math";
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
 import type { BalanceTrendContext } from "../../domain/loyalty/repositories";
 
@@ -21,7 +22,7 @@ export function computeDelta(
   latest: number,
   baseline: number,
 ): BalanceDelta {
-  const points = latest - baseline;
+  const points = Number(exactPoints(latest) - exactPoints(baseline));
   return {
     points,
     percent: baseline === 0 ? null : points / baseline,
@@ -36,6 +37,7 @@ export function computeBalanceTrend(
     return { sincePrevious: null, since30Days: null, since90Days: null };
   }
 
+  exactPoints(latestPoints);
   return {
     sincePrevious: context.previous
       ? computeDelta(latestPoints, context.previous.points)

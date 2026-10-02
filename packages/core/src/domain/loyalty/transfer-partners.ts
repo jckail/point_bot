@@ -1,4 +1,6 @@
 import { applyBonusPermille } from "./bonus-math";
+import { InvalidBalanceError } from "../errors";
+import { checkedPointRatio, exactPoints } from "../shared/point-math";
 import type { ProviderId } from "./provider";
 
 /**
@@ -40,8 +42,14 @@ function gcd(a: number, b: number): number {
  * ratios (1:1.5) are scaled by 1000 and reduced, so all later math is integer.
  */
 export function edgeRatio(edge: TransferEdge): Ratio {
+  if (!Number.isFinite(edge.ratioTo) || !Number.isFinite(edge.ratioFrom) || edge.ratioTo <= 0 || edge.ratioFrom <= 0) {
+    throw new InvalidBalanceError();
+  }
   const num = Math.round(edge.ratioTo * 1000);
   const den = Math.round(edge.ratioFrom * 1000);
+  exactPoints(num);
+  exactPoints(den);
+  if (num === 0 || den === 0) throw new InvalidBalanceError();
   const g = gcd(num, den);
   return { num: num / g, den: den / g };
 }
@@ -209,8 +217,9 @@ export function convertPoints(
   sourcePoints: number,
   bonusPermille = 1000,
 ): number {
-  if (edge.ratioFrom <= 0 || sourcePoints <= 0) return 0;
+  exactPoints(sourcePoints);
+  exactPoints(bonusPermille);
   const { num, den } = edgeRatio(edge);
-  const base = Math.floor((sourcePoints * num) / den);
+  const base = checkedPointRatio(sourcePoints, num, den);
   return applyBonusPermille(base, bonusPermille);
 }

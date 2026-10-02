@@ -1,8 +1,8 @@
 const gradientStops = (
   <>
-    <stop offset="0" stopColor="#7C5CFF" />
-    <stop offset="0.55" stopColor="#A78BFA" />
-    <stop offset="1" stopColor="#FFB547" />
+    <stop offset="0" stopColor="#215BCC" />
+    <stop offset="0.55" stopColor="#4684DE" />
+    <stop offset="1" stopColor="#215BCC" />
   </>
 );
 

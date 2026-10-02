@@ -1,4 +1,5 @@
 import type { BalanceSnapshot } from "../../domain/loyalty/balance-snapshot";
+import { estimateValueCents } from "../../domain/shared/point-math";
 import type { LoyaltyAccount } from "../../domain/loyalty/loyalty-account";
 import { getProviderOrThrow } from "../../domain/loyalty/provider";
 import type { BalanceTrendContext } from "../../domain/loyalty/repositories";
@@ -61,7 +62,7 @@ export function toLoyaltyAccountReadModel(
     latestBalance: latest ? toBalanceReadModel(latest) : null,
     // Value uses the user's override when set, else the editorial estimate.
     estimatedValueCents: latest
-      ? Math.round(latest.points * effectiveCentsPerPoint)
+      ? estimateValueCents(latest.points, effectiveCentsPerPoint)
       : 0,
     customCentsPerPoint,
     trend,

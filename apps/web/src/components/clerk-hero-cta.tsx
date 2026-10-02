@@ -7,17 +7,17 @@ export function ClerkHeroCta() {
     <>
       <Show when="signed-out">
         <SignUpButton mode="modal">
-          <button className="cursor-pointer rounded-full bg-brand px-8 py-3 font-semibold text-white shadow-xl shadow-brand/30 transition hover:bg-brand-strong">
-            Start tracking free
+          <button className="hero-cta">
+            Create your portfolio
           </button>
         </SignUpButton>
       </Show>
       <Show when="signed-in">
         <Link
           href="/dashboard"
-          className="rounded-full bg-brand px-8 py-3 font-semibold text-white no-underline shadow-xl shadow-brand/30 transition hover:bg-brand-strong"
+          className="hero-cta"
         >
-          Open your dashboard
+          Open your portfolio
         </Link>
       </Show>
     </>

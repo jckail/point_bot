@@ -5,6 +5,9 @@ import type {
   AwardWatchRepository,
 } from "../../domain/loyalty/award-watch";
 import { AwardWatchId, UserId } from "../../domain/shared/ids";
+import { InvalidAwardWatchError } from "../../domain/errors";
+import { normalizeAwardWatchThreshold, normalizeObservedCentsPerPoint } from "../../domain/loyalty/award-watch";
+import { safeIntegerFromDatabase } from "../db/numeric-values";
 import type { Database } from "../db/client";
 import { awardWatches } from "../db/schema";
 
@@ -19,11 +22,11 @@ function toDomain(row: Row): AwardWatch {
     userId: UserId.parse(row.userId),
     url: row.url,
     label: row.label,
-    minCentsPerPoint: row.minCentsPerPointMilli / MILLI,
+    minCentsPerPoint: safeIntegerFromDatabase(row.minCentsPerPointMilli, 1, 100_000, () => new InvalidAwardWatchError("Stored watch threshold requires repair")) / MILLI,
     bestSeenCentsPerPoint:
       row.bestSeenCentsPerPointMilli === null
         ? null
-        : row.bestSeenCentsPerPointMilli / MILLI,
+        : safeIntegerFromDatabase(row.bestSeenCentsPerPointMilli, 0, 2_147_483_647, () => new InvalidAwardWatchError("Stored observed rate requires repair")) / MILLI,
     lastCheckedAt: row.lastCheckedAt,
     lastNotifiedAt: row.lastNotifiedAt,
     createdAt: row.createdAt,
@@ -32,16 +35,17 @@ function toDomain(row: Row): AwardWatch {
 }
 
 function toRow(watch: AwardWatch): Row {
+  const observed = normalizeObservedCentsPerPoint(watch.bestSeenCentsPerPoint);
   return {
     id: watch.id,
     userId: watch.userId,
     url: watch.url,
     label: watch.label,
-    minCentsPerPointMilli: Math.round(watch.minCentsPerPoint * MILLI),
+    minCentsPerPointMilli: Math.round(normalizeAwardWatchThreshold(watch.minCentsPerPoint) * MILLI),
     bestSeenCentsPerPointMilli:
-      watch.bestSeenCentsPerPoint === null
+      observed === null
         ? null
-        : Math.round(watch.bestSeenCentsPerPoint * MILLI),
+        : Math.round(observed * MILLI),
     lastCheckedAt: watch.lastCheckedAt,
     lastNotifiedAt: watch.lastNotifiedAt,
     createdAt: watch.createdAt,

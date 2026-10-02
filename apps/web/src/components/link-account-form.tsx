@@ -28,15 +28,14 @@ export function LinkAccountForm({
         Link a program
       </h2>
       <p className="mt-1 text-sm text-ink-muted">
-        Add a membership by number. Connect credentials later from a vault you
-        control - PointUp never stores passwords.
+        Add a membership number to track a program. Linking does not sign in to the provider or fetch a balance. You can record a balance manually; automated sync depends on a configured provider connection.
       </p>
 
       <form
         action={formAction}
         className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"
       >
-        <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium text-ink-muted">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium text-ink-muted">
           Program
           <select
             name="providerId"
@@ -59,7 +58,7 @@ export function LinkAccountForm({
             })}
           </select>
         </label>
-        <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium text-ink-muted">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium text-ink-muted">
           Membership number
           <input
             name="membershipNumber"

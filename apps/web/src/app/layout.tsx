@@ -25,11 +25,11 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "PointUp - all your points, one clear view",
+    default: "PointUp - your points have places to go",
     template: "%s | PointUp",
   },
   description:
-    "Track airline miles and hotel points in one place - on the web, on your phone, or right in your browser.",
+    "Track loyalty balances, plan trip goals, and compare estimated redemption value in one place.",
 };
 
 // The auth mode is a runtime setting (AUTH_PROVIDER), so nothing may be
@@ -42,8 +42,9 @@ export default async function RootLayout({
   const page = (
     <html lang="en" className={`${sora.variable} ${inter.variable}`}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <SiteHeader />
-        <div className="flex-1">{children}</div>
+        <div id="main-content" tabIndex={-1} className="flex-1">{children}</div>
         <SiteFooter />
       </body>
     </html>

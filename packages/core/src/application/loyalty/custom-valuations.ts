@@ -1,5 +1,5 @@
 import {
-  assertValidCentsPerPoint,
+  normalizeCentsPerPoint,
   type CustomValuation,
   type CustomValuationRepository,
 } from "../../domain/loyalty/custom-valuation";
@@ -32,12 +32,12 @@ export class SetCustomValuation {
     readonly centsPerPoint: number;
   }): Promise<CustomValuation> {
     getProviderOrThrow(input.providerId);
-    assertValidCentsPerPoint(input.centsPerPoint);
+    const centsPerPoint = normalizeCentsPerPoint(input.centsPerPoint);
 
     const valuation: CustomValuation = {
       userId: input.userId,
       providerId: input.providerId,
-      centsPerPoint: input.centsPerPoint,
+      centsPerPoint,
       updatedAt: this.clock.now(),
     };
     await this.valuations.upsert(valuation);

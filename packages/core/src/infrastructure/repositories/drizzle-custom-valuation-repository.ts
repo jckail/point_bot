@@ -5,6 +5,9 @@ import type {
   CustomValuationRepository,
 } from "../../domain/loyalty/custom-valuation";
 import { UserId } from "../../domain/shared/ids";
+import { InvalidValuationError } from "../../domain/errors";
+import { normalizeCentsPerPoint } from "../../domain/loyalty/custom-valuation";
+import { safeIntegerFromDatabase } from "../db/numeric-values";
 import type { Database } from "../db/client";
 import { userProviderValuations } from "../db/schema";
 
@@ -25,7 +28,7 @@ export class DrizzleCustomValuationRepository
     return rows.map((row) => ({
       userId: UserId.parse(row.userId),
       providerId: row.providerId,
-      centsPerPoint: row.centsPerPointMilli / MILLI,
+      centsPerPoint: safeIntegerFromDatabase(row.centsPerPointMilli, 1, 100_000, () => new InvalidValuationError()) / MILLI,
       updatedAt: row.updatedAt,
     }));
   }
@@ -34,7 +37,7 @@ export class DrizzleCustomValuationRepository
     const row = {
       userId: valuation.userId,
       providerId: valuation.providerId,
-      centsPerPointMilli: Math.round(valuation.centsPerPoint * MILLI),
+      centsPerPointMilli: Math.round(normalizeCentsPerPoint(valuation.centsPerPoint) * MILLI),
       updatedAt: valuation.updatedAt,
     };
     await this.db

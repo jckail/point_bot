@@ -59,27 +59,23 @@ const SCOPE_HELP = {
 function PendingReview({ review }: { review: PendingReviewRow }) {
   const [result, action] = useActionState(resolveReviewAction, idleActionResult);
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-line px-3 py-3 text-sm">
+    <li className="flex flex-col gap-3 rounded-xl border border-line bg-midnight px-4 py-4 text-sm">
       <p className="text-ink">
         <span className="font-medium">{review.providerName}</span>:{" "}
         <strong>{review.points.toLocaleString("en-US")}</strong>
         {review.previousPoints !== null && (
-          <span className="text-ink-muted"> (currently {review.previousPoints.toLocaleString("en-US")})</span>
+          <span className="text-ink-muted"> (previous balance {review.previousPoints.toLocaleString("en-US")})</span>
         )}
       </p>
-      <p className="text-xs text-ink-faint">
+      <p className="break-words text-sm leading-6 text-ink-muted">
         Reported by {review.agent} via {review.sourceHost}. Not saved until you confirm. Expires {formatDateTime(review.expiresAt)}.
       </p>
-      <form action={action} className="flex gap-2">
+      <form action={action} className="flex flex-wrap gap-2">
         <input type="hidden" name="reviewId" value={review.id} />
-        <button type="submit" name="decision" value="confirm" className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-midnight">
-          Confirm
-        </button>
-        <button type="submit" name="decision" value="reject" className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink">
-          Reject
-        </button>
+        <SubmitButton name="decision" value="confirm" size="sm" pendingLabel="Saving decision…">Confirm balance</SubmitButton>
+        <SubmitButton name="decision" value="reject" size="sm" variant="ghost" pendingLabel="Saving decision…">Reject balance</SubmitButton>
       </form>
-      <FormFeedback result={result} successMessage="Done." />
+      <FormFeedback result={result} successMessage="Decision saved." />
     </li>
   );
 }
@@ -112,26 +108,25 @@ export function AgentsPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      {pendingReviews.length > 0 && (
-        <section className="card-surface flex flex-col gap-3 p-6">
+      <section id="balance-reviews" aria-labelledby="balance-reviews-title" className="card-surface flex flex-col gap-3 p-6">
           <div>
-            <h2 className="font-display text-lg font-semibold text-ink">Pending review</h2>
+            <h2 id="balance-reviews-title" className="font-display text-xl font-semibold text-ink">Captured balances to review</h2>
             <p className="mt-1 text-sm text-ink-muted">
               These readings looked implausible, so they were held. Check them against the
               provider site, then confirm or reject. Agents cannot do this for you.
             </p>
           </div>
+          {pendingReviews.length === 0 && <p className="text-sm text-ink-muted">No captured balances are waiting for your review.</p>}
           <ul className="flex flex-col gap-2">
             {pendingReviews.map((review) => (
               <PendingReview key={review.id} review={review} />
             ))}
           </ul>
-        </section>
-      )}
+      </section>
 
-      <section className="card-surface flex flex-col gap-4 p-6">
+      <section id="capture-consent" aria-labelledby="capture-consent-title" className="card-surface flex flex-col gap-4 p-6">
         <div>
-          <h2 className="font-display text-lg font-semibold text-ink">Consent for agents</h2>
+          <h2 id="capture-consent-title" className="font-display text-xl font-semibold text-ink">Program capture consent</h2>
           <p className="mt-1 text-sm text-ink-muted">
             Agents (Claude, ChatGPT, scripts) can read a program&apos;s balance from your own
             signed-in browser and save it here only while a consent is active. Nothing is
@@ -140,21 +135,19 @@ export function AgentsPanel({
         </div>
         <ul className="flex flex-col gap-2">
           {consents.filter((c) => c.active).map((consent) => (
-            <li key={consent.id} className="flex items-center justify-between rounded-xl border border-line px-3 py-2 text-sm">
+            <li key={consent.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-3 py-3 text-sm">
               <span className="text-ink">
                 {consent.providerName}{" "}
                 <span className="text-ink-faint">until {formatDate(consent.expiresAt)}</span>
               </span>
               <form action={revokeConsentAction}>
                 <input type="hidden" name="consentId" value={consent.id} />
-                <button type="submit" className="text-xs font-medium text-ink-faint transition hover:text-ink">
-                  Revoke
-                </button>
+                <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
               </form>
             </li>
           ))}
           {!consents.some((c) => c.active) && (
-            <li className="text-sm text-ink-faint">No active consents - agents are read-only.</li>
+            <li className="text-sm text-ink-faint">No active capture consents. Allow a program before an agent submits a balance for it.</li>
           )}
         </ul>
         <form action={consentAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -175,35 +168,35 @@ export function AgentsPanel({
         <FormFeedback result={consentResult} successMessage="Consent granted." />
       </section>
 
-      <section className="card-surface flex flex-col gap-4 p-6">
+      <section id="agent-tokens" aria-labelledby="agent-tokens-title" className="card-surface flex flex-col gap-4 p-6">
         <div>
-          <h2 className="font-display text-lg font-semibold text-ink">Access tokens</h2>
+          <h2 id="agent-tokens-title" className="font-display text-xl font-semibold text-ink">Agent access tokens</h2>
           <p className="mt-1 text-sm text-ink-muted">
-            For the MCP server, the Claude plugin, and ChatGPT Actions. MCP endpoint:{" "}
-            <code className="text-brand-soft">{mcpUrl}</code>
+            Use a token for the Chrome extension, MCP, Claude, or ChatGPT Actions. Give it only the access you need. MCP endpoint:{" "}
+            <code className="break-all text-brand">{mcpUrl}</code>
           </p>
         </div>
         <ul className="flex flex-col gap-2">
           {tokens.filter((t) => !t.revokedAt).map((token) => (
             <li key={token.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">
               <div className="min-w-0">
-                <p className="font-medium text-ink">
+                <p className="break-words font-medium text-ink">
                   {token.name} <code className="text-xs text-ink-faint">{token.displayPrefix}…</code>
                 </p>
-                <p className="text-xs text-ink-faint">
+                <p className="break-words text-xs leading-6 text-ink-faint">
                   {token.scopes.join(", ")} · {token.lastUsedAt ? `used ${formatDateTime(token.lastUsedAt)}` : "never used"}
                   {token.expiresAt ? ` · expires ${formatDate(token.expiresAt)}` : ""}
                 </p>
               </div>
               <form action={revokeAccessTokenAction}>
                 <input type="hidden" name="tokenId" value={token.id} />
-                <button type="submit" className="text-xs font-medium text-ink-faint transition hover:text-ink">
-                  Revoke
-                </button>
+                <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
               </form>
             </li>
           ))}
         </ul>
+
+        {!tokens.some(token => !token.revokedAt) && <p className="text-sm text-ink-muted">No active tokens. Create one below when you are ready to connect an agent.</p>}
 
         {created.status === "created" && (
           <div role="status" className="rounded-xl border border-positive/40 p-3 text-sm">
@@ -221,7 +214,7 @@ export function AgentsPanel({
             <legend className="mb-1 font-medium">Scopes</legend>
             {Object.entries(SCOPE_HELP).map(([scope, help]) => (
               <label key={scope} className="flex items-start gap-2">
-                <input type="checkbox" name="scopes" value={scope} defaultChecked={DEFAULT_SCOPES.has(scope)} className="mt-1" />
+                <input type="checkbox" name="scopes" value={scope} defaultChecked={DEFAULT_SCOPES.has(scope)} className="mt-1 accent-[var(--color-brand)]" />
                 <span><code className="text-ink">{scope}</code> - {help}</span>
               </label>
             ))}
@@ -235,15 +228,16 @@ export function AgentsPanel({
         {created.status === "error" && <FormFeedback result={created} successMessage="" />}
       </section>
 
-      <section className="card-surface flex flex-col gap-3 p-6">
-        <h2 className="font-display text-lg font-semibold text-ink">What agents did</h2>
+      <section id="capture-history" aria-labelledby="capture-history-title" className="card-surface flex flex-col gap-3 p-6">
+        <h2 id="capture-history-title" className="font-display text-xl font-semibold text-ink">Capture history</h2>
+        <p className="text-sm leading-6 text-ink-muted">Submitted readings and their outcomes. Agent names and source hosts describe what was reported; held or rejected readings do not update a balance.</p>
         {observations.length === 0 ? (
-          <p className="text-sm text-ink-faint">Nothing yet.</p>
+          <p className="text-sm text-ink-faint">No agent readings yet. Submitted captures will appear here.</p>
         ) : (
           <ul className="flex flex-col gap-1.5 text-sm">
             {observations.map((o) => (
               <li key={o.id} className="flex flex-wrap justify-between gap-2 text-ink-muted">
-                <span>
+                <span className="min-w-0 break-words">
                   <span className="text-ink">{o.providerName}</span> {o.points.toLocaleString("en-US")} · {o.outcome} · {o.agent} via {o.sourceHost}
                 </span>
                 <span className="text-xs text-ink-faint">{formatDateTime(o.createdAt)}</span>

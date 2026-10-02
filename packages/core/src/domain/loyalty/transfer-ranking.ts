@@ -1,4 +1,5 @@
 import { getProviderOrThrow, type ProviderDefinition } from "./provider";
+import { estimateValueCents, exactPoints } from "../shared/point-math";
 import {
   describeBonus,
   indexBestBonuses,
@@ -43,7 +44,8 @@ export function rankTransferOptions(
   bonuses: readonly TransferBonus[] = [],
   now: Date = new Date(),
 ): TransferOption[] {
-  if (sourcePoints <= 0) return [];
+  exactPoints(sourcePoints);
+  if (sourcePoints === 0) return [];
 
   const from = getProviderOrThrow(fromProviderId);
   const bestBonus = indexBestBonuses(bonuses, now);
@@ -61,11 +63,9 @@ export function rankTransferOptions(
     const bonus = bestBonus.get(`${edge.fromProviderId}>${edge.toProviderId}`);
     const permille = bonus?.multiplierPermille ?? 1000;
     const destinationPoints = convertPoints(edge, sourcePoints, permille);
-    const estimatedValueCents = Math.round(
-      destinationPoints * to.estimatedCentsPerPoint,
-    );
+    const valueCents = estimateValueCents(destinationPoints, to.estimatedCentsPerPoint);
     const effectiveCentsPerPoint =
-      sourcePoints === 0 ? 0 : estimatedValueCents / sourcePoints;
+      valueCents / sourcePoints;
 
     options.push({
       from,
@@ -79,7 +79,7 @@ export function rankTransferOptions(
       destinationPoints,
       effectiveCentsPerPoint:
         Math.round(effectiveCentsPerPoint * 1000) / 1000,
-      estimatedValueCents,
+      estimatedValueCents: valueCents,
     });
   }
 

@@ -77,8 +77,19 @@ export class RecordManualBalance {
       );
       await this.balances.insert(snapshot);
 
-      // Manual entries count as activity for inactivity-expiry programs.
-      await this.accounts.update(refreshExpiryFromActivity(account, capturedAt));
+      // Preserve PR14's activity-derived expiry refresh for forward readings.
+      // Historical captures must not overwrite a newer balance or account
+      // metadata change (including explicit expiry overrides and cleared expiry).
+      const historical = capturedAt.getTime() < account.updatedAt.getTime()
+        || (previous !== undefined && capturedAt.getTime() < previous.capturedAt.getTime());
+      const refreshed = historical ? account : refreshExpiryFromActivity(account, capturedAt);
+      const mutationTime = this.clock.now();
+      await this.accounts.update({
+        ...refreshed,
+        // Metadata records transaction time, never a backfilled capture time.
+        // Keep a stored future timestamp rather than silently repairing history.
+        updatedAt: new Date(Math.max(mutationTime.getTime(), account.updatedAt.getTime())),
+      });
 
       await recordActivity(this.activity, {
         userId: input.userId,

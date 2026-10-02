@@ -1,4 +1,5 @@
-import { InvalidRedemptionGoalError } from "../errors";
+import { InvalidRedemptionGoalError, InvalidValuationError } from "../errors";
+import { checkedPointSum, exactPoints, safePoints, estimateValueCents } from "../shared/point-math";
 import { isOneOf } from "../shared/enum";
 import type { AwardOption } from "./award-availability";
 import {
@@ -18,6 +19,7 @@ import {
 import {
   TRANSFER_EDGES,
   convertPoints,
+  edgeRatio,
   type TransferEdge,
 } from "./transfer-partners";
 
@@ -289,7 +291,7 @@ function minAmountFor(source: Source, need: number): number | null {
   let hi = Math.floor(source.usable / inc);
   if (hi < lo) return null;
   while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
+    const mid = lo + Math.floor((hi - lo) / 2);
     if (yieldOf(source, mid * inc) >= need) hi = mid;
     else lo = mid + 1;
   }
@@ -316,7 +318,7 @@ function buildSources(
       inc: 1,
       usable: direct.points,
       maxDest: direct.points,
-      costPerDest: urgencyFactor(direct.daysUntilExpiry) * direct.centsPerPoint * 1000,
+      costPerDest: finiteValue(urgencyFactor(direct.daysUntilExpiry) * direct.centsPerPoint * 1000),
     });
   }
 
@@ -325,7 +327,7 @@ function buildSources(
     if (!holding || holding.points <= 0) continue;
     const inc = edge.incrementSourcePoints ?? DEFAULT_TRANSFER_INCREMENT;
     const min = edge.minimumSourcePoints ?? inc;
-    const usable = Math.floor(holding.points / inc) * inc;
+    const usable = safePoints(exactPoints(holding.points) / exactPoints(inc) * exactPoints(inc));
     if (usable < min || usable <= 0) continue;
     const bonus = bestBonuses.get(`${edge.fromProviderId}>${edge.toProviderId}`) ?? null;
     const permille = bonus?.multiplierPermille ?? 1000;
@@ -345,10 +347,9 @@ function buildSources(
     sources.push({
       ...probe,
       maxDest,
-      costPerDest:
+      costPerDest: finiteValue(
         ((urgencyFactor(holding.daysUntilExpiry) * holding.centsPerPoint * 1000) /
-          maxDest) *
-        usable,
+          maxDest) * usable),
     });
   }
 
@@ -365,18 +366,40 @@ interface Pick {
   readonly amount: number;
 }
 
-function pickCost(picks: readonly Pick[]): number {
-  let total = 0;
-  for (const { source, amount } of picks) {
-    total += Math.round(
-      amount * urgencyFactor(source.holding.daysUntilExpiry) * source.holding.centsPerPoint * 1000,
-    );
-  }
-  return total;
+/** Preserve normal milli-cent rounding; use exact decimal intermediates beyond safe integer precision. */
+function milliCost(source: Source, amount: number): bigint {
+  const factor = urgencyFactor(source.holding.daysUntilExpiry);
+  const rate = source.holding.centsPerPoint;
+  const normal = Math.round(amount * factor * rate * 1000);
+  if (Number.isSafeInteger(normal)) return BigInt(normal);
+  const [mantissa, exponentText = "0"] = rate.toString().toLowerCase().split("e");
+  const [whole, fraction = ""] = mantissa!.split(".");
+  const exponent = Number(exponentText) - fraction.length;
+  let numerator = exactPoints(amount) * BigInt(whole! + fraction) * 1000n;
+  let denominator = factor === 0.25 ? 4n : factor === 0.5 ? 2n : 1n;
+  if (exponent >= 0) numerator *= 10n ** BigInt(exponent);
+  else denominator *= 10n ** BigInt(-exponent);
+  return (2n * numerator + denominator) / (2n * denominator);
 }
 
-function pickYield(picks: readonly Pick[]): number {
-  return picks.reduce((sum, p) => sum + yieldOf(p.source, p.amount), 0);
+function pickCost(picks: readonly Pick[]): bigint {
+  return picks.reduce((total, { source, amount }) => total + milliCost(source, amount), 0n);
+}
+
+function pickYieldExact(picks: readonly Pick[]): bigint {
+  return picks.reduce((sum, p) => sum + exactPoints(yieldOf(p.source, p.amount)), 0n);
+}
+function pickYield(picks: readonly Pick[]): number { return safePoints(pickYieldExact(picks)); }
+
+function finiteValue(value: number): number {
+  if (!Number.isFinite(value)) throw new InvalidValuationError();
+  return value;
+}
+
+function roundedValue(value: number): number {
+  const rounded = Math.round(value);
+  if (!Number.isSafeInteger(rounded)) throw new InvalidValuationError();
+  return rounded;
 }
 
 /** Cheapest funding mix covering `need`, or null when balances cannot cover it. */
@@ -423,12 +446,12 @@ function fund(sources: readonly Source[], need: number): Pick[] | null {
   }
 
   let best: Pick[] | null = null;
-  let bestKey: [number, number, string] | null = null;
+  let bestKey: [bigint, bigint, string] | null = null;
   for (const picks of candidates) {
-    if (pickYield(picks) < need) continue;
-    const key: [number, number, string] = [
+    if (pickYieldExact(picks) < exactPoints(need)) continue;
+    const key: [bigint, bigint, string] = [
       pickCost(picks),
-      picks.reduce((s, p) => s + p.amount, 0),
+      picks.reduce((s, p) => s + exactPoints(p.amount), 0n),
       picks.map((p) => p.source.holding.providerId).sort().join(","),
     ];
     if (
@@ -484,17 +507,16 @@ function coverageFor(
         ?.multiplierPermille ?? 1000;
     const inc = edge.incrementSourcePoints ?? DEFAULT_TRANSFER_INCREMENT;
     const min = edge.minimumSourcePoints ?? inc;
-    // Analytic start, then walk to the exact smallest block.
-    let k = Math.max(
-      Math.ceil(min / inc),
-      Math.ceil(
-        (missing * edge.ratioFrom) / (edge.ratioTo * (permille / 1000) * inc),
-      ) - 1,
-    );
-    k = Math.max(1, k);
-    let guard = 0;
-    while (convertPoints(edge, k * inc, permille) < missing && guard++ < 100_000) k++;
-    const sourcePointsNeeded = k * inc;
+    // Invert the shared two-stage floor exactly: bonus first, then base ratio.
+    const ceil = (n: bigint, d: bigint) => (n + d - 1n) / d;
+    const baseNeeded = ceil(exactPoints(missing) * 1000n, exactPoints(permille));
+    const ratio = edgeRatio(edge);
+    const sourceNeeded = ceil(baseNeeded * exactPoints(ratio.den), exactPoints(ratio.num));
+    const increment = exactPoints(inc);
+    const minimumBlocks = ceil(exactPoints(min), increment);
+    const neededBlocks = ceil(sourceNeeded, increment);
+    const blocks = minimumBlocks > neededBlocks ? minimumBlocks : neededBlocks;
+    const sourcePointsNeeded = safePoints((blocks > 0n ? blocks : 1n) * increment);
     const balanceAvailable = Math.max(
       0,
       (balances.get(edge.fromProviderId) ?? 0) - (used.get(edge.fromProviderId) ?? 0),
@@ -522,8 +544,9 @@ function coverageFor(
  * (a typical short stay); small fixed-value redemptions scale to the spot's
  * cap; tickets and package stays default to one.
  */
-function defaultUnits(spot: SweetSpot, capacity: number): number {
-  const affordable = Math.max(1, Math.floor(capacity / spot.pointsCost));
+function defaultUnits(spot: SweetSpot, capacity: bigint): number {
+  const quotient = capacity / exactPoints(spot.pointsCost);
+  const affordable = Number(quotient > BigInt(spot.maxUnits) ? BigInt(spot.maxUnits) : quotient < 1n ? 1n : quotient);
   if (spot.unit === "night") return Math.min(spot.maxUnits, 3, affordable);
   if (spot.unit === "redemption") return Math.min(spot.maxUnits, affordable);
   return 1;
@@ -536,12 +559,12 @@ function evaluateSpot(
 ): RedemptionPlan | null {
   const { holdings, goal } = input;
   const sources = buildSources(spot.programId, holdings, bestBonuses);
-  const capacity = sources.reduce((s, x) => s + x.maxDest, 0);
+  const capacity = sources.reduce((s, x) => s + exactPoints(x.maxDest), 0n);
 
   if (sources.length === 0 && !goal.targetProgramId) return null;
 
   const units = goal.quantity ?? defaultUnits(spot, capacity);
-  const need = spot.pointsCost * units;
+  const need = safePoints(exactPoints(spot.pointsCost) * exactPoints(units));
 
   const picks = fund(sources, need);
   const status: PlanStatus = picks ? "fundable" : "shortfall";
@@ -552,7 +575,7 @@ function evaluateSpot(
   } else {
     // Partial plan: only worth showing when the user is meaningfully close,
     // or explicitly asked about this program.
-    if (!goal.targetProgramId && capacity * 4 < need) return null;
+    if (!goal.targetProgramId && capacity * 4n < exactPoints(need)) return null;
     chosen = sources.map((source) => ({ source, amount: source.usable }));
   }
 
@@ -562,7 +585,7 @@ function evaluateSpot(
   const currency = target?.pointsCurrency ?? "points";
   const surplus = Math.max(0, provided - need);
   // Value of the full redemption (for a shortfall: what completing it is worth).
-  const valueCents = Math.round(spot.estimatedCentsPerPoint * need);
+  const valueCents = spot.estimatedCentsPerPoint === 0 ? 0 : estimateValueCents(need, spot.estimatedCentsPerPoint);
 
   const planSources: PlanSource[] = chosen
     .map(({ source, amount }) => ({
@@ -585,7 +608,7 @@ function evaluateSpot(
         a.providerId.localeCompare(b.providerId),
     );
 
-  const totalSource = planSources.reduce((s, p) => s + p.pointsUsed, 0);
+  const totalSource = checkedPointSum(planSources.map(p => p.pointsUsed));
   const cppByProvider = new Map(
     holdings.map((h) => [h.providerId, h] as const),
   );
@@ -596,10 +619,11 @@ function evaluateSpot(
     opportunity += p.pointsUsed * h.centsPerPoint;
     discounted += p.pointsUsed * h.centsPerPoint * urgencyFactor(h.daysUntilExpiry);
   }
-  const opportunityCostCents = Math.round(opportunity);
+  const opportunityCostCents = roundedValue(opportunity);
+  roundedValue(discounted);
   const effectiveCpp =
     status === "fundable" && totalSource > 0
-      ? Math.round((valueCents / totalSource) * 1000) / 1000
+      ? roundedValue((valueCents / totalSource) * 1000) / 1000
       : spot.estimatedCentsPerPoint;
 
   const steps: PlanStep[] = [];
@@ -719,7 +743,7 @@ function evaluateSpot(
     effectiveCentsPerPoint: effectiveCpp,
     opportunityCostCents,
     netGainCents: status === "fundable" ? valueCents - opportunityCostCents : 0,
-    rankScoreCents: status === "fundable" ? Math.round(valueCents - discounted) : 0,
+    rankScoreCents: status === "fundable" ? roundedValue(valueCents - discounted) : 0,
     shortfall,
     expiryUrgency: urgency,
     confidence,
@@ -737,6 +761,11 @@ function matchesGoal(spot: SweetSpot, goal: RedemptionGoal): boolean {
 /** Plans for the goal, best first. Pure and deterministic. */
 export function optimizeRedemptions(input: OptimizerInput): OptimizerResult {
   assertValidGoal(input.goal);
+  for (const holding of input.holdings) {
+    exactPoints(holding.points);
+    // Zero valuation remains supported by the existing optimizer policy.
+    if (!Number.isFinite(holding.centsPerPoint) || holding.centsPerPoint < 0) throw new InvalidValuationError();
+  }
   const holdings = input.holdings.filter((h) => h.points > 0);
   const notes: string[] = [];
   if (holdings.length === 0) {
@@ -748,6 +777,8 @@ export function optimizeRedemptions(input: OptimizerInput): OptimizerResult {
   const plans: RedemptionPlan[] = [];
   for (const spot of spots) {
     if (!matchesGoal(spot, input.goal)) continue;
+    if (exactPoints(spot.pointsCost) === 0n || exactPoints(spot.maxUnits) === 0n) throw new InvalidRedemptionGoalError("Sweet spot cost and units must be positive safe integers");
+    if (!Number.isFinite(spot.estimatedCentsPerPoint) || spot.estimatedCentsPerPoint < 0) throw new InvalidValuationError();
     const plan = evaluateSpot(spot, { ...input, holdings }, bestBonuses);
     if (!plan) continue;
     const cpp = plan.status === "fundable" ? plan.effectiveCentsPerPoint : spot.estimatedCentsPerPoint;

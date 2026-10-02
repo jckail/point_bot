@@ -1,4 +1,5 @@
 import { ProviderNotSupportedError } from "../errors";
+import { estimateValueCents as estimateExactValueCents } from "../shared/point-math";
 import { AIRLINE_PROVIDERS } from "./catalog/airlines";
 import { CARD_PROVIDERS } from "./catalog/cards";
 import { DINING_PROVIDERS } from "./catalog/dining";
@@ -32,7 +33,7 @@ export function estimateValueCents(
   provider: ProviderDefinition,
   points: number,
 ): number {
-  return Math.round(points * provider.estimatedCentsPerPoint);
+  return estimateExactValueCents(points, provider.estimatedCentsPerPoint);
 }
 
 /** Projected expiry date from a reference moment, or null if the program never expires. */

@@ -86,8 +86,8 @@ export class ImportPortfolio {
           skippedRows += 1;
           continue;
         }
-        const points = Number(row.points);
-        if (!Number.isInteger(points) || points < 0) {
+        const points = parseImportedPoints(row.points);
+        if (points === null) {
           skippedRows += 1;
           continue;
         }
@@ -116,6 +116,27 @@ export class ImportPortfolio {
 
     return { accountsLinked, balancesRecorded, skippedRows };
   }
+}
+
+/** Exact decimal CSV numbers, including integral scientific notation. */
+export function parseImportedPoints(input: string): number | null {
+  const text = input.trim();
+  if (text.length > 1024) return null;
+  const match = /^\+?(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(text);
+  if (!match) return null;
+  const fraction = match[2] ?? "";
+  const exponent = Number(match[3] ?? "0") - fraction.length;
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 1024) return null;
+  let exact = BigInt(match[1]! + fraction);
+  if (exponent < 0) {
+    const divisor = 10n ** BigInt(-exponent);
+    if (exact % divisor !== 0n) return null;
+    exact /= divisor;
+  } else {
+    exact *= 10n ** BigInt(exponent);
+  }
+  if (exact > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(exact);
 }
 
 function parseExportCsv(csv: string): CsvRow[] {

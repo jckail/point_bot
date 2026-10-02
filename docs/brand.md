@@ -1,66 +1,47 @@
 # PointUp brand kit
 
-The brand story: **points climbing**. The logomark is a run of three points ascending a diagonal, resolved by an arrowhead — progress you can see at a glance, which is exactly what the product does for loyalty balances.
+PointUp turns scattered loyalty balances into a travel portfolio. The ascending three-point mark and arrowhead remain the identity: the same geometry connects the original brand to the lighter travel interface.
 
 ## Assets
 
-All master assets live in `apps/web/public/brand/`:
+Master SVGs live in `apps/web/public/brand/`. The color mark and horizontal lockup use travel blue; the mono mark inherits `currentColor`. Next.js serves `apps/web/src/app/icon.svg` as the favicon and renders the social card from `apps/web/src/app/opengraph-image.tsx`. In-app `Logo` and `LogoMark` live in `apps/web/src/components/logo.tsx`.
 
-| Asset | File | Use |
-| --- | --- | --- |
-| Logomark (color) | `brand/logomark.svg` | App tiles, avatars, social profile images |
-| Logomark (mono) | `brand/logomark-mono.svg` | Favicons, single-color contexts; inherits `currentColor` |
-| Horizontal lockup | `brand/logo-horizontal.svg` | Headers, docs, presentations¹ |
-| Favicon | `apps/web/src/app/icon.svg` | Served automatically by Next.js |
-| Social card | `apps/web/src/app/opengraph-image.tsx` | OG/Twitter image, rendered from tokens at request time |
-| React components | `apps/web/src/components/logo.tsx` | `<Logo />` and `<LogoMark />` inside the app |
-
-¹ The lockup wordmark uses live text (Sora). Convert to outlines before print use.
-
-### Clear space & minimum size
-
-Keep clear space equal to the diameter of the largest point around the logomark. Don't render the mark below 16 px; use the mono variant below 24 px.
+Keep the palette synchronized across these assets, the global theme, and the dynamically loaded Clerk appearance. Preserve the ascending geometry and PointUp spelling. The horizontal lockup contains live Sora text; use an outlined export for print. Keep clear space equal to the largest point's diameter, a minimum mark size of 16 px, and prefer the mono mark below 24 px.
 
 ## Color
 
-Defined once as Tailwind v4 tokens in `apps/web/src/styles/globals.css` (`@theme`).
+Tailwind v4 tokens in `apps/web/src/styles/globals.css` are the web source of truth. Token names remain compatible with existing application components.
 
 | Token | Hex | Role |
 | --- | --- | --- |
-| `midnight` | `#0B1020` | App background, logomark tile |
-| `surface` | `#121A30` | Cards, panels |
-| `surface-raised` | `#1A2342` | Elevated elements |
-| `brand` | `#7C5CFF` | Primary actions, links, brand accents ("Ascent Violet") |
-| `brand-strong` | `#5B3DF5` | Hover/pressed primary |
-| `brand-soft` | `#A78BFA` | Secondary brand text, outlines |
-| `gold` | `#FFB547` | The "milestone" accent — achievement moments, gradient endpoint |
-| `ink` | `#F4F6FF` | Primary text |
-| `ink-muted` | `#9AA5CB` | Secondary text |
-| `ink-faint` | `#5F6A8F` | Tertiary text, captions |
-| `positive` | `#34D399` | Balance increases, success |
-| `danger` | `#FB7185` | Errors, destructive actions |
+| `midnight` | `#F3F7FB` | Page background; legacy token name retained |
+| `surface` | `#FFFFFF` | Cards and panels |
+| `surface-raised` | `#E5EEF9` | Selected sections and mark tile |
+| `line` | `#D4DEEA` | Borders and separators |
+| `brand` / `brand-soft` | `#215BCC` | Primary actions, links, focus and mark |
+| `brand-strong` | `#17449E` | Primary hover/pressed state |
+| `gold` | `#8A6200` | Value and milestone text |
+| `gold-soft` | `#F7DF93` | Travel-ticket accent and selection |
+| `ink` | `#152B46` | Primary text |
+| `ink-muted` | `#4B6077` | Supporting text |
+| `ink-faint` | `#596D82` | Captions and metadata |
+| `positive` | `#147450` | Success and balance increases |
+| `danger` | `#B82F46` | Errors and destructive actions |
 
-**The ascent gradient** — violet → soft violet → gold, always running bottom-left to top-right (the climbing direction): `linear-gradient(100deg, #A78BFA, #7C5CFF 45%, #FFB547)`. Available as the `text-gradient-brand` utility. Use it sparingly: one gradient moment per screen.
+The mark blends blue `#215BCC` through `#4684DE` and back to blue, ascending from bottom-left to top-right. `text-gradient-brand` remains a compatibility utility and now renders solid brand blue. Avoid decorative gradient text. Primary actions use white text on blue; `text-midnight` is a light background color and is unsuitable as their text color.
 
-## Typography
+Source-token contrast on white is approximately 5.34:1 for faint text and 6.12:1 for primary blue. Check rendered background combinations, opacity, chart colors, focus and feedback states before shipping. A token-level calculation is not a browser accessibility check.
 
-Both typefaces are open source (OFL) and loaded via `next/font`:
+## Typography and layout
 
-| Font | Token | Role |
-| --- | --- | --- |
-| [Sora](https://fonts.google.com/specimen/Sora) | `font-display` | Headlines, stat values, the wordmark |
-| [Inter](https://rsms.me/inter/) | `font-sans` | Body copy, UI controls |
+Sora carries headings, stats and the wordmark; Inter carries body copy and controls. Both are self-hosted variable fonts loaded with `next/font/local`, retaining offline production builds and avoiding external font requests. Do not replace them with the native reference's platform-dependent Avenir Next.
 
-Wordmark: Sora Bold, tight tracking, "Point" in ink + "Up" in brand violet.
+The landing page's distinctive element is the illustrative travel ticket and route map. Keep surrounding features quiet, left-aligned and easy to scan. Sample balances must be labeled as examples and must not imply equal value across loyalty currencies. Portfolio navigation, readable totals and program discovery take precedence over decoration.
 
-## Voice
+Cards use the `card-surface` utility with a white surface, 1 px border and 1 rem radius. Primary actions use 0.75 rem rounded corners. The header retains Dashboard, Agents and Settings in both auth modes; production sign-in remains conditionally loaded through Clerk. The visual system includes a working skip target, visible focus outlines, responsive section layouts and reduced-motion support.
 
-- **Clear over clever.** Say what the number is and when it was last true.
-- **Momentum.** Prefer active, upward language: climb, track, sync — never jargon like "leverage".
-- **Trustworthy on security.** Be explicit: "PointUp never stores provider passwords."
+## Voice and capability claims
 
-## Component conventions
+Write for someone organizing a trip: name their programs, balances, expirations and next action. Explain value estimates and ask users to confirm provider award availability before transferring. Linking a membership does not itself promise automatic sync. Manual balance entry, supported capture/sync methods, agent consent and human review are distinct flows.
 
-- Cards use the `card-surface` utility (surface color, 1px `line` border, `rounded-2xl`).
-- Primary buttons: `bg-brand` pill with `shadow-brand/30`; secondary: `border-line` pill.
-- Dark UI is the default and only theme for now; check contrast against `midnight` (AA minimum).
+Describe the Chrome extension as an available supported capture surface, not a future API demo. Ask PointUp helps with authorized portfolio data and proposes changes for review; it does not silently approve them. Keep implementation details and infrastructure names out of product onboarding. Do not imply an unsupported vault connection or provider integration exists.

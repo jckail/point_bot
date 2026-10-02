@@ -4,6 +4,7 @@ import type { ListLoyaltyAccounts } from "./list-loyalty-accounts";
 import type { LoyaltyAccountReadModel } from "./read-models";
 
 import { recordOf } from "../../domain/shared/enum";
+import { checkedPointSum } from "../../domain/shared/point-math";
 import type { UserId } from "../../domain/shared/ids";
 export interface KindSummary {
   readonly accounts: number;
@@ -44,10 +45,10 @@ export function computePortfolioSummary(
     const kind = byKind[account.provider.kind];
 
     kind.accounts += 1;
-    kind.points += points;
-    kind.valueCents += account.estimatedValueCents;
-    totalPoints += points;
-    totalValueCents += account.estimatedValueCents;
+    kind.points = checkedPointSum([kind.points, points]);
+    kind.valueCents = checkedPointSum([kind.valueCents, account.estimatedValueCents]);
+    totalPoints = checkedPointSum([totalPoints, points]);
+    totalValueCents = checkedPointSum([totalValueCents, account.estimatedValueCents]);
 
     const capturedAt = account.latestBalance?.capturedAt;
     if (capturedAt && (!lastSyncedAt || capturedAt > lastSyncedAt)) {
