@@ -258,3 +258,15 @@ reopens during inference; expose validated capture request references and correc
 legacy-session scope guidance. Broader provider/currency/rate validation still
 needs audit; a complete numeric token is not evidence its source currency is USD.
 AWS session renewal was requested asynchronously; independent source work continues.
+
+## Verified follow-up checkpoint3e7ba69
+
+Exact source3e7ba69e3ea95853f4c7f428a27358ba4509f3d5 passes all6
+CI36992427488 and CodeQL36992427509. Counts:1023workspace plus one paid live skip,
+29rollout,25infra,15actualPGattestation, managed20, all bundles/contracts/HTTP MCP,
+Docker direct/PgBouncer smoke and full lint/types/hygiene. Root79 focusedpass.
+Logs retained /tmp/pointup-deals-fx-extension-ci.log and
+/tmp/pointup-deals-fx-extension-focused.log. Shared Graphify completed164478nodes;
+coverage gap persists. Local-only Agent Hub scope is unconfigured; no upload.
+Owned DB stopped; no browser/server opened. Latest AWS STS still expired after
+renewal request; no production deployment/merge. Continue remaining gates above.

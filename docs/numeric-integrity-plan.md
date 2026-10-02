@@ -324,6 +324,7 @@ converted amounts produce an explicit unavailable display, never Infinity or a
 silently rounded cent. Existing valuation arithmetic retains its semantics.
 
 Root composed79 focused numeric/deal/extension cases, complete workspace types
-and lint pass. Fresh candidate CI is required after committing these changes.
+and lint pass. Exact runtime3e7ba69 passes all six CI36992427488 jobs and
+CodeQL36992427509, including1023workspace tests and all bundles/Docker smoke.
 Provider currency inference, scraped rate normalization, other cash boundaries
 and actual live financial/provider data remain separate follow-up audits.

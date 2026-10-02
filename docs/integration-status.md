@@ -441,3 +441,29 @@ extension.md. Live deployment still awaits renewed AWS login and configured role
 TLS/Clerk/backup ownership; no secret is requested in chat. Remaining in-flight chat
 persistence and API support references, broader rates/currency inference, approved
 standalone ChatGPT sign-in and provider/exporter/Chrome live proof remain open.
+
+## Verified follow-up runtime3e7ba69
+
+Exact runtime3e7ba69e3ea95853f4c7f428a27358ba4509f3d5 passes all six
+[CI36992427488](https://github.com/jckail/point_bot/actions/runs/36992427488)
+jobs and [CodeQL36992427509](https://github.com/jckail/point_bot/actions/runs/36992427509).
+CI confirms1023 workspace tests (one paid live evaluation skipped),29 rollout cases,
+25 infrastructure cases, managed migration20, all15 real PostgreSQL attestation
+cases, full lint/types/hygiene, all five bundles, contracts/HTTP MCP and Docker
+API/PAT/consented-capture smoke through direct PostgreSQL and PgBouncer.
+Root's composed79 focused cases also pass. These source fixes are now verified;
+prior pending wording above is historical checkpoint state.
+
+Shared whole-corpus Graphify refresh completed164478nodes after the settled source;
+PointUp coverage is still absent. Agent Hub has no configured memory scope, so
+these curated docs carry continuity. No new browser tabs/windows or development
+server were opened; owned PostgreSQL remains stopped/data retained. AWS identity
+still reports expired login after the asynchronous renewal request; repo deployment
+secrets remain absent. No production deploy/merge/legacy-data repair is claimed.
+
+Next: real AWS/stack/TLS/Clerk/snapshot/restore configuration and read-only staging
+smoke, approved-client standalone ChatGPT authentication/account policy, live SDK/
+exporter/provider/Chrome lifecycle proof, in-flight extension chat recovery and
+capture request references, broader source-currency/rate/cash boundaries, public
+OAuth MCP/plugin onboarding and provider partnerships. Keep the original goal
+active and preserve the stacked PR14/PR15/PR16 branches; iOS remains deferred.

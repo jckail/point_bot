@@ -94,5 +94,7 @@ still needs durable pending-chat recovery; full Clerk extension sign-in and
 capture API support-reference expansion remain follow-ups.
 
 Focused concurrency/stale-discard/popup cases pass with synthetic Chrome APIs.
+Exact runtime3e7ba69 passes all six CI36992427488 jobs and CodeQL36992427509,
+including52 extension tests and the extension production bundle.
 No live browser lifecycle, provider extraction, Clerk/PAT or SDK/exporter test is
 claimed. Future live verification should reuse one owned tab per agent session.
