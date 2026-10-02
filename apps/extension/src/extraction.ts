@@ -51,7 +51,7 @@ export const PROVIDER_PAGE_RULES: readonly ProviderPageRule[] = [
     patterns: [/([\d,]+)\s*(?:aadvantage\s*)?miles/i],
   },
   {
-    providerId: "southwest",
+    providerId: "southwest-rapid-rewards",
     hosts: ["southwest.com"],
     patterns: [/([\d,]+)\s*(?:rapid\s*rewards\s*)?points/i],
   },

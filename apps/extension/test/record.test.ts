@@ -1,7 +1,8 @@
 import { PointUpClient } from "@pointup/api-client";
+import { AGENT_SKILL_CATALOG, isHostAllowed } from "@pointup/core";
 import { describe, expect, it } from "vitest";
 
-import { pageCandidate } from "../src/capture-state";
+import { observationRequest, pageCandidate } from "../src/capture-state";
 import { extractBalance } from "../src/extraction";
 import { recordCapture } from "../src/record";
 
@@ -27,6 +28,39 @@ const capture = pageCandidate(null, extractBalance({
 })!, () => "00000000-0000-4000-8000-000000000001", () => new Date("2026-10-02T01:00:00.000Z"));
 
 describe("recordCapture", () => {
+  it("records a canonical Southwest extraction through its real core observation skill", async () => {
+    const southwest = pageCandidate(null, extractBalance({ url: "https://www.southwest.com/account?private=value",
+      text: "Available balance 9,000 Rapid Rewards points" })!, () => "00000000-0000-4000-8000-000000000002", () => new Date("2026-10-02T01:00:00.000Z"));
+    const request = observationRequest(southwest);
+    const skill = AGENT_SKILL_CATALOG.find(skill => skill.id === request.skillId);
+    expect(skill).toBeDefined();
+    expect(isHostAllowed(skill!, new URL(request.sourceUrl).hostname)).toBe(true);
+    const { api, calls } = setup(() => ({ json: { outcome: "recorded", accountId: "sw", points: 9000,
+      previousPoints: 1, message: "Recorded", observationId: "sw_receipt" } }));
+    expect(await recordCapture(api, "pu_test", southwest)).toMatchObject({ ok: true, observationId: "sw_receipt" });
+    expect(calls[0]?.body).toEqual(request);
+    expect(request.skillId).toBe("southwest-rapid-rewards.capture-balance");
+  });
+  it("matches the canonical Southwest account on the legacy session path", async () => {
+    const southwest = pageCandidate(null, extractBalance({ url: "https://www.southwest.com/account",
+      text: "Available balance 9,000 Rapid Rewards points" })!);
+    const { api, calls } = setup(path => path.endsWith("loyalty-accounts")
+      ? { json: [{ id: "sw-account", provider: { id: "southwest-rapid-rewards", displayName: "Southwest Rapid Rewards" } }] }
+      : { json: {} });
+    expect(await recordCapture(api, "clerk_session", southwest)).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({ method: "POST", body: { points: 9000 } });
+    expect(calls[1]?.path).toContain("sw-account");
+    expect(calls.map(call => call.path)).not.toContain("/api/v1/agent/observations");
+  });
+  it("keeps a previously frozen legacy Southwest request unchanged", async () => {
+    const oldCapture = { ...capture, providerId: "southwest" };
+    const frozen = observationRequest(oldCapture);
+    const { api, calls } = setup(() => ({ status: 404, json: { error: { code: "SKILL_NOT_FOUND", message: "unknown" } } }));
+    expect(await recordCapture(api, "pu_test", oldCapture, frozen)).toMatchObject({ ok: false });
+    expect(calls[0]?.body).toEqual(frozen);
+    expect(calls[0]?.body).toMatchObject({ skillId: "southwest.capture-balance", captureId: oldCapture.captureId });
+  });
   it("captures a query-free source URL", () => {
     expect(capture.sourceUrl).toBe("https://www.united.com/en/us/myunited");
   });

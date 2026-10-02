@@ -240,3 +240,22 @@ Use consented capture/manual recording until a contracted real adapter is verifi
 No self-serve loyalty-balance connection or partnership was established by this
 research. These are concrete onboarding leads and contract boundaries, not
 configured integrations. Retain manual/consented capture for unsupported programs.
+
+## Transfer eligibility audit follow-up
+
+The program graph resolves all122 endpoints, but card eligibility still affects
+actual transfer yield. Chase→Hyatt's unconditional1:1 edge is incorrect for
+affected Preferred/Ink products after the2026 transition. See the immediate
+[release backlog](release-backlog.md) for the required card-aware model and
+primary evidence; do not treat the current fundability result as verified for
+those products. Other card variants require primary verification.
+
+Amex's5:4 Cathay and Emirates values are supported by its official transfer
+material. The recorded Emirates2026 reduction note is stale: Amex's
+[October2025 update](https://www.americanexpress.com/content/dam/amex/us/rewards/membership-rewards/mr-updates-final-october-2025.pdf)
+gives September16,2025; the
+[Cathay update](https://www.americanexpress.com/content/dam/amex/us/rewards/membership-rewards/mr-updates-final-december-2025-v2.pdf)
+gives March1,2026. Dates were available in official indexed content; direct PDF
+retrieval failed. Checking-only MR eligibility is also distinct from a universal
+program-level transfer edge. Do not widen verified card eligibility from these
+ratio/date facts alone.

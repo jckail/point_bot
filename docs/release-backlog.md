@@ -9,6 +9,18 @@ work, not a request to remove capabilities or substitute read-only features.
 
 ## Immediate release gates
 
+**Correct transfer eligibility before activation.** The current Chase→Hyatt edge
+is unconditionally1:1 and can falsely report a trip as fundable. Official
+[Preferred benefits](https://www.chase.com/sapphire-cards/personal/preferred)
+and [Chase announcement](https://media.chase.com/news/Meet-the-New-Chase-Sapphire-Preferred)
+establish4:3 for affected Preferred/Ink accounts after the applicable transition
+(the old Preferred grace period ended September30,2026). Implement explicit
+card/product eligibility across account data, contracts, UI, optimizer and value
+advice, with unknown eligibility clearly distinguished; do not infer it from
+notes/tags or merely correct a note after computing1:1. Verify all card variants
+against primary terms before publishing their ratios. This defect remains open; implement [the card-aware plan](transfer-eligibility-plan.md) next.
+
+
 1. Preserve the exact verified release candidate and complete its production gates.
    Current `370130945ff34fa1ac7775984068d837d9e7d4bc` passed all six
    [CI 37000134163](https://github.com/jckail/point_bot/actions/runs/37000134163)
@@ -142,3 +154,9 @@ Shared Graphify refresh succeeded with 164,478 nodes but PointUp coverage is abs
 query first and inspect current source. Agent Hub's project memory scope is unconfigured,
 so curated repository notes carry continuity. This checkpoint claims no production mutation,
 merge, live provider/model/exporter call or new browser execution.
+
+A source audit verified all122 transfer endpoints resolve to the190-provider
+catalog. It found an extension-specific Southwest alias defect: `southwest`
+does not resolve; canonical `southwest-rapid-rewards` is required for both PAT
+skill lookup and legacy linked-account matching. The focused follow-up is implemented and awaiting fresh committed-head CI. Preserve frozen historical captures; require explicit discard/recapture
+instead of rewriting their identity/payload or automatically resubmitting.

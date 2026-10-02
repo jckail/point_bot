@@ -100,7 +100,7 @@ describe("extractBalance", () => {
   it.each([
     ["delta.com", "SkyMiles\nAvailable balance 12,000 miles", "delta"],
     ["aa.com", "You have 45,000 AAdvantage miles", "american"],
-    ["southwest.com", "Available balance 9,000 Rapid Rewards points", "southwest"],
+    ["southwest.com", "Available balance 9,000 Rapid Rewards points", "southwest-rapid-rewards"],
     ["hyatt.com", "Points balance: 8,000 points", "hyatt"],
     ["hilton.com", "Your points: 7,000 points", "hilton"],
   ])("preserves labeled balance readings for %s", (host, text, providerId) => {
@@ -191,6 +191,14 @@ describe("capture URL admission", () => {
 });
 
 describe("manifest stays in sync with the rules", () => {
+  it("every supported provider resolves to a canonical core capture skill", () => {
+    expect(PROVIDER_PAGE_RULES).toHaveLength(11);
+    for (const rule of PROVIDER_PAGE_RULES) {
+      const skill = AGENT_SKILL_CATALOG.find(skill => skill.id === `${rule.providerId}.capture-balance`);
+      expect(skill, rule.providerId).toBeDefined();
+      for (const host of rule.hosts) expect(isHostAllowed(skill!, host), `${rule.providerId}: ${host}`).toBe(true);
+    }
+  });
   it("content_scripts matches equal providerHostGlobs()", () => {
     const manifestPath = fileURLToPath(
       new URL("../public/manifest.json", import.meta.url),

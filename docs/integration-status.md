@@ -191,3 +191,19 @@ login link is insufficient evidence to broaden capture authorization.
 Docs-only83d59b1 passes all six CI37000871611 jobs and CodeQL37000871596.
 AWS renewal remains pending; no live account, provider credentials, Chrome tab,
 production mutation or merge occurred. Full original goal remains active.
+
+Bank runtime7aa47f3637f5e2433b493451c97d120b62843c51 passes all six
+[CI37002246223](https://github.com/jckail/point_bot/actions/runs/37002246223) jobs
+and [CodeQL37002246352](https://github.com/jckail/point_bot/actions/runs/37002246352):
+1328workspace tests plus one paid live skip, all bundles/migrations/attestation
+and Docker direct/PgBouncer smoke. Its final shared Graphify refresh completed
+164478nodes, exit0. A new follow-up fixes canonical Southwest capture IDs and
+adds all-reader catalog/host invariants;88 composed extension cases and workspace
+lint/types pass. Corrected Amex transfer effective-date notes need no numeric
+change. Fresh committed-head CI is required for this follow-up.
+
+The source audit also established a release-blocking Chase→Hyatt card-eligibility
+calculation gap. [Card-aware design](transfer-eligibility-plan.md) records the
+required persisted selection, effective resolver, inverse coverage/advice/hint
+consistency, user-facing flow and migration proof. This is unfinished source work;
+passing bank CI does not close the incorrect fundability behavior.

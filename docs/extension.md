@@ -58,6 +58,11 @@ Observation and proposal review buttons share one serialized extension-owned tab
 They reuse that tab without taking ownership of another agent's browser session.
 Future agent verification should also reuse one owned tab per session.
 
+Previously retained Southwest candidates with providerId `southwest` remain
+frozen. Discard that local review explicitly and reload/recapture to use canonical
+`southwest-rapid-rewards`; no payload rewriting or automatic replay occurs. New
+captures resolve the actual core skill and canonical linked account.
+
 ## Assistant
 
 Chat needs `portfolio:read`; proposing changes also needs `portfolio:write`.
