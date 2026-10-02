@@ -92,7 +92,7 @@ async function recordViaSession(
         message: `No linked ${capture.providerId} account — link it in PointUp first.`,
       };
     }
-    await api.recordManualBalance(account.id, { points: capture.points });
+    await api.recordManualBalance(account.id, { points: capture.points, capturedAt: capture.observedAt });
     return {
       ok: true,
       message: `Recorded ${capture.points.toLocaleString("en-US")} for ${account.provider.displayName}.`,
