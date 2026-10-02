@@ -395,3 +395,129 @@ it.each(["ask", "clearChat"])("does not restore initial hydration after a newer 
   expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
   expect(send.mock.calls.filter(([message]) => message.type === "ask")).toHaveLength(action === "ask" ? 1 : 0);
 });
+
+
+it.each([
+  { action: "ask", failure: "busy response" },
+  { action: "ask", failure: "transport failure" },
+  { action: "clearChat", failure: "busy response" },
+  { action: "clearChat", failure: "transport failure" },
+])("freshly recovers in-flight state and polling after $action has a $failure", async ({ action, failure }) => {
+  vi.useFakeTimers();
+  let hydrate!: (result: ChatResult) => void;
+  let reads = 0;
+  const completed: ChatResult = { ok: true, message: "", chat: [
+    { role: "user", content: "Current saved question" }, { role: "assistant", content: "Recovered completion" },
+  ] };
+  send.mockImplementation(async message => {
+    if (message.type === "getLatest") return capture;
+    if (message.type === "getChat") {
+      reads++;
+      if (reads === 1) return new Promise<ChatResult>(resolve => { hydrate = resolve; });
+      if (reads === 2) return { ok: true, message: "", chat: [], pending: {
+        question: "Current saved question", status: "in_flight", message: "The assistant is working. Your question is saved.",
+      } };
+      return completed;
+    }
+    if (failure === "transport failure") throw new Error("Worker transport unavailable");
+    return { ok: false, message: "The assistant is working. Please wait." };
+  });
+  vi.resetModules(); await import("../src/popup"); await vi.advanceTimersByTimeAsync(0);
+  if (action === "ask") {
+    elements.question!.value = "New question before hydration";
+    const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+    submit({ preventDefault: () => {} });
+  } else elements.clearChat!.listeners.click!();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(reads).toBe(2);
+  expect(elements.question!.value).toBe("Current saved question");
+  expect(elements.chatStatus!.textContent).toContain("working");
+  expect(elements.ask!.disabled).toBe(true);
+  expect(elements.save!.disabled).toBe(true);
+  hydrate({ ok: true, message: "", chat: [], pending: {
+    question: "Obsolete initial question", status: "uncertain", message: "Obsolete support reference",
+  } });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(elements.question!.value).toBe("Current saved question");
+  expect(elements.chatStatus!.textContent).not.toContain("Obsolete");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(reads).toBe(3);
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, completed.chat, expect.any(Function));
+  expect(elements.question!.value).toBe("");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(elements.save!.disabled).toBe(false);
+  expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
+});
+
+it("recovers remotely committed Clear after transport loss without restoring its obsolete initial snapshot", async () => {
+  let hydrate!: (result: ChatResult) => void;
+  let reads = 0;
+  send.mockImplementation(async message => {
+    if (message.type === "getLatest") return capture;
+    if (message.type === "getChat") return ++reads === 1
+      ? new Promise<ChatResult>(resolve => { hydrate = resolve; }) : { ok: true, message: "", chat: [] };
+    throw new Error("Clear response lost after remote commit");
+  });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  elements.clearChat!.listeners.click!(); await flush();
+  expect(reads).toBe(2);
+  const feedback = elements.chatStatus!.textContent;
+  hydrate({ ok: true, message: "", chat: [{ role: "assistant", content: "Obsolete private transcript" }],
+    pending: { question: "Obsolete question", status: "uncertain", message: "Obsolete support reference" } });
+  await flush();
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
+  expect(elements.question!.value).toBe("");
+  expect(elements.chatStatus!.textContent).toBe(feedback);
+  expect(elements.ask!.disabled).toBe(false);
+  expect(send.mock.calls.filter(([message]) => message.type === "clearChat")).toHaveLength(1);
+});
+
+it.each(["ask", "clearChat"])("keeps reopen guidance when fresh recovery after failed %s is unavailable", async action => {
+  let hydrate!: (result: ChatResult) => void;
+  let reads = 0;
+  send.mockImplementation(async message => {
+    if (message.type === "getLatest") return capture;
+    if (message.type === "getChat") {
+      if (++reads === 1) return new Promise<ChatResult>(resolve => { hydrate = resolve; });
+      throw new Error("Recovery transport unavailable");
+    }
+    return { ok: false, message: "The assistant is working. Please wait." };
+  });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  if (action === "ask") {
+    elements.question!.value = "Explicit current draft";
+    const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+    submit({ preventDefault: () => {} });
+  } else elements.clearChat!.listeners.click!();
+  await flush();
+  expect(reads).toBe(2);
+  expect(elements.chatStatus!.textContent).toContain("Reopen the popup to recover your saved question");
+  hydrate({ ok: true, message: "", chat: [], pending: { question: "Obsolete question", status: "uncertain", message: "Obsolete guidance" } });
+  await flush();
+  expect(elements.chatStatus!.textContent).toContain("Reopen the popup to recover your saved question");
+  expect(elements.question!.value).toBe(action === "ask" ? "Explicit current draft" : "");
+  expect(elements.ask!.disabled).toBe(false);
+  expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
+});
+
+it.each(["ask", "clearChat"])("keeps an authoritative failed %s pending envelope over older hydration", async action => {
+  let hydrate!: (result: ChatResult) => void;
+  const pending = { question: "Authoritative saved question", status: "uncertain" as const, message: "Check proposals. Support reference: current-request" };
+  send.mockImplementation(async message => message.type === "getLatest" ? capture
+    : message.type === "getChat" ? new Promise<ChatResult>(resolve => { hydrate = resolve; })
+      : { ok: false, message: pending.message, chat: [], pending });
+  vi.resetModules(); await import("../src/popup"); await flush();
+  if (action === "ask") {
+    elements.question!.value = pending.question;
+    const submit = elements.askForm!.listeners.submit as unknown as (event: { preventDefault: () => void }) => void;
+    submit({ preventDefault: () => {} });
+  } else elements.clearChat!.listeners.click!();
+  await flush();
+  hydrate({ ok: true, message: "", chat: [{ role: "assistant", content: "Obsolete transcript" }] });
+  await flush();
+  expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
+  expect(elements.question!.value).toBe(pending.question);
+  expect(elements.chatStatus!.textContent).toContain(pending.message);
+  expect(elements.ask!.disabled).toBe(false);
+  expect(send.mock.calls.filter(([message]) => message.type === action)).toHaveLength(1);
+});

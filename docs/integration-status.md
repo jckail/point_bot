@@ -33,13 +33,20 @@ also passed. AWS deployment was skipped for missing deployment-role configuratio
 Production rollout
 and the broader identity, model/provider and native acceptance gates remain open.
 
-The current extension hydration fix captures the initial `getChat` generation
-and ignores delayed results, error responses and transport failures after a
-successful settings save or dispatched Ask/Clear. A failed save retains valid
-hydration. Six deferred-message regressions produced five failures on the original
-source; all 29 focused popup tests pass with the fix. Extension typecheck, lint and
-whitespace checks passed; independent review approved the source without blockers.
-This remains prepared source and focused-test evidence: the race has no native browser verification.
+The unmerged extension hydration refinement retains the Ask/Clear dispatch
+fence against delayed initial `getChat` results. A bare failure, transport error
+or malformed response starts one asynchronous fresh state-only `getChat` recovery;
+it never resends the mutation. An authoritative failed chat envelope is applied
+directly without an extra read. Current recovered history and pending in-flight
+state restore the appropriate poller and controls. Failed recovery shows the
+primary error with explicit reopen guidance. Successful settings-save fencing
+is unchanged. Nine new regressions produced seven failures on the original
+candidate; all 38 focused popup tests pass with the refinement, with extension
+typecheck, lint and whitespace checks passing. Independent source review approved
+it without blockers. This addresses the historical medium Bugbot comment in
+source; Bugbot had returned a skipped status. Fresh candidate CI is pending, and
+no native browser proof or PR #42 merged-master success is claimed. PR #41's
+completed release evidence remains unchanged.
 
 The preceding extension-draft release is [PR #40](https://github.com/jckail/point_bot/pull/40)
 at master `464cb0ec0c7de73403c5aaf5fb24fd5495a78a81` (source

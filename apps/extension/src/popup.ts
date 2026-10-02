@@ -159,22 +159,37 @@ async function init(): Promise<void> {
 }
 
 async function chatRequest(message: ExtensionMessage): Promise<ChatResult> {
-  if (message.type === "ask" || message.type === "clearChat") chatGeneration++;
+  const mutation = message.type === "ask" || message.type === "clearChat";
+  if (mutation) chatGeneration++;
   const generation = chatGeneration;
   let result: ChatResult | undefined;
   try {
     result = await chrome.runtime.sendMessage<ExtensionMessage, ChatResult | undefined>(message);
   } catch (error) {
     if (message.type === "getChat" && generation !== chatGeneration) return { ok: true, message: "" };
+    if (mutation) recoverChatAfterFailure(generation, "Extension worker unavailable. Reopen the popup and retry.");
     throw error;
   }
   // A read from before Save/Ask/Clear must not restore an obsolete conversation
   // or replace current feedback, including when its transport failed.
   if (message.type === "getChat" && generation !== chatGeneration) return { ok: true, message: "" };
-  if (!result || typeof result.ok !== "boolean") throw new Error("Extension worker unavailable. Reopen the popup and retry.");
-  if (result.chat || result.pending || message.type === "getChat" || message.type === "clearChat") applyChatState(result);
+  if (!result || typeof result.ok !== "boolean") {
+    if (mutation) recoverChatAfterFailure(generation, "Extension worker unavailable. Reopen the popup and retry.");
+    throw new Error("Extension worker unavailable. Reopen the popup and retry.");
+  }
+  if (mutation && !result.ok && !result.chat && !result.pending) recoverChatAfterFailure(generation, result.message);
+  if (result.chat || result.pending || message.type === "getChat" || (message.type === "clearChat" && result.ok)) applyChatState(result);
   if (!result.ok) throw new Error(result.message);
   return result;
+}
+function recoverChatAfterFailure(generation: number, feedback: string): void {
+  // A lost mutation reply may still have committed. Read once from the worker;
+  // never replay the operation or let an older hydration snapshot back in.
+  void chatRequest({ type: "getChat" }).then(() => {
+    if (generation === chatGeneration) showChatStatus(feedback);
+  }).catch(() => {
+    if (generation === chatGeneration) showChatStatus(`${feedback} Conversation status unavailable. Reopen the popup to recover your saved question.`);
+  });
 }
 function applyChatState(result: ChatResult): void {
   if (result.chat) showChat(result.chat);
@@ -201,7 +216,7 @@ function applyChatState(result: ChatResult): void {
   }
 }
 function showChatStatus(message: string): void {
-  const recovery = chatPending?.status === "uncertain" ? chatPending.message : undefined;
+  const recovery = chatPending?.message;
   $("chatStatus").textContent = recovery && recovery !== message ? `${recovery} ${message}` : message;
 }
 async function runChat(action: () => Promise<void>, activityMessage = "Thinking…"): Promise<void> {
