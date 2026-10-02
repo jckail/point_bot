@@ -232,3 +232,29 @@ owned PostgreSQL container was stopped after verification, retaining data. No
 new browser tab/window was opened. Original active goal remains open, including
 standalone ChatGPT sign-in, live SDK/exporter/extension/provider verification,
 remaining rate/deal/cash integrity, OAuth/public MCP onboarding and partnerships.
+
+## Verified rollout milestone and follow-up defects
+
+Rollout a754875c562fcd578d9cf8131102e47ea455af56 passes all6 CI36991025330
+and CodeQL36991025255:985 workspace tests plus one skipped paid live evaluation,
+29 rollout cases,25infra,15 actualPG attestation cases including RLS, managed20,
+full lint/types/hygiene, all builds/contracts/HTTP MCP/direct and pooler Docker.
+Final local RLS/synth/aggregate queue75 results remain accurate; CI supplies final
+proof. App production audit0; infra high advisory tracked. AWS session expired,
+repo deploymentsecrets empty; no production mutation. Owned PG stopped/dataretained.
+
+Follow-up owned work: SDK agent repairs reproduced deal parser truncation
+(12500 points becomes500, $1500 becomes$150, $123.4 loses decimal) with exact bounded
+token parsing. Extension agent binds discard to the displayed capture ID, serializes
+shared review-tab creation and restores popup receipt/error feedback. Root checks
+and commits after source settles. Reopened in-flight chat persistence and remaining
+FX/cash/rate arithmetic remain open; do not infer these fixes from prior rollout CI.
+
+Deal parsing, FX rounding/overflow, displayed-capture discard, shared review-tab
+serialization and popup recovery feedback are now implemented. Root79 composed
+focused cases and full workspace lint/types pass. Fresh candidate CI is required.
+Remaining concrete extension follow-ups: persist/recover a question when popup
+reopens during inference; expose validated capture request references and correct
+legacy-session scope guidance. Broader provider/currency/rate validation still
+needs audit; a complete numeric token is not evidence its source currency is USD.
+AWS session renewal was requested asynchronously; independent source work continues.

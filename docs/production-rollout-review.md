@@ -92,11 +92,11 @@ Sources: [stack](../infra/lib/app-stack.ts),
 Implementation owners reported 29 passing offline helper cases. Root reported
 25 earlier infrastructure cases and eight initial real PostgreSQL attestation
 cases passing. This reviewer did not execute them. Root also passed final focused IAM tests (2) and infrastructure types, plus
-14 real PostgreSQL cases including bounded physical-schema drift. A final RLS
-case and final-source CI/synth remain pending; root must record
-the final aggregate evidence after all changes settle. Fresh final-source CI is
-required; earlier release CI does not verify this rollout source. AWS credentials
-remain unavailable.
+14 real PostgreSQL cases including bounded physical-schema drift. The local final RLS and aggregate/synth queue waits expired75. Exact rollout
+a754875 now passes all six CI36991025330 jobs and CodeQL36991025255, including
+985 workspace tests,29 helper cases,25 infrastructure cases and15 real PostgreSQL
+attestation cases including RLS, all bundles and Docker direct/pooler smoke.
+Root records final evidence in integration-status.md. AWS credentials remain unavailable.
 
 Acceptance coverage now has source cases for malformed task launch/completion,
 digest/attestation mismatch, missing configuration, inactive promotion authority,

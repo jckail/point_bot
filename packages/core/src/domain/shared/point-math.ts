@@ -26,19 +26,26 @@ export function checkedPointRatio(points: number, numerator: number, denominator
   return safePoints(exactPoints(points) * exactPoints(numerator) / den);
 }
 
-/**
- * Interpret the published decimal number exactly as written by Number.toString.
- * This preserves editorial precision and does not quantize rates to milli-cents.
- */
-export function estimateValueCents(points: number, centsPerPoint: number): number {
-  if (!Number.isFinite(centsPerPoint) || centsPerPoint <= 0) throw new InvalidValuationError();
-  const [mantissa = "", exponentText = "0"] = centsPerPoint.toString().toLowerCase().split("e");
+/** Exact decimal ratio of the finite number's published Number.toString form. */
+export function exactDecimalRatio(value: number): { readonly numerator: bigint; readonly denominator: bigint } {
+  if (!Number.isFinite(value)) throw new RangeError("Decimal value must be finite.");
+  const [mantissa = "", exponentText = "0"] = value.toString().toLowerCase().split("e");
   const [whole = "", fraction = ""] = mantissa.split(".");
   const exponent = Number(exponentText) - fraction.length;
   let numerator = BigInt(whole + fraction);
   let denominator = 1n;
   if (exponent >= 0) numerator *= 10n ** BigInt(exponent);
   else denominator = 10n ** BigInt(-exponent);
+  return { numerator, denominator };
+}
+
+/**
+ * Interpret the published decimal number exactly as written by Number.toString.
+ * This preserves editorial precision and does not quantize rates to milli-cents.
+ */
+export function estimateValueCents(points: number, centsPerPoint: number): number {
+  if (!Number.isFinite(centsPerPoint) || centsPerPoint <= 0) throw new InvalidValuationError();
+  const { numerator, denominator } = exactDecimalRatio(centsPerPoint);
   const product = exactPoints(points) * numerator;
   // Nonnegative Math.round semantics: ties round upward, with exact intermediates.
   return safePoints((2n * product + denominator) / (2n * denominator));

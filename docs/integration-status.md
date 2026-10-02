@@ -408,3 +408,36 @@ production-rollout-plan.md, production-rollout-review.md and release-backlog.md.
 Original overhaul goal remains active. Standalone ChatGPT sign-in, live assistant/
 exporter/Chrome/provider smoke, remaining numeric cash/deal/rate boundaries,
 public OAuth MCP onboarding and partnerships remain next; iOS is deferred.
+
+## Verified rollout release a754875
+
+Exact rollout a754875c562fcd578d9cf8131102e47ea455af56 passes all six
+[CI36991025330](https://github.com/jckail/point_bot/actions/runs/36991025330)
+jobs and [CodeQL36991025255](https://github.com/jckail/point_bot/actions/runs/36991025255).
+CI verifies985 workspace cases (one paid live evaluation skipped),29 offline rollout
+cases,25 infrastructure cases, actual PostgreSQL15 migration/schema attestation
+cases including RLS drift, managed migration20, full lint/types/hygiene, all bundles,
+contracts/HTTP MCP and Docker direct/PgBouncer smoke. Application production audit
+is zero vulnerabilities; the infrastructure high advisory remains separate.
+The final local RLS-specific command did not start75; fresh CI supplies its proof.
+The local database container is stopped with data retained. No production deploy.
+
+Independent follow-up audits reproduced deal numeric-token truncation and stale
+extension discard selecting a newer unseen capture, plus a shared review-tab race.
+SDK agent now owns bounded deal parsing/tests; extension agent owns captureId-bound
+discard, shared tab serialization and popup recovery feedback. Root retains checks/
+release. These follow-up edits are not covered by a754875 CI and require fresh proof.
+Remaining FX/cash limits, reopened in-flight extension chat, approved standalone
+ChatGPT sign-in and live provider/model/exporter/deployment gates remain preserved.
+
+## Numeric and extension follow-up candidate
+
+Implemented complete bounded deal token parsing, exact signed FX conversion with
+explicit unavailable overflow, captureId-bound extension discard, shared serialized
+review tab and restored popup receipt/error feedback. Root composed79 focused cases,
+full workspace types and lint pass. Earlier rollout CI does not cover these edits;
+fresh committed-head CI is next. Details are in numeric-integrity-plan.md and
+extension.md. Live deployment still awaits renewed AWS login and configured role/
+TLS/Clerk/backup ownership; no secret is requested in chat. Remaining in-flight chat
+persistence and API support references, broader rates/currency inference, approved
+standalone ChatGPT sign-in and provider/exporter/Chrome live proof remain open.

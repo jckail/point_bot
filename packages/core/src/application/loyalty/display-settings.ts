@@ -55,7 +55,7 @@ export interface DisplayValue {
 
 /**
  * Converts a USD-cents value into the user's display currency. Returns null
- * for USD (nothing to convert) or when the rate source fails — display
+ * for USD (nothing to convert) or when the rate/conversion is unavailable — display
  * conversion is a nice-to-have that must never break the underlying response.
  */
 export class BuildDisplayValue {

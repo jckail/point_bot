@@ -73,3 +73,26 @@ Add a rule to `PROVIDER_PAGE_RULES` in `src/extraction.ts` (host + balance
 regex) **and** the matching `https://*.<host>/*` entry to
 `public/manifest.json` `content_scripts[0].matches`. The sync test will fail if
 you forget the manifest.
+
+## Capture and review recovery
+
+Discard is bound to the capture ID displayed by the popup. If a newer candidate
+arrives or a queued recording completes, a stale discard fails without deleting
+or tombstoning the unseen capture. Discarding a local review still does not undo
+a server submission; inspect PointUp before recording a fresh observation.
+
+Assistant proposal and observation review buttons share one serialized helper
+and one extension-owned review tab. Concurrent requests reuse that tab; closed
+or failed tabs can recover on a later request. They never take ownership of
+other agent sessions' tabs.
+
+Reopening the popup restores persisted outcome, explanation and observation/
+review references as plain text. Record/settings controls indicate pending work,
+worker failures end the pending state, and a saved configuration is distinguished
+from a conversation-clear failure. A popup reopened during assistant inference
+still needs durable pending-chat recovery; full Clerk extension sign-in and
+capture API support-reference expansion remain follow-ups.
+
+Focused concurrency/stale-discard/popup cases pass with synthetic Chrome APIs.
+No live browser lifecycle, provider extraction, Clerk/PAT or SDK/exporter test is
+claimed. Future live verification should reuse one owned tab per agent session.

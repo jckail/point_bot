@@ -11,6 +11,7 @@ import { captureIdentity, completeCapture, finishCapture, isReviewedCapture, obs
 import type { ExtensionMessage, RecordResult } from "./messages";
 import { recordCapture } from "./record";
 import { askAssistant, clearChat, loadChat, openReviewTab, pointUpOrigin } from "./assistant";
+import { openOwnedReviewTab } from "./review-tab";
 
 let assistantBusy = false;
 
@@ -51,16 +52,7 @@ async function record(captureId?: string): Promise<RecordResult> {
 async function openObservationReview(): Promise<RecordResult> {
   const config = await loadConfig();
   const url = `${pointUpOrigin(config.baseUrl)}/dashboard/agents`;
-  const stored = await chrome.storage.session.get("assistantReviewTabId");
-  let exists = false;
-  if (typeof stored.assistantReviewTabId === "number") {
-    try { await chrome.tabs.get(stored.assistantReviewTabId); exists = true; } catch { /* Closed. */ }
-  }
-  if (exists) await chrome.tabs.update(stored.assistantReviewTabId as number, { url, active: true });
-  else {
-    const tab = await chrome.tabs.create({ url, active: true });
-    if (tab.id !== undefined) await chrome.storage.session.set({ assistantReviewTabId: tab.id });
-  }
+  await openOwnedReviewTab(url);
   return { ok: true, message: "Review observations in PointUp. Only you can confirm or reject them." };
 }
 
@@ -98,7 +90,10 @@ chrome.runtime.onMessage.addListener(
         if (message.type === "openObservationReview") return openObservationReview();
         const state = await loadCaptureState();
         const discarded = state.pending?.capture ?? state.latest;
-        if (discarded) await saveCaptureState(completeCapture(state, discarded.captureId));
+        if (!discarded || message.type !== "discardCapture" || discarded.captureId !== message.captureId) {
+          return { ok: false, message: "Capture changed. Review the displayed balance before discarding." };
+        }
+        await saveCaptureState(completeCapture(state, discarded.captureId));
         await updateBadge(await loadLatestCapture());
         return { ok: true, message: "Discarded local review. This does not undo a submission; check PointUp before recording a fresh capture." };
       });

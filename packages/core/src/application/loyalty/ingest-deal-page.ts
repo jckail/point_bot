@@ -83,10 +83,12 @@ function extractDealsFromMarkdown(
   const deals: DealCandidate[] = [];
   const lines = markdown.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-  const pointCash =
-    /(\d{1,3}(?:,\d{3})*|\d+\.?\d*\s*k)\s*(?:points?|miles?|pts\.?).*?(?:\$|usd\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i;
-  const cashPoint =
-    /(?:\$|usd\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?).*?(\d{1,3}(?:,\d{3})*|\d+\.?\d*\s*k)\s*(?:points?|miles?|pts\.?)/i;
+  // Capture whole numeric tokens before validating grammar; never numeric fragments.
+  const numeric = String.raw`\d(?:[\d,]*\d)?(?:\.\d+)?`;
+  const pointsToken = String.raw`(?<![\w.,+-])(${numeric}\s*k?)\s*(?:points?|miles?|pts\.?)(?!\w)`;
+  const cashToken = String.raw`(?:\$|\busd\s*)\s*(${numeric})(?!\w|[.,][\d.,])`;
+  const pointCash = new RegExp(`${pointsToken}.*?${cashToken}`, "i");
+  const cashPoint = new RegExp(`${cashToken}.*?${pointsToken}`, "i");
 
   let idx = 0;
   for (const line of lines.slice(0, 80)) {
@@ -96,16 +98,16 @@ function extractDealsFromMarkdown(
     const m1 = line.match(pointCash);
     if (m1) {
       points = parsePoints(m1[1]!);
-      cashCents = Math.round(parseFloat(m1[2]!.replace(/,/g, "")) * 100);
+      cashCents = parseScaledInteger(m1[2]!, 2);
     } else {
       const m2 = line.match(cashPoint);
       if (m2) {
-        cashCents = Math.round(parseFloat(m2[1]!.replace(/,/g, "")) * 100);
+        cashCents = parseScaledInteger(m2[1]!, 2);
         points = parsePoints(m2[2]!);
       }
     }
 
-    if (points == null || points <= 0) continue;
+    if (points == null || points <= 0 || cashCents == null) continue;
 
     const providerId =
       opts.providerId ?? detectProviderId(line) ?? detectProviderId(markdown);
@@ -144,12 +146,23 @@ function extractDealsFromMarkdown(
   return deals;
 }
 
-function parsePoints(raw: string): number {
-  const cleaned = raw.trim().toLowerCase().replace(/,/g, "");
-  if (cleaned.endsWith("k")) {
-    return Math.round(parseFloat(cleaned.slice(0, -1)) * 1000);
-  }
-  return Math.round(parseFloat(cleaned));
+/** Exact decimal scaling rejects fractional units and unsafe DTO integers. */
+function parseScaledInteger(raw: string, decimals: number): number | null {
+  // Safe DTO integers have at most 16 digits; bound parsing of remote tokens.
+  if (raw.length > 64) return null;
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(raw)) return null;
+  const [whole = "", fraction = ""] = raw.replace(/,/g, "").split(".");
+  if (fraction.length > decimals) return null;
+  const value = BigInt(whole) * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0") || "0");
+  return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null;
+}
+
+function parsePoints(raw: string): number | null {
+  const cleaned = raw.trim().toLowerCase();
+  return cleaned.endsWith("k")
+    ? parseScaledInteger(cleaned.slice(0, -1).trim(), 3)
+    : parseScaledInteger(cleaned, 0);
 }
 
 function detectProviderId(text: string): ProviderId | null {

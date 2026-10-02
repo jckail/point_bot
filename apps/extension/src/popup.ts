@@ -1,6 +1,7 @@
 import { renderChat } from "./chat-view";
 import { loadConfig, saveConfig } from "./config";
 import type { ReviewedCapture } from "./capture-state";
+import { captureFeedback } from "./capture-view";
 import type { ChatEntry, ChatResult, ExtensionMessage, RecordResult } from "./messages";
 
 function $(id: string): HTMLElement {
@@ -10,22 +11,40 @@ function $(id: string): HTMLElement {
 }
 
 let selectedCaptureId: string | undefined;
+let captureBusy = false;
+let settingsBusy = false;
+let chatBusy = false;
+function updateControls(): void {
+  const busy = captureBusy || settingsBusy;
+  ($("record") as HTMLButtonElement).disabled = busy || !selectedCaptureId;
+  ($("discardCapture") as HTMLButtonElement).disabled = busy || !selectedCaptureId;
+  ($("openObservationReview") as HTMLButtonElement).disabled = busy;
+  ($("save") as HTMLButtonElement).disabled = busy || chatBusy;
+  for (const id of ["baseUrl", "token"]) ($(id) as HTMLInputElement).disabled = busy || chatBusy;
+  $("assistant").querySelectorAll("button").forEach(button => { button.disabled = chatBusy || settingsBusy; });
+}
+async function runCapture(action: () => Promise<void>): Promise<void> {
+  if (captureBusy || settingsBusy) return;
+  captureBusy = true;
+  updateControls();
+  try { await action(); }
+  catch { $("status").textContent = "Extension worker unavailable. Keep your capture and retry."; }
+  finally { captureBusy = false; updateControls(); }
+}
 async function refreshLatest(): Promise<void> {
   // The background worker answers `getLatest` with the last capture or null.
   const capture: (ReviewedCapture & { retryLocked?: boolean; receipt?: RecordResult }) | null = await chrome.runtime.sendMessage({
     type: "getLatest",
   });
   const box = $("latest");
-  const recordBtn = $("record") as HTMLButtonElement;
   selectedCaptureId = capture?.captureId;
-  ($( "discardCapture") as HTMLButtonElement).disabled = !capture;
   if (capture) {
-    box.textContent = `${capture.providerId}: ${capture.points.toLocaleString("en-US")} • ${new Date(capture.observedAt).toLocaleTimeString()}${capture.retryLocked ? " • retry locked" : ""}${capture.receipt?.reviewId ? ` • Review ${capture.receipt.reviewId}` : ""}`;
-    recordBtn.disabled = false;
+    box.textContent = `${capture.providerId}: ${capture.points.toLocaleString("en-US")} • ${new Date(capture.observedAt).toLocaleString()}${capture.retryLocked ? " • retry locked" : ""}`;
+    if (capture.receipt) $("status").textContent = captureFeedback(capture.receipt);
   } else {
     box.textContent = "Open a provider page to capture a balance.";
-    recordBtn.disabled = true;
   }
+  updateControls();
 }
 
 async function init(): Promise<void> {
@@ -34,14 +53,24 @@ async function init(): Promise<void> {
   ($("token") as HTMLInputElement).value = config.token;
 
   $("save").addEventListener("click", () => {
-    void saveConfig({
-      baseUrl: ($("baseUrl") as HTMLInputElement).value.trim(),
-      token: ($("token") as HTMLInputElement).value.trim(),
-    }).then(async () => {
-      await chatRequest({ type: "clearChat" });
+    if (settingsBusy || captureBusy || chatBusy) return;
+    settingsBusy = true;
+    updateControls();
+    void (async () => {
+      try {
+        await saveConfig({ baseUrl: ($("baseUrl") as HTMLInputElement).value.trim(), token: ($("token") as HTMLInputElement).value.trim() });
+      } catch {
+        $("status").textContent = "Settings could not be saved. Retry before recording or asking.";
+        return;
+      }
       showChat([]);
-      $("status").textContent = "Saved.";
-    });
+      try {
+        await chatRequest({ type: "clearChat" });
+        $("status").textContent = "Saved. Pending captures still require their original settings to retry.";
+      } catch {
+        $("status").textContent = "Settings saved. Conversation could not be cleared while the worker is busy; reopen the popup after it finishes.";
+      }
+    })().finally(() => { settingsBusy = false; updateControls(); });
   });
 
   $("askForm").addEventListener("submit", event => {
@@ -63,24 +92,33 @@ async function init(): Promise<void> {
   });
 
   $("record").addEventListener("click", () => {
-    $("status").textContent = "Recording…";
-    void chrome.runtime
-      .sendMessage({ type: "record", captureId: selectedCaptureId })
-      .then((result: RecordResult) => {
-        $("status").textContent = result.message;
-        return refreshLatest();
-      });
+    void runCapture(async () => {
+      $("status").textContent = "Recording…";
+      const result = await chrome.runtime.sendMessage<ExtensionMessage, RecordResult>({ type: "record", captureId: selectedCaptureId });
+      if (!result || typeof result.ok !== "boolean") throw new Error("Worker unavailable");
+      await refreshLatest();
+      $("status").textContent = captureFeedback(result);
+    });
   });
 
   for (const type of ["discardCapture", "openObservationReview"] as const) {
     $(type).addEventListener("click", () => {
-      void chrome.runtime.sendMessage<ExtensionMessage, RecordResult>({ type }).then(async result => {
-        $("status").textContent = result.message;
+      void runCapture(async () => {
+        let message: ExtensionMessage;
+        if (type === "discardCapture") {
+          if (!selectedCaptureId) return;
+          message = { type, captureId: selectedCaptureId };
+        } else message = { type };
+        const result = await chrome.runtime.sendMessage<ExtensionMessage, RecordResult>(message);
+        if (!result || typeof result.ok !== "boolean") throw new Error("Worker unavailable");
         await refreshLatest();
-      }).catch(() => { $("status").textContent = "Extension worker unavailable. Keep your capture and retry."; });
+        $("status").textContent = captureFeedback(result);
+      });
     });
   }
-  await refreshLatest();
+  updateControls();
+  try { await refreshLatest(); }
+  catch { $("status").textContent = "Capture unavailable. Reopen the popup to retry."; }
   try { const result = await chatRequest({ type: "getChat" }); showChat(result.chat ?? []); }
   catch { $("chatStatus").textContent = "Conversation unavailable. Reopen the popup to retry."; }
 }
@@ -91,19 +129,16 @@ async function chatRequest(message: ExtensionMessage): Promise<ChatResult> {
   if (!result.ok) throw new Error(result.message);
   return result;
 }
-let chatBusy = false;
 async function runChat(action: () => Promise<void>): Promise<void> {
-  if (chatBusy) return;
+  if (chatBusy || settingsBusy) return;
   chatBusy = true;
   $("chatStatus").textContent = "Thinking…";
-  $("assistant").querySelectorAll("button").forEach(button => { button.disabled = true; });
-  ($("save") as HTMLButtonElement).disabled = true;
+  updateControls();
   try { await action(); }
   catch (error) { $("chatStatus").textContent = error instanceof Error ? error.message : "Assistant unavailable. Retry your question."; }
   finally {
     chatBusy = false;
-    $("assistant").querySelectorAll("button").forEach(button => { button.disabled = false; });
-    ($("save") as HTMLButtonElement).disabled = false;
+    updateControls();
   }
 }
 function showChat(chat: readonly ChatEntry[]): void {
@@ -112,4 +147,4 @@ function showChat(chat: readonly ChatEntry[]): void {
   }); });
 }
 
-void init();
+void init().catch(() => { $("status").textContent = "Extension settings unavailable. Reopen the popup to retry."; });

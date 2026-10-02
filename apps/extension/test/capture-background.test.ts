@@ -20,7 +20,9 @@ beforeEach(async () => {
   stored.baseUrl = "https://pointup.example"; stored.token = "pu_original";
   vi.stubGlobal("chrome", { runtime: { id: "extension", getURL: () => popup.url, onMessage: { addListener: (fn: typeof listener) => { listener = fn; } } },
     storage: { local: { get: async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, stored[key]])),
-      set: async (values: Record<string, unknown>) => { Object.assign(stored, values); } } },
+      set: async (values: Record<string, unknown>) => { Object.assign(stored, values); } },
+      session: { get: async (key: string) => ({ [key]: stored[key] }), set: async (values: Record<string, unknown>) => { Object.assign(stored, values); } } },
+    tabs: { create: vi.fn(async () => ({ id: 31 })), get: vi.fn(async () => ({ id: 31 })), update: vi.fn(async () => ({ id: 31 })) },
     action: { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) } });
   await startWorker();
 });
@@ -50,7 +52,7 @@ it("keeps a held receipt for dashboard recovery and deliberately discards only t
   await request({ type: "record", captureId: capture.captureId });
   await deliver(newer);
   expect(await request({ type: "getLatest" })).toMatchObject({ retryLocked: true, receipt: { outcome: "needs_review", reviewId: "review" } });
-  expect(await request({ type: "discardCapture" })).toMatchObject({ ok: true, message: expect.stringContaining("does not undo") });
+  expect(await request({ type: "discardCapture", captureId: capture.captureId })).toMatchObject({ ok: true, message: expect.stringContaining("does not undo") });
   expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
 });
 it("requires a fresh capture for legacy storage and rejects stale popup recording", async () => {
@@ -60,6 +62,36 @@ it("requires a fresh capture for legacy storage and rejects stale popup recordin
   const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
   expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("Capture changed") });
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("rejects stale discard without deleting or tombstoning the newer candidate", async () => {
+  await deliver(capture);
+  await deliver(newer);
+  const before = structuredClone(stored.captureState);
+  expect(await request({ type: "discardCapture", captureId: capture.captureId })).toMatchObject({ ok: false, message: expect.stringContaining("Capture changed") });
+  expect(stored.captureState).toEqual(before);
+  expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
+});
+
+it("rejects queued discard after completion instead of discarding the next candidate", async () => {
+  await deliver();
+  let finish!: (response: Response) => void;
+  vi.stubGlobal("fetch", vi.fn(async () => new Promise<Response>(resolve => { finish = resolve; })));
+  const recording = request({ type: "record", captureId: capture.captureId });
+  while (!finish) await new Promise(resolve => setTimeout(resolve, 0));
+  listener({ type: "capture", capture: newer }, { id: "extension", url: newer.sourceUrl }, () => undefined);
+  const discard = request({ type: "discardCapture", captureId: capture.captureId });
+  finish(new Response(JSON.stringify({ outcome: "recorded", accountId: "a", points: 123, previousPoints: null, message: "Recorded", reviewId: null })));
+  await recording;
+  expect(await discard).toMatchObject({ ok: false });
+  expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
+  expect((stored.captureState as { completedIds: string[] }).completedIds).not.toContain(newer.captureId);
+});
+
+it("shares one review tab across simultaneous assistant and observation requests", async () => {
+  await Promise.all([request({ type: "openReview" }), request({ type: "openObservationReview" })]);
+  expect(chrome.tabs.create).toHaveBeenCalledTimes(1);
+  expect(chrome.tabs.update).toHaveBeenCalledWith(31, { url: "https://pointup.example/dashboard/agents", active: true });
 });
 
 it("ignores queued late hydration delivery after completion and after worker restart", async () => {

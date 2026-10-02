@@ -307,3 +307,23 @@ These prove actual UOW rollback for snapshot/account/activity/outbox and a real
 sync lock-wait barrier. Managed migration through 0020 passed on the owned fixture.
 No production legacy rows were inspected or constraints validated. Remaining
 scraped rate/deal/cash parsing and broader RLS/rollout audits remain open.
+
+## Deal token and FX follow-up
+
+Fixed reproduced structured-deal truncation:12500 points for$1500 now preserves
+12500/150000cents, and$123.4 preserves12340cents. Complete numeric tokens are validated
+before exact BigInt scaling. Plain/grouped points must be whole, k amounts permit
+up to3 decimals, USD cash permits up to2 decimals, and malformed/unsafe values keep
+the existing unstructured-page fallback instead of producing a partial numeric deal.
+
+FX uses the shared exact decimal ratio, signed target-minor-unit rounding and
+safe-integer/result-decimal guards. Supported two-decimal currencies and JPY's
+zero-decimal policy remain; exact negative ties preserve Math.round semantics.
+201USDcents at1.5AUD/USD produces3.02; at0.5EUR/USD produces1.01. Unrepresentable
+converted amounts produce an explicit unavailable display, never Infinity or a
+silently rounded cent. Existing valuation arithmetic retains its semantics.
+
+Root composed79 focused numeric/deal/extension cases, complete workspace types
+and lint pass. Fresh candidate CI is required after committing these changes.
+Provider currency inference, scraped rate normalization, other cash boundaries
+and actual live financial/provider data remain separate follow-up audits.

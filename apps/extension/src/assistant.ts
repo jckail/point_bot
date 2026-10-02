@@ -1,6 +1,7 @@
 import { PointUpApiError, PointUpClient } from "@pointup/api-client";
 import { loadConfig, type ExtensionConfig } from "./config";
 import type { ActionReview, ChatEntry, ChatResult } from "./messages";
+import { openOwnedReviewTab } from "./review-tab";
 
 export const CHAT_TIMEOUT_MS = 25_000;
 export const CHAT_HISTORY_LIMIT = 16;
@@ -102,19 +103,6 @@ export async function openReviewTab(): Promise<ChatResult> {
   let url: string;
   try { url = `${pointUpOrigin(config.baseUrl)}/dashboard/agents#review-actions`; }
   catch { return { ok: false, message: "Save a valid PointUp URL first." }; }
-  const stored = await chrome.storage.session.get("assistantReviewTabId");
-  if (typeof stored.assistantReviewTabId === "number") {
-    let exists = false;
-    try {
-      await chrome.tabs.get(stored.assistantReviewTabId);
-      exists = true;
-    } catch { /* The owned tab was closed. */ }
-    if (exists) {
-      await chrome.tabs.update(stored.assistantReviewTabId, { url, active: true });
-      return { ok: true, message: "Review and approve proposed actions in PointUp." };
-    }
-  }
-  const tab = await chrome.tabs.create({ url, active: true });
-  if (tab.id !== undefined) await chrome.storage.session.set({ assistantReviewTabId: tab.id });
+  await openOwnedReviewTab(url);
   return { ok: true, message: "Review and approve proposed actions in PointUp." };
 }
