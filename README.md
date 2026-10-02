@@ -290,7 +290,7 @@ MCP HTTP server environment: `HOST` (bind address, default `127.0.0.1`; the Dock
 
 ### Continuous deployment
 
-Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full verification (lint, typecheck, tests, builds) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
+Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full reusable CI verification (lint, hygiene, types, actual PostgreSQL, all builds, plugin/infrastructure contracts and Docker smoke) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
 
 Authentication uses GitHub OIDC federation — no long-lived AWS keys are stored in the repository. One-time setup:
 
@@ -331,3 +331,7 @@ repository variables `ENABLE_AGENTS=true`, `ASSISTANT_MODEL`, and optional
 `ASSISTANT_TRACING_ENABLED=true`. The key stays in Secrets Manager on the web task.
 Deployment still requires valid AWS access and the production migration adoption
 checks recorded in [integration status](docs/integration-status.md).
+
+The deployment workflow also supports a `verify_only=true` manual dispatch to
+exercise its complete reusable verification gate while explicitly disabling AWS
+deployment and migrations, even if deployment credentials are configured.
