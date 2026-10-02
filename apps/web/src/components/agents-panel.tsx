@@ -198,7 +198,9 @@ export function AgentsPanel({
 
         {!tokens.some(token => !token.revokedAt) && <p className="text-sm text-ink-muted">No active tokens. Create one below when you are ready to connect an agent.</p>}
 
-        {created.status === "created" && (
+        {/* A confirmed revocation hides only that token's one-time result.
+            A different token's revocation or a failed request must preserve it. */}
+        {created.status === "created" && !tokens.some(token => token.id === created.tokenId && token.revokedAt !== null) && (
           <div role="status" className="rounded-xl border border-positive/40 p-3 text-sm">
             <p className="font-medium text-positive">Copy your token now - it won&apos;t be shown again.</p>
             <code className="mt-1 block break-all text-ink">{created.secret}</code>

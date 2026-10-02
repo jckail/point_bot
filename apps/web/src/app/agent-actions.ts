@@ -20,7 +20,7 @@ import { getContainer } from "@/server/container";
 
 export type CreateTokenResult =
   | ActionResult
-  | { status: "created"; secret: string };
+  | { status: "created"; secret: string; tokenId: string };
 
 export async function createAccessTokenAction(
   _previous: CreateTokenResult,
@@ -32,14 +32,14 @@ export async function createAccessTokenAction(
   const scopes = formData.getAll("scopes").map(String).filter(isScope);
   const ttl = Number(formData.get("ttlDays") ?? "");
   try {
-    const { plaintext } = await getContainer().useCases.issueAccessToken.execute({
+    const { token, plaintext } = await getContainer().useCases.issueAccessToken.execute({
       userId,
       name: String(formData.get("name") ?? ""),
       scopes: scopes.length ? scopes : [],
       ttlDays: Number.isFinite(ttl) && ttl > 0 ? ttl : undefined,
     });
     revalidatePath("/dashboard/agents");
-    return { status: "created", secret: plaintext };
+    return { status: "created", secret: plaintext, tokenId: token.id };
   } catch (error) {
     if (error instanceof DomainError) {
       return { status: "error", message: messageForDomainError(error.code) };
