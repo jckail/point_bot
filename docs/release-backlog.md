@@ -7,6 +7,16 @@ and production release. iOS remains deferred. Implemented source is summarized i
 [integration-status.md](integration-status.md); the priorities below are remaining
 work, not a request to remove capabilities or substitute read-only features.
 
+The combined overhaul is merged to `master` at
+`cab150cc2eabcf9765350a1a4d39d5bb944ee95b` through
+[PR #16](https://github.com/jckail/point_bot/pull/16); PR #14's ancestry is included.
+The separate native PR #15 is retained. The exact merged tree passed all six
+release verification jobs in
+[Deploy 37019388599](https://github.com/jckail/point_bot/actions/runs/37019388599)
+and [CodeQL 37019387403](https://github.com/jckail/point_bot/actions/runs/37019387403).
+AWS deployment was explicitly skipped because `AWS_DEPLOY_ROLE_ARN` is absent.
+This is a verified source release, with production activation still outstanding.
+
 ## Immediate release gates
 
 **Roll out card-aware transfer eligibility before activation.** Source now persists
@@ -97,6 +107,12 @@ eligibility against primary terms before adding their numeric rules.
   windows at evaluation time, preventing an expired bonus from funding a plan. Exact account deadlines are treated as
   expired instead of rounded negative zero. Focused gated use-case tests cover these
   changes; production rollout and real concurrent database acceptance remain open.
+  Calendar-month projections now clamp month-end dates rather than overflow into
+  the following month. United MileagePlus's obsolete 18-month policy is corrected
+  to no inactivity expiry using primary evidence. Existing dates are not bulk
+  rewritten; reads/historical captures preserve them and forward activity keeps
+  the existing policy-recalculation behavior. Audit the remaining editorial program
+  policies and expiry provenance before repairing historical deadlines.
 
 ## Live assistant, Chrome and provider acceptance
 
@@ -151,6 +167,12 @@ eligibility against primary terms before adding their numeric rules.
   companion is a candidate requiring implementation/security review. Implement the
   compatible inference adapter and required registration/preview parameters before
   claiming plan-funded inference. No provider registration or plan usage is completed.
+  The current official DevKit offers local OAuth/streaming and React controls as
+  repository workspaces, but its noncommercial license is a separate adoption gate;
+  it must not be assumed to inherit a future PointUp license. An inference-only
+  companion can retain existing Clerk/PAT portfolio authority while standalone
+  PointUp sign-in remains a separate capability. See the
+  [current assessment](chatgpt-standalone-plan.md#current-devkit-assessment).
 
 ## Public MCP, plugins and developer onboarding
 
@@ -201,8 +223,13 @@ bounded autocannon loopback callers in CI. Preserve clean-install and exact-head
 CI evidence for the final candidate; an audit alone does not verify compatibility.
 Do not replace these fixes with force-fix downgrades.
 
-The separate infrastructure lock has one high brace-expansion advisory bundled
-inside aws-cdk-lib. A reviewed 2.272.0 artifact still bundled vulnerable
+The separate infrastructure lock has vulnerable brace-expansion bundled inside
+aws-cdk-lib. The current bundled version matches two high advisories
+([GHSA-6j4f-fj2g-mc7p](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p),
+[GHSA-qhr7-859c-m2p7](https://github.com/advisories/GHSA-qhr7-859c-m2p7))
+and one medium advisory
+([GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr)).
+Dependabot PR #20's 2.271.0 and a reviewed 2.272.0 artifact still bundle vulnerable
 brace-expansion 5.0.9, so simply upgrading to that artifact would not fix it.
 Verify a genuinely patched CDK artifact and synthesized-template behavior;
 a root override does not establish replacement of a bundled dependency. These

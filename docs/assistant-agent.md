@@ -53,6 +53,18 @@ A separate `pointup_assistant_http` component records `request_completed` or `re
 
 ## Trace privacy and verification
 
+Local transport acceptance now uses real OpenTelemetry trace and metric HTTP
+exporters against an owned loopback collector. Actual MCP calls verify serialized
+spans/metrics, log correlation, fixed failure diagnostics and exclusion of private
+token/provider-error canaries. A collector rejection leaves application replies
+successful. The metrics adapter rebinds instruments when the host registers or
+replaces the global provider, fixing startup's permanently captured no-op meter.
+Earlier counter/histogram observations are not replayed; gauges retain their latest
+values. This proves bounded local delivery, not cloud collector/dashboard
+arrival, OpenAI SDK trace delivery or production bootstrap behavior. Web and MCP
+telemetry initialization failures also log a fixed diagnostic rather than raw
+exporter exception text, which may contain credential-bearing URLs.
+
 Trace export defaults off. `ASSISTANT_TRACING_ENABLED=true` requests SDK model/tool/task/turn spans with `traceIncludeSensitiveData:false` and model `store:false`. `OPENAI_AGENTS_DISABLE_TRACING=1` or `true` disables SDK tracing globally. Exported metadata contains only a server-generated `run_id`, bounded surface and runtime, never caller-supplied HTTP correlation values.
 
 Before the first traced production run, a synchronous process/HMR-safe initializer replaces the default SDK processor with a sanitizer. It forwards cloned spans with fixed failure metadata, closing SDK 0.18's provider-exception leak even when sensitive-data tracing is disabled. Span IDs, parent IDs, timing and safe metadata remain; original exceptions are unchanged. PR14's OpenTelemetry adapter and structured logger independently sanitize exception diagnostics, retaining fixed categories and validated public error codes. The SDK sanitizer alone does not protect application telemetry.

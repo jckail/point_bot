@@ -18,7 +18,10 @@ async function chatScope(baseUrl: string, token: string): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 export function supportId(value: unknown): string | undefined {
-  return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : undefined;
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{8,128}$/.test(value) ? value : undefined;
+}
+function assistantMode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : undefined;
 }
 export function actionReviews(value: unknown): ActionReview[] {
   if (!Array.isArray(value)) return [];
@@ -33,7 +36,7 @@ export function boundedChat(value: unknown): ChatEntry[] {
     && (entry.role === "user" || entry.role === "assistant") && typeof entry.content === "string"
     && entry.content.trim().length > 0 && entry.content.length <= 4000).slice(-CHAT_HISTORY_LIMIT)
     .map(entry => ({ role: entry.role, content: entry.content,
-      ...(entry.role === "assistant" ? { requestId: supportId(entry.requestId), mode: supportId(entry.mode),
+      ...(entry.role === "assistant" ? { requestId: supportId(entry.requestId), mode: assistantMode(entry.mode),
         traceId: supportId(entry.traceId), actions: actionReviews(entry.actions) } : {}) }));
 }
 function chatRequest(message: string, entries: readonly ChatEntry[]) {
@@ -117,7 +120,7 @@ async function runAssistant(question: unknown, prepared: () => void): Promise<Ch
     fetch: async (input, init) => {
       const response = await fetch(input, { ...init, redirect: "error", credentials: "omit" });
       diagnostics = { requestId: supportId(response.headers.get("X-PointUp-Request-Id")) ?? supportId(response.headers.get("x-request-id")),
-        mode: supportId(response.headers.get("X-PointUp-Assistant-Mode")), traceId: supportId(response.headers.get("X-PointUp-Trace-Id")) };
+        mode: assistantMode(response.headers.get("X-PointUp-Assistant-Mode")), traceId: supportId(response.headers.get("X-PointUp-Trace-Id")) };
       return response;
     } });
   try {

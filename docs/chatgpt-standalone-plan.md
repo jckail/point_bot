@@ -247,3 +247,36 @@ runtime, protected storage and the inference adapter. It still supplies no Clerk
 session or automatic authority over a PointUp portfolio: explicit account
 reconciliation and normal Clerk MFA/enterprise policy remain separate requirements.
 No registration, provider call or working plan-usage integration is claimed here.
+
+### Current DevKit assessment
+
+OpenAI now provides `@siwc/local` and `@siwc/react` as workspaces in its
+[Sign in with ChatGPT DevKit](https://github.com/openai/sign-in-with-chatgpt-devkit).
+The local helper is a candidate for companion OAuth, profiles and streaming;
+the React package supplies connection controls. These are not established PointUp
+dependencies or a hosted/browser-only integration. The example is a native macOS
+app; PointUp's Windows/Linux packaging and Chrome bridge remain design work.
+
+The DevKit uses a
+[noncommercial license](https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/LICENSE),
+not MIT. Its restrictions cover development with an anticipated commercial
+application, even when no fee is charged. PointUp's separate repository licensing
+decision does not resolve permission to incorporate this code. No DevKit code was
+copied, installed or redistributed during this assessment.
+
+Choose between a permitted DevKit-based local companion and an independently
+authored implementation of the documented protocol after establishing intended
+distribution and applicable permissions. Either approach still needs protected
+native credentials, an authenticated browser/extension bridge, separate PointUp
+authority and completed-inference acceptance. The
+[official cookbook](https://developers.openai.com/cookbook/articles/sign-in-with-chatgpt)
+provides an integration reference, not evidence that PointUp plan usage works.
+
+For PointUp, an inference-only companion milestone can retain the existing
+Clerk/PAT portfolio authorization while connecting a separately selected ChatGPT
+profile. This is a proposed decomposition of PointUp's architecture: it does not
+require completing the standalone Clerk login bridge first, and it does not
+complete that remaining login capability. Pin both identities during each run;
+switching either must cancel the run rather than retarget its tools. Preserve
+browser-session approval for all proposals. Only sanitized connection state and
+bounded operations should cross the companion bridge, never OAuth credentials.

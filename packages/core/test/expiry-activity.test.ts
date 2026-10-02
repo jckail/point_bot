@@ -28,13 +28,14 @@ describe("expiration tracking", () => {
       clock,
     ).execute({
       userId: asUserId("user-1"),
-      providerId: "united",
-      membershipNumber: "MP1",
+      providerId: "american",
+      membershipNumber: "AA1",
     });
 
     const stored = await accounts.findById(result.accountId);
-    const united = findProvider("united")!;
-    expect(stored?.expiresAt).toEqual(projectExpiryDate(united, NOW));
+    const american = findProvider("american")!;
+    expect(stored?.expiresAt).toEqual(new Date("2028-07-08T12:00:00.000Z"));
+    expect(stored?.expiresAt).toEqual(projectExpiryDate(american, NOW));
     expect(activity.rows[0]?.type).toBe("account_linked");
   });
 

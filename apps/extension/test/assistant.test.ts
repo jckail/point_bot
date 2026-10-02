@@ -186,3 +186,24 @@ describe("extension assistant", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+it("preserves backend punctuation in request/trace references while retaining short sdk mode", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ reply: "Advice" }, { headers: {
+    "x-request-id": "trace.run:1234", "X-PointUp-Trace-Id": "trace:run.5678", "X-PointUp-Assistant-Mode": "sdk",
+  } })));
+  const result = await askAssistant("My points?");
+  expect(result.chat?.at(-1)).toMatchObject({ requestId: "trace.run:1234", traceId: "trace:run.5678", mode: "sdk" });
+  expect((await loadChat()).at(-1)).toMatchObject({ requestId: "trace.run:1234", traceId: "trace:run.5678", mode: "sdk" });
+});
+it.each(["private/error", "short", "private exception token=secret", "bad\nreference", "x".repeat(129)])("does not expose invalid error support references: %j", async reference => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "PROVIDER_FAILURE", message: "private upstream token=secret", requestId: reference } }, { status: 502 })));
+  const result = await askAssistant("My points?");
+  expect(result.ok).toBe(false);
+  expect(result.message).not.toContain(reference);
+  expect(result.message).not.toContain("private upstream");
+  expect(result.message).toContain((state.assistantChatPending as { requestId: string }).requestId);
+});
+it("retains a valid API error support reference with punctuation", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "PROVIDER_FAILURE", message: "private detail", requestId: "upstream.run:1234" } }, { status: 502 })));
+  expect((await askAssistant("Question")).message).toContain("Support reference: upstream.run:1234");
+});

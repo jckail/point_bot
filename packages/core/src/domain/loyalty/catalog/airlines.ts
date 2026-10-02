@@ -7,7 +7,9 @@ export const AIRLINE_PROVIDERS = [
     displayName: "United Airlines",
     pointsCurrency: "MileagePlus miles",
     estimatedCentsPerPoint: 1.2,
-    inactivityExpiryMonths: 18,
+    // United primary release (2025-05-29): MileagePlus miles never expire.
+    // https://united.mediaroom.com/2025-05-29-JetBlue-and-United-Announce-Blue-Sky-Unique-Consumer-Collaboration-That-Links-Loyalty-Programs
+    inactivityExpiryMonths: null,
     confidence: "medium",
     lastReviewed: "2026-10-01",
     agentSkill: {

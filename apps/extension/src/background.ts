@@ -63,9 +63,11 @@ async function openObservationReview(): Promise<RecordResult> {
 }
 
 async function updateBadge(capture: ReviewedCapture | null): Promise<void> {
-  await chrome.action.setBadgeText({ text: capture ? "1" : "" });
-  if (capture) {
-    await chrome.action.setBadgeBackgroundColor({ color: "#7C5CFF" });
+  try {
+    await chrome.action.setBadgeText({ text: capture ? "1" : "" });
+    if (capture) await chrome.action.setBadgeBackgroundColor({ color: "#7C5CFF" });
+  } catch {
+    // Badge rendering is optional UI, after durable capture state has been saved.
   }
 }
 

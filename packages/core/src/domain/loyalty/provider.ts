@@ -43,7 +43,12 @@ export function projectExpiryDate(
 ): Date | null {
   if (provider.inactivityExpiryMonths === null) return null;
   const expires = new Date(from.getTime());
-  expires.setUTCMonth(expires.getUTCMonth() + provider.inactivityExpiryMonths);
+  // Move from the first day so a missing target-month day cannot roll the
+  // deadline into the following month. Keep the original UTC time of day.
+  expires.setUTCMonth(expires.getUTCMonth() + provider.inactivityExpiryMonths, 1);
+  const monthEnd = new Date(expires.getTime());
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1, 0);
+  expires.setUTCDate(Math.min(from.getUTCDate(), monthEnd.getUTCDate()));
   return expires;
 }
 
