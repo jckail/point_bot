@@ -1,6 +1,6 @@
 import { UserId } from "@pointup/core";
 import type { AssistantActionDto, ManageAssistantActions } from "@pointup/core/assistant-actions";
-import type { AgentUseCases } from "../index";
+import type { AgentUseCases } from "../use-cases";
 import type { EvaluationCase } from "./cases";
 
 export const syntheticOwner = UserId.parse("synthetic_eval_owner");

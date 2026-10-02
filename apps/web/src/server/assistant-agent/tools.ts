@@ -3,7 +3,8 @@ import { tool } from "@openai/agents";
 import { z } from "zod";
 import type { AssistantActionDto, ManageAssistantActions } from "@pointup/core/assistant-actions";
 import { withinDeadline } from "./deadline";
-import type { AgentUseCases, Observation } from "./index";
+import type { AgentUseCases } from "./use-cases";
+import type { Observation } from "./observation";
 
 export function createPortfolioTools(useCases: AgentUseCases, userId: UserId, signal: AbortSignal, emit: (event: Omit<Observation, "requestId" | "mode" | "sdkTraceId">) => void, proposals?: { service: Pick<ManageAssistantActions, "proposeManualBalance" | "proposeTripGoal">; requestId: string; onProposed: (action: AssistantActionDto) => void }) {
   const execute = async (name: string, query: () => Promise<unknown>) => {

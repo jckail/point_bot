@@ -28,6 +28,8 @@ import { createPointUpMcpServer } from "./server";
 export interface HttpServerOptions {
   /** PointUp API base URL the caller's token is forwarded to. */
   readonly baseUrl: string;
+  /** Explicit private server-to-server HTTP origin; never populated from callers. */
+  readonly trustedHttpOrigin?: string;
   readonly agentName?: string;
   /** Public URL of this MCP server (for the auth metadata hint). */
   readonly publicUrl?: string;
@@ -286,6 +288,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
       const server = createPointUpMcpServer({
         client: createPointUpClient({
           baseUrl,
+          ...(options.trustedHttpOrigin !== undefined ? { trustedHttpOrigin: options.trustedHttpOrigin } : {}),
           headers: { Authorization: `Bearer ${token}`, "X-Request-Id": requestId },
           ...(options.fetch ? { fetch: options.fetch } : {}),
         }),

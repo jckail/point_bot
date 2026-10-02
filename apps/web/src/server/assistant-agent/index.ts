@@ -3,7 +3,6 @@ import { Agent, Runner, OpenAIProvider, MaxTurnsExceededError, generateTraceId, 
 import type { AssistantActionDto, ManageAssistantActions } from "@pointup/core/assistant-actions";
 import { AssistantUnavailableError, type UserId } from "@pointup/core";
 import { chatAssistantRequestSchema, type ChatAssistantRequest } from "@pointup/core/contracts";
-import type { Container } from "../container";
 import { webObservability } from "../observability";
 import type { AssistantConfig } from "./config";
 import { createPortfolioTools } from "./tools";
@@ -11,10 +10,11 @@ import { withinDeadline } from "./deadline";
 import { observedUsage } from "./usage";
 import { recordAssistantMetrics } from "./metrics";
 import type { Observation, Observer } from "./observation";
+import type { AgentUseCases } from "./use-cases";
 export type { Observation, Observer } from "./observation";
+export type { AgentUseCases } from "./use-cases";
 import { initializePrivateTracing } from "./private-tracing";
 
-export type AgentUseCases = Pick<Container["useCases"], "getPortfolioSummary" | "listLoyaltyAccounts" | "listTripGoals" | "getValueAdvice" | "chatWithAssistant">;
 export const logObservation: Observer = event => {
   const { inputTokens, outputTokens, totalTokens, cachedInputTokens, reasoningOutputTokens, ...metadata } = event;
   const obs = webObservability();

@@ -35,6 +35,7 @@ Track airline miles, hotel points, credit card rewards, and every other loyalty 
 - [docs/integrations.md](./docs/integrations.md) — loyalty providers (airlines, hotels, credit cards, rail, shopping) and credential vaults (1Password, Apple Keychain, Chrome)
 - [docs/brand.md](./docs/brand.md) — brand kit: logo assets, color tokens, typography, voice
 - [docs/migration-from-pointup.md](./docs/migration-from-pointup.md) — how the modernization was ported into `point_bot`, feature-parity checklist, and the Bedrock assistant
+- [docs/release-backlog.md](./docs/release-backlog.md) — verified continuation and remaining release gates
 - [docs/assistant-agent.md](./docs/assistant-agent.md) — shared web/extension Agents SDK, reviewed proposals and tracing privacy
 - [docs/assistant-evaluations.md](./docs/assistant-evaluations.md) — synthetic evaluation cases and opt-in live evaluation
 - [docs/bot.md](./docs/bot.md) — the PointBot chat surface: Slack/Discord commands, the `Notifier` port, digests, and deployment

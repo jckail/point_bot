@@ -127,3 +127,15 @@ repository documents carry the handoff. Shared Graphify lacks PointUp coverage;
 use targeted current source and refresh the shared corpus after source edits.
 Reuse one browser tab per agent session. Do not replace the shared graph, run
 parallel expensive checks, or disturb unrelated agents' processes/worktrees.
+
+Detailed remaining release work is tracked in [release-backlog.md](release-backlog.md).
+
+Second-stage source commit `6bc8dd5` passed CodeQL, plugin/spec validation and HTTP
+MCP E2E, but aggregate CI found a type-import cycle, a locked-CDK driver type
+mismatch, and the hardened client rejecting Docker's internal MCP HTTP target.
+Follow-up source changes move shared SDK types into leaf modules, construct the
+same concrete AwsLogDriver, and allow an explicitly pinned operator-configured
+internal HTTP origin while retaining default HTTPS and redirect rejection.
+Docker also exposed empty optional worker integration values; they now match the
+web host's empty-string convention. Focused regressions, root lint and workspace
+types pass. Fresh aggregate verification follows the fix commit.

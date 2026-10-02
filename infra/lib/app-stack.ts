@@ -215,7 +215,7 @@ export class AppStack extends cdk.Stack {
 
     // Capture the existing driver so monitoring reuses its log group and
     // keeps the deployed group's construct path and retention unchanged.
-    const appLogDriver = ecs.LogDrivers.awsLogs({
+    const appLogDriver = new ecs.AwsLogDriver({
       streamPrefix: "app",
       logRetention: logs.RetentionDays.ONE_MONTH,
     });

@@ -66,6 +66,12 @@ export type { AssistantActionDto, AssistantActionProposalRequest } from "@pointu
 export interface PointUpClientOptions {
   /** e.g. https://app.pointup.example or http://localhost:3000 */
   readonly baseUrl: string;
+  /**
+   * Explicit trusted server-to-server HTTP origin (e.g. http://web:3000 on a
+   * private Docker network). Pins the exception to this exact origin; HTTPS
+   * remains the default. Never derive this from request headers or user input.
+   */
+  readonly trustedHttpOrigin?: string;
   /** Custom fetch (tests, React Native polyfills). Defaults to global fetch. */
   readonly fetch?: typeof fetch;
   /** Extra headers, e.g. { Authorization: `Bearer ${token}` }. */
@@ -101,9 +107,23 @@ export class PointUpClient {
   constructor(private readonly options: PointUpClientOptions) {
     const url = new URL(options.baseUrl);
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    let trustedHttpOrigin: string | undefined;
+    if (options.trustedHttpOrigin !== undefined) {
+      try {
+        const trusted = new URL(options.trustedHttpOrigin);
+        if (trusted.protocol !== "http:" || trusted.username || trusted.password ||
+            trusted.pathname !== "/" || trusted.search || trusted.hash ||
+            options.trustedHttpOrigin.includes("?") || options.trustedHttpOrigin.includes("#")) {
+          throw new Error("Invalid origin");
+        }
+        trustedHttpOrigin = trusted.origin;
+      } catch {
+        throw new TypeError("Trusted HTTP origin must be an HTTP origin without credentials, path, query or fragment");
+      }
+    }
     if (url.username || url.password || url.search || url.hash ||
-        (url.protocol !== "https:" && !(url.protocol === "http:" && local))) {
-      throw new TypeError("PointUp base URL must use HTTPS (HTTP is allowed on loopback only), without credentials, query or fragment");
+        (url.protocol !== "https:" && !(url.protocol === "http:" && (local || url.origin === trustedHttpOrigin)))) {
+      throw new TypeError("PointUp base URL must use HTTPS (HTTP requires loopback or an explicitly trusted origin), without credentials, query or fragment");
     }
     if (options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
       throw new TypeError("PointUp request timeout must be a positive finite number");

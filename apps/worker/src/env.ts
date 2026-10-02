@@ -109,7 +109,10 @@ export type WorkerEnv = z.infer<typeof envSchema>;
 
 export function loadEnv(): WorkerEnv {
   return envSchema.parse({
-    ...process.env,
+    // Compose emits empty strings for unset optional integrations, matching
+    // the web host's emptyStringAsUndefined convention. Keep nonempty values
+    // intact so malformed URLs and credentials still receive validation.
+    ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")),
     DATABASE_URL: getDatabaseUrl(),
   });
 }

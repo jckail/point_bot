@@ -8,6 +8,18 @@ describe("PointUp HTTP transport", () => {
   it.each(["http://localhost:3000", "http://127.0.0.1:3000", "http://[::1]:3000", "https://pointup.io"])("accepts server address %s", baseUrl => {
     expect(() => new PointUpClient({ baseUrl })).not.toThrow();
   });
+  it("permits only the explicitly trusted internal HTTP origin and still refuses redirects", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json([]));
+    const client = new PointUpClient({ baseUrl: "http://web:3000", trustedHttpOrigin: "http://web:3000/", fetch, headers: { Authorization: "Bearer internal" } });
+    await client.listProviders();
+    expect(fetch).toHaveBeenCalledWith("http://web:3000/api/v1/providers", expect.objectContaining({ redirect: "error", headers: expect.objectContaining({ Authorization: "Bearer internal" }) }));
+    for (const baseUrl of ["http://other:3000", "http://web:3001", "http://user:secret@web:3000", "http://web:3000?secret", "http://web:3000#secret"]) {
+      expect(() => new PointUpClient({ baseUrl, trustedHttpOrigin: "http://web:3000" })).toThrow();
+    }
+  });
+  it.each(["https://web:3000", "http://web:3000/path", "http://user:secret@web:3000", "http://web:3000?", "http://web:3000#", "not-an-origin"])("rejects malformed trusted HTTP origin %s", trustedHttpOrigin => {
+    expect(() => new PointUpClient({ baseUrl: "http://web:3000", trustedHttpOrigin })).toThrow("Trusted HTTP origin must be an HTTP origin");
+  });
   it("keeps authentication on the configured endpoint and refuses redirects for JSON and exports", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(Response.json([])).mockResolvedValueOnce(new Response("csv"));
     const client = new PointUpClient({ baseUrl: "https://pointup.io/", headers: { Authorization: "Bearer test" }, fetch });

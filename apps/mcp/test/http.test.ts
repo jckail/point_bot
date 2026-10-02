@@ -123,6 +123,37 @@ describe("MCP over HTTP", () => {
     await client.close();
   });
 
+  it("lists tools against an explicitly pinned Docker upstream and preserves per-request tokens", async () => {
+    const upstreamFetch = vi.fn<typeof globalThis.fetch>().mockImplementation(() => Promise.resolve(Response.json([])));
+    const internal = createHttpServer({ baseUrl: "http://web:3000", trustedHttpOrigin: "http://web:3000", fetch: upstreamFetch });
+    const url = await listen(internal);
+    const rpc = (token: string, method: string) => fetch(`${url}/mcp`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, ...(method === "tools/call" ? { params: { name: "pointup_list_providers", arguments: {} } } : {}) }),
+    });
+    try {
+      const listed = await rpc("pu_docker", "tools/list");
+      expect(listed.status).toBe(200);
+      expect(await listed.text()).toContain("pointup_list_providers");
+      expect(upstreamFetch).not.toHaveBeenCalled();
+      const callers = ["pu_first", "pu_second"];
+      const results = await Promise.all(callers.map(token => rpc(token, "tools/call")));
+      for (const result of results) {
+        expect(result.status).toBe(200);
+        expect(await result.text()).not.toContain('"isError":true');
+      }
+      expect(upstreamFetch).toHaveBeenCalledTimes(2);
+      expect(upstreamFetch.mock.calls.map(call => (call[1]?.headers as Record<string, string>).Authorization).sort()).toEqual(callers.map(token => `Bearer ${token}`).sort());
+      for (const [endpoint, init] of upstreamFetch.mock.calls) {
+        expect(endpoint).toBe("http://web:3000/api/v1/providers");
+        expect(init?.redirect).toBe("error");
+      }
+    } finally {
+      await shutdown(internal, 200);
+    }
+  });
+
   it("rejects unknown Host headers (DNS rebinding) but keeps /healthz open", async () => {
     const hostFetch = (host: string, path = "/.well-known/oauth-protected-resource") =>
       new Promise<number>((resolve, reject) => {

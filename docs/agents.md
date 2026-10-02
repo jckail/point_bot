@@ -164,3 +164,12 @@ them. For a global limit, implement the `RateLimiter` port
 (`packages/core/src/application/rate-limit.ts`) over Redis (`INCR` + `PEXPIRE`)
 or Upstash (`@upstash/ratelimit`) and return it from `getRateLimiter()` in
 `apps/web/src/server/rate-limit.ts`; nothing else changes.
+
+### Internal HTTP deployment boundary
+
+The API client defaults to HTTPS, with HTTP permitted for loopback development.
+For an operator-controlled private Docker network, MCP may configure
+`POINTUP_TRUSTED_HTTP_ORIGIN=http://web:3000`; Compose pins that exact origin.
+The client accepts only a matching configured HTTP origin and rejects redirects,
+credentials, query strings and fragments. Never derive this option from incoming
+headers, tool arguments or browser input. External/hosted MCP should use HTTPS.

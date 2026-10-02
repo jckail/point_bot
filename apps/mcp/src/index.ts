@@ -69,6 +69,7 @@ async function startTelemetry(): Promise<() => Promise<void>> {
 }
 
 const baseUrl = (process.env.POINTUP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const trustedHttpOrigin = process.env.POINTUP_TRUSTED_HTTP_ORIGIN;
 const agentName = process.env.POINTUP_AGENT_NAME ?? "mcp";
 
 async function main() {
@@ -80,6 +81,7 @@ async function main() {
     const hosts = list(process.env.MCP_ALLOWED_HOSTS);
     const server = createHttpServer({
       baseUrl,
+      ...(trustedHttpOrigin !== undefined ? { trustedHttpOrigin } : {}),
       agentName,
       publicUrl: process.env.MCP_PUBLIC_URL,
       ...(origins ? { allowedOrigins: origins } : {}),
@@ -111,6 +113,7 @@ async function main() {
   const server = createPointUpMcpServer({
     client: createPointUpClient({
       baseUrl,
+      ...(trustedHttpOrigin !== undefined ? { trustedHttpOrigin } : {}),
       headers: { Authorization: `Bearer ${token}` },
     }),
     appUrl: baseUrl,

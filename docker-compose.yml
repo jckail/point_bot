@@ -152,6 +152,8 @@ services:
         condition: service_healthy
     environment:
       POINTUP_URL: http://web:3000
+      # Only this private upstream may carry MCP bearer tokens over HTTP.
+      POINTUP_TRUSTED_HTTP_ORIGIN: http://web:3000
       HOST: 0.0.0.0
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: pointup-mcp
