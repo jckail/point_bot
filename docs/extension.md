@@ -25,7 +25,7 @@ runtime rather than storing a model API key in the browser.
 
 The popup has capture steps and a supported-program list. The seven existing
 programs are United, Delta, American, Southwest, Marriott, Hyatt and Hilton.
-The bank candidate adds Chase Ultimate Rewards, US Amex Membership Rewards,
+The bank rules cover Chase Ultimate Rewards, US Amex Membership Rewards,
 Capital One Miles and Bilt with program-specific labels and narrower bank hosts.
 Bank page compatibility remains unverified until controlled live acceptance.
 
@@ -79,6 +79,11 @@ proposal may have persisted. Opening review preserves the uncertain question and
 support reference alongside navigation feedback. It uses the same extension-owned
 review tab and neither resends the question nor approves a change.
 
+Actual Chrome action-popup acceptance verified synthetic offline recovery,
+reopening, disabled in-flight controls, Clear and native review-tab reuse.
+See [the source, artifact identity and acceptance limits](chrome-extension-acceptance.md).
+Live provider/API/model and worker-termination acceptance remain outstanding.
+
 ## Build and verification
 
 ```bash
@@ -90,10 +95,13 @@ npm run build --workspace @pointup/extension
 The build bundles background/content/popup code and copies the manifest/popup.
 Root coordinates builds through the shared heavy-check wrapper after inspecting
 running jobs. Focused tests verify pure extraction, manifest alignment, capture
-replay/review and synthetic Chrome lifecycle behavior. Latest verified runtime
-3701309 passes all six CI37000134163 jobs and CodeQL37000134144, including
-103 extension tests and the production bundle; the new bank candidate requires
-its own committed-head verification.
+replay/review and synthetic Chrome lifecycle behavior. The merged PR #34 source
+passes all six [release verification jobs](https://github.com/jckail/point_bot/actions/runs/37033664518)
+and [CodeQL](https://github.com/jckail/point_bot/actions/runs/37033664139), including
+171 extension cases and the production bundle. Source checks establish bank
+rule wiring, while live bank-page compatibility remains unverified. Native
+assistant popup checks and their exact build are recorded in
+[Chrome acceptance](chrome-extension-acceptance.md).
 
 Add provider-specific rules and approved hosts in `src/extraction.ts`, matching
 content-script patterns in `public/manifest.json`, and positive/negative fixtures.
