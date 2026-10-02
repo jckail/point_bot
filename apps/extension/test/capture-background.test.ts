@@ -186,3 +186,32 @@ it("retains a legacy manual completion without claiming observation idempotency 
   expect(receipt).not.toHaveProperty("outcome");
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+it.each(["setBadgeText", "setBadgeBackgroundColor"] as const)("returns durable receipt despite %s failure and preserves newer captures without replay", async badgeMethod => {
+  await deliver();
+  vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("response lost"); }));
+  await request({ type: "record", captureId: capture.captureId });
+  await deliver(newer);
+  vi.mocked(chrome.action[badgeMethod]).mockRejectedValue(new Error("badge unavailable"));
+  const fetchMock = vi.fn(async () => Response.json({ outcome: "recorded", accountId: "a", points: 123,
+    previousPoints: null, message: "Recorded", reviewId: null, observationId: "obs_durable" }));
+  vi.stubGlobal("fetch", fetchMock);
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: true, observationId: "obs_durable" });
+  expect(await request({ type: "getLatest" })).toMatchObject({ captureId: newer.captureId });
+  await startWorker();
+  expect(await request({ type: "getCaptureReceipt" })).toMatchObject({ ok: true, outcome: "recorded", observationId: "obs_durable" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+it("still treats post-HTTP durable state-write failure as unconfirmed", async () => {
+  await deliver();
+  const set = vi.spyOn(chrome.storage.local, "set");
+  set.mockImplementationOnce(values => { Object.assign(stored, values); });
+  set.mockRejectedValueOnce(new Error("state could not be committed"));
+  const badge = vi.mocked(chrome.action.setBadgeText); badge.mockClear();
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ outcome: "recorded", accountId: "a", points: 123,
+    previousPoints: null, message: "Recorded", reviewId: null, observationId: "obs_unconfirmed" })));
+  expect(await request({ type: "record", captureId: capture.captureId })).toMatchObject({ ok: false });
+  expect(badge).not.toHaveBeenCalled();
+  expect(await request({ type: "getLatest" })).toMatchObject({ captureId: capture.captureId, retryLocked: true });
+  expect(await request({ type: "getCaptureReceipt" })).toBeNull();
+});

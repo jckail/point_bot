@@ -4,6 +4,7 @@ import {
   metrics as otelMetrics,
   trace,
   type Attributes,
+  type Meter,
 } from "@opentelemetry/api";
 
 import { METRIC_DEFS, type MetricLabels, type MetricName, type Metrics } from "./metrics";
@@ -81,13 +82,37 @@ export function activeTraceIds(): { traceId: string; spanId: string } | undefine
 }
 
 export function createOtelMetrics(): Metrics {
-  const meter = otelMetrics.getMeter(SCOPE);
-  const counters = new Map<MetricName, ReturnType<typeof meter.createCounter>>();
-  const histograms = new Map<MetricName, ReturnType<typeof meter.createHistogram>>();
+  let provider: ReturnType<typeof otelMetrics.getMeterProvider> | undefined;
+  let meter: Meter | undefined;
+  const counters = new Map<MetricName, ReturnType<Meter["createCounter"]>>();
+  const histograms = new Map<MetricName, ReturnType<Meter["createHistogram"]>>();
   const gaugeValues = new Map<MetricName, Map<string, { v: number; labels: MetricLabels | undefined }>>();
+  const boundGauges = new Set<MetricName>();
+
+  const bindGauge = (current: Meter, name: MetricName, values: Map<string, { v: number; labels: MetricLabels | undefined }>) => {
+    if (boundGauges.has(name)) return;
+    current.createObservableGauge(name, { description: METRIC_DEFS[name].help }).addCallback(result => {
+      for (const { v, labels } of values.values()) result.observe(v, labels);
+    });
+    boundGauges.add(name);
+  };
+  const currentMeter = (): Meter => {
+    const currentProvider = otelMetrics.getMeterProvider();
+    if (provider !== currentProvider || !meter) {
+      // Unlike tracers, meters obtained before SDK registration are permanent
+      // no-ops. Rebind instruments when the host installs/replaces its provider;
+      // pre-registration counter/histogram observations are not replayed.
+      provider = currentProvider;
+      meter = currentProvider.getMeter(SCOPE);
+      counters.clear(); histograms.clear(); boundGauges.clear();
+      for (const [name, values] of gaugeValues) bindGauge(meter, name, values);
+    }
+    return meter;
+  };
 
   return {
     counter(name, labels, value = 1) {
+      const meter = currentMeter();
       let c = counters.get(name);
       if (!c) {
         c = meter.createCounter(name, { description: METRIC_DEFS[name].help });
@@ -96,6 +121,7 @@ export function createOtelMetrics(): Metrics {
       c.add(value, labels);
     },
     histogram(name, value, labels) {
+      const meter = currentMeter();
       let h = histograms.get(name);
       if (!h) {
         h = meter.createHistogram(name, { description: METRIC_DEFS[name].help });
@@ -104,16 +130,12 @@ export function createOtelMetrics(): Metrics {
       h.record(value, labels);
     },
     gauge(name, value, labels) {
+      const meter = currentMeter();
       let values = gaugeValues.get(name);
       if (!values) {
-        const store = (values = new Map());
-        gaugeValues.set(name, store);
-        meter
-          .createObservableGauge(name, { description: METRIC_DEFS[name].help })
-          .addCallback((result) => {
-            for (const { v, labels: l } of store.values())
-              result.observe(v, l as Attributes | undefined);
-          });
+        values = new Map();
+        gaugeValues.set(name, values);
+        bindGauge(meter, name, values);
       }
       values.set(JSON.stringify(labels ?? {}), { v: value, labels });
     },

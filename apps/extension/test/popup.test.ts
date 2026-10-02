@@ -154,3 +154,43 @@ it("clears the pending display when a scoped read returns no prior-scope convers
   expect(elements.ask!.disabled).toBe(false);
   expect(mocks.render).toHaveBeenLastCalledWith(elements.chat, [], expect.any(Function));
 });
+
+it("shows an acknowledged receipt before refresh and retains it when refreshing fails", async () => {
+  let failRefresh!: (error: Error) => void;
+  send.mockImplementation(async message => message.type === "record"
+    ? { ok: true, outcome: "recorded", message: "Recorded", observationId: "obs_confirmed" }
+    : new Promise((_resolve, reject) => { failRefresh = reject; }));
+  elements.record!.listeners.click!(); await flush();
+  expect(elements.status!.textContent).toContain("Observation: obs_confirmed");
+  failRefresh(new Error("private worker error")); await flush();
+  expect(elements.status!.textContent).toContain("Outcome: recorded");
+  expect(elements.status!.textContent).toContain("Observation: obs_confirmed");
+  expect(elements.status!.textContent).toContain("Capture view unavailable");
+  expect(elements.status!.textContent).not.toMatch(/retry|unknown|private worker/);
+  expect(elements.record!.disabled).toBe(true);
+  expect(elements.discardCapture!.disabled).toBe(true);
+  expect(elements.save!.disabled).toBe(false);
+  elements.record!.listeners.click!(); await flush();
+  expect(send.mock.calls.filter(([message]) => message.type === "record")).toHaveLength(1);
+});
+it("keeps a held receipt when the post-action completed-receipt read fails", async () => {
+  send.mockImplementation(async message => message.type === "record"
+    ? { ok: false, outcome: "needs_review", message: "Review in PointUp", observationId: "obs_held", reviewId: "review_held" }
+    : message.type === "getLatest" ? null : Promise.reject(new Error("receipt read failed")));
+  elements.record!.listeners.click!(); await flush();
+  expect(elements.status!.textContent).toContain("Outcome: needs_review");
+  expect(elements.status!.textContent).toContain("Review: review_held");
+  expect(elements.status!.textContent).toContain("Capture view unavailable");
+  expect(elements.status!.textContent).not.toContain("Keep your capture and retry");
+  expect(elements.record!.disabled).toBe(true);
+});
+it("preserves acknowledged discard when refreshing the capture view fails", async () => {
+  send.mockImplementation(async message => message.type === "discardCapture"
+    ? { ok: true, message: "Discarded local review. This does not undo a submission." }
+    : Promise.reject(new Error("worker refresh failed")));
+  elements.discardCapture!.listeners.click!(); await flush();
+  expect(elements.status!.textContent).toContain("Discarded local review");
+  expect(elements.status!.textContent).toContain("Capture view unavailable");
+  expect(elements.status!.textContent).not.toContain("Keep your capture and retry");
+  expect(elements.discardCapture!.disabled).toBe(true);
+});

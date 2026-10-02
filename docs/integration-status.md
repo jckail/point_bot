@@ -34,15 +34,20 @@ committed-source aggregate evidence, not a retroactive local pass.
 
 Local AWS authentication is expired and renewal remains pending. The last
 repository deployment-secret inspection found no configured secrets. No production
-migration, host activation, DNS change, branch merge or production deployment is
-claimed. Root owns release operations; the exact verified source is ready for the remaining
+migration, host activation, DNS change or production deployment is
+claimed. The combined source was merged through PR #16 at
+`cab150cc2eabcf9765350a1a4d39d5bb944ee95b`. All six merged-source verification
+jobs passed in [Deploy 37019388599](https://github.com/jckail/point_bot/actions/runs/37019388599),
+with [CodeQL 37019387403](https://github.com/jckail/point_bot/actions/runs/37019387403)
+also passing. The AWS job was skipped for missing `AWS_DEPLOY_ROLE_ARN`.
+Root owns release operations; the exact verified source is ready for the remaining
 external and production gates.
 
 ## Preserved source and capabilities
 
-The combined branch is `codex/pointup-integrate-20261001`, worktree
+The preserved combined branch is `codex/pointup-integrate-20261001`, worktree
 `/home/jkail/projects/point_bot-integration`. [PR #16](https://github.com/jckail/point_bot/pull/16)
-now targets `master` directly and includes [PR #14](https://github.com/jckail/point_bot/pull/14), refreshed from
+merged into `master` and includes [PR #14](https://github.com/jckail/point_bot/pull/14), refreshed from
 `e04725fd01df49ce02ac3e0b14f4da96640ded41`. [PR #15](https://github.com/jckail/point_bot/pull/15)
 preserves the native overhaul in `/home/jkail/projects/point_bot-release`;
 the original checkout remains intact. Preserve those histories and avoid publishing
@@ -85,6 +90,21 @@ all bundles, managed 0021/PostgreSQL attestation, contracts/HTTP MCP and Docker
 direct/PgBouncer smoke. Root also passed four actual PostgreSQL watch lock barriers.
 
 ## Current recovery and expiry follow-up
+
+Calendar-month projections clamp to the last valid day of the destination month
+while preserving UTC time. United MileagePlus no longer receives the catalog's
+obsolete 18-month inactivity deadline, consistent with
+[United's primary announcement](https://united.mediaroom.com/2025-05-29-JetBlue-and-United-Announce-Blue-Sky-Unique-Consumer-Collaboration-That-Links-Loyalty-Programs).
+There is no bulk rewrite of saved dates; reads and historical captures retain
+existing values. Forward activity retains the existing recalculation behavior,
+which now yields no United inactivity deadline. Other catalog durations are not
+newly verified by this correction.
+
+The extension preserves acknowledged capture receipts when a later display refresh
+or badge update fails. A failed refresh disables stale capture controls and directs
+the user to reopen the view. Actual storage/HTTP failures retain uncertain outcomes.
+Assistant diagnostics also retain valid server references containing punctuation,
+using the same bounded reference format as the web client.
 
 The web assistant now has bounded, owner-scoped tab recovery. Pending questions
 and support references survive navigation as uncertain outcomes without automatic

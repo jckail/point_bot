@@ -58,6 +58,22 @@ async function refreshLatest(): Promise<void> {
   updateControls();
 }
 
+
+async function showCaptureResult(result: RecordResult): Promise<void> {
+  const feedback = captureFeedback(result);
+  // Acknowledged outcomes must survive an unrelated view-refresh failure.
+  $("status").textContent = feedback;
+  try {
+    await refreshLatest();
+    $("status").textContent = feedback;
+  } catch {
+    selectedCaptureId = undefined;
+    $("latest").textContent = "Capture view unavailable. Reopen the popup to refresh it.";
+    $("status").textContent = `${feedback} Capture view unavailable. Reopen the popup to refresh it.`;
+    updateControls();
+  }
+}
+
 async function init(): Promise<void> {
   const config = await loadConfig();
   ($("baseUrl") as HTMLInputElement).value = config.baseUrl;
@@ -108,11 +124,11 @@ async function init(): Promise<void> {
 
   $("record").addEventListener("click", () => {
     void runCapture(async () => {
+      if (!selectedCaptureId) return;
       $("status").textContent = "Recording…";
       const result = await chrome.runtime.sendMessage<ExtensionMessage, RecordResult>({ type: "record", captureId: selectedCaptureId });
       if (!result || typeof result.ok !== "boolean") throw new Error("Worker unavailable");
-      await refreshLatest();
-      $("status").textContent = captureFeedback(result);
+      await showCaptureResult(result);
     });
   });
 
@@ -126,8 +142,7 @@ async function init(): Promise<void> {
         } else message = { type };
         const result = await chrome.runtime.sendMessage<ExtensionMessage, RecordResult>(message);
         if (!result || typeof result.ok !== "boolean") throw new Error("Worker unavailable");
-        await refreshLatest();
-        $("status").textContent = captureFeedback(result);
+        await showCaptureResult(result);
       });
     });
   }

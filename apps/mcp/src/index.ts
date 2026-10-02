@@ -62,8 +62,9 @@ async function startTelemetry(): Promise<() => Promise<void>> {
     return async () => {
       await Promise.allSettled([tracerProvider.shutdown(), meterProvider.shutdown()]);
     };
-  } catch (error) {
-    console.error(`OpenTelemetry disabled: ${error instanceof Error ? error.message : "init failed"}`);
+  } catch {
+    // SDK initialization errors may contain credential-bearing exporter URLs.
+    console.error("OpenTelemetry disabled: initialization failed");
     return async () => {};
   }
 }
