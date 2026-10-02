@@ -3,7 +3,7 @@ import {
   InvalidAssistantMessageError,
 } from "../../domain/errors";
 import { rankTransferAdvice } from "../../domain/loyalty/transfer-ranking";
-import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
+import { isTransferBonusSource, type TransferBonus } from "../../domain/loyalty/transfer-bonus";
 import {
   CATALOG_DEALS,
   rankDeals,
@@ -46,8 +46,13 @@ function buildValueHints(
     eligibilityWarnings.push(...advice.eligibilityWarnings);
     const transfers = advice.options.slice(0, 2);
     for (const option of transfers) {
+      // Keep verification evidence with the numeric yield. A source alone
+      // never establishes verification; missing legacy metadata is unknown.
+      const bonusHint = option.bonusMultiplier > 1
+        ? `, ${option.bonusLabel ?? "bonus"} [${option.bonusVerified === true ? "verified" : "unverified"}; source: ${isTransferBonusSource(option.bonusSource) ? option.bonusSource : "unknown"}]`
+        : "";
       hints.push(
-        `${account.provider.displayName} ${points.toLocaleString("en-US")} → ${option.destinationPoints.toLocaleString("en-US")} ${option.to.displayName} (~${option.effectiveCentsPerPoint}¢/pt${option.bonusLabel ? `, ${option.bonusLabel}` : ""})`,
+        `${account.provider.displayName} ${points.toLocaleString("en-US")} → ${option.destinationPoints.toLocaleString("en-US")} ${option.to.displayName} (~${option.effectiveCentsPerPoint}¢/pt${bonusHint})`,
       );
     }
   }
@@ -107,6 +112,7 @@ Never invent balances. Use only the portfolio context provided.
 Never ask for or repeat passwords or membership secrets beyond what is already in context.
 Keep answers short (under ~180 words) with concrete next steps.
 When recommending transfers, name the source and destination programs and approximate value.
+Preserve the bonus verification and source qualifications in transfer hints; a manual, scraped, or user source alone never proves verification. Require confirmation against the issuer before recommending a transfer that relies on an unverified or unknown bonus.
 Use only eligible transfer hints. If card eligibility or its transfer rule is unknown, explain the warning and ask the user to confirm their transfer card; never assume a ratio or combine cards automatically.`;
 
 export interface ChatWithAssistantInput {
