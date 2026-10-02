@@ -8,10 +8,10 @@ import {
 import {
   convertPoints,
   listTransferTargets,
-  type TransferEdge,
 } from "./transfer-partners";
 
 import type { TransferBonusId } from "../shared/ids";
+import { resolveTransferEdge, type ResolvedTransferEdge, type TransferAccountContext, type TransferEligibilityWarning } from "./transfer-eligibility";
 /**
  * Bonus-aware ranking of transfer destinations. Kept apart from the pure
  * transfer graph (transfer-partners.ts) so the graph does not depend on the
@@ -21,7 +21,7 @@ import type { TransferBonusId } from "../shared/ids";
 export type TransferOption = {
   readonly from: ProviderDefinition;
   readonly to: ProviderDefinition;
-  readonly edge: TransferEdge;
+  readonly edge: ResolvedTransferEdge;
   /** 1 when no bonus applies, else e.g. 1.3. */
   readonly bonusMultiplier: number;
   readonly bonusPermille: number;
@@ -43,15 +43,26 @@ export function rankTransferOptions(
   sourcePoints: number,
   bonuses: readonly TransferBonus[] = [],
   now: Date = new Date(),
+  context: TransferAccountContext = {},
 ): TransferOption[] {
+  return rankTransferAdvice(fromProviderId, sourcePoints, bonuses, now, context).options;
+}
+
+export function rankTransferAdvice(fromProviderId: string, sourcePoints: number,
+  bonuses: readonly TransferBonus[] = [], now: Date = new Date(), context: TransferAccountContext = {},
+): { options: TransferOption[]; eligibilityWarnings: TransferEligibilityWarning[] } {
   exactPoints(sourcePoints);
-  if (sourcePoints === 0) return [];
+  if (sourcePoints === 0) return { options: [], eligibilityWarnings: [] };
 
   const from = getProviderOrThrow(fromProviderId);
   const bestBonus = indexBestBonuses(bonuses, now);
   const options: TransferOption[] = [];
+  const eligibilityWarnings: TransferEligibilityWarning[] = [];
 
-  for (const edge of listTransferTargets(fromProviderId)) {
+  for (const candidate of listTransferTargets(fromProviderId)) {
+    const resolution = resolveTransferEdge(candidate, context, now);
+    if (resolution.status === "unavailable") { eligibilityWarnings.push(resolution.warning); continue; }
+    const edge = resolution.edge;
     // Skip edges whose destination isn't in the catalog yet.
     let to: ProviderDefinition;
     try {
@@ -83,7 +94,7 @@ export function rankTransferOptions(
     });
   }
 
-  return options.sort(
+  return { options: options.sort(
     (a, b) => b.effectiveCentsPerPoint - a.effectiveCentsPerPoint,
-  );
+  ), eligibilityWarnings };
 }

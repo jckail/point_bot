@@ -1,3 +1,4 @@
+import type { CardProductId } from "./card-products";
 import type { ActivityEvent } from "./activity";
 import type { BalanceSnapshot } from "./balance-snapshot";
 import type { LoyaltyAccount } from "./loyalty-account";
@@ -38,7 +39,9 @@ export interface LoyaltyAccountRepository {
     providerId: string,
   ): Promise<LoyaltyAccount | null>;
   insert(account: LoyaltyAccount): Promise<void>;
-  update(account: LoyaltyAccount): Promise<void>;
+  /** Routine updates preserve the current stored card even when the aggregate is stale.
+   * Only an explicit selection option changes it; null clears it. */
+  update(account: LoyaltyAccount, selection?: { readonly cardProductId?: CardProductId | null }): Promise<void>;
   /** Hard-deletes the account; snapshots cascade at the storage layer. */
   delete(id: LoyaltyAccountId): Promise<void>;
 }

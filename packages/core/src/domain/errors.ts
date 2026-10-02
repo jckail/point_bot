@@ -51,6 +51,12 @@ export class LoyaltyAccountNotFoundError extends DomainError {
   }
 }
 
+/** An explicit transfer card is unknown or incompatible with its program. */
+export class InvalidCardProductError extends DomainError {
+  readonly code = "INVALID_CARD_PRODUCT" as const;
+  constructor() { super("Choose a supported transfer card for this program, or Unknown."); }
+}
+
 export class InvalidMembershipNumberError extends DomainError {
   readonly code = "INVALID_MEMBERSHIP_NUMBER" as const;
 
@@ -387,6 +393,7 @@ export const DOMAIN_ERROR_CLASSES = [
   DuplicateLoyaltyAccountError,
   LoyaltyAccountNotFoundError,
   InvalidMembershipNumberError,
+  InvalidCardProductError,
   InvalidValuationError,
   InvalidDisplayCurrencyError,
   CredentialUnavailableError,

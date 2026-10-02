@@ -146,7 +146,7 @@ export async function migrateWithLock<TSchema extends Record<string, unknown>>(
     const identifier = (value: string) => '"' + value.replaceAll('"', '""') + '"';
     const journalName = identifier(config.migrationsSchema ?? "drizzle") + "." + identifier(config.migrationsTable ?? "__drizzle_migrations");
     const assertFreshApplicationSchema = async () => {
-      // Names from managed SQL 0000–0020; unrelated Supabase public tables do
+      // Names from managed SQL 0000–0021; unrelated Supabase public tables do
       // not imply a PointUp lineage. Empty PointUp tables still require a journal.
       const managedTables = ["balance_snapshot", "loyalty_account", "activity_event", "trip_goal", "portfolio_share",
         "user_provider_valuation", "award_watch", "user_setting", "access_token", "agent_observation", "consent_grant",
@@ -184,13 +184,14 @@ export async function migrateWithLock<TSchema extends Record<string, unknown>>(
         const [resolved] = await lease<{ schema_name: string }[]>`SELECT COALESCE(${options.applicationSchema ?? null}::text,current_schema()) AS schema_name`;
         if (!resolved?.schema_name) throw new Error();
         const schemaName = resolved.schema_name;
-        columns = await lease<{ table_name: string; column_name: string; row_security: boolean }[]>`
-          SELECT c.relname AS table_name,a.attname AS column_name,c.relrowsecurity AS row_security
+        columns = await lease<{ table_name: string; column_name: string; row_security: boolean; type_name: string; not_null: boolean }[]>`
+          SELECT c.relname AS table_name,a.attname AS column_name,c.relrowsecurity AS row_security,
+            pg_catalog.format_type(a.atttypid,a.atttypmod) AS type_name,a.attnotnull AS not_null
           FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
           JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid
           WHERE n.nspname=${schemaName} AND c.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped`;
-        constraints = await lease<{ table_name: string; name: string; type: string }[]>`
-          SELECT c.relname AS table_name,co.conname AS name,co.contype AS type
+        constraints = await lease<{ table_name: string; name: string; type: string; validated: boolean }[]>`
+          SELECT c.relname AS table_name,co.conname AS name,co.contype AS type,co.convalidated AS validated
           FROM pg_catalog.pg_constraint co JOIN pg_catalog.pg_class c ON c.oid=co.conrelid
           JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=${schemaName}`;
         triggers = await lease<{ table_name: string; name: string }[]>`
@@ -203,11 +204,14 @@ export async function migrateWithLock<TSchema extends Record<string, unknown>>(
       const securedTables = new Set(columns.filter(row => row.row_security === true).map(row => row.table_name));
       const constraintNames = new Set(constraints.map(row => row.table_name + "." + row.type + "." + row.name));
       const triggerNames = new Set(triggers.map(row => row.table_name + "." + row.name));
+      const cardColumn = columns.find(row => row.table_name === "loyalty_account" && row.column_name === "card_product_id");
+      const cardCheck = constraints.find(row => row.table_name === "loyalty_account" && row.name === "loyalty_account_card_product_check" && row.type === "c");
       const requiredFks = [["agent_observation", "agent_observation_owned_account_fk"],
         ["trip_goal_account", "trip_goal_account_owned_goal_fk"], ["trip_goal_account", "trip_goal_account_owned_account_fk"]];
       // CHECK/FK presence deliberately accepts NOT VALID legacy constraints.
       // This is a bounded readiness contract, not full schema equivalence.
-      if (tables.some(table => !securedTables.has(table.name) || table.columns.some(column => !columnNames.has(table.name + "." + column.name))
+      if (cardColumn?.type_name !== "character varying(64)" || cardColumn.not_null !== false || cardCheck?.validated !== true
+        || tables.some(table => !securedTables.has(table.name) || table.columns.some(column => !columnNames.has(table.name + "." + column.name))
           || table.checks.some(check => !constraintNames.has(table.name + ".c." + check.name)))
         || requiredFks.some(([table, name]) => !constraintNames.has(table + ".f." + name))
         || !triggerNames.has("trip_goal_account.trip_goal_account_derive_owner")) {

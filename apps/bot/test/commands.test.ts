@@ -48,7 +48,7 @@ function useCases(over: Partial<BotUseCases> = {}): BotUseCases {
     listAccounts: { execute: vi.fn(async () => []) },
     getValueAdvice: {
       execute: vi.fn(
-        async (): Promise<ValueAdviceReadModel> => ({ transfers: [], deals: [] }),
+        async (): Promise<ValueAdviceReadModel> => ({ transfers: [], deals: [], eligibilityWarnings: [] }),
       ),
     },
     chatWithAssistant: { execute: vi.fn(async () => ({ reply: "assistant reply" })) },
@@ -108,12 +108,13 @@ describe("handleCommand", () => {
                 from: { displayName: "Chase UR" },
                 to: { displayName: "Hyatt" },
                 sourcePoints: 100_000,
-                destinationPoints: 100_000,
+                destinationPoints: 75_000,
                 effectiveCentsPerPoint: 2.1,
                 bonusLabel: null,
               },
             ] as ValueAdviceReadModel["transfers"],
             deals: [],
+            eligibilityWarnings: [],
           }),
         ),
       },
@@ -121,6 +122,19 @@ describe("handleCommand", () => {
     const out = await handleCommand({ userId: UserId.parse("u"), text: "value" }, uc);
     expect(out).toContain("Chase UR");
     expect(out).toContain("irreversible");
+  });
+
+  it("value explains excluded routes even without a ranked transfer", async () => {
+    const uc = useCases({ getValueAdvice: { execute: vi.fn(async (): Promise<ValueAdviceReadModel> => ({
+      transfers: [], deals: [], eligibilityWarnings: [{ code: "CARD_PRODUCT_REQUIRED",
+        fromProviderId: "chase-ultimate-rewards",
+        toProviderId: "hyatt", cardProductId: null,
+        message: "Select the Chase card used for this transfer in account Details." }],
+    })) } });
+    const out = await handleCommand({ userId: UserId.parse("u"), text: "value" }, uc);
+    expect(out).toContain("Transfer eligibility");
+    expect(out).toContain("Select the Chase card");
+    expect(out).not.toContain("No transfer or deal advice yet");
   });
 
   it("ask routes to the assistant with the question", async () => {

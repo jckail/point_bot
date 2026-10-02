@@ -1,3 +1,4 @@
+import { normalizeCardProductId, type CardProductId } from "../../domain/loyalty/card-products";
 import { InvalidImportError } from "../../domain/errors";
 import { isSupportedProvider } from "../../domain/loyalty/provider";
 import type { Clock } from "../ports";
@@ -24,6 +25,7 @@ type CsvRow = {
   membershipNumber: string;
   points: string;
   capturedAt: string;
+  cardProductId?: string;
 };
 
 /**
@@ -61,6 +63,21 @@ export class ImportPortfolio {
       byProvider.set(row.providerId, group);
     }
 
+    // Validate every explicit product selection before any account/balance write.
+    // Older CSVs have no column and therefore preserve an existing selection.
+    const products = new Map<string, CardProductId | null>();
+    for (const [providerId, providerRows] of byProvider) {
+      const choices = new Set(providerRows.filter(row => row.cardProductId !== undefined)
+        .map(row => normalizeCardProductId(providerId, row.cardProductId || null)));
+      if (choices.size > 1) throw new InvalidImportError("conflicting card products for a program");
+      if (choices.size === 1) products.set(providerId, choices.values().next().value ?? null);
+      const existing = await this.accounts.findByUserAndProvider(input.userId, providerId);
+      const explicit = products.get(providerId);
+      if (products.has(providerId) && existing && (existing.cardProductId ?? null) !== explicit) {
+        throw new InvalidImportError("existing program has a different card selection; edit it explicitly before importing");
+      }
+    }
+
     for (const [providerId, providerRows] of byProvider) {
       const membership =
         providerRows.find((row) => row.membershipNumber.trim().length > 0)
@@ -75,6 +92,7 @@ export class ImportPortfolio {
           userId: input.userId,
           providerId,
           membershipNumber: membership,
+          cardProductId: products.get(providerId),
         });
         account = await this.accounts.findById(linked.accountId);
         accountsLinked += 1;
@@ -160,6 +178,7 @@ function parseExportCsv(csv: string): CsvRow[] {
   const membershipIdx = indexOf("membershipNumber");
   const pointsIdx = indexOf("points");
   const capturedAtIdx = indexOf("capturedAt");
+  const cardProductIdx = header.indexOf("cardProductId");
 
   const rows: CsvRow[] = [];
   for (const line of lines.slice(1)) {
@@ -169,6 +188,7 @@ function parseExportCsv(csv: string): CsvRow[] {
       membershipNumber: cols[membershipIdx] ?? "",
       points: cols[pointsIdx] ?? "",
       capturedAt: cols[capturedAtIdx] ?? "",
+      ...(cardProductIdx >= 0 ? { cardProductId: cols[cardProductIdx] ?? "" } : {}),
     });
   }
   return rows;

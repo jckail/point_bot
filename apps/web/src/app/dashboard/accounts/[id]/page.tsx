@@ -9,6 +9,7 @@ import {
   togglePinAccountAction,
   unlinkLoyaltyAccountAction,
 } from "@/app/actions";
+import { AccountCardProductForm } from "@/components/account-card-product-form";
 import { AccountNotesForm } from "@/components/account-notes-form";
 import { ManualBalanceForm } from "@/components/manual-balance-form";
 import { MembershipNumberForm } from "@/components/membership-number-form";
@@ -194,6 +195,13 @@ export default async function AccountDetailPage({
               membershipNumber={account.membershipNumber}
             />
           </div>
+
+          {account.provider.id === "chase-ultimate-rewards" && (
+            <div id="transfer-card">
+              <h2 className="font-display text-lg font-semibold text-ink">Transfer card</h2>
+              <AccountCardProductForm key={account.cardProductId ?? "unknown"} account={account} />
+            </div>
+          )}
 
           <div>
             <h2 className="font-display text-lg font-semibold text-ink">

@@ -1,7 +1,7 @@
 "use server";
 
 import { getSessionUserId } from "@/server/auth";
-import { DomainError, LoyaltyAccountId, ShareId, TripGoalId } from "@pointup/core";
+import { DomainError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -50,6 +50,7 @@ export async function linkLoyaltyAccountAction(
       userId,
       providerId: String(formData.get("providerId") ?? ""),
       membershipNumber: String(formData.get("membershipNumber") ?? ""),
+      cardProductId: (String(formData.get("cardProductId") ?? "") || null) as CardProductId | null,
     });
   });
 
@@ -139,6 +140,27 @@ export async function updateMembershipNumberAction(
   });
 
   if (result.status === "success") {
+    revalidatePath(`/dashboard/accounts/${accountId}`);
+  }
+  return result;
+}
+
+export async function updateCardProductAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const userId = await getSessionUserId();
+  if (!userId) return UNAUTHENTICATED;
+  const accountId = String(formData.get("accountId") ?? "");
+  const result = await toActionResult(async () => {
+    await getContainer().useCases.updateLoyaltyAccount.execute({
+      userId,
+      accountId: LoyaltyAccountId.parse(accountId),
+      cardProductId: (String(formData.get("cardProductId") ?? "") || null) as CardProductId | null,
+    });
+  });
+  if (result.status === "success") {
+    revalidatePath("/dashboard");
     revalidatePath(`/dashboard/accounts/${accountId}`);
   }
   return result;

@@ -9,17 +9,16 @@ work, not a request to remove capabilities or substitute read-only features.
 
 ## Immediate release gates
 
-**Correct transfer eligibility before activation.** The current Chase→Hyatt edge
-is unconditionally1:1 and can falsely report a trip as fundable. Official
-[Preferred benefits](https://www.chase.com/sapphire-cards/personal/preferred)
-and [Chase announcement](https://media.chase.com/news/Meet-the-New-Chase-Sapphire-Preferred)
-establish4:3 for affected Preferred/Ink accounts after the applicable transition
-(the old Preferred grace period ended September30,2026). Implement explicit
-card/product eligibility across account data, contracts, UI, optimizer and value
-advice, with unknown eligibility clearly distinguished; do not infer it from
-notes/tags or merely correct a note after computing1:1. Verify all card variants
-against primary terms before publishing their ratios. This defect remains open; implement [the card-aware plan](transfer-eligibility-plan.md) next.
-
+**Roll out card-aware transfer eligibility before activation.** Source now persists
+an explicit nullable transfer card, uses the shared dated resolver in rankings,
+funding, inverse coverage and assistant grounding, and exposes selection/warnings
+in the web UI. Verified affected Preferred/Ink/Corporate products use 4:3 from
+October 1, 2026; unknown and Reserve rules remain unavailable. Do not infer
+selection from notes or capture text. See [implementation and evidence](transfer-eligibility-plan.md).
+Apply additive migration 0021 before writers and retire old advice/worker versions
+that calculate an unconditional 1:1. Source/fixture verification does not prove
+production has adopted this fix. Verify remaining card variants and Amex checking-only
+eligibility against primary terms before adding their numeric rules.
 
 1. Preserve the exact verified release candidate and complete its production gates.
    Current `370130945ff34fa1ac7775984068d837d9e7d4bc` passed all six
@@ -36,7 +35,7 @@ against primary terms before publishing their ratios. This defect remains open; 
    The last repository secret inspection found none. Verify actual account/region,
    stack ownership, deployed IAM and certificate/DNS/public HTTPS origin configuration.
 3. Inspect actual staging/production journals, tables and data before adopting managed
-   history through 0020. Establish an approved recoverable backup and restore rehearsal,
+   history through 0021. Establish an approved recoverable backup and restore rehearsal,
    compatible adoption path and any required write/drain window. No source branch or
    fixture proves deployed lineage. Diagnose migration 0018 lock contention before any
    deliberate retry; its archival lock timeout is 30 seconds.

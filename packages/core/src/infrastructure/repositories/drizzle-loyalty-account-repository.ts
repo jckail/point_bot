@@ -1,3 +1,4 @@
+import { normalizeCardProductId, type CardProductId } from "../../domain/loyalty/card-products";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { DuplicateLoyaltyAccountError, InvalidBalanceError, InvalidGoalTargetError, LoyaltyAccountNotFoundError, TripGoalNotFoundError } from "../../domain/errors";
@@ -56,6 +57,7 @@ function toLoyaltyAccount(row: LoyaltyAccountRow): LoyaltyAccount {
     userId: UserId.parse(row.userId),
     providerId: parseProviderId(row.providerId),
     membershipNumber: row.membershipNumber,
+    cardProductId: normalizeCardProductId(row.providerId, row.cardProductId),
     credentialRef: row.credentialRef,
     expiresAt: row.expiresAt,
     notes: row.notes,
@@ -212,6 +214,7 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
           userId: account.userId,
           providerId: account.providerId,
           membershipNumber: account.membershipNumber,
+          cardProductId: normalizeCardProductId(account.providerId, account.cardProductId),
           credentialRef: account.credentialRef,
           expiresAt: account.expiresAt,
           notes: account.notes,
@@ -233,12 +236,15 @@ export class DrizzleLoyaltyAccountRepository implements LoyaltyAccountRepository
     }
   }
 
-  async update(account: LoyaltyAccount): Promise<void> {
+  async update(account: LoyaltyAccount, selection?: { readonly cardProductId?: CardProductId | null }): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
         .update(loyaltyAccounts)
         .set({
           membershipNumber: account.membershipNumber,
+          ...(selection?.cardProductId !== undefined
+            ? { cardProductId: normalizeCardProductId(account.providerId, selection.cardProductId) }
+            : {}),
           credentialRef: account.credentialRef,
           expiresAt: account.expiresAt,
           notes: account.notes,

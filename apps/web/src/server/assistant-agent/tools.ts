@@ -34,7 +34,7 @@ export function createPortfolioTools(useCases: AgentUseCases, userId: UserId, si
     }) }),
     tool({ name: "value_advice", description: "Read ranked editorial transfer and redemption estimates. These are not live award search or booking quotes.", parameters: z.object({}).strict(), execute: () => execute("value_advice", async () => {
       const advice = await useCases.getValueAdvice.execute(userId);
-      return { transfers: advice.transfers.slice(0, 10), deals: advice.deals.slice(0, 10) };
+      return { transfers: advice.transfers.slice(0, 10), deals: advice.deals.slice(0, 10), eligibilityWarnings: advice.eligibilityWarnings ?? [] };
     }) }),
   ];
   if (!proposals) return tools;

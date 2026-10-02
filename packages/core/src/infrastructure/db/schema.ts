@@ -52,6 +52,8 @@ export const loyaltyAccounts = pgTable(
     userId: varchar("user_id", { length: 255 }).notNull(),
     providerId: varchar("provider_id", { length: 64 }).notNull(),
     membershipNumber: varchar("membership_number", { length: 255 }).notNull(),
+    /** Explicit transfer card selection; legacy accounts remain unknown. */
+    cardProductId: varchar("card_product_id", { length: 64 }),
     /**
      * Opaque pointer into an external credential vault (1Password item,
      * keychain entry). Raw credentials are never stored.
@@ -67,6 +69,7 @@ export const loyaltyAccounts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (account) => [
+    check("loyalty_account_card_product_check", sql`${account.cardProductId} IS NULL OR (${account.providerId} = 'chase-ultimate-rewards' AND ${account.cardProductId} IN ('chase-sapphire-preferred', 'chase-sapphire-reserve', 'chase-ink-business-preferred', 'chase-ink-plus', 'chase-corporate-flex'))`),
     // Active accounts per user (worker `listUserIds`, per-user reads). The
     // plain (user_id) index was dropped: the (user_id, provider_id) unique
     // index below serves every user_id-prefix lookup (docs/performance.md).

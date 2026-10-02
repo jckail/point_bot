@@ -67,6 +67,7 @@ import {
 import type {
   AwardAvailabilitySource,
   CredentialVault,
+  Clock,
   LlmAssistant,
   PageScraper,
   TravelProviderGateway,
@@ -84,6 +85,8 @@ export interface LoyaltyModuleDeps {
   fx: FxRateSource;
   scraper: PageScraper;
   llm: LlmAssistant;
+  /** Shared evaluation clock for balance reads, bonuses and transfer advice. */
+  clock?: Clock;
   /** Best-effort proposal state observations; host chooses the telemetry sink. */
   assistantActionAudit?: ActionAudit;
   /** Optional: defaults to a stub that reports "not configured". */
@@ -104,7 +107,7 @@ export interface LoyaltyModuleDeps {
  * tests) supplies its own adapters and shares this graph.
  */
 export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
-  const { repos, gateway, vault, fx, scraper, llm, cache, cacheTtlMs } = deps;
+  const { repos, gateway, vault, fx, scraper, llm, cache, cacheTtlMs, clock } = deps;
   const awardAvailability =
     deps.awardAvailability ?? new StubAwardAvailabilitySource();
   const eventing = repos.eventing;
@@ -132,7 +135,7 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
   const listLoyaltyAccounts = new ListLoyaltyAccounts(
     loyaltyAccounts,
     balanceSnapshots,
-    undefined,
+    clock,
     customValuations,
     cache,
     cacheTtlMs,
@@ -165,11 +168,12 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
   );
   const listTripGoals = new ListTripGoals(tripGoals, balanceSnapshots);
   const ingestDealPage = new IngestDealPage(scraper);
-  const listActiveTransferBonuses = new ListActiveTransferBonuses(transferBonuses);
+  const listActiveTransferBonuses = new ListActiveTransferBonuses(transferBonuses, clock);
   const planRedemption = new PlanRedemption(
     listLoyaltyAccounts,
     listActiveTransferBonuses,
     awardAvailability,
+    clock,
   );
   const getLoyaltyAccount = new GetLoyaltyAccount(loyaltyAccounts, balanceSnapshots, undefined, customValuations);
   const manageAssistantActions = repos.assistantActions
@@ -239,10 +243,12 @@ export function buildLoyaltyModule(deps: LoyaltyModuleDeps) {
       listTripGoals,
       llm,
       listActiveTransferBonuses,
+      clock,
     ),
     getValueAdvice: new GetValueAdvice(
       listLoyaltyAccounts,
       listActiveTransferBonuses,
+      clock,
     ),
     listActiveTransferBonuses,
     recordTransferBonus: new RecordTransferBonus(

@@ -1,8 +1,10 @@
 "use client";
 
+import { findCardProduct } from "@pointup/core/card-products";
 import type { RankedDealDto, TransferOptionDto, ValueAdviceDto } from "@pointup/core/contracts";
 import { useState, useTransition } from "react";
 
+import { TransferEligibilityWarnings } from "@/components/transfer-eligibility-warnings";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 
 export function ValueDealsSection({
@@ -10,7 +12,8 @@ export function ValueDealsSection({
 }: {
   initialAdvice: ValueAdviceDto;
 }) {
-  const [advice, setAdvice] = useState(initialAdvice);
+  const [importedAdvice, setImportedAdvice] = useState<{ base: ValueAdviceDto; advice: ValueAdviceDto } | null>(null);
+  const advice = importedAdvice?.base === initialAdvice ? importedAdvice.advice : initialAdvice;
   const [url, setUrl] = useState("");
   const [scrapeNote, setScrapeNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +37,7 @@ export function ValueDealsSection({
         if (!response.ok) {
           throw new Error(payload.error?.message ?? "Scrape failed");
         }
-        if (payload.advice) setAdvice(payload.advice);
+        if (payload.advice) setImportedAdvice({ base: initialAdvice, advice: payload.advice });
         setScrapeNote(
           `Ingested “${payload.ingest?.pageTitle ?? "page"}” · ${payload.ingest?.deals.length ?? 0} deal(s) extracted`,
         );
@@ -55,6 +58,7 @@ export function ValueDealsSection({
         </p>
       </div>
 
+      <TransferEligibilityWarnings warnings={advice.eligibilityWarnings ?? []} />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-line bg-surface p-4">
           <h3 className="text-sm font-semibold text-ink-faint">
@@ -136,6 +140,12 @@ function TransferRow({ option }: { option: TransferOptionDto }) {
         {option.effectiveCentsPerPoint}¢/pt · ~
         {formatUsdFromCents(option.estimatedValueCents)}
       </p>
+      {option.eligibility?.sourceUrl && (
+        <p className="mt-0.5 text-[11px] text-ink-faint">
+          {option.eligibility.cardProductId ? `${findCardProduct(option.eligibility.cardProductId)?.displayName ?? "Selected card"}: ` : ""}Base ratio {option.ratioFrom}:{option.ratioTo}{option.eligibility.effectiveFrom ? ` from ${option.eligibility.effectiveFrom.slice(0, 10)}` : ""}{" · "}
+          <a href={option.eligibility.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">Issuer terms</a>
+        </p>
+      )}
       {option.bonusLabel && (
         <p className="mt-0.5 text-[11px] text-ink-faint">{option.bonusLabel}</p>
       )}

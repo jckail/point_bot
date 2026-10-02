@@ -205,5 +205,31 @@ change. Fresh committed-head CI is required for this follow-up.
 The source audit also established a release-blocking Chase→Hyatt card-eligibility
 calculation gap. [Card-aware design](transfer-eligibility-plan.md) records the
 required persisted selection, effective resolver, inverse coverage/advice/hint
-consistency, user-facing flow and migration proof. This is unfinished source work;
-passing bank CI does not close the incorrect fundability behavior.
+consistency, user-facing flow and migration proof. The following source milestone implements this fix; passing bank CI alone did not close the incorrect fundability behavior.
+
+## Card-aware transfer source milestone
+
+Explicit nullable card selection now crosses domain, repository, contracts,
+HTTP/client, CSV, web linking/editing and assistant tools. Rankings, funding,
+inverse coverage and hints use the same dated rule resolver; raw conditional
+edges cannot bypass it. Verified Preferred/Ink/Corporate products use 4:3 from
+October 1, 2026; Reserve, unknown and unverified historical rules are excluded
+with visible warnings. Direct Hyatt and unrelated transfers remain usable.
+
+Migration 0021 adds the nullable compatible-provider selection without inferred
+backfill. Eleven actual PostgreSQL card cases, 58 focused account/physical
+attestation cases, 79 settled domain/application cases, eight web action/account
+cases and seven bot command cases pass locally. Workspace types and lint pass;
+final bot fixture lint is rechecked after the warning addition. The broad local
+workspace run was blocked by shared-lock contention (exit 75), with no unchanged
+retry or bypass. Fresh committed-head CI must establish the aggregate candidate
+gate and application bundles before readiness is claimed.
+Peer review caught explicit-null import conflict and warning navigation issues;
+both are fixed. The graph query has no PointUp source coverage, so source was
+inspected directly. Agent Hub refuses this unconfigured worktree scope; curated
+repository docs preserve the verified handoff without hosted transcript uploads.
+
+AWS STS still reports an expired session. No deployment, merge, live provider
+account or new Chrome tab/window was used. Production adoption, standalone
+ChatGPT identity/inference eligibility, public MCP OAuth, live observability
+acceptance, historical data/retention and the full original overhaul remain open.

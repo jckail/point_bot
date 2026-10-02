@@ -1,4 +1,5 @@
 import type { LoyaltyAccountReadModel, ProviderSyncMode } from "@pointup/core";
+import { findCardProduct } from "@pointup/core/card-products";
 import Link from "next/link";
 
 import {
@@ -33,6 +34,9 @@ export function AccountCard({
           <p className="mt-0.5 break-all text-xs text-ink-faint">
             Member #{account.membershipNumber}
           </p>
+          {account.provider.id === "chase-ultimate-rewards" && <p className="mt-1 text-xs text-ink-faint">
+            Transfer card: {account.cardProductId ? findCardProduct(account.cardProductId)?.displayName ?? "Unknown" : "Unknown"}
+          </p>}
         </div>
         <div className="flex flex-col items-end gap-2">
           <ProviderBadge kind={account.provider.kind} />

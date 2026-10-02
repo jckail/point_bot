@@ -20,8 +20,10 @@ import {
   TRANSFER_EDGES,
   convertPoints,
   edgeRatio,
-  type TransferEdge,
 } from "./transfer-partners";
+
+import { resolveTransferEdge, type ResolvedTransferEdge, type TransferEligibilityMetadata, type TransferEligibilityWarning } from "./transfer-eligibility";
+import type { CardProductId } from "./card-products";
 
 /**
  * Redemption optimizer: pure, deterministic, integer-point math. No IO and no
@@ -73,6 +75,7 @@ export interface RedemptionGoal {
 }
 
 export interface Holding {
+  readonly cardProductId?: CardProductId | null;
   readonly providerId: ProviderId;
   readonly points: number;
   /** The user's value of one point (custom override or editorial), in cents. */
@@ -104,6 +107,7 @@ export interface PlanBonus {
 }
 
 export interface PlanSource {
+  readonly eligibility: TransferEligibilityMetadata | null;
   readonly providerId: ProviderId;
   readonly displayName: string;
   /** Source points spent (never above the balance). */
@@ -134,6 +138,7 @@ export interface Shortfall {
 }
 
 export interface RedemptionPlan {
+  readonly eligibilityWarnings: readonly TransferEligibilityWarning[];
   readonly id: string;
   readonly spotId: string;
   readonly programId: ProviderId;
@@ -178,6 +183,7 @@ export interface ExpiringHolding {
 }
 
 export interface OptimizerResult {
+  readonly eligibilityWarnings: readonly TransferEligibilityWarning[];
   readonly plans: readonly RedemptionPlan[];
   readonly expiringHoldings: readonly ExpiringHolding[];
   /** Plain-language notes about the run (e.g. "no balances"). */
@@ -219,16 +225,24 @@ export function assertValidGoal(goal: RedemptionGoal): void {
 
 // ─── Internals ─────────────────────────────────────────────────────────────
 
-const EDGES_BY_DESTINATION: ReadonlyMap<string, readonly TransferEdge[]> =
-  (() => {
-    const map = new Map<string, TransferEdge[]>();
-    for (const edge of TRANSFER_EDGES) {
-      const list = map.get(edge.toProviderId) ?? [];
-      list.push(edge);
-      map.set(edge.toProviderId, list);
+type ResolvedGraph = ReadonlyMap<string, readonly ResolvedTransferEdge[]>;
+function resolveGraph(holdings: readonly Holding[], now: Date): { edges: ResolvedGraph; warnings: TransferEligibilityWarning[] } {
+  const byProvider = new Map(holdings.map(holding => [holding.providerId, holding]));
+  const edges = new Map<string, ResolvedTransferEdge[]>();
+  const warnings: TransferEligibilityWarning[] = [];
+  for (const candidate of TRANSFER_EDGES) {
+    const holding = byProvider.get(candidate.fromProviderId);
+    const resolution = resolveTransferEdge(candidate, holding ?? {}, now);
+    if (resolution.status === "unavailable") {
+      if (holding) warnings.push(resolution.warning);
+      continue;
     }
-    return map;
-  })();
+    const list = edges.get(candidate.toProviderId) ?? [];
+    list.push(resolution.edge);
+    edges.set(candidate.toProviderId, list);
+  }
+  return { edges, warnings };
+}
 
 const CONFIDENCE_RANK = {
   low: 0,
@@ -265,7 +279,7 @@ const URGENCY_RANK = {
 
 interface Source {
   readonly holding: Holding;
-  readonly edge: TransferEdge | null;
+  readonly edge: ResolvedTransferEdge | null;
   readonly bonus: TransferBonus | null;
   readonly permille: number;
   readonly min: number;
@@ -303,6 +317,7 @@ function buildSources(
   programId: ProviderId,
   holdings: readonly Holding[],
   bestBonuses: ReadonlyMap<string, TransferBonus>,
+  edges: ResolvedGraph,
 ): Source[] {
   const byProvider = new Map(holdings.map((h) => [h.providerId, h] as const));
   const sources: Source[] = [];
@@ -322,7 +337,7 @@ function buildSources(
     });
   }
 
-  for (const edge of EDGES_BY_DESTINATION.get(programId) ?? []) {
+  for (const edge of edges.get(programId) ?? []) {
     const holding = byProvider.get(edge.fromProviderId);
     if (!holding || holding.points <= 0) continue;
     const inc = edge.incrementSourcePoints ?? DEFAULT_TRANSFER_INCREMENT;
@@ -498,10 +513,11 @@ function coverageFor(
   holdings: readonly Holding[],
   used: ReadonlyMap<string, number>,
   bestBonuses: ReadonlyMap<string, TransferBonus>,
+  edges: ResolvedGraph,
 ): CoverageHint[] {
   const balances = new Map(holdings.map((h) => [h.providerId, h.points] as const));
   const hints: CoverageHint[] = [];
-  for (const edge of EDGES_BY_DESTINATION.get(programId) ?? []) {
+  for (const edge of edges.get(programId) ?? []) {
     const permille =
       bestBonuses.get(`${edge.fromProviderId}>${edge.toProviderId}`)
         ?.multiplierPermille ?? 1000;
@@ -556,9 +572,11 @@ function evaluateSpot(
   spot: SweetSpot,
   input: OptimizerInput,
   bestBonuses: ReadonlyMap<string, TransferBonus>,
+  edges: ResolvedGraph,
+  warnings: readonly TransferEligibilityWarning[],
 ): RedemptionPlan | null {
   const { holdings, goal } = input;
-  const sources = buildSources(spot.programId, holdings, bestBonuses);
+  const sources = buildSources(spot.programId, holdings, bestBonuses, edges);
   const capacity = sources.reduce((s, x) => s + exactPoints(x.maxDest), 0n);
 
   if (sources.length === 0 && !goal.targetProgramId) return null;
@@ -589,6 +607,7 @@ function evaluateSpot(
 
   const planSources: PlanSource[] = chosen
     .map(({ source, amount }) => ({
+      eligibility: source.edge?.eligibility ?? null,
       providerId: source.holding.providerId,
       displayName:
         findProvider(source.holding.providerId)?.displayName ??
@@ -662,7 +681,7 @@ function evaluateSpot(
     shortfall = {
       programId: spot.programId,
       pointsNeeded: missing,
-      coverage: coverageFor(spot.programId, missing, holdings, used, bestBonuses),
+      coverage: coverageFor(spot.programId, missing, holdings, used, bestBonuses, edges),
     };
     steps.push({
       kind: "note",
@@ -676,6 +695,8 @@ function evaluateSpot(
     "Transfers between programs are irreversible; only transfer once you have confirmed space.",
     "Points prices are typical ranges from an editorial catalog (not live); verify the exact price on the provider's site.",
   ];
+  const eligibilityWarnings = warnings.filter(warning => warning.toProviderId === spot.programId);
+  caveats.push(...eligibilityWarnings.map(warning => warning.message));
   let confidence: SweetSpotConfidence = spot.confidence;
   const seen = new Set<string>();
   for (const p of planSources) {
@@ -690,7 +711,7 @@ function evaluateSpot(
       }
     }
     if (!p.direct) {
-      const edge = EDGES_BY_DESTINATION.get(spot.programId)?.find(
+      const edge = edges.get(spot.programId)?.find(
         (e) => e.fromProviderId === p.providerId,
       );
       if (edge?.notes && !seen.has(edge.notes)) {
@@ -725,6 +746,7 @@ function evaluateSpot(
   }
 
   return {
+    eligibilityWarnings,
     id: spot.id,
     spotId: spot.id,
     programId: spot.programId,
@@ -773,13 +795,16 @@ export function optimizeRedemptions(input: OptimizerInput): OptimizerResult {
   }
   const bestBonuses = indexBestBonuses(input.bonuses, input.now);
   const spots = input.sweetSpots ?? SWEET_SPOTS;
+  const graph = resolveGraph(holdings, input.now);
+  const eligibilityWarnings = graph.warnings.filter(warning => !input.goal.targetProgramId || warning.toProviderId === input.goal.targetProgramId);
+  notes.push(...eligibilityWarnings.map(warning => warning.message));
 
   const plans: RedemptionPlan[] = [];
   for (const spot of spots) {
     if (!matchesGoal(spot, input.goal)) continue;
     if (exactPoints(spot.pointsCost) === 0n || exactPoints(spot.maxUnits) === 0n) throw new InvalidRedemptionGoalError("Sweet spot cost and units must be positive safe integers");
     if (!Number.isFinite(spot.estimatedCentsPerPoint) || spot.estimatedCentsPerPoint < 0) throw new InvalidValuationError();
-    const plan = evaluateSpot(spot, { ...input, holdings }, bestBonuses);
+    const plan = evaluateSpot(spot, { ...input, holdings }, bestBonuses, graph.edges, eligibilityWarnings);
     if (!plan) continue;
     const cpp = plan.status === "fundable" ? plan.effectiveCentsPerPoint : spot.estimatedCentsPerPoint;
     if (input.goal.minValueCpp !== undefined && cpp < input.goal.minValueCpp) continue;
@@ -825,5 +850,5 @@ export function optimizeRedemptions(input: OptimizerInput): OptimizerResult {
       "No catalog redemption matched your balances and goal. Try a different goal or link more programs.",
     );
   }
-  return { plans: limited, expiringHoldings, notes };
+  return { plans: limited, expiringHoldings, notes, eligibilityWarnings };
 }

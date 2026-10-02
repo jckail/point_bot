@@ -191,10 +191,14 @@ suite("candidate migration attestation on isolated PostgreSQL", () => {
     expect(rows).toEqual([{ convalidated: false }]);
   });
 
-  it.each(["table", "column", "check", "fk", "trigger", "rls"])("refuses managed physical %s drift despite an unchanged full journal", async drift => {
+  it.each(["table", "column", "check", "fk", "trigger", "rls", "card_column", "card_check", "card_type", "card_nullability"])("refuses managed physical %s drift despite an unchanged full journal", async drift => {
     const f = await managedFixture();
     const journalBefore = await f.journal();
     const mutations: Record<string, string> = {
+      card_column: `ALTER TABLE "${f.name}".loyalty_account DROP COLUMN card_product_id`,
+      card_check: `ALTER TABLE "${f.name}".loyalty_account DROP CONSTRAINT loyalty_account_card_product_check`,
+      card_type: `ALTER TABLE "${f.name}".loyalty_account ALTER COLUMN card_product_id TYPE text`,
+      card_nullability: `ALTER TABLE "${f.name}".loyalty_account ALTER COLUMN card_product_id SET NOT NULL`,
       rls: `ALTER TABLE "${f.name}".award_watch DISABLE ROW LEVEL SECURITY`,
       table: `DROP TABLE "${f.name}".award_watch`,
       column: `ALTER TABLE "${f.name}".loyalty_account DROP COLUMN notes`,

@@ -1,3 +1,4 @@
+import type { CardProductId } from "../../domain/loyalty/card-products";
 import type { BalanceSource } from "../../domain/loyalty/balance-snapshot";
 import type { ProviderId, ProviderKind } from "../../domain/loyalty/provider";
 import type { BalanceTrend } from "./balance-trend";
@@ -29,6 +30,7 @@ export interface BalanceReadModel {
 export interface LoyaltyAccountReadModel {
   readonly id: LoyaltyAccountId;
   readonly provider: ProviderReadModel;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly hasStoredCredential: boolean;
   readonly latestBalance: BalanceReadModel | null;

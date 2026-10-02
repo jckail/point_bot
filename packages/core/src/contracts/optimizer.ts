@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRANSFER_ELIGIBILITY_CODES } from "../domain/loyalty/transfer-eligibility";
+import { CARD_PRODUCT_IDS } from "../domain/loyalty/card-products";
 
 import type { PlanRedemptionResult } from "../application/loyalty/plan-redemption";
 import { AWARD_CABINS, AWARD_SEARCH_STATUSES } from "../domain/loyalty/award-availability";
@@ -120,7 +122,22 @@ const planBonusDtoSchema = z.object({
   verified: z.boolean(),
 });
 
+export const transferEligibilityWarningDtoSchema = z.object({
+  code: z.enum(TRANSFER_ELIGIBILITY_CODES),
+  fromProviderId: z.string(),
+  toProviderId: z.string(),
+  cardProductId: z.enum(CARD_PRODUCT_IDS).nullable(),
+  message: z.string(),
+});
+export const transferEligibilityMetadataDtoSchema = z.object({
+  ruleId: z.string(),
+  sourceUrl: z.url().nullable(),
+  effectiveFrom: z.iso.datetime().nullable(),
+  evaluatedAt: z.iso.datetime(),
+  cardProductId: z.enum(CARD_PRODUCT_IDS).nullable(),
+});
 const planSourceDtoSchema = z.object({
+  eligibility: transferEligibilityMetadataDtoSchema.nullable(),
   providerId: z.string(),
   displayName: z.string(),
   pointsUsed: z.number().int().nonnegative(),
@@ -140,6 +157,7 @@ const coverageHintDtoSchema = z.object({
 });
 
 export const redemptionPlanDtoSchema = z.object({
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema),
   id: z.string(),
   spotId: z.string(),
   programId: z.string(),
@@ -176,6 +194,7 @@ export const redemptionPlanDtoSchema = z.object({
 });
 
 export const planRedemptionResultDtoSchema = z.object({
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema),
   goal: z.object({
     kind: z.enum(REDEMPTION_GOAL_KINDS),
     targetProgramId: z.string().nullable(),
@@ -281,6 +300,7 @@ export function toPlanRedemptionResultDto(
     plans: JSON.parse(JSON.stringify(result.plans)) as PlanRedemptionResultDto["plans"],
     expiringHoldings: result.expiringHoldings.map((h) => ({ ...h })),
     notes: [...result.notes],
+    eligibilityWarnings: [...result.eligibilityWarnings],
     availability: result.availability ? { ...result.availability } : null,
   };
 }

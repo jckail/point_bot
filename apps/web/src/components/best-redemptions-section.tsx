@@ -1,5 +1,7 @@
+import { findCardProduct } from "@pointup/core/card-products";
 import type { PlanRedemptionResultDto, RedemptionPlanDto } from "@pointup/core/contracts";
 
+import { TransferEligibilityWarnings } from "@/components/transfer-eligibility-warnings";
 import { formatPoints, formatUsdFromCents } from "@/lib/format";
 
 /**
@@ -27,6 +29,7 @@ export function BestRedemptionsSection({
           site before transferring (transfers cannot be undone).
         </p>
       </div>
+      <TransferEligibilityWarnings warnings={result.eligibilityWarnings ?? []} />
       {result.expiringHoldings.length > 0 && (
         <p className="text-xs text-gold">
           Expiring soon:{" "}
@@ -71,6 +74,13 @@ function PlanCard({ plan }: { plan: RedemptionPlanDto }) {
           <li key={index}>{step.text}</li>
         ))}
       </ol>
+      {plan.sources.filter(source => source.eligibility?.sourceUrl).map(source => (
+        <p key={source.providerId} className="mt-1 text-xs text-ink-faint">
+          {source.eligibility?.cardProductId ? findCardProduct(source.eligibility.cardProductId)?.displayName : source.displayName}{" · "}
+          base ratio {source.ratioFrom}:{source.ratioTo}{source.eligibility?.effectiveFrom ? ` from ${source.eligibility.effectiveFrom.slice(0, 10)}` : ""}{" · "}
+          <a href={source.eligibility?.sourceUrl ?? undefined} target="_blank" rel="noopener noreferrer" className="underline">Issuer terms</a>
+        </p>
+      ))}
       <p className="mt-2 text-xs text-ink-faint">
         {plan.status === "fundable"
           ? `~${formatUsdFromCents(plan.valueCents)} value · spends ${formatPoints(plan.totalSourcePoints)} pts`

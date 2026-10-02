@@ -24,6 +24,7 @@ import {
 } from "../src/domain/loyalty/transfer-partners";
 
 import { asTransferBonusId } from "./ids";
+import { resolveTransferEdge } from "../src/domain/loyalty/transfer-eligibility";
 const now = new Date("2026-10-15T00:00:00Z");
 
 function holding(
@@ -37,6 +38,7 @@ function holding(
     points,
     centsPerPoint: provider.estimatedCentsPerPoint,
     daysUntilExpiry: null,
+    cardProductId: providerId === "chase-ultimate-rewards" ? "chase-sapphire-preferred" : null,
     ...extra,
   };
 }
@@ -99,8 +101,12 @@ function assertPlanInvariants(
       expect(source.providerId).toBe(plan.programId);
       expect(source.destinationPoints).toBe(source.pointsUsed);
     } else {
-      const edge = findTransferEdge(source.providerId, plan.programId)!;
-      expect(edge).not.toBeNull();
+      const raw = findTransferEdge(source.providerId, plan.programId)!;
+      expect(raw).not.toBeNull();
+      const resolution = resolveTransferEdge(raw, holdings.find(holding => holding.providerId === source.providerId), now);
+      expect(resolution.status).toBe("resolved");
+      if (resolution.status !== "resolved") throw new Error("Expected resolved transfer");
+      const edge = resolution.edge;
       const permille = source.bonus?.multiplierPermille ?? 1000;
       // Bonus math is exactly convertPoints, never a parallel implementation.
       expect(source.destinationPoints).toBe(
@@ -247,7 +253,7 @@ describe("optimizeRedemptions: fixtures", () => {
     expect(result.notes.join(" ")).toMatch(/No balances/);
   });
 
-  it("funds a Hyatt stay from UR 1:1, rounded up to a 1,000 block", () => {
+  it("funds a Hyatt stay from selected Preferred UR at 4:3, rounded up to a 1,000 block", () => {
     const result = run(
       [holding("chase-ultimate-rewards", 100_000)],
       { kind: "hotel", targetProgramId: "hyatt", quantity: 3 },
@@ -259,13 +265,13 @@ describe("optimizeRedemptions: fixtures", () => {
     expect(plan.sources).toHaveLength(1);
     expect(plan.sources[0]).toMatchObject({
       providerId: "chase-ultimate-rewards",
-      pointsUsed: 24_000,
+      pointsUsed: 32_000,
       destinationPoints: 24_000,
       bonus: null,
     });
     expect(plan.steps.map((s) => s.kind)).toEqual(["transfer", "book"]);
-    expect(plan.steps[0]!.text).toContain("Transfer 24,000");
-    expect(plan.steps[0]!.text).toContain("1:1");
+    expect(plan.steps[0]!.text).toContain("Transfer 32,000");
+    expect(plan.steps[0]!.text).toContain("4:3");
     expect(plan.steps[1]!.text).toContain("x3 nights");
   });
 
@@ -277,10 +283,10 @@ describe("optimizeRedemptions: fixtures", () => {
       [b],
     );
     const plan = result.plans.find((p) => p.spotId === "hyatt-cat1-4-standard")!;
-    // 18,000 -> 23,400 (< 24,000); 19,000 -> 24,700 (>= 24,000).
-    expect(plan.sources[0]!.pointsUsed).toBe(19_000);
-    expect(plan.sources[0]!.destinationPoints).toBe(24_700);
-    expect(plan.surplusDestinationPoints).toBe(700);
+    // 24,000 -> 23,400 (< 24,000); 25,000 -> 24,375 (>= 24,000).
+    expect(plan.sources[0]!.pointsUsed).toBe(25_000);
+    expect(plan.sources[0]!.destinationPoints).toBe(24_375);
+    expect(plan.surplusDestinationPoints).toBe(375);
     expect(plan.steps[0]!.text).toContain("+30% bonus until 2026-10-31");
     expect(plan.steps[0]!.text).toContain("unverified");
     expect(plan.caveats.join(" ")).toMatch(/bonus is not yet verified/);
@@ -331,7 +337,7 @@ describe("optimizeRedemptions: fixtures", () => {
       (p) => p.spotId === "hyatt-cat1-4-standard",
     )!;
     expect(plan.sources[0]).toMatchObject({ providerId: "hyatt", direct: true, pointsUsed: 5_000 });
-    expect(plan.sources[1]).toMatchObject({ providerId: "chase-ultimate-rewards", pointsUsed: 11_000 });
+    expect(plan.sources[1]).toMatchObject({ providerId: "chase-ultimate-rewards", pointsUsed: 15_000 });
     expect(plan.steps[0]!.kind).toBe("use");
   });
 

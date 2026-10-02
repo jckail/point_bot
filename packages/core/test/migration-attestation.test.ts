@@ -34,10 +34,10 @@ function database(rows: { hash: string; created_at: string | number }[], hasJour
     if (text.includes("pg_advisory_unlock(")) locked = false;
     const tables = Object.values(applicationSchema).flatMap(table => is(table, PgTable) ? [getTableConfig(table)] : []);
     if (text.includes("AS schema_name")) return [{ schema_name: "public" }];
-    if (text.includes("pg_attribute")) return tables.flatMap(table => table.columns.map(column => ({ table_name: table.name, column_name: column.name, row_security: missing !== "rls" || table.name !== "award_watch" })))
+    if (text.includes("pg_attribute")) return tables.flatMap(table => table.columns.map(column => ({ table_name: table.name, column_name: column.name, type_name: missing === "card_type" && column.name === "card_product_id" ? "text" : column.getSQLType() === "varchar(64)" ? "character varying(64)" : column.getSQLType(), not_null: missing === "card_nullability" && column.name === "card_product_id" ? true : column.notNull, row_security: missing !== "rls" || table.name !== "award_watch" })))
       .filter(row => missing !== "table" || row.table_name !== "award_watch").filter(row => missing !== "column" || row.table_name !== "loyalty_account" || row.column_name !== "notes");
     if (text.includes("pg_constraint")) return [
-      ...tables.flatMap(table => table.checks.map(check => ({ table_name: table.name, name: check.name, type: "c" }))),
+      ...tables.flatMap(table => table.checks.map(check => ({ table_name: table.name, name: check.name, type: "c", validated: !(missing === "card_check" && check.name === "loyalty_account_card_product_check") }))),
       { table_name: "agent_observation", name: "agent_observation_owned_account_fk", type: "f" },
       { table_name: "trip_goal_account", name: "trip_goal_account_owned_goal_fk", type: "f" },
       { table_name: "trip_goal_account", name: "trip_goal_account_owned_account_fk", type: "f" },
@@ -133,7 +133,7 @@ describe("managed migration manifest and journal attestation", () => {
     await expect(migrateWithLock(d.db, { migrationsFolder: f.directory }, { expectedManifestSha256: f.manifest.manifestSha256, verifyApplicationSchema: true })).resolves.toMatchObject({ schemaVerified: true });
     expect(d.calls.findIndex(call => call.includes("pg_attribute"))).toBeGreaterThan(d.calls.lastIndexOf("journal"));
   });
-  it.each(["table", "column", "check", "fk", "trigger", "rls"])("refuses physical %s drift despite an intact journal", async missing => {
+  it.each(["table", "column", "check", "fk", "trigger", "rls", "card_type", "card_nullability", "card_check"])("refuses physical %s drift despite an intact journal", async missing => {
     const f = await files(); const d = database([{ hash: f.manifest.entries[0]!.hash, created_at: "1900000000000" }], true, false, missing);
     const onAttested = vi.fn();
     await expect(migrateWithLock(d.db, { migrationsFolder: f.directory }, { expectedManifestSha256: f.manifest.manifestSha256, verifyApplicationSchema: true, onAttested })).rejects.toThrow("Managed physical schema does not satisfy");

@@ -111,3 +111,6 @@ export * from "./composition/loyalty-module";
 export * from "./composition/agent-module";
 export * from "./composition/adapters";
 export * from "./observability";
+
+export * from "./domain/loyalty/card-products";
+export * from "./domain/loyalty/transfer-eligibility";

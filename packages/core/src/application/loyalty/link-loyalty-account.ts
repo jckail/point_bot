@@ -1,3 +1,4 @@
+import type { CardProductId } from "../../domain/loyalty/card-products";
 import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
 import { DuplicateLoyaltyAccountError } from "../../domain/errors";
@@ -15,6 +16,7 @@ import type { LoyaltyAccountId, UserId } from "../../domain/shared/ids";
 export interface LinkLoyaltyAccountInput {
   readonly userId: UserId;
   readonly providerId: string;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   /**
    * Opaque pointer into the user's credential vault (1Password item id,
@@ -52,6 +54,7 @@ export class LinkLoyaltyAccount {
       providerId: input.providerId,
       membershipNumber: input.membershipNumber,
       credentialRef: input.credentialRef,
+      cardProductId: input.cardProductId,
       now: this.clock.now(),
     });
 

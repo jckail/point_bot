@@ -58,6 +58,7 @@ export function toLoyaltyAccountReadModel(
       inactivityExpiryMonths: provider.inactivityExpiryMonths,
     },
     membershipNumber: account.membershipNumber,
+    cardProductId: account.cardProductId ?? null,
     hasStoredCredential: account.credentialRef !== null,
     latestBalance: latest ? toBalanceReadModel(latest) : null,
     // Value uses the user's override when set, else the editorial estimate.

@@ -1,3 +1,4 @@
+import type { CardProductId } from "../../domain/loyalty/card-products";
 import { createDomainEvent } from "../../domain/events";
 import { noopEventing, type Eventing } from "../events/ports";
 import {
@@ -19,6 +20,7 @@ export interface UpdateLoyaltyAccountInput {
   readonly userId: UserId;
   readonly accountId: LoyaltyAccountId;
   /** New membership number; omit to leave unchanged. */
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber?: string;
   /** New credential ref; `null` clears it, omit to leave unchanged. */
   readonly credentialRef?: string | null;
@@ -63,6 +65,7 @@ export class UpdateLoyaltyAccount {
       {
         membershipNumber: input.membershipNumber,
         credentialRef: input.credentialRef,
+      cardProductId: input.cardProductId,
         expiresAt: input.expiresAt,
         notes: input.notes,
         tags: input.tags,
@@ -75,6 +78,7 @@ export class UpdateLoyaltyAccount {
     // leave the aggregate.
     const changed = (
       [
+        "cardProductId",
         "membershipNumber",
         "credentialRef",
         "expiresAt",
@@ -84,7 +88,7 @@ export class UpdateLoyaltyAccount {
       ] as const
     ).filter((field) => input[field] !== undefined);
     await this.eventing.unitOfWork.run(async () => {
-      await this.accounts.update(updated);
+      await this.accounts.update(updated, { cardProductId: input.cardProductId });
       await recordActivity(this.activity, {
         userId: input.userId,
         type: "account_updated",

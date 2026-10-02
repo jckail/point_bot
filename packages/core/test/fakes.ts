@@ -1,3 +1,4 @@
+import type { CardProductId } from "../src/domain/loyalty/card-products";
 import type { AccessTokenId, AwardWatchId, ConsentId, LoyaltyAccountId, ObservationId, ShareId, TransferBonusId, TripGoalId, UserId } from "../src/domain/shared/ids";
 import type { ActivityEvent } from "../src/domain/loyalty/activity";
 import type { BalanceSnapshot } from "../src/domain/loyalty/balance-snapshot";
@@ -114,8 +115,12 @@ export class InMemoryLoyaltyAccountRepository
     this.rows.set(account.id, account);
   }
 
-  async update(account: LoyaltyAccount): Promise<void> {
-    this.rows.set(account.id, account);
+  async update(account: LoyaltyAccount, selection?: { readonly cardProductId?: CardProductId | null }): Promise<void> {
+    this.rows.set(account.id, {
+      ...account,
+      cardProductId: selection?.cardProductId !== undefined
+        ? selection.cardProductId : this.rows.get(account.id)?.cardProductId ?? null,
+    });
   }
 
   async delete(id: LoyaltyAccountId): Promise<void> {

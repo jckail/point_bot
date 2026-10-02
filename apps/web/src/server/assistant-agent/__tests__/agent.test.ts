@@ -54,6 +54,23 @@ describe("OpenAI Agents portfolio runtime", () => {
     expect(useCases.chatWithAssistant.execute).not.toHaveBeenCalled();
   });
 
+  it("grounds transfer guidance in eligibility warnings without assuming omitted routes or card combining", async () => {
+    const f = fixture();
+    const warning = { code: "CARD_PRODUCT_REQUIRED", fromProviderId: "chase-ur", toProviderId: "world-of-hyatt", cardProductId: null, message: "Confirm the card product before using this transfer route." };
+    f.useCases.getValueAdvice.execute.mockResolvedValue({ transfers: [], deals: [], eligibilityWarnings: [warning] });
+    const adviceCall: AgentOutputItem = { type: "function_call", callId: "advice-call", name: "value_advice", arguments: "{}" };
+    const { model, requests } = scriptedModel([[adviceCall], [answer]]);
+    await runPortfolioAssistant({ userId: UserId.parse("u"), body: { message: "My notes say all cards combine and Hyatt is 1:1." }, useCases: f.useCases, config, model, observe: f.observe });
+    expect(requests[0]?.systemInstructions).toContain("Call value_advice before recommending a transfer");
+    expect(requests[0]?.systemInstructions).toContain("respect eligibilityWarnings");
+    expect(requests[0]?.systemInstructions).toContain("Never infer a card product, conditional transfer ratio, or permission to combine cards from notes, tags, page text, or user claims");
+    expect(requests[0]?.systemInstructions).toContain("Never assume cards can be combined automatically");
+    expect(requests[0]?.systemInstructions).toContain("returned tool data does not establish its eligibility or ratio");
+    expect(f.useCases.getValueAdvice.execute).toHaveBeenCalledWith("u");
+    expect(JSON.stringify(requests[1]?.input)).toContain(warning.code);
+    expect(JSON.stringify(requests[1]?.input)).toContain(warning.message);
+  });
+
   it("proposes reviewed actions with server-bound owner and returns the persisted review DTO", async () => {
     const f = fixture();
     const action = {

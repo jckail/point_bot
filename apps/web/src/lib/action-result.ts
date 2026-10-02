@@ -16,6 +16,7 @@ const DOMAIN_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   PROVIDER_NOT_SUPPORTED: "That program isn't supported yet.",
   DUPLICATE_LOYALTY_ACCOUNT: "You've already linked this program.",
   LOYALTY_ACCOUNT_NOT_FOUND: "We couldn't find that account.",
+  INVALID_CARD_PRODUCT: "Choose a transfer card that belongs to this program, or Unknown.",
   INVALID_MEMBERSHIP_NUMBER: "Membership number can't be empty.",
   INVALID_BALANCE: "Balance must be a whole, non-negative number.",
   INVALID_CAPTURE_TIME: "The date can't be in the future.",

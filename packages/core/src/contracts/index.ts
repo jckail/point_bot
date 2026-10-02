@@ -1,3 +1,4 @@
+import { CARD_PRODUCT_IDS } from "../domain/loyalty/card-products";
 import { z } from "zod";
 import { assistantActionDtoSchema } from "../domain/assistant/actions";
 
@@ -42,6 +43,8 @@ export const isoDateTimeSchema = z.iso.datetime();
 
 // ─── Schemas ───────────────────────────────────────────────────────────────
 
+export const cardProductIdSchema = z.enum(CARD_PRODUCT_IDS);
+
 export const providerKindSchema = z.enum(PROVIDER_KINDS);
 
 export const providerDtoSchema = z.object({
@@ -77,6 +80,7 @@ export const loyaltyAccountDtoSchema = z.object({
   id: z.string(),
   provider: providerDtoSchema,
   membershipNumber: z.string(),
+  cardProductId: cardProductIdSchema.nullable(),
   hasStoredCredential: z.boolean(),
   latestBalance: balanceDtoSchema.nullable(),
   /** Approximate USD value of the latest balance, in whole cents. */
@@ -96,6 +100,7 @@ export const linkLoyaltyAccountRequestSchema = z
   .object({
     providerId: z.string().min(1),
     membershipNumber: z.string().min(1),
+    cardProductId: cardProductIdSchema.nullish(),
     credentialRef: z.string().min(1).nullish(),
   })
   .strict();
@@ -120,6 +125,7 @@ export const syncLoyaltyAccountRequestSchema = z
 export const updateLoyaltyAccountRequestSchema = z
   .object({
     membershipNumber: z.string().min(1).optional(),
+    cardProductId: cardProductIdSchema.nullish(),
     /** `null` clears the stored credential reference. */
     credentialRef: z.string().min(1).nullish(),
     /** ISO UTC expiry; `null` clears it. */
@@ -315,6 +321,7 @@ export const HTTP_STATUS_BY_ERROR_CODE = {
   INVALID_ID: 422,
   PROVIDER_NOT_SUPPORTED: 422,
   INVALID_MEMBERSHIP_NUMBER: 422,
+  INVALID_CARD_PRODUCT: 400,
   INVALID_VALUATION: 422,
   INVALID_DISPLAY_CURRENCY: 422,
   INVALID_AWARD_WATCH: 422,
@@ -438,6 +445,7 @@ export function toLoyaltyAccountDto(
     id: account.id,
     provider: toProviderDto(account.provider),
     membershipNumber: account.membershipNumber,
+    cardProductId: account.cardProductId ?? null,
     hasStoredCredential: account.hasStoredCredential,
     latestBalance: account.latestBalance
       ? toBalanceDto(account.latestBalance)
@@ -496,6 +504,7 @@ export function toPortfolioExportCsv(
     "source",
     "capturedAt",
     "estimatedValueCents",
+    "cardProductId",
   ].join(",");
 
   const rows: string[] = [header];
@@ -513,6 +522,7 @@ export function toPortfolioExportCsv(
           "",
           "",
           String(account.estimatedValueCents),
+          account.cardProductId ?? "",
         ].join(","),
       );
       continue;
@@ -529,6 +539,7 @@ export function toPortfolioExportCsv(
           snap.source,
           snap.capturedAt.toISOString(),
           String(account.estimatedValueCents),
+          account.cardProductId ?? "",
         ].join(","),
       );
     }
@@ -819,6 +830,16 @@ export const rankedDealDtoSchema = z.object({
   score: z.number(),
 });
 
+export const transferEligibilityWarningDtoSchema = z.object({
+  code: z.enum(["CARD_PRODUCT_REQUIRED", "CARD_PRODUCT_UNVERIFIED", "TRANSFER_RULE_NOT_EFFECTIVE"]),
+  fromProviderId: z.string(), toProviderId: z.string(),
+  cardProductId: cardProductIdSchema.nullable(), message: z.string(),
+});
+export const transferEligibilityDtoSchema = z.object({
+  ruleId: z.string(), sourceUrl: z.string().nullable(), effectiveFrom: z.string().nullable(),
+  evaluatedAt: isoDateTimeSchema, cardProductId: cardProductIdSchema.nullable(),
+});
+
 export const transferOptionDtoSchema = z.object({
   fromProviderId: z.string(),
   fromDisplayName: z.string(),
@@ -831,9 +852,13 @@ export const transferOptionDtoSchema = z.object({
   bonusMultiplier: z.number(),
   bonusLabel: z.string().nullable(),
   notes: z.string().nullable(),
+  ratioFrom: z.number().positive().optional(),
+  ratioTo: z.number().positive().optional(),
+  eligibility: transferEligibilityDtoSchema.optional(),
 });
 
 export const valueAdviceDtoSchema = z.object({
+  eligibilityWarnings: z.array(transferEligibilityWarningDtoSchema).optional(),
   transfers: z.array(transferOptionDtoSchema),
   deals: z.array(rankedDealDtoSchema),
 });
@@ -898,6 +923,9 @@ export function toTransferOptionDto(
     bonusMultiplier: option.bonusMultiplier,
     bonusLabel: option.bonusLabel,
     notes: option.edge.notes ?? null,
+    ratioFrom: option.edge.ratioFrom,
+    ratioTo: option.edge.ratioTo,
+    eligibility: option.edge.eligibility,
   };
 }
 
@@ -906,6 +934,7 @@ export function toValueAdviceDto(
 ): ValueAdviceDto {
   return {
     transfers: advice.transfers.map(toTransferOptionDto),
+    eligibilityWarnings: [...(advice.eligibilityWarnings ?? [])],
     deals: advice.deals.map(toRankedDealDto),
   };
 }

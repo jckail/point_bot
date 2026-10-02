@@ -30,6 +30,7 @@ export function PATCH(request: Request, context: Context) {
       userId,
       accountId: LoyaltyAccountId.parse(id),
       membershipNumber: body.membershipNumber,
+      cardProductId: body.cardProductId,
       credentialRef: body.credentialRef,
       expiresAt:
         body.expiresAt === undefined

@@ -42,3 +42,14 @@ External gates remain: valid AWS login and deployment-role secret, verified acco
 Root installed the pinned asset publisher through serialized `npm ci`; actual version is 4.7.3. Infrastructure types and 25 CDK/configuration tests passed before the final IAM/helper refinements. Full workspace lint/types passed. Eight isolated PostgreSQL tests passed, including hash/timestamp drift before DDL, fresh manifests, exact post-migration journal/lock attestation, legacy tables without history, and unrelated-table handling. Final helper, infrastructure and committed-head aggregate evidence is recorded in [integration status](integration-status.md) and [release backlog](release-backlog.md); earlier runtime CI evidence must not be reused as proof of these new deployment changes.
 
 Graphify was queried but has no PointUp code coverage; live source is authoritative. Agent Hub has no configured memory scope for this worktree, so curated repository notes provide continuity. These limitations do not justify replacing the shared graph or uploading private transcripts.
+
+## Card selection rollout (0021)
+
+Apply `0021_card_product` before deploying new account writers. It adds a nullable
+`varchar(64)` selection with a validated provider/product compatibility CHECK;
+existing accounts remain unknown without inferred backfill. Candidate readiness
+requires the column, its type/nullability and the CHECK alongside the complete
+managed journal. It is a bounded physical contract, not a full schema-equivalence
+proof. Confirm the rule on actual issuer accounts and retire older web/worker/MCP
+versions that calculate unconditional Chase→Hyatt yields. Unknown or unverified
+cards now exclude this route; communicate the account Details selection path.

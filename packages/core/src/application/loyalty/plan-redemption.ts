@@ -47,6 +47,7 @@ export function toHoldings(
 ): Holding[] {
   return accounts.map((account) => ({
     providerId: account.provider.id,
+    cardProductId: account.cardProductId ?? null,
     points: account.latestBalance?.points ?? 0,
     centsPerPoint:
       account.customCentsPerPoint ?? account.provider.estimatedCentsPerPoint,

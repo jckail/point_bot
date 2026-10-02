@@ -25,6 +25,7 @@ export function POST(request: Request) {
       userId,
       providerId: body.providerId,
       membershipNumber: body.membershipNumber,
+      cardProductId: body.cardProductId,
       credentialRef: body.credentialRef,
     });
     return NextResponse.json(result, { status: 201 });

@@ -48,13 +48,14 @@ describe("transfer partner graph", () => {
       100_000,
       [hyattBonus],
       now,
+      { cardProductId: "chase-sapphire-preferred" },
     );
     const hyatt = options.find((o) => o.to.id === "hyatt");
     const marriott = options.find((o) => o.to.id === "marriott");
     expect(hyatt).toBeDefined();
     expect(marriott).toBeDefined();
     expect(hyatt!.bonusMultiplier).toBe(1.3);
-    expect(hyatt!.destinationPoints).toBe(130_000);
+    expect(hyatt!.destinationPoints).toBe(97_500);
     expect(hyatt!.bonusLabel).toBe("+30% bonus until 2026-10-31");
     expect(hyatt!.effectiveCentsPerPoint).toBeGreaterThan(
       marriott!.effectiveCentsPerPoint,
@@ -70,6 +71,7 @@ describe("transfer partner graph", () => {
       100_000,
       [hyattBonus],
       new Date("2026-11-15T00:00:00Z"),
+      { cardProductId: "chase-sapphire-preferred" },
     );
     expect(options.find((o) => o.to.id === "hyatt")!.bonusMultiplier).toBe(1);
   });

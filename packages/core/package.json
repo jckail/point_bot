@@ -11,7 +11,8 @@
     "./observability": "./src/observability/index.ts",
     "./providers": "./src/domain/loyalty/provider.ts",
     "./db/schema": "./src/infrastructure/db/schema.ts",
-    "./assistant-actions": "./src/assistant-actions.ts"
+    "./assistant-actions": "./src/assistant-actions.ts",
+    "./card-products": "./src/domain/loyalty/card-products.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

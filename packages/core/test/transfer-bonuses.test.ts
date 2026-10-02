@@ -108,7 +108,8 @@ async function seedUser(points: Record<string, number>, daysAgo = 0) {
   const balances = new InMemoryBalanceSnapshotRepository();
   const valuations = new InMemoryCustomValuationRepository();
   for (const [providerId, p] of Object.entries(points)) {
-    const account = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "M1" });
+    const account = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "M1",
+      cardProductId: providerId === "chase-ultimate-rewards" ? "chase-sapphire-preferred" : null });
     await accounts.insert(account);
     await balances.insert(
       createBalanceSnapshot({
@@ -171,8 +172,8 @@ describe("PlanRedemption / ListBestRedemptions", () => {
     await valuations.upsert({ userId: "u1", providerId: "chase-ultimate-rewards", centsPerPoint: 5, updatedAt: now } as never);
     const valued = await plan.execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 2 } });
     const pick = (r: typeof base) => r.plans.find((p) => p.spotId === "hyatt-cat1-4-standard")!;
-    expect(pick(base).opportunityCostCents).toBe(Math.round(16_000 * 1.6));
-    expect(pick(valued).opportunityCostCents).toBe(16_000 * 5);
+    expect(pick(base).opportunityCostCents).toBe(Math.round(22_000 * 1.6));
+    expect(pick(valued).opportunityCostCents).toBe(22_000 * 5);
     expect(pick(valued).netGainCents).toBeLessThan(pick(base).netGainCents);
   });
 

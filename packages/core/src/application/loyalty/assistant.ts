@@ -2,7 +2,7 @@ import {
   AssistantUnavailableError,
   InvalidAssistantMessageError,
 } from "../../domain/errors";
-import { rankTransferOptions } from "../../domain/loyalty/transfer-ranking";
+import { rankTransferAdvice } from "../../domain/loyalty/transfer-ranking";
 import type { TransferBonus } from "../../domain/loyalty/transfer-bonus";
 import {
   CATALOG_DEALS,
@@ -10,7 +10,8 @@ import {
   type RankedDeal,
 } from "../../domain/loyalty/deals";
 import { PROVIDER_CATALOG } from "../../domain/loyalty/provider";
-import type { AssistantMessage, LlmAssistant } from "../ports";
+import type { AssistantMessage, Clock, LlmAssistant } from "../ports";
+import { systemClock } from "../ports";
 import type { TripGoalReadModel } from "./create-trip-goal";
 import {
   computePortfolioSummary,
@@ -28,39 +29,42 @@ export interface AssistantPortfolioContext {
   readonly goals: readonly TripGoalReadModel[];
   /** Top transfer / redemption hints for grounding the model. */
   readonly valueHints: readonly string[];
+  readonly eligibilityWarnings: ReturnType<typeof rankTransferAdvice>["eligibilityWarnings"];
 }
 
 function buildValueHints(
   accounts: readonly LoyaltyAccountReadModel[],
   bonuses: readonly TransferBonus[],
-): string[] {
+  now: Date,
+): Pick<AssistantPortfolioContext, "valueHints" | "eligibilityWarnings"> {
   const hints: string[] = [];
+  const eligibilityWarnings: ReturnType<typeof rankTransferAdvice>["eligibilityWarnings"] = [];
   for (const account of accounts) {
     const points = account.latestBalance?.points ?? 0;
     if (points <= 0) continue;
-    const transfers = rankTransferOptions(account.provider.id, points, bonuses).slice(
-      0,
-      2,
-    );
+    const advice = rankTransferAdvice(account.provider.id, points, bonuses, now, { cardProductId: account.cardProductId ?? null });
+    eligibilityWarnings.push(...advice.eligibilityWarnings);
+    const transfers = advice.options.slice(0, 2);
     for (const option of transfers) {
       hints.push(
         `${account.provider.displayName} ${points.toLocaleString("en-US")} → ${option.destinationPoints.toLocaleString("en-US")} ${option.to.displayName} (~${option.effectiveCentsPerPoint}¢/pt${option.bonusLabel ? `, ${option.bonusLabel}` : ""})`,
       );
     }
   }
-  return hints.slice(0, 8);
+  return { valueHints: hints.slice(0, 8), eligibilityWarnings };
 }
 
 export function assembleAssistantContext(
   accounts: readonly LoyaltyAccountReadModel[],
   goals: readonly TripGoalReadModel[],
   bonuses: readonly TransferBonus[] = [],
+  now: Date = new Date(),
 ): AssistantPortfolioContext {
   return {
     summary: computePortfolioSummary(accounts),
     accounts,
     goals: goals.filter((goal) => goal.status === "active"),
-    valueHints: buildValueHints(accounts, bonuses),
+    ...buildValueHints(accounts, bonuses, now),
   };
 }
 
@@ -89,6 +93,10 @@ function formatContextBlock(context: AssistantPortfolioContext): string {
       lines.push(`- ${hint}`);
     }
   }
+  if (context.eligibilityWarnings.length > 0) {
+    lines.push("Transfer eligibility warnings (do not invent a ratio or transfer access):");
+    for (const warning of context.eligibilityWarnings) lines.push(`- ${warning.message}`);
+  }
   return lines.join("\n");
 }
 
@@ -98,7 +106,8 @@ Prioritize: (1) avoiding expirations, (2) transfer bonuses and high cents-per-po
 Never invent balances. Use only the portfolio context provided.
 Never ask for or repeat passwords or membership secrets beyond what is already in context.
 Keep answers short (under ~180 words) with concrete next steps.
-When recommending transfers, name the source and destination programs and approximate value.`;
+When recommending transfers, name the source and destination programs and approximate value.
+Use only eligible transfer hints. If card eligibility or its transfer rule is unknown, explain the warning and ask the user to confirm their transfer card; never assume a ratio or combine cards automatically.`;
 
 export interface ChatWithAssistantInput {
   readonly userId: UserId;
@@ -121,6 +130,7 @@ export class ChatWithAssistant {
     private readonly listGoals: ListTripGoals,
     private readonly llm: LlmAssistant,
     private readonly bonuses?: ListActiveTransferBonuses,
+    private readonly clock: Clock = systemClock,
   ) {}
 
   async execute(
@@ -136,7 +146,7 @@ export class ChatWithAssistant {
       this.listGoals.execute(input.userId),
       this.bonuses?.execute(input.userId) ?? Promise.resolve([]),
     ]);
-    const context = assembleAssistantContext(accounts, goals, bonuses);
+    const context = assembleAssistantContext(accounts, goals, bonuses, this.clock.now());
     const history = (input.history ?? [])
       .filter((m) => m.role === "user" || m.role === "assistant")
       .slice(-8);
@@ -154,8 +164,9 @@ export class ChatWithAssistant {
 }
 
 export interface ValueAdviceReadModel {
-  readonly transfers: ReturnType<typeof rankTransferOptions>;
+  readonly transfers: ReturnType<typeof rankTransferAdvice>["options"];
   readonly deals: RankedDeal[];
+  readonly eligibilityWarnings: ReturnType<typeof rankTransferAdvice>["eligibilityWarnings"];
 }
 
 /**
@@ -166,6 +177,7 @@ export class GetValueAdvice {
   constructor(
     private readonly listAccounts: ListLoyaltyAccounts,
     private readonly bonuses?: ListActiveTransferBonuses,
+    private readonly clock: Clock = systemClock,
   ) {}
 
   async execute(
@@ -181,16 +193,19 @@ export class GetValueAdvice {
       balances.set(account.provider.id, account.latestBalance?.points ?? 0);
     }
 
-    const transfers = accounts
-      .flatMap((account) =>
-        rankTransferOptions(
-          account.provider.id,
-          account.latestBalance?.points ?? 0,
-          bonuses,
-        ).slice(0, 3),
-      )
+    const now = this.clock.now();
+    const advice = accounts.map((account) => rankTransferAdvice(
+      account.provider.id,
+      account.latestBalance?.points ?? 0,
+      bonuses,
+      now,
+      { cardProductId: account.cardProductId ?? null },
+    ));
+    const transfers = advice
+      .flatMap((entry) => entry.options.slice(0, 3))
       .sort((a, b) => b.effectiveCentsPerPoint - a.effectiveCentsPerPoint)
       .slice(0, 10);
+    const eligibilityWarnings = advice.flatMap((entry) => entry.eligibilityWarnings);
 
     const editorial = new Map(
       PROVIDER_CATALOG.map((p) => [p.id, p.estimatedCentsPerPoint] as const),
@@ -201,6 +216,6 @@ export class GetValueAdvice {
       editorial,
     );
 
-    return { transfers, deals };
+    return { transfers, deals, eligibilityWarnings };
   }
 }

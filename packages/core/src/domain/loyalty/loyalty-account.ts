@@ -1,3 +1,4 @@
+import { normalizeCardProductId, type CardProductId } from "./card-products";
 import {
   InvalidMembershipNumberError,
   InvalidAccountNotesError,
@@ -24,6 +25,7 @@ export interface LoyaltyAccount {
   readonly id: LoyaltyAccountId;
   readonly userId: UserId;
   readonly providerId: ProviderId;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly credentialRef: string | null;
   /**
@@ -49,6 +51,7 @@ export interface LoyaltyAccount {
 export interface NewLoyaltyAccount {
   readonly userId: UserId;
   readonly providerId: string;
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber: string;
   readonly credentialRef?: string | null;
   /** Override the catalog-projected expiry; omit to project from `now`. */
@@ -121,6 +124,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
     id: input.id ?? LoyaltyAccountId.generate(),
     userId: input.userId,
     providerId,
+    cardProductId: normalizeCardProductId(providerId, input.cardProductId),
     membershipNumber: normalizeMembershipNumber(input.membershipNumber),
     credentialRef: input.credentialRef ?? null,
     expiresAt,
@@ -135,6 +139,7 @@ export function createLoyaltyAccount(input: NewLoyaltyAccount): LoyaltyAccount {
 
 export interface LoyaltyAccountChanges {
   /** New membership number; omit to leave unchanged. */
+  readonly cardProductId?: CardProductId | null;
   readonly membershipNumber?: string;
   /** New credential ref; `null` clears it, omit to leave unchanged. */
   readonly credentialRef?: string | null;
@@ -160,6 +165,9 @@ export function applyLoyaltyAccountChanges(
 ): LoyaltyAccount {
   return {
     ...account,
+    cardProductId: changes.cardProductId !== undefined
+      ? normalizeCardProductId(account.providerId, changes.cardProductId)
+      : normalizeCardProductId(account.providerId, account.cardProductId),
     membershipNumber:
       changes.membershipNumber !== undefined
         ? normalizeMembershipNumber(changes.membershipNumber)

@@ -86,7 +86,8 @@ describe("optimizer wire contracts", () => {
       ["chase-ultimate-rewards", 120_000],
       ["amex-membership-rewards", 4_000],
     ] as const) {
-      const a = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "x" });
+      const a = createLoyaltyAccount({ userId: asUserId("u1"), providerId, membershipNumber: "x",
+        cardProductId: providerId === "chase-ultimate-rewards" ? "chase-sapphire-preferred" : null });
       await accounts.insert(a);
       await balances.insert(
         createBalanceSnapshot({ loyaltyAccountId: a.id, points, source: "manual", capturedAt: now }),
@@ -121,6 +122,30 @@ describe("optimizer wire contracts", () => {
     expect(parsed.plans.some((p) => p.status === "shortfall")).toBe(true);
     expect(parsed.plans.every((p) => p.availability === null)).toBe(true);
     expect(parsed.plans.some((p) => p.sources.some((s) => s.bonus?.verified === false))).toBe(true);
+    const eligibleSource = parsed.plans.flatMap(plan => plan.sources).find(source => source.eligibility?.ruleId === "chase-hyatt-affected-2026-10-01");
+    expect(eligibleSource).toMatchObject({ ratioFrom: 4, ratioTo: 3, eligibility: {
+      cardProductId: "chase-sapphire-preferred", effectiveFrom: "2026-10-01T00:00:00.000Z", evaluatedAt: now.toISOString(),
+    } });
+  });
+
+  it("serializes unknown-card warnings while withholding conditional funding", async () => {
+    const accounts = new InMemoryLoyaltyAccountRepository();
+    const balances = new InMemoryBalanceSnapshotRepository();
+    const account = createLoyaltyAccount({ userId: asUserId("u1"), providerId: "chase-ultimate-rewards", membershipNumber: "x" });
+    await accounts.insert(account);
+    await balances.insert(createBalanceSnapshot({ loyaltyAccountId: account.id, points: 40000, source: "manual", capturedAt: now }));
+    const clock = { now: () => now };
+    const result = await new PlanRedemption(new ListLoyaltyAccounts(accounts, balances, clock),
+      new ListActiveTransferBonuses(new InMemoryTransferBonusRepository(), clock), new StubAwardAvailabilitySource(), clock)
+      .execute({ userId: asUserId("u1"), goal: { kind: "hotel", targetProgramId: "hyatt", quantity: 1 } });
+    const parsed = planRedemptionResultDtoSchema.parse(toPlanRedemptionResultDto(result));
+    expect(parsed.eligibilityWarnings).toEqual([{ code: "CARD_PRODUCT_REQUIRED", fromProviderId: "chase-ultimate-rewards",
+      toProviderId: "hyatt", cardProductId: null, message: expect.stringMatching(/Select.*card/) }]);
+    expect(parsed.plans.length).toBeGreaterThan(0);
+    for (const plan of parsed.plans) {
+      expect(plan).toMatchObject({ status: "shortfall", destinationPointsProvided: 0, sources: [], eligibilityWarnings: parsed.eligibilityWarnings });
+      expect(plan.shortfall?.coverage.some(hint => hint.providerId === "chase-ultimate-rewards")).toBe(false);
+    }
   });
 
   it("parses the query string: coerces numbers and requires the award fields together", () => {

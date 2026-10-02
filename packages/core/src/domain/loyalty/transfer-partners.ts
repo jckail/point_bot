@@ -1,7 +1,8 @@
 import { applyBonusPermille } from "./bonus-math";
 import { InvalidBalanceError } from "../errors";
 import { checkedPointRatio, exactPoints } from "../shared/point-math";
-import type { ProviderId } from "./provider";
+import { assertTransferCalculationAllowed, type TransferEdge } from "./transfer-eligibility";
+export type { TransferEdge } from "./transfer-eligibility";
 
 /**
  * Transfer partner graph: card currencies → airline/hotel programs.
@@ -9,20 +10,6 @@ import type { ProviderId } from "./provider";
  * are real data (see transfer-bonus.ts) passed in by the caller; this module
  * never invents any.
  */
-
-export interface TransferEdge {
-  readonly fromProviderId: ProviderId;
-  readonly toProviderId: ProviderId;
-  /** Source points required per destination point (usually 1). */
-  readonly ratioFrom: number;
-  /** Destination points received per ratioFrom source points (usually 1). */
-  readonly ratioTo: number;
-  readonly notes?: string;
-  /** Minimum source points per transfer, when the program publishes one. */
-  readonly minimumSourcePoints?: number;
-  /** Source points must be a multiple of this, when published. */
-  readonly incrementSourcePoints?: number;
-}
 
 /** Rational ratio (destination points per source point) in lowest terms. */
 export interface Ratio {
@@ -42,6 +29,7 @@ function gcd(a: number, b: number): number {
  * ratios (1:1.5) are scaled by 1000 and reduced, so all later math is integer.
  */
 export function edgeRatio(edge: TransferEdge): Ratio {
+  assertTransferCalculationAllowed(edge);
   if (!Number.isFinite(edge.ratioTo) || !Number.isFinite(edge.ratioFrom) || edge.ratioTo <= 0 || edge.ratioFrom <= 0) {
     throw new InvalidBalanceError();
   }
@@ -70,7 +58,7 @@ export const TRANSFER_EDGES: readonly TransferEdge[] = [
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "marriott", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "ihg-one-rewards", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "chase-ultimate-rewards", toProviderId: "wyndham-rewards", ratioFrom: 1, ratioTo: 1 },
-  { fromProviderId: "chase-ultimate-rewards", toProviderId: "hyatt", ratioFrom: 1, ratioTo: 1, notes: "1:1 for Sapphire Reserve and legacy cardholders; reported 4:3 for newer Sapphire Preferred and Ink Business Preferred accounts from 2026 - verify on your card." },
+  { fromProviderId: "chase-ultimate-rewards", toProviderId: "hyatt", ratioFrom: 4, ratioTo: 3, notes: "Conditional on selected card and verified effective date; resolve eligibility before calculating." },
   // amex-membership-rewards
   { fromProviderId: "amex-membership-rewards", toProviderId: "delta", ratioFrom: 1, ratioTo: 1 },
   { fromProviderId: "amex-membership-rewards", toProviderId: "aer-lingus-aerclub", ratioFrom: 1, ratioTo: 1 },
