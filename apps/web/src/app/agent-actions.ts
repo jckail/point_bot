@@ -5,6 +5,8 @@ import {
   AccessTokenId,
   ConsentId,
   DomainError,
+  InvalidAccessTokenRequestError,
+  isDomainError,
   isScope,
   ObservationId,
 } from "@pointup/core";
@@ -30,32 +32,52 @@ export async function createAccessTokenAction(
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
 
   const scopes = formData.getAll("scopes").map(String).filter(isScope);
-  const ttl = Number(formData.get("ttlDays") ?? "");
   try {
+    const rawTtl = formData.get("ttlDays");
+    const ttl = typeof rawTtl === "string" && rawTtl.trim() !== "" ? Number(rawTtl) : Number.NaN;
+    if (!Number.isFinite(ttl) || !Number.isInteger(ttl) || ttl < 1 || ttl > 365) {
+      throw new InvalidAccessTokenRequestError("Token lifetime must be 1-365 whole days");
+    }
     const { token, plaintext } = await getContainer().useCases.issueAccessToken.execute({
       userId,
       name: String(formData.get("name") ?? ""),
       scopes: scopes.length ? scopes : [],
-      ttlDays: Number.isFinite(ttl) && ttl > 0 ? ttl : undefined,
+      ttlDays: ttl,
     });
     revalidatePath("/dashboard/agents");
     return { status: "created", secret: plaintext, tokenId: token.id };
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       return { status: "error", message: messageForDomainError(error.code) };
     }
     throw error;
   }
 }
 
-export async function revokeAccessTokenAction(formData: FormData): Promise<void> {
+async function toAgentActionResult(run: () => Promise<void>): Promise<ActionResult> {
+  try {
+    await run();
+    return { status: "success" };
+  } catch (error) {
+    if (isDomainError(error)) return { status: "error", message: messageForDomainError(error.code) };
+    throw error;
+  }
+}
+
+export async function revokeAccessTokenAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
-  await getContainer().useCases.revokeAccessToken.execute(
-    userId,
-    AccessTokenId.parse(String(formData.get("tokenId") ?? "")),
-  );
-  revalidatePath("/dashboard/agents");
+  if (!userId) return { status: "error", message: "Your session expired - sign in again." };
+  const result = await toAgentActionResult(async () => {
+    await getContainer().useCases.revokeAccessToken.execute(
+      userId,
+      AccessTokenId.parse(String(formData.get("tokenId") ?? "")),
+    );
+  });
+  if (result.status === "success") revalidatePath("/dashboard/agents");
+  return result;
 }
 
 export async function grantConsentAction(
@@ -80,14 +102,20 @@ export async function grantConsentAction(
   }
 }
 
-export async function revokeConsentAction(formData: FormData): Promise<void> {
+export async function revokeConsentAction(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
-  await getContainer().useCases.revokeConsent.execute(
-    userId,
-    ConsentId.parse(String(formData.get("consentId") ?? "")),
-  );
-  revalidatePath("/dashboard/agents");
+  if (!userId) return { status: "error", message: "Your session expired - sign in again." };
+  const result = await toAgentActionResult(async () => {
+    await getContainer().useCases.revokeConsent.execute(
+      userId,
+      ConsentId.parse(String(formData.get("consentId") ?? "")),
+    );
+  });
+  if (result.status === "success") revalidatePath("/dashboard/agents");
+  return result;
 }
 
 /** Human confirmation of a reading the server held as needs_review. */

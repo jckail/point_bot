@@ -20,6 +20,9 @@ It found invalid PAT errors mapping to 500; the reviewed genuine-object identity
 passes 52 targeted tests, core/web types and lint. A restarted real app now verifies 401 invalid/revoked-token responses and preserves
 valid read 200/write-scope 403. The authentication fix is merged in [PR #50](https://github.com/jckail/point_bot/pull/50), master `a88b001b222c49ab450947d5fd5160d07580d997`, with 1,851 workspace tests plus one paid live skip and successful release/CodeQL checks. AWS deployment remains skipped for missing role configuration. The full overhaul is unfinished.
 
+The stale one-time token display fix is released in [PR #51](https://github.com/jckail/point_bot/pull/51) with 1,857 workspace tests plus one paid skip. The next Agents polish requires a 1–365 day web lifetime, gives session/ownership revocation feedback and provides a keyboard-selectable token field. It passes 41 focused cases, web types and lint; native lifecycle acceptance and release gates remain pending. See the current browser receipt for exact evidence and limitations.
+
+
 
 Pending expiry/rejection now returns safe conditional-transition receipts. The
 service audits only those receipts in list/approve/reject, including claim expiry

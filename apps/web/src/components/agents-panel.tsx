@@ -1,7 +1,7 @@
 "use client";
 
 import type { AccessTokenScope } from "@pointup/core";
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 
 import {
   createAccessTokenAction,
@@ -12,7 +12,7 @@ import {
   type CreateTokenResult,
 } from "@/app/agent-actions";
 import { FormFeedback, SubmitButton } from "@/components/form-feedback";
-import { idleActionResult } from "@/lib/action-result";
+import { idleActionResult, type ActionResult } from "@/lib/action-result";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 export type TokenRow = {
@@ -80,6 +80,29 @@ function PendingReview({ review }: { review: PendingReviewRow }) {
   );
 }
 
+function RevokeAccessForm({
+  action,
+  idField,
+  id,
+  label,
+  successMessage,
+}: {
+  action: (previous: ActionResult, data: FormData) => Promise<ActionResult>;
+  idField: "tokenId" | "consentId";
+  id: string;
+  label: string;
+  successMessage: string;
+}) {
+  const [result, formAction] = useActionState(action, idleActionResult);
+  return (
+    <form action={formAction} className="flex flex-col items-end gap-2">
+      <input type="hidden" name={idField} value={id} />
+      <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…" aria-label={label}>Revoke</SubmitButton>
+      <FormFeedback result={result} successMessage={successMessage} />
+    </form>
+  );
+}
+
 const DEFAULT_SCOPES = new Set(["portfolio:read", "portfolio:write", "observations:write"]);
 
 const input =
@@ -105,6 +128,8 @@ export function AgentsPanel({
     idleActionResult,
   );
   const [consentResult, consentAction] = useActionState(grantConsentAction, idleActionResult);
+  const tokenSecretId = useId();
+  const tokenSecretHelpId = `${tokenSecretId}-help`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,10 +165,13 @@ export function AgentsPanel({
                 {consent.providerName}{" "}
                 <span className="text-ink-faint">until {formatDate(consent.expiresAt)}</span>
               </span>
-              <form action={revokeConsentAction}>
-                <input type="hidden" name="consentId" value={consent.id} />
-                <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
-              </form>
+              <RevokeAccessForm
+                action={revokeConsentAction}
+                idField="consentId"
+                id={consent.id}
+                label={`Revoke ${consent.providerName} capture consent`}
+                successMessage="Consent revoked."
+              />
             </li>
           ))}
           {!consents.some((c) => c.active) && (
@@ -188,10 +216,13 @@ export function AgentsPanel({
                   {token.expiresAt ? ` · expires ${formatDate(token.expiresAt)}` : ""}
                 </p>
               </div>
-              <form action={revokeAccessTokenAction}>
-                <input type="hidden" name="tokenId" value={token.id} />
-                <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…">Revoke</SubmitButton>
-              </form>
+              <RevokeAccessForm
+                action={revokeAccessTokenAction}
+                idField="tokenId"
+                id={token.id}
+                label={`Revoke ${token.name} token`}
+                successMessage="Token revoked."
+              />
             </li>
           ))}
         </ul>
@@ -203,7 +234,20 @@ export function AgentsPanel({
         {created.status === "created" && !tokens.some(token => token.id === created.tokenId && token.revokedAt !== null) && (
           <div role="status" className="rounded-xl border border-positive/40 p-3 text-sm">
             <p className="font-medium text-positive">Copy your token now - it won&apos;t be shown again.</p>
-            <code className="mt-1 block break-all text-ink">{created.secret}</code>
+            <label htmlFor={tokenSecretId} className="mt-3 block font-medium text-ink">Token (shown once)</label>
+            <input
+              id={tokenSecretId}
+              type="text"
+              readOnly
+              value={created.secret}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-describedby={tokenSecretHelpId}
+              onFocus={event => event.currentTarget.select()}
+              className={`${input} mt-1 w-full font-mono text-sm`}
+            />
+            <p id={tokenSecretHelpId} className="mt-2 text-xs text-ink-muted">Keep this token private. Focus the field to select it, then copy with your keyboard.</p>
           </div>
         )}
 
@@ -222,8 +266,8 @@ export function AgentsPanel({
             ))}
           </fieldset>
           <label className="flex w-full flex-col gap-1.5 text-sm font-medium text-ink-muted sm:w-48">
-            Expires (days)
-            <input name="ttlDays" type="number" min={1} max={365} defaultValue={90} className={input} />
+            Expires (days, 1–365)
+            <input name="ttlDays" type="number" min={1} max={365} step={1} required defaultValue={90} className={input} />
           </label>
           <div><SubmitButton pendingLabel="Creating…">Create token</SubmitButton></div>
         </form>
