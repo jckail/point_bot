@@ -221,91 +221,67 @@ Errors are uniform: `{ "error": { "code": "DUPLICATE_LOYALTY_ACCOUNT", "message"
 
 ## Deploying to AWS
 
-All infrastructure is defined with the AWS CDK in [`infra/`](./infra):
+Infrastructure lives in [`infra/`](./infra). Production releases use the candidate-first helper [`scripts/deployment/rollout.mjs`](./scripts/deployment/rollout.mjs), with mandatory TLS configuration checked by [`infra/lib/rollout-config.ts`](./infra/lib/rollout-config.ts). Use the protected deployment workflow described below; directly deploying the application stack would bypass its migration and backup gates.
 
-- **VPC** with public, private (egress) and isolated subnets across two AZs
-- **RDS PostgreSQL 17** in isolated subnets, credentials auto-generated in Secrets Manager, storage encryption, 7-day backups, deletion protection
-- **ECS Fargate** service (2+ tasks, CPU-based autoscaling to 6) behind a public **Application Load Balancer** with `/api/health` health checks and deployment circuit breaker
-- **Docker image** built from the repository `Dockerfile` (monorepo-aware, standalone Next.js output) at deploy time and pushed to a CDK-managed ECR repository
-- **Secrets Manager** secret for the Clerk secret key (placeholder — set the real value after the first deploy); the Clerk publishable key is passed as a Docker build arg since it is inlined into the client bundle
-- **Scheduled worker tasks** (EventBridge → Fargate, from `Dockerfile.worker`): balance syncs every 6 hours and a weekly digest email job on Mondays
-- **SES** for digest delivery — verify a sender identity, then deploy with `-c digestFromEmail=digest@yourdomain.com` (without it the digest job logs instead of sending)
-- **CloudWatch alarms** on ALB 5xx responses and sustained service CPU
+The stack provisions a VPC, encrypted RDS PostgreSQL 17 in isolated subnets, Secrets Manager credentials, HTTPS ALB/Fargate services with health checks and deployment circuit breakers, candidate Docker assets in ECR, scheduled workers and CloudWatch alarms. Active web services start with two tasks and scale to six. An inactive first-create bootstrap instead has zero application service tasks, disabled schedules and zero scaling capacity. Database backup retention is seven days with deletion protection; high-availability changes to the database/network require a separately reviewed infrastructure rollout.
 
-```bash
-cd infra
-npm install
+Required production settings:
 
-# One-time per account/region
-npx cdk bootstrap
+| GitHub setting | Value |
+| --- | --- |
+| Secret `AWS_DEPLOY_ROLE_ARN` | Role emitted by the OIDC stack below |
+| Secret `CLERK_PUBLISHABLE_KEY` | Real `pk_live_…` key, inlined into the candidate web image |
+| Variable `AWS_REGION` | Approved deployment region; workflow default is `us-east-1` |
+| Variable `WEB_CERTIFICATE_ARN` | Approved ACM certificate in the same AWS account and region |
+| Variable `WEB_DOMAIN_NAME` | Approved public DNS hostname, without scheme, port or path |
+| Variable `APPROVED_DATABASE_SNAPSHOT_ARN` | Operator-approved RDS snapshot required for every existing-stack migration, including later bootstrap activation |
 
-# Deploy (builds and pushes the Docker image, then updates the stack)
-npx cdk deploy
-```
+The snapshot must be `available`, encrypted, completed within the preceding 24 hours, and belong to the exact live database (`DBInstanceIdentifier` and `DbiResourceId`) in the deployment account/region. Update the approved snapshot selection for each rollout; an ARN alone is not approval of an unrelated or stale backup. The helper verifies these conditions before launching migrations. Snapshot validation does not establish that a backup can be restored; verify the restore procedure separately.
 
-After the first deploy:
+The release sequence is:
 
-1. Set the real Clerk secret key in the secret printed as `ClerkSecretArn`:
+1. Run the complete reusable CI gate. Discover the approved account and stack, synthesize the candidate, publish its assets and pin task images to ECR digests. Existing-stack upgrades must preserve protected database/network properties and existing resource identities.
+2. For a first create only, prepare and verify an exact CREATE-only change set, then provision inactive resources. The helper confirms stack absence and validates that no service, schedule or scaling target becomes active. Ordinary upgrades do not update the existing stack before the migration gate.
+3. Register and run a one-off Fargate migration task using the **candidate worker digest**, existing private network and real database secret. Under the migration lock, verify the candidate migration manifest and complete managed journal. Promotion requires the matching image digest, exit code zero and matching `journal_verified` log attestation.
+4. First creation always stops at `inactive-awaiting-secret-readiness`, even if readiness was requested. Populate the real application secrets referenced by stack outputs, configure the HTTPS domain/Clerk origins and any enabled provider settings, and verify operator ownership/readiness. Generated Clerk/OpenAI/other secret placeholders are not working credentials.
+5. Activate an existing inactive bootstrap only through a later protected `workflow_dispatch` with `bootstrap_ready=true`, after explicitly attesting that production secrets and TLS/DNS configuration are ready. That later run still needs its approved fresh database snapshot and candidate migration/journal gate. Regular pushes do not activate an unready bootstrap. Existing active deployments promote only after the same candidate migration gate succeeds.
 
-   ```bash
-   aws secretsmanager put-secret-value \
-     --secret-id <ClerkSecretArn> --secret-string 'sk_live_...'
-   ```
+`bootstrap_ready` records the operator's readiness attestation; it does not test credentials, certificate issuance, DNS resolution or provider access. The workflow uploads a nonsecret `pointup-release.json` artifact recording release progress, candidate hashes/digests and migration references. Inspect the owned migration task/logs and release artifact after a failure before retrying; do not bypass the gate with a separate deployment or manual schema reset.
 
-2. Deploy with your real Clerk publishable key so it is baked into the client bundle:
+Live AWS credentials, production configuration, first-create/upgrade execution and backup restoration remain **unverified** in this project session. Offline helper/infra tests and successful CI do not establish a live deployment.
 
-   ```bash
-   npx cdk deploy -c clerkPublishableKey=pk_live_...
-   ```
+### Optional service and assistant configuration
 
-3. Run the database migrations against RDS (e.g. from a bastion host or an ECS one-off task):
+Set `ENABLE_MCP=true` together with `MCP_CERTIFICATE_ARN` and `MCP_DOMAIN_NAME` for the remote MCP service. Its certificate must also match the deployment account/region. Optional `MCP_POINTUP_URL` must be an approved HTTPS origin without credentials, path, query or fragment; otherwise it uses the configured web HTTPS origin. The stateless MCP adapter forwards each caller's own token and does not acquire browser review authority.
 
-   ```bash
-   DATABASE_URL="postgresql://..." npm run db:migrate
-   ```
+The MCP container binds `0.0.0.0`; host/origin controls remain configured by the service. `MCP_ALLOWED_HOSTS` protects against DNS rebinding; production browser origins are denied unless allowed. See [multi-surface documentation](./docs/multi-surface.md) for MCP behavior. Public production hosts require HTTPS; localhost HTTP instructions are for local development only.
 
-4. Add `http://<LoadBalancerUrl>` (or your domain) to the allowed origins in the Clerk dashboard.
+For the Telegram bot, set `ENABLE_BOT=true` with `BOT_CERTIFICATE_ARN` and `BOT_DOMAIN_NAME`; `BOT_DEFAULT_USER_ID` is optional. For aggregator integration, set `ENABLE_AGGREGATOR=true` with an approved HTTPS `AGGREGATOR_API_URL` without embedded credentials or a fragment. Feature flags accept only explicit `true` or `false` values.
 
-5. To enable digest emails, [verify a sender identity in SES](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html) (and move out of the SES sandbox for real recipients), then redeploy with:
-
-   ```bash
-   npx cdk deploy -c clerkPublishableKey=pk_live_... -c digestFromEmail=digest@yourdomain.com
-   ```
-
-For production, add an ACM certificate and a Route 53 hosted zone to `ApplicationLoadBalancedFargateService` in `infra/lib/app-stack.ts` to enable HTTPS, and consider enabling `multiAz` on the database plus a second NAT gateway.
-
-### Optional MCP server on AWS
-
-The remote MCP server (`Dockerfile.mcp`, stateless, no secrets, forwards each caller's own `pu_` token to the web API) is an opt-in CDK service, mirroring the bot:
-
-```bash
-npx cdk deploy -c enableMcp=true \
-  -c mcpCertificateArn=arn:aws:acm:...:certificate/... -c mcpDomainName=mcp.example.com \
-  -c mcpPointupUrl=https://app.example.com
-```
-
-`enableMcp` **requires** `mcpCertificateArn` and `mcpDomainName`: synth fails otherwise, because bearer tokens must not cross the ALB in clear text. In CI set the repo variables `ENABLE_MCP=true`, `MCP_CERTIFICATE_ARN`, `MCP_DOMAIN_NAME` (plus optional `MCP_POINTUP_URL`) and the deploy workflow passes the same context.
-
-MCP HTTP server environment: `HOST` (bind address, default `127.0.0.1`; the Docker image and CDK set `0.0.0.0`), `PORT`, `MCP_ALLOWED_HOSTS` (comma-separated Host allow-list against DNS rebinding; default loopback names; CDK sets the domain name), `MCP_ALLOWED_ORIGINS` (comma-separated browser origins, strictly checked when an `Origin` header is present; default `*` only when `NODE_ENV!=production`, none in production; CDK context `mcpAllowedOrigins`). Requests are capped at 64 concurrent (503 beyond) with 30 s request / 15 s header timeouts.
+Optional repository variables include `DIGEST_FROM_EMAIL` for a verified SES sender, `ENABLE_AGENTS=true` with an explicit `ASSISTANT_MODEL`, and separate opt-in `ASSISTANT_TRACING_ENABLED=true`. Populate any enabled provider's real secret before activation. For identity linking, set `ENABLE_CHATGPT_LINKING=true` with approved `CHATGPT_CLIENT_ID`, `CHATGPT_REDIRECT_URI` and `CHATGPT_CLIENT_AUTH_METHOD`; this links an identity and does not replace PointUp sign-in. Use the current helper's supported configuration rather than ad hoc application `cdk deploy` commands.
 
 ### Continuous deployment
 
-Every push to `master` deploys automatically via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml): full reusable CI verification (lint, hygiene, types, actual PostgreSQL, all builds, plugin/infrastructure contracts and Docker smoke) → `cdk deploy` (builds and pushes both Docker images, updates the stack) → database migrations as a one-off Fargate task (the worker image's `migrate` job, which applies pending drizzle migrations under an advisory lock so concurrent runs serialize).
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) runs on pushes to `master` and manual dispatch. Its AWS job depends on the **complete** reusable [CI workflow](./.github/workflows/ci.yml): lint, hygiene, types, unit/real-PostgreSQL tests, migration/rollout tests, all builds, plugin/infrastructure contracts and Docker smoke. Releases are serialized without cancelling an in-progress deployment. Missing `AWS_DEPLOY_ROLE_ARN` still runs verification but skips AWS deployment.
 
-Authentication uses GitHub OIDC federation — no long-lived AWS keys are stored in the repository. One-time setup:
+Authentication uses GitHub OIDC; no long-lived AWS keys belong in repository secrets. Protect the `production` GitHub environment with the appropriate reviewers and branch/ref rules before configuring deployment. The role trusts the exact `repo:owner/name:environment:production` subject. Establish the CDK bootstrap and OIDC role using an authorized operator session in the selected account/region:
 
 ```bash
-# 1. Create the OIDC provider + deploy role (in infra/)
-npx cdk deploy GithubOidc -c githubRepo=<owner>/<repo>
+cd infra
+npm ci
 
-# 2. In GitHub repo settings, add:
-#    Secret   AWS_DEPLOY_ROLE_ARN   = DeployRoleArn output from step 1
-#    Secret   CLERK_PUBLISHABLE_KEY = pk_live_... (inlined into the client bundle)
-#    Variable AWS_REGION            = deployment region (optional, default us-east-1)
-#    Variable DIGEST_FROM_EMAIL     = verified SES sender (optional)
+# One-time account/region bootstrap; this mode does not instantiate the app stack.
+npx cdk bootstrap aws://<account>/<region> \
+  -c deploymentMode=oidc -c githubRepo=<owner>/<repo>
+
+# Create the GitHub federation stack independently of application rollout.
+npx cdk deploy GithubOidc \
+  -c deploymentMode=oidc -c githubRepo=<owner>/<repo>
 ```
 
-The deploy role's permissions are minimal: it can only assume the CDK bootstrap roles and run the migration task. Until `AWS_DEPLOY_ROLE_ARN` is configured, the workflow verifies the build and skips deployment. Pull requests run the [CI workflow](./.github/workflows/ci.yml) (checks only, no AWS access).
+Configure the emitted `DeployRoleArn` as `AWS_DEPLOY_ROLE_ARN`, then add the required TLS/Clerk/snapshot settings above. If the account already has a GitHub OIDC provider, reconcile/import it instead of creating another provider for the same issuer. The role's scoped permissions cover candidate inspection/publication, CDK bootstrap-role assumption, validated first-create change-set execution and migration registration/run/inspection; do not describe it as migration-only.
+
+A manual dispatch with `verify_only=true` runs the entire release verification gate with **zero AWS deployment or migration calls**, even when credentials are configured. The AWS job and OIDC credential step are skipped; the helper also returns before AWS calls when `VERIFY_ONLY=true`. A later manual dispatch with `verify_only=false` and `bootstrap_ready=true` is the explicit activation request for an existing inactive bootstrap, subject to the protected environment and all rollout gates.
 
 ## Running the full stack in Docker locally
 
@@ -323,14 +299,14 @@ assistant. Existing provider selection remains the default. See
 For local use, configure `ASSISTANT_RUNTIME=agents`, `OPENAI_API_KEY`, and an explicit
 `ASSISTANT_MODEL` in the server environment. Tracing requires separate opt-in.
 
-For AWS, synth/deploy with `-c enableAgents=true -c assistantModel=<approved-model>`;
-add `-c assistantTracing=true` only when trace export is intended. Populate the
-`OpenAiAgentsSecretArn` output with a real project key before live use; the generated
-placeholder is not an inference credential. GitHub deployment accepts corresponding
-repository variables `ENABLE_AGENTS=true`, `ASSISTANT_MODEL`, and optional
-`ASSISTANT_TRACING_ENABLED=true`. The key stays in Secrets Manager on the web task.
-Deployment still requires valid AWS access and the production migration adoption
-checks recorded in [integration status](docs/integration-status.md).
+For AWS, use the protected candidate rollout with repository variables
+`ENABLE_AGENTS=true`, an explicit `ASSISTANT_MODEL`, and separate opt-in
+`ASSISTANT_TRACING_ENABLED=true`. Populate the `OpenAiAgentsSecretArn` output with a
+real project key before the later readiness-attested activation; the generated
+placeholder is not an inference credential. The key stays in Secrets Manager on
+the web task. The TLS, approved-backup and migration/journal gates above still
+apply. See [integration status](docs/integration-status.md) for verified evidence
+and remaining live-configuration checks.
 
 The deployment workflow also supports a `verify_only=true` manual dispatch to
 exercise its complete reusable verification gate while explicitly disabling AWS

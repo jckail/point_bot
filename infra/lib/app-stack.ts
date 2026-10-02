@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import * as applicationautoscaling from "aws-cdk-lib/aws-applicationautoscaling";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
@@ -12,6 +13,7 @@ import * as rds from "aws-cdk-lib/aws-rds";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
 import { AssistantObservability } from "./assistant-observability.js";
+import { assertRegionalCertificate, rolloutConfig } from "./rollout-config.js";
 import { chatGptDeployment } from "./chatgpt-deployment.js";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
@@ -21,6 +23,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export class AppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    const certificateEnvironment = {
+      account: cdk.Token.isUnresolved(this.account) ? undefined : this.account,
+      region: cdk.Token.isUnresolved(this.region) ? undefined : this.region,
+    };
+    const rollout = rolloutConfig(key => this.node.tryGetContext(key), certificateEnvironment);
+    const disableBootstrapService = (service: ecs.FargateService): void => {
+      if (!rollout.bootstrapInactive) return;
+      // The higher-level pattern requires a positive count at construction.
+      // Override its existing resource, preserving the service construct path.
+      const resource = service.node.defaultChild;
+      if (!(resource instanceof ecs.CfnService)) {
+        throw new Error("ECS service resource is missing; inactive bootstrap cannot proceed");
+      }
+      resource.desiredCount = 0;
+    };
 
     // ─── Networking ────────────────────────────────────────────────────────
     // One NAT gateway keeps costs down; bump to 2+ for production HA.
@@ -118,6 +135,9 @@ export class AppStack extends cdk.Stack {
     // Identity linking is separately opted in using an approved OAuth client.
     // Only the web task needs this configuration; never pass secrets via context.
     const chatGpt = chatGptDeployment(key => this.node.tryGetContext(key));
+    if (chatGpt && chatGpt.environment.APP_URL !== rollout.webOrigin) {
+      throw new Error("chatGptRedirectUri origin must match the approved webDomainName");
+    }
     const chatGptSecret = chatGpt?.confidential
       ? placeholderSecret("ChatGptClientSecret", "Approved ChatGPT OAuth confidential-client secret; populate before linking")
       : undefined;
@@ -237,8 +257,11 @@ export class AppStack extends cdk.Stack {
         desiredCount: 2,
         minHealthyPercent: 100,
         publicLoadBalancer: true,
-        // For HTTPS: add a certificate + domainName/domainZone here and the
-        // pattern will provision the 443 listener and Route 53 record.
+        certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
+          this, "WebCertificate", rollout.webCertificateArn,
+        ),
+        protocol: elbv2.ApplicationProtocol.HTTPS,
+        redirectHTTP: true,
         taskImageOptions: {
           image: ecs.ContainerImage.fromDockerImageAsset(image),
           containerPort: 3000,
@@ -249,6 +272,7 @@ export class AppStack extends cdk.Stack {
             ...assistantEnvironment,
             ...agentsEnvironment,
             ...chatGpt?.environment,
+            APP_URL: rollout.webOrigin,
             ...aggregatorEnvironment,
           },
           secrets: {
@@ -273,6 +297,7 @@ export class AppStack extends cdk.Stack {
       },
     );
 
+    disableBootstrapService(service.service);
     service.targetGroup.configureHealthCheck({
       path: "/api/health",
       healthyThresholdCount: 2,
@@ -286,6 +311,17 @@ export class AppStack extends cdk.Stack {
     scaling.scaleOnCpuUtilization("CpuScaling", {
       targetUtilizationPercent: 60,
     });
+
+    if (rollout.bootstrapInactive) {
+      // Keep scaling and policy construct paths stable while preventing bootstrap wakeups.
+      const target = scaling.node.findAll().find(node => node instanceof applicationautoscaling.CfnScalableTarget);
+      if (!(target instanceof applicationautoscaling.CfnScalableTarget)) {
+        throw new Error("Web scalable target is missing; inactive bootstrap cannot proceed");
+      }
+      target.minCapacity = 0;
+      target.maxCapacity = 0;
+      target.suspendedState = { dynamicScalingInSuspended: true, dynamicScalingOutSuspended: true, scheduledScalingSuspended: true };
+    }
 
     database.connections.allowDefaultPortFrom(
       service.service,
@@ -342,6 +378,7 @@ export class AppStack extends cdk.Stack {
 
       const botCertificateArn = ctx("botCertificateArn");
       const botDomainName = ctx("botDomainName");
+      if (botCertificateArn) assertRegionalCertificate(botCertificateArn, certificateEnvironment);
 
       const botService = new ecsPatterns.ApplicationLoadBalancedFargateService(
         this,
@@ -400,6 +437,7 @@ export class AppStack extends cdk.Stack {
         },
       );
 
+      disableBootstrapService(botService.service);
       botService.targetGroup.configureHealthCheck({
         path: "/health",
         healthyThresholdCount: 2,
@@ -445,6 +483,7 @@ export class AppStack extends cdk.Stack {
 
       const mcpCertificateArn = ctx("mcpCertificateArn");
       const mcpDomainName = ctx("mcpDomainName");
+      if (mcpCertificateArn) assertRegionalCertificate(mcpCertificateArn, certificateEnvironment);
       // Bearer tokens would cross the ALB in cleartext over HTTP: refuse.
       if (!mcpCertificateArn || !mcpDomainName) {
         throw new Error(
@@ -485,10 +524,7 @@ export class AppStack extends cdk.Stack {
               ...(ctx("mcpAllowedOrigins")
                 ? { MCP_ALLOWED_ORIGINS: ctx("mcpAllowedOrigins")! }
                 : {}),
-              // Defaults to the web ALB; set a public HTTPS URL when available.
-              POINTUP_URL:
-                ctx("mcpPointupUrl") ??
-                `http://${service.loadBalancer.loadBalancerDnsName}`,
+              POINTUP_URL: rollout.mcpPointupUrl,
             },
             logDriver: ecs.LogDrivers.awsLogs({
               streamPrefix: "mcp",
@@ -498,6 +534,7 @@ export class AppStack extends cdk.Stack {
           circuitBreaker: { rollback: true },
         },
       );
+      disableBootstrapService(mcpService.service);
       mcpService.targetGroup.configureHealthCheck({
         path: "/healthz",
         healthyThresholdCount: 2,
@@ -526,12 +563,15 @@ export class AppStack extends cdk.Stack {
       (this.node.tryGetContext("digestFromEmail") as string | undefined) ??
       process.env.DIGEST_FROM_EMAIL;
 
-    const workerSecrets = {
+    const databaseSecrets = {
       DB_HOST: ecs.Secret.fromSecretsManager(dbSecret, "host"),
       DB_PORT: ecs.Secret.fromSecretsManager(dbSecret, "port"),
       DB_USER: ecs.Secret.fromSecretsManager(dbSecret, "username"),
       DB_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, "password"),
       DB_NAME: ecs.Secret.fromSecretsManager(dbSecret, "dbname"),
+    };
+    const workerSecrets = {
+      ...databaseSecrets,
       CLERK_SECRET_KEY: ecs.Secret.fromSecretsManager(clerkSecret),
       ...aggregatorSecrets,
     };
@@ -686,13 +726,20 @@ export class AppStack extends cdk.Stack {
     );
 
     for (const task of [syncTask, digestTask, alertsTask, watchTask]) {
+      if (rollout.bootstrapInactive) {
+        const rules = task.node.findAll().filter(node => node instanceof events.CfnRule);
+        if (rules.length !== 1) throw new Error("Scheduled task rule is missing; inactive bootstrap cannot proceed");
+        for (const rule of rules) {
+          if (rule instanceof events.CfnRule) rule.state = "DISABLED";
+        }
+      }
       database.connections.allowDefaultPortFrom(
         task.task.securityGroups![0]!,
         "Worker tasks to PostgreSQL",
       );
     }
 
-    // ─── One-off migration task (invoked by CI after each deploy) ──────────
+    // ─── One-off migration task (invoked before host activation) ──────────
     // Same worker image, `migrate` command: applies pending drizzle
     // migrations under an advisory lock. CI runs it via `aws ecs run-task`
     // using the outputs below.
@@ -705,7 +752,7 @@ export class AppStack extends cdk.Stack {
       image: ecs.ContainerImage.fromDockerImageAsset(workerImage),
       command: ["migrate"],
       environment: { NODE_ENV: "production" },
-      secrets: workerSecrets,
+      secrets: databaseSecrets,
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "migrate",
         logRetention: logs.RetentionDays.ONE_MONTH,
@@ -767,7 +814,7 @@ export class AppStack extends cdk.Stack {
 
     // ─── Outputs ───────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "LoadBalancerUrl", {
-      value: `http://${service.loadBalancer.loadBalancerDnsName}`,
+      value: rollout.webOrigin,
       description: "Public URL of the application",
     });
     new cdk.CfnOutput(this, "DatabaseSecretArn", {
@@ -797,7 +844,12 @@ export class AppStack extends cdk.Stack {
       });
     }
 
-    // Consumed by .github/workflows/deploy.yml to run migrations post-deploy.
+    new cdk.CfnOutput(this, "DeploymentPhase", {
+      value: rollout.bootstrapInactive ? "inactive-bootstrap" : "active",
+    });
+    new cdk.CfnOutput(this, "WebOrigin", { value: rollout.webOrigin });
+
+    // Consumed by deployment tooling to migrate before candidate host activation.
     new cdk.CfnOutput(this, "ClusterArn", { value: cluster.clusterArn });
     new cdk.CfnOutput(this, "MigrationTaskDefinitionArn", {
       value: migrationTaskDef.taskDefinitionArn,

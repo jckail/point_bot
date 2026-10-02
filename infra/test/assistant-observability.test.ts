@@ -4,6 +4,7 @@ import { App, Stack } from "aws-cdk-lib";
 import { Template, Match } from "aws-cdk-lib/assertions";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import { AssistantObservability } from "../lib/assistant-observability.js";
+import { webTlsContext } from "./rollout-fixture.js";
 import { AppStack } from "../lib/app-stack.js";
 
 test("operational metrics remain aggregate and failure alarms exclude cancellations", () => {
@@ -42,12 +43,12 @@ test("operational metrics remain aggregate and failure alarms exclude cancellati
 });
 
 test("Agents activation requires an explicit model", () => {
-  const app = new App({ context: { enableAgents: "true" } });
+  const app = new App({ context: { ...webTlsContext, enableAgents: "true" } });
   assert.throws(() => new AppStack(app, "MissingModel"), /requires an explicit assistantModel/);
 });
 
 test("only the web task receives the Agents key and tracing requires opt-in", () => {
-  const app = new App({ context: { enableAgents: "true", assistantModel: "approved-model", enableBot: true } });
+  const app = new App({ context: { ...webTlsContext, enableAgents: "true", assistantModel: "approved-model", enableBot: true } });
   const template = Template.fromStack(new AppStack(app, "EnabledAgents"));
   const tasks = Object.values(template.findResources("AWS::ECS::TaskDefinition"));
   const agentsContainers = tasks.flatMap(resource => resource.Properties.ContainerDefinitions).filter(container => container.Secrets?.some((secret: { Name: string }) => secret.Name === "OPENAI_API_KEY"));
@@ -60,7 +61,7 @@ test("only the web task receives the Agents key and tracing requires opt-in", ()
 });
 
 test("Agents tracing is independently opt-in", () => {
-  const template = Template.fromStack(new AppStack(new App({ context: {
+  const template = Template.fromStack(new AppStack(new App({ context: { ...webTlsContext,
     enableAgents: true, assistantModel: "approved-model", assistantTracing: true,
   } }), "TracingAgents"));
   template.hasResourceProperties("AWS::ECS::TaskDefinition", {
@@ -71,13 +72,13 @@ test("Agents tracing is independently opt-in", () => {
 });
 
 test("blank model is rejected", () => {
-  assert.throws(() => new AppStack(new App({ context: {
+  assert.throws(() => new AppStack(new App({ context: { ...webTlsContext,
     enableAgents: true, assistantModel: "   ",
   } }), "BlankModel"), /requires an explicit assistantModel/);
 });
 
 test("disabled Agents runtime provisions no Agents credential", () => {
-  const template = Template.fromStack(new AppStack(new App({ context: { enableAgents: "false" } }), "DisabledAgents"));
+  const template = Template.fromStack(new AppStack(new App({ context: { ...webTlsContext, enableAgents: "false" } }), "DisabledAgents"));
   const tasks = JSON.stringify(template.findResources("AWS::ECS::TaskDefinition"));
   assert.ok(!tasks.includes('"Name":"OPENAI_API_KEY"'));
   assert.ok(!JSON.stringify(template.findResources("AWS::SecretsManager::Secret")).includes("OpenAI Agents SDK"));

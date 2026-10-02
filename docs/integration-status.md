@@ -375,3 +375,36 @@ are production-rollout-plan.md; preserve constructidentities and enforce migrati
 BEFORE host/schedule activation. These next changes are not included in6b424f6 evidence.
 Standalone ChatGPT sign-in, live extension/assistant/tracing, remaining rate/deal/cash
 integrity and provider/developer onboarding remain open in the original active goal.
+
+## Migration-first deployment candidate
+
+The team implemented the candidate release helper, protected inactive bootstrap,
+mandatory TLS/canonical origin, exact-production OIDC trust and bounded purpose-
+tagged migration permissions. Every ECS candidate image and its actual published
+CloudFormation template asset are pinned; the original file publisher role is
+preserved. An existing-stack resource/protected-property guard runs before updates.
+Existing databases require a completed available encrypted exact-DB snapshot no
+older than24h. First creation uses a verified CREATE-only stub and remains inactive;
+later activation requires an explicit protected manual readiness attestation.
+
+Worker candidate mode checks baked manifest and historical journal prefix before
+pending SQL, refuses unjournaled PointUp tables, verifies the complete journal and
+bounded physical readiness, then flushes schemaVerified attestation while locked.
+Physical readiness checks required columns/named CHECKs, selected owned FKs,
+enabled ownership trigger and RLS for all19 managed tables. NOT VALID is accepted;
+this does not certify historical data, equivalent types/definitions/indexes or a
+restore rehearsal. Safe release receipts retain task/log references and failures.
+
+Root evidence so far:29 helper cases, earlier25 infrastructure cases, final2 IAM
+cases and infrastructure types, workspace lint/types,14 actual PostgreSQL cases.
+Final RLS case and committed-head CI remain pending. Final local infrastructure
+aggregate/synth did NOT start (shared queue75); /tmp/pointup-rollout-infra-final.log
+is preserved. The separate local workspace aggregate also did not start75; do not
+reuse old runtime CI as evidence for this new source or bypass the shared lock.
+
+Fresh AWS identity is expired (aws login needed) and deployment secrets are empty;
+no AWS deployment occurred. Plans/review and remaining work are preserved in
+production-rollout-plan.md, production-rollout-review.md and release-backlog.md.
+Original overhaul goal remains active. Standalone ChatGPT sign-in, live assistant/
+exporter/Chrome/provider smoke, remaining numeric cash/deal/rate boundaries,
+public OAuth MCP onboarding and partnerships remain next; iOS is deferred.

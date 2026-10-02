@@ -57,7 +57,9 @@ jobs:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/app
 
       - name: Unit + Postgres integration tests
-        run: npm run test
+        run: |
+          npm run test
+          node --test scripts/deployment/rollout.test.mjs
 
       - name: Generate ChatGPT Action spec
         run: npx tsx plugins/chatgpt/build.ts
@@ -104,10 +106,10 @@ jobs:
         run: npm run typecheck
 
       - name: Synth
-        run: npx cdk synth --quiet
+        run: npx cdk synth --quiet -c webCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c webDomainName=pointup.test
 
       - name: Synth with MCP enabled (placeholder certificate)
-        run: npx cdk synth --quiet -c enableMcp=true -c mcpCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c mcpDomainName=mcp.example.com
+        run: npx cdk synth --quiet -c webCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c webDomainName=pointup.test -c enableMcp=true -c mcpCertificateArn=arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000 -c mcpDomainName=mcp.example.com
 
       - name: Synth guard (enableMcp without a certificate must fail)
         run: npm test

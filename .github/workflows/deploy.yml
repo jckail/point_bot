@@ -1,10 +1,12 @@
 name: Deploy
 
 # Continuous deployment to AWS on every push to master:
-#   verify -> cdk deploy (web + worker images, full stack) -> run DB migrations
+#   verify -> publish digest-pinned images -> migrate + journal gate -> activate hosts
+#   First create provisions inactive resources before migrating; upgrades never
+#   execute a stack update before the candidate migration gate.
 #
 # One-time setup (see README "Continuous deployment"):
-#   1. npx cdk deploy GithubOidc -c githubRepo=<owner/repo>   (in infra/)
+#   1. npx cdk deploy GithubOidc -c deploymentMode=oidc -c githubRepo=<owner/repo>   (in infra/)
 #   2. Repo secret  AWS_DEPLOY_ROLE_ARN  = the emitted role ARN
 #   3. Repo secret  CLERK_PUBLISHABLE_KEY = pk_live_... (inlined at build time)
 #   4. Optional repo variables: AWS_REGION (default us-east-1),
@@ -19,6 +21,12 @@ on:
     inputs:
       verify_only:
         description: Run all release checks without deploying or migrating AWS
+        type: boolean
+        required: false
+        default: false
+
+      bootstrap_ready:
+        description: Confirm real production application secrets and TLS/DNS ownership before promoting an existing inactive bootstrap
         type: boolean
         required: false
         default: false
@@ -65,6 +73,7 @@ jobs:
     needs: [check-config, verify]
     if: needs.check-config.outputs.configured == 'true'
     environment: production
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -84,11 +93,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
-      - name: CDK deploy
+      - name: Migrate before activating candidate hosts
         working-directory: infra
         env:
+          BOOTSTRAP_READY: ${{ github.event_name == 'workflow_dispatch' && inputs.bootstrap_ready }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+          APPROVED_DATABASE_SNAPSHOT_ARN: ${{ vars.APPROVED_DATABASE_SNAPSHOT_ARN }}
+          WEB_CERTIFICATE_ARN: ${{ vars.WEB_CERTIFICATE_ARN }}
+          WEB_DOMAIN_NAME: ${{ vars.WEB_DOMAIN_NAME }}
           CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           DIGEST_FROM_EMAIL: ${{ vars.DIGEST_FROM_EMAIL }}
+          ENABLE_BOT: ${{ vars.ENABLE_BOT }}
+          BOT_CERTIFICATE_ARN: ${{ vars.BOT_CERTIFICATE_ARN }}
+          BOT_DOMAIN_NAME: ${{ vars.BOT_DOMAIN_NAME }}
+          BOT_DEFAULT_USER_ID: ${{ vars.BOT_DEFAULT_USER_ID }}
+          ENABLE_AGGREGATOR: ${{ vars.ENABLE_AGGREGATOR }}
+          AGGREGATOR_API_URL: ${{ vars.AGGREGATOR_API_URL }}
           ENABLE_MCP: ${{ vars.ENABLE_MCP }}
           ENABLE_AGENTS: ${{ vars.ENABLE_AGENTS }}
           ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL }}
@@ -100,62 +120,12 @@ jobs:
           MCP_CERTIFICATE_ARN: ${{ vars.MCP_CERTIFICATE_ARN }}
           MCP_DOMAIN_NAME: ${{ vars.MCP_DOMAIN_NAME }}
           MCP_POINTUP_URL: ${{ vars.MCP_POINTUP_URL }}
-        run: |
-          CTX=()
-          if [ "$ENABLE_AGENTS" = "true" ]; then
-            if [ -z "$ASSISTANT_MODEL" ]; then
-              echo "ENABLE_AGENTS requires an explicit ASSISTANT_MODEL" >&2
-              exit 1
-            fi
-            CTX+=(-c enableAgents=true -c "assistantModel=$ASSISTANT_MODEL")
-            if [ "$ASSISTANT_TRACING_ENABLED" = "true" ]; then
-              CTX+=(-c assistantTracing=true)
-            fi
-          fi
-          if [ "$ENABLE_CHATGPT_LINKING" = "true" ]; then
-            if [ -z "$CHATGPT_CLIENT_ID" ] || [ -z "$CHATGPT_REDIRECT_URI" ] || [ -z "$CHATGPT_CLIENT_AUTH_METHOD" ]; then
-              echo "ENABLE_CHATGPT_LINKING requires approved CHATGPT_CLIENT_ID, registered HTTPS CHATGPT_REDIRECT_URI and explicit CHATGPT_CLIENT_AUTH_METHOD" >&2
-              exit 1
-            fi
-            # CDK validates the registered HTTPS callback and authentication method.
-            # Confidential client secrets remain in Secrets Manager, outside CI.
-            CTX+=(-c enableChatGptLinking=true -c "chatGptClientId=$CHATGPT_CLIENT_ID" -c "chatGptRedirectUri=$CHATGPT_REDIRECT_URI" -c "chatGptClientAuthMethod=$CHATGPT_CLIENT_AUTH_METHOD")
-          fi
-          if [ "$ENABLE_MCP" = "true" ]; then
-            CTX+=(-c enableMcp=true)
-            # Bearer tokens must not cross the ALB in cleartext: fail fast without TLS.
-            if [ -z "$MCP_CERTIFICATE_ARN" ] || [ -z "$MCP_DOMAIN_NAME" ]; then
-              echo "ENABLE_MCP requires MCP_CERTIFICATE_ARN and MCP_DOMAIN_NAME" >&2
-              exit 1
-            fi
-            CTX+=(-c "mcpCertificateArn=$MCP_CERTIFICATE_ARN" -c "mcpDomainName=$MCP_DOMAIN_NAME")
-            [ -n "$MCP_POINTUP_URL" ] && CTX+=(-c "mcpPointupUrl=$MCP_POINTUP_URL")
-          fi
-          npx cdk deploy TemplateApp "${CTX[@]}" \
-            --require-approval never \
-            --outputs-file cdk-outputs.json
+        run: node ../scripts/deployment/rollout.mjs
 
-      - name: Run database migrations
-        working-directory: infra
-        run: |
-          CLUSTER=$(jq -r '.TemplateApp.ClusterArn' cdk-outputs.json)
-          TASK_DEF=$(jq -r '.TemplateApp.MigrationTaskDefinitionArn' cdk-outputs.json)
-          SUBNETS=$(jq -r '.TemplateApp.MigrationSubnetIds' cdk-outputs.json)
-          SG=$(jq -r '.TemplateApp.MigrationSecurityGroupId' cdk-outputs.json)
-
-          echo "Starting migration task..."
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$TASK_DEF" \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}" \
-            --started-by "github-actions-${GITHUB_RUN_ID}" \
-            --query 'tasks[0].taskArn' --output text)
-          echo "Migration task: $TASK_ARN"
-
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
-
-          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[?name==`Migrate`] | [0].exitCode' --output text)
-          echo "Migration exit code: $EXIT_CODE"
-          [ "$EXIT_CODE" = "0" ]
+      - name: Record nonsecret release manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-${{ github.sha }}
+          path: infra/cdk.out-release/pointup-release.json
+          if-no-files-found: ignore

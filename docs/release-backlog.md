@@ -204,3 +204,31 @@ are production-rollout-plan.md; preserve constructidentities and enforce migrati
 BEFORE host/schedule activation. These next changes are not included in6b424f6 evidence.
 Standalone ChatGPT sign-in, live extension/assistant/tracing, remaining rate/deal/cash
 integrity and provider/developer onboarding remain open in the original active goal.
+
+## Deployment candidate checkpoint (in progress)
+
+The prior docs head1ba69b16e8a2a64e46fbbc9fa096affd50d20a73 also passes
+[CI36987147294](https://github.com/jckail/point_bot/actions/runs/36987147294)
+and [CodeQL36987147284](https://github.com/jckail/point_bot/actions/runs/36987147284).
+New rollout source is separate from that evidence: immutable candidate assets,
+protected existing-resource identities, CREATE-only inactive bootstrap, explicit
+later readiness attestation, approved snapshot metadata, DB-only migration task,
+pre-SQL journal/legacy-schema gates and bounded post-migration physical readiness.
+Root owns aggregate verification and release; helper, CDK, migration, README and
+independent review agents have exclusive source/document ownership.
+
+Root installed cdk-assets4.7.3 through serialized npm ci. Infrastructure types
+and25 CDK/configuration cases passed before subsequent IAM/helper refinements;
+workspace lint/types passed before the final physical-schema changes. Eight actual
+PostgreSQL attestation fixtures passed. The local aggregate workspace command did
+NOT start: shared verification queue expired75; /tmp/pointup-rollout-full-test.log
+is preserved. Do not repeat that unchanged aggregate or bypass the shared lock;
+committed-head CI must verify final source. Later focused checks are recorded below.
+
+Fresh AWS identity still reports an expired session requiring aws login, and the
+repository deployment-secret list is empty. No stack mutation, migration in AWS,
+secret population, DNS change, merge or production deployment occurred. The
+owned PostgreSQL container was stopped after verification, retaining data. No
+new browser tab/window was opened. Original active goal remains open, including
+standalone ChatGPT sign-in, live SDK/exporter/extension/provider verification,
+remaining rate/deal/cash integrity, OAuth/public MCP onboarding and partnerships.

@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { App } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
+import { webTlsContext } from "./rollout-fixture.js";
 import { AppStack } from "../lib/app-stack.js";
 
-const approved = { enableChatGptLinking: true, chatGptClientId: "synthetic-client", chatGptRedirectUri: "https://pointup.test/api/auth/chatgpt/callback", chatGptClientAuthMethod: "none", enableBot: true };
+const approved = { ...webTlsContext, enableChatGptLinking: true, chatGptClientId: "synthetic-client", chatGptRedirectUri: "https://pointup.test/api/auth/chatgpt/callback", chatGptClientAuthMethod: "none", enableBot: true };
 function containers(template: Template) {
   return Object.values(template.findResources("AWS::ECS::TaskDefinition")).flatMap(resource => resource.Properties.ContainerDefinitions);
 }

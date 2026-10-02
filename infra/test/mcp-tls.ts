@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import * as cdk from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 
+import { webTlsContext } from "./rollout-fixture.js";
 import { AppStack } from "../lib/app-stack.js";
 
 const env = { account: "111111111111", region: "us-east-1" };
 const CERT = "arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000";
 
 function synth(context: Record<string, string | boolean>) {
-  const app = new cdk.App({ context });
+  const app = new cdk.App({ context: { ...webTlsContext, ...context } });
   const stack = new AppStack(app, "T", { env });
   return Template.fromStack(stack);
 }
