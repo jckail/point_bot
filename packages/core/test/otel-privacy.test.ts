@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const capture = vi.hoisted(() => ({
-  attributes: {} as Record<string, unknown>,
-  events: [] as unknown[],
-  statuses: [] as unknown[],
+type Capture = { attributes: Record<string, unknown>; events: unknown[]; statuses: unknown[]; ended: number };
+const capture = vi.hoisted((): Capture => ({
+  attributes: {},
+  events: [],
+  statuses: [],
   ended: 0,
 }));
 
