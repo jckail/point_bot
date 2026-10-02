@@ -61,6 +61,10 @@ Live provider DOM/capture, authenticated API and Clerk owner changes, actual MV3
 worker termination, paid inference and cloud trace/exporter delivery remain open.
 The synthetic fetch stub does not prove CORS, TLS, host permissions, actual API
 errors or a production endpoint. In particular, origin validation accepts HTTP
-IPv4/IPv6 loopback while the manifest grants HTTP only for `localhost`; verify and
-align those paths before claiming local endpoint compatibility. See
+IPv4/IPv6 loopback. The follow-up manifest fix adds exact `http://127.0.0.1/*`
+and `http://[::1]/*` grants alongside `http://localhost/*`, with 35 focused
+alignment/retry tests passing. Its wrapped rebuild hit the shared verification
+queue timeout (exit 75); native acceptance of the new patterns and real loopback
+fetches remain pending. The earlier native run above used the PR #34 manifest.
+See
 [release backlog](release-backlog.md) and [extension guide](extension.md).

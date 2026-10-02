@@ -114,3 +114,10 @@ Live provider extraction, authenticated browser/extension lifecycle, Clerk/PAT
 and SDK/exporter delivery remain separate checks. See
 [assistant-agent.md](assistant-agent.md), [integrations.md](integrations.md) and
 [release-backlog.md](release-backlog.md) for remaining work.
+
+Development HTTP endpoints are restricted to `localhost`, `127.0.0.1` and
+`[::1]`; the manifest grants those exact hosts across ports. Changing hosts
+changes the pending capture identity even when both addresses reach the same
+local server. Restore the original settings to retry a frozen capture. Native
+verification of the newly added IPv4/IPv6 grants remains queued; see
+[acceptance evidence](chrome-extension-acceptance.md).

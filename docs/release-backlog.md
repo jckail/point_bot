@@ -52,11 +52,12 @@ jobs in [Deploy 37033664518](https://github.com/jckail/point_bot/actions/runs/37
 and [CodeQL 37033664139](https://github.com/jckail/point_bot/actions/runs/37033664139)
 passed with 1,707 workspace tests and one paid live skip; AWS remains skipped.
 
-**Align local extension endpoint acceptance.** Settings accept HTTP IPv4/IPv6
-loopback, while the manifest grants HTTP only for `localhost`. Verify real Chrome
-network behavior and permitted match-pattern syntax, then align origin validation
-and manifest grants without changing frozen pending-capture identity. Synthetic
-fetch acceptance does not prove local host permissions or CORS.
+**Verify local extension endpoint acceptance in Chrome.** The manifest now grants
+HTTP for exactly `localhost`, `127.0.0.1` and `[::1]`, matching accepted settings
+without changing frozen pending-capture identity. All 35 focused alignment/retry
+tests passed; the wrapped rebuild timed out in the shared verification queue
+(exit 75). Native acceptance of the new IPv6 pattern and actual loopback fetches
+remain open. Earlier synthetic fetch acceptance does not prove these network paths.
 
 ## Immediate release gates
 
