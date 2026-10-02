@@ -108,7 +108,9 @@ test("a token the API rejects yields a tool error", async ({ request }) => {
     "pu_wrong",
   );
   expect(result!.isError).toBe(true);
-  expect(result!.content![0]!.text).toContain("ACCESS_TOKEN_INVALID");
+  expect(result!.content![0]!.text).toContain("UNAUTHENTICATED");
+  expect(result!.content![0]!.text).toContain("Provide a valid PointUp access token");
+  expect(result!.content![0]!.text).not.toContain("bad token");
 });
 
 test("rejects a foreign Host header (DNS rebinding) but healthz stays open", async ({ request }) => {

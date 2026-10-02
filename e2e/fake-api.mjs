@@ -25,7 +25,7 @@ createServer(async (req, res) => {
   });
 
   if (req.headers.authorization !== "Bearer pu_e2e") {
-    return json(res, 401, { error: { code: "ACCESS_TOKEN_INVALID", message: "bad token" } });
+    return json(res, 401, { error: { code: "UNAUTHENTICATED", message: "bad token" } });
   }
   if (req.method === "GET" && url.pathname === "/api/v1/summary") {
     return json(res, 200, {
