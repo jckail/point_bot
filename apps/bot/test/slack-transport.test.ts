@@ -34,6 +34,29 @@ describe("deferred Slack transport", () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
+  it.each(
+    ["hooks.slack.com", "hooks.slack-gov.com"].flatMap((host) =>
+      [
+        "//attacker.invalid/actions",
+        "/%2f%2fattacker.invalid/%5c?opaque=%2f%2felsewhere.invalid",
+        "/actions?next=https://attacker.invalid/reply",
+        "/actions?",
+      ].map((path) => [host, path]),
+    ),
+  )("keeps callback authority fixed for %s path %s", async (host, path) => {
+    const endpoint = `https://${host}${path}`;
+    await postToSlack(endpoint, "A private reply");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const input = fetchMock.mock.calls[0]![0];
+    const destination = new URL(
+      typeof input === "string" || input instanceof URL ? input : input.url,
+    );
+    expect(destination.origin).toBe(`https://${host}`);
+    expect(destination.href).toBe(new URL(endpoint).href);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
   it.each([
     "http://hooks.slack.com/actions/T/B/token",
     "https://hooks.slack.com:8443/actions/T/B/token",

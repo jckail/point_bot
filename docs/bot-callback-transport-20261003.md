@@ -9,6 +9,9 @@ redirects before portfolio text can be forwarded to another endpoint.
 Slack accepts HTTPS callbacks on exactly `hooks.slack.com` or
 `hooks.slack-gov.com`, with no user information, nondefault port or fragment.
 Explicit port 443 remains valid. Paths and query strings remain opaque.
+The request is constructed from a literal approved origin and the parsed path
+and query, including an empty query marker. Double-slash paths remain paths;
+they are never resolved against a base URL that could replace the host.
 Incoming signature verification and command authorization continue to run in
 the request handler. Invalid destinations issue no HTTP request.
 
@@ -52,8 +55,19 @@ zero requests for rejected targets, encoded Discord paths, redirect policy,
 content limits, bounded warnings and no automatic retry. No original Slack
 regression is claimed through its newly exported function.
 
-Type/lint qualification, the complete final-tree suite/builds, a new CodeQL
-scan, actual redirect transport and live platform acceptance require their own
-receipts. The preceding scan and broader passing checks qualify the preceding
-source. All verification remains local through the shared owner and gate;
-publication uses the supported `[skip ci]` route and does not trigger hosted CI.
+At `d987f628b0b0d41f05b2c36ed538d3e1ae59c059`, the fresh local scan extracted
+all 567 expected JavaScript/TypeScript files. One Slack request-forgery finding
+remained. Independent review found the callback guarded by signature verification,
+exact parsed origin checks and redirect refusal; arbitrary-host SSRF was not
+demonstrated. The request now uses a literal destination origin to make that
+authority boundary explicit, preserving every existing validation.
+
+Eight additional cases cover both origins, double-slash paths, encoded slash and
+backslash characters, external URLs in queries and empty queries. The exact
+modified source passed bot type checking, scoped lint, all **64 bot tests** without
+skips and the bot build. Tests mock outbound requests; they do not establish live
+Slack acceptance. A new CodeQL scan must qualify the committed refinement.
+
+All verification remains local through the shared owner and gate. Publication
+uses the supported `[skip ci]` route. Actual redirect transport, platform access,
+Node22 container builds and production activation require their own receipts.

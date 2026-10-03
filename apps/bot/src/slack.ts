@@ -76,7 +76,15 @@ export async function postToSlack(responseUrl: string, text: string): Promise<vo
     ) {
       throw new Error("Invalid Slack callback destination");
     }
-    await fetch(url.href, {
+    // Keep request authority literal; callback data supplies only path/query.
+    // Concatenation preserves // paths without treating them as a new host.
+    const callbackPath =
+      url.pathname + (url.search || (url.href.endsWith("?") ? "?" : ""));
+    const endpoint =
+      url.hostname === "hooks.slack.com"
+        ? `https://hooks.slack.com${callbackPath}`
+        : `https://hooks.slack-gov.com${callbackPath}`;
+    await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ response_type: "ephemeral", text }),
