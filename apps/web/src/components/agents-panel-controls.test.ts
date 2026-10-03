@@ -8,14 +8,14 @@ const actions = vi.hoisted(() => ({
   resolveReviewAction: vi.fn(), revokeConsentAction: vi.fn(),
 }));
 vi.mock("@/app/agent-actions", () => actions);
-interface CompletedStates { created: unknown; tokenRevoke: unknown; consentRevoke: unknown }
-const state = vi.hoisted((): CompletedStates => ({ created: { status: "idle" }, tokenRevoke: { status: "idle" }, consentRevoke: { status: "idle" } }));
+interface CompletedStates { created: unknown; removal: unknown }
+const state = vi.hoisted((): CompletedStates => ({ created: { status: "idle" }, removal: { status: "idle" } }));
 // Render real components with completed state; this does not simulate native
 // dispatch, focus/select behavior, hydration or delivery of revalidated props.
 vi.mock("react", async importOriginal => {
   const actual = await importOriginal<typeof import("react")>();
   return { ...actual, useActionState: (action: unknown, initialState: unknown) => [
-    action === actions.createAccessTokenAction ? state.created : action === actions.revokeAccessTokenAction ? state.tokenRevoke : action === actions.revokeConsentAction ? state.consentRevoke : initialState,
+    action === actions.createAccessTokenAction ? state.created : action === actions.grantConsentAction ? initialState : state.removal,
     () => {}, false,
   ] };
 });
@@ -30,7 +30,7 @@ function render(tokens: TokenRow[] = [token]) {
 }
 beforeEach(() => {
   vi.clearAllMocks(); state.created = { status: "created", secret, tokenId: token.id };
-  state.tokenRevoke = { status: "idle" }; state.consentRevoke = { status: "idle" };
+  state.removal = { status: "idle" };
 });
 
 describe("actual AgentsPanel completed-state rendering", () => {
@@ -51,18 +51,33 @@ describe("actual AgentsPanel completed-state rendering", () => {
     expect(field).toContain('min="1"'); expect(field).toContain('max="365"'); expect(field).toContain('step="1"');
     expect(field).toMatch(/\brequired(?:="")?/);
   });
-  it.each(["token", "consent"] as const)("renders %s revoke failure feedback and retains the unrevoked credential result", kind => {
-    const result = { status: "error", message: "Your session expired - sign in again." };
-    if (kind === "token") state.tokenRevoke = result; else state.consentRevoke = result;
+  it("renders failed wrapped revoke action feedback in both actual rows and retains the credential", () => {
+    state.removal = { status: "error", message: "Your session expired - sign in again." };
     const html = render();
-    expect(html).toContain('role="alert"'); expect(html).toContain(result.message);
+    for (const sectionId of ["agent-tokens", "capture-consent"]) {
+      const section = html.match(new RegExp(`<section id="${sectionId}"[\\s\\S]*?</section>`))?.[0];
+      expect(section).toContain('role="alert"');
+      expect(section).toContain("Your session expired - sign in again.");
+    }
     expect(html).toContain(secret); expect(html).toContain("Copy your token now");
   });
-  it.each(["token", "consent"] as const)("renders bounded %s revoke success feedback from its own action state", kind => {
-    if (kind === "token") state.tokenRevoke = { status: "success" }; else state.consentRevoke = { status: "success" };
+  it("keeps empty section-owned status targets mounted without inventing success from row action state", () => {
+    state.removal = { status: "success" };
     const html = render();
-    expect(html).toContain(kind === "token" ? "Token revoked." : "Consent revoked.");
+    for (const sectionId of ["balance-reviews", "capture-consent", "agent-tokens"]) {
+      const section = html.match(new RegExp(`<section id="${sectionId}"[\\s\\S]*?</section>`))?.[0];
+      expect(section).toMatch(/<p[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"[^>]*tabindex="-1"[^>]*><\/p>/);
+    }
+    expect(html).not.toContain("Token revoked."); expect(html).not.toContain("Consent revoked.");
     expect(html).toContain(secret);
+  });
+  it("does not claim success merely because authoritative rows are absent", () => {
+    const html = renderToStaticMarkup(createElement(AgentsPanel, {
+      tokens: [], consents: [], observations: [], pendingReviews: [], providers: [], mcpUrl: "http://localhost:8787/mcp",
+    }));
+    expect(html).toContain("No captured balances are waiting for your review.");
+    expect(html).not.toContain("Token revoked."); expect(html).not.toContain("Consent revoked.");
+    expect(html).not.toContain("Decision saved.");
   });
   it("still hides the readonly credential field when the exact created token is revoked", () => {
     const html = render([{ ...token, revokedAt: new Date("2026-10-03T00:00:00Z") }]);
