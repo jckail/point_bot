@@ -89,15 +89,39 @@ export async function editDiscordReply(
   token: string,
   content: string,
 ): Promise<void> {
-  await fetch(
-    `https://discord.com/api/v10/webhooks/${appId}/${token}/messages/@original`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: content.slice(0, 2000) }),
-      signal: AbortSignal.timeout(10_000),
-    },
-  ).catch((error: unknown) => {
-    console.warn("[bot] failed to edit deferred Discord reply", error);
-  });
+  try {
+    // Application IDs are uint64 snowflakes. Tokens are opaque, not URLs.
+    // The generous token bound is local transport policy, not a Discord format.
+    if (
+      typeof appId !== "string" ||
+      !/^[1-9][0-9]{0,19}$/.test(appId) ||
+      BigInt(appId) > 18_446_744_073_709_551_615n ||
+      typeof token !== "string" ||
+      token.length === 0 ||
+      token.length > 4096 ||
+      token === "." ||
+      token === ".." ||
+      [...token].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 0x1f || code === 0x7f;
+      })
+    ) {
+      throw new Error("Invalid Discord callback identifiers");
+    }
+    // Encoding also rejects malformed Unicode; it must never reach fetch.
+    const encodedToken = encodeURIComponent(token);
+    await fetch(
+      `https://discord.com/api/v10/webhooks/${appId}/${encodedToken}/messages/@original`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: content.slice(0, 2000) }),
+        signal: AbortSignal.timeout(10_000),
+        redirect: "error",
+      },
+    );
+  } catch {
+    // Interaction tokens may appear in fetch errors; never log the exception.
+    console.warn("[bot] failed to edit deferred Discord reply");
+  }
 }

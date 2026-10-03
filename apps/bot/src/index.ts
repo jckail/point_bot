@@ -13,6 +13,7 @@ import {
 import { loadEnv } from "./env";
 import {
   parseSlackCommand,
+  postToSlack,
   resolveUserId,
   verifySlackSignature,
 } from "./slack";
@@ -33,18 +34,6 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(payload);
-}
-
-/** Post the final command result to Slack's response_url (deferred reply). */
-async function postToSlack(responseUrl: string, text: string): Promise<void> {
-  await fetch(responseUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ response_type: "ephemeral", text }),
-    signal: AbortSignal.timeout(10_000),
-  }).catch((error: unknown) => {
-    console.warn("[bot] failed to post deferred Slack reply", error);
-  });
 }
 
 async function handleSlack(
