@@ -39,7 +39,8 @@ Prometheus registry, OTel adapters only if an endpoint is configured) and
 
 ### Redaction
 
-Every log line goes through `redact()` before it is written: values under keys
+Every application log line written through the PointUp logger goes through
+`redact()` before it is written: values under keys
 matching `authorization|token|secret|password|cookie|api key|credential|signature`
 become `[REDACTED]` (ids like `tokenId` are kept), and inside any string
 `Bearer ...` and `pu_...` personal access tokens are scrubbed. `Error`s are

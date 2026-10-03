@@ -1,7 +1,7 @@
 "use client";
 
 import type { AccessTokenScope } from "@pointup/core";
-import { useActionState, useCallback, useEffect, useId, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 
 import {
   createAccessTokenAction,
@@ -136,8 +136,7 @@ function useRemovalFocusLedger(): FocusLedger {
 }
 
 /** Remains mounted after authoritative revalidation removes an action row. */
-function useRemovalFeedback(presentIds: readonly string[], ledger: FocusLedger) {
-  const target = useRef<HTMLParagraphElement>(null);
+function useRemovalFeedback(presentIds: readonly string[], ledger: FocusLedger, target: RefObject<HTMLParagraphElement | null>) {
   const mounted = useRef(true);
   const focusedSequence = useRef(0);
   const [outcome, setOutcome] = useState<RemovalTicket | null>(null);
@@ -166,8 +165,8 @@ function useRemovalFeedback(presentIds: readonly string[], ledger: FocusLedger) 
     if (!consumeFocus(outcome.sequence) || !document.hasFocus()) return;
     const active = document.activeElement;
     if (active === document.body || outcome.form?.contains(active)) target.current?.focus();
-  }, [outcome, presentIds, consumeFocus]);
-  return { begin, complete, cancel, target, message: outcome?.message ?? "" };
+  }, [outcome, presentIds, consumeFocus, target]);
+  return { begin, complete, cancel, message: outcome?.message ?? "" };
 }
 
 /** Notify outside the disappearing row; a row effect could be unmounted first. */
@@ -290,9 +289,12 @@ export function AgentsPanel({
   const tokenSecretId = useId();
   const tokenSecretHelpId = `${tokenSecretId}-help`;
   const removalFocus = useRemovalFocusLedger();
-  const reviewFeedback = useRemovalFeedback(pendingReviews.map(review => review.id), removalFocus);
-  const consentFeedback = useRemovalFeedback(consents.filter(consent => consent.active).map(consent => consent.id), removalFocus);
-  const tokenFeedback = useRemovalFeedback(tokens.filter(token => !token.revokedAt).map(token => token.id), removalFocus);
+  const reviewStatusRef = useRef<HTMLParagraphElement>(null);
+  const consentStatusRef = useRef<HTMLParagraphElement>(null);
+  const tokenStatusRef = useRef<HTMLParagraphElement>(null);
+  const reviewFeedback = useRemovalFeedback(pendingReviews.map(review => review.id), removalFocus, reviewStatusRef);
+  const consentFeedback = useRemovalFeedback(consents.filter(consent => consent.active).map(consent => consent.id), removalFocus, consentStatusRef);
+  const tokenFeedback = useRemovalFeedback(tokens.filter(token => !token.revokedAt).map(token => token.id), removalFocus, tokenStatusRef);
 
   return (
     <div className="flex flex-col gap-6">
@@ -304,7 +306,7 @@ export function AgentsPanel({
               provider site, then confirm or reject. Agents cannot do this for you.
             </p>
           </div>
-          <p ref={reviewFeedback.target} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{reviewFeedback.message}</p>
+          <p ref={reviewStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{reviewFeedback.message}</p>
           {pendingReviews.length === 0 && <p className="text-sm text-ink-muted">No captured balances are waiting for your review.</p>}
           <ul className="flex flex-col gap-2">
             {pendingReviews.map((review) => (
@@ -322,7 +324,7 @@ export function AgentsPanel({
             written without one, and you can revoke it instantly.
           </p>
         </div>
-        <p ref={consentFeedback.target} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{consentFeedback.message}</p>
+        <p ref={consentStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{consentFeedback.message}</p>
         <ul className="flex flex-col gap-2">
           {consents.filter((c) => c.active).map((consent) => (
             <li key={consent.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-3 py-3 text-sm">
@@ -370,7 +372,7 @@ export function AgentsPanel({
             <code className="break-all text-brand">{mcpUrl}</code>
           </p>
         </div>
-        <p ref={tokenFeedback.target} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{tokenFeedback.message}</p>
+        <p ref={tokenStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{tokenFeedback.message}</p>
         <ul className="flex flex-col gap-2">
           {tokens.filter((t) => !t.revokedAt).map((token) => (
             <li key={token.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">

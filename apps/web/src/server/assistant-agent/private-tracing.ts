@@ -1,6 +1,13 @@
-import { BatchTraceProcessor, OpenAITracingExporter, getGlobalTraceProvider, setTraceProcessors, type TracingProcessor } from "@openai/agents";
+import { BatchTraceProcessor, OpenAITracingExporter, getGlobalTraceProvider, setSensitiveDataLoggingEnabled, setTraceProcessors, type TracingProcessor } from "@openai/agents";
 
 type SDKSpan = Parameters<TracingProcessor["onSpanEnd"]>[0];
+
+/** Log privacy is independent of trace enablement and overrides SDK debug opt-ins.
+ * Reassert synchronously for every run, including controlled models and fallback.
+ */
+export function enforcePrivateSdkLogging(): void {
+  setSensitiveDataLoggingEnabled(false);
+}
 
 function privateSpan(span: SDKSpan): SDKSpan {
   const copy = span.clone();

@@ -13,7 +13,7 @@ import type { Observation, Observer } from "./observation";
 import type { AgentUseCases } from "./use-cases";
 export type { Observation, Observer } from "./observation";
 export type { AgentUseCases } from "./use-cases";
-import { initializePrivateTracing, isSdkTracingEnabled } from "./private-tracing";
+import { enforcePrivateSdkLogging, initializePrivateTracing, isSdkTracingEnabled } from "./private-tracing";
 
 export const logObservation: Observer = event => {
   const { inputTokens, outputTokens, totalTokens, cachedInputTokens, reasoningOutputTokens, ...metadata } = event;
@@ -44,6 +44,7 @@ export async function runPortfolioAssistant(input: {
   actions?: Pick<ManageAssistantActions, "proposeManualBalance" | "proposeTripGoal">;
   observe?: Observer;
 }) {
+  enforcePrivateSdkLogging();
   const body = chatAssistantRequestSchema.parse(input.body);
   const requestId = input.requestId ?? randomUUID();
   const mode = input.config.runtime === "agents" ? "agents" : "fallback";
