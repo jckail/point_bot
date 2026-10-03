@@ -285,7 +285,26 @@ export function AgentsPanel({
     createAccessTokenAction,
     idleActionResult,
   );
-  const [consentResult, consentAction] = useActionState(grantConsentAction, idleActionResult);
+  const consentSequence = useRef(0);
+  const [consentOutcome, setConsentOutcome] = useState<{ sequence: number; kind: "grant" | "revoke" } | null>(null);
+  const performConsentAction = useCallback(async (
+    action: (previous: ActionResult, data: FormData) => Promise<ActionResult>,
+    kind: "grant" | "revoke",
+    previous: ActionResult,
+    data: FormData,
+  ) => {
+    const sequence = ++consentSequence.current;
+    const result = await action(previous, data);
+    if (result.status === "success") {
+      setConsentOutcome(current => current && current.sequence > sequence ? current : { sequence, kind });
+    }
+    return result;
+  }, []);
+  const grantConsentWithFeedback = useCallback((previous: ActionResult, data: FormData) =>
+    performConsentAction(grantConsentAction, "grant", previous, data), [performConsentAction]);
+  const revokeConsentWithFeedback = useCallback((previous: ActionResult, data: FormData) =>
+    performConsentAction(revokeConsentAction, "revoke", previous, data), [performConsentAction]);
+  const [consentResult, consentAction] = useActionState(grantConsentWithFeedback, idleActionResult);
   const tokenSecretId = useId();
   const tokenSecretHelpId = `${tokenSecretId}-help`;
   const removalFocus = useRemovalFocusLedger();
@@ -324,7 +343,7 @@ export function AgentsPanel({
             written without one, and you can revoke it instantly.
           </p>
         </div>
-        <p ref={consentStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{consentFeedback.message}</p>
+        <p ref={consentStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{consentOutcome?.kind === "revoke" ? consentFeedback.message : ""}</p>
         <ul className="flex flex-col gap-2">
           {consents.filter((c) => c.active).map((consent) => (
             <li key={consent.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-3 py-3 text-sm">
@@ -333,7 +352,7 @@ export function AgentsPanel({
                 <span className="text-ink-faint">until {formatDate(consent.expiresAt)}</span>
               </span>
               <RevokeAccessForm
-                action={revokeConsentAction}
+                action={revokeConsentWithFeedback}
                 idField="consentId"
                 id={consent.id}
                 label={`Revoke ${consent.providerName} capture consent`}
@@ -361,7 +380,7 @@ export function AgentsPanel({
           </label>
           <SubmitButton pendingLabel="Granting…">Allow agents</SubmitButton>
         </form>
-        <FormFeedback result={consentResult} successMessage="Consent granted." />
+        <FormFeedback result={consentResult.status === "success" && consentOutcome?.kind !== "grant" ? idleActionResult : consentResult} successMessage="Consent granted." />
       </section>
 
       <section id="agent-tokens" aria-labelledby="agent-tokens-title" className="card-surface flex flex-col gap-4 p-6">
