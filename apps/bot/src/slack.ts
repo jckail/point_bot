@@ -60,3 +60,39 @@ export function resolveUserId(
 ): UserId {
   return UserId.parse(defaultUserId ?? platformUserId);
 }
+
+/** Post a deferred reply only to Slack's documented HTTPS callback origins. */
+export async function postToSlack(responseUrl: string, text: string): Promise<void> {
+  try {
+    const url = new URL(responseUrl);
+    if (
+      url.protocol !== "https:" ||
+      (url.hostname !== "hooks.slack.com" &&
+        url.hostname !== "hooks.slack-gov.com") ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.port !== "" ||
+      url.hash !== ""
+    ) {
+      throw new Error("Invalid Slack callback destination");
+    }
+    // Keep request authority literal; callback data supplies only path/query.
+    // Concatenation preserves // paths without treating them as a new host.
+    const callbackPath =
+      url.pathname + (url.search || (url.href.endsWith("?") ? "?" : ""));
+    const endpoint =
+      url.hostname === "hooks.slack.com"
+        ? `https://hooks.slack.com${callbackPath}`
+        : `https://hooks.slack-gov.com${callbackPath}`;
+    await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response_type: "ephemeral", text }),
+      signal: AbortSignal.timeout(10_000),
+      redirect: "error",
+    });
+  } catch {
+    // Callback URLs and transport exceptions can contain callback credentials.
+    console.warn("[bot] failed to post deferred Slack reply");
+  }
+}

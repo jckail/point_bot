@@ -1,7 +1,7 @@
 "use client";
 
 import type { AccessTokenScope } from "@pointup/core";
-import { useActionState, useId } from "react";
+import { useActionState, useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 
 import {
   createAccessTokenAction,
@@ -38,6 +38,7 @@ export type ObservationRow = {
   sourceHost: string;
   points: number;
   outcome: string;
+  observedAt: Date;
   createdAt: Date;
 };
 export type PendingReviewRow = {
@@ -47,6 +48,8 @@ export type PendingReviewRow = {
   sourceHost: string;
   points: number;
   previousPoints: number | null;
+  observedAt: Date;
+  createdAt: Date;
   expiresAt: Date;
 };
 
@@ -56,11 +59,159 @@ const SCOPE_HELP = {
   "observations:write": "Agents may write balances read from provider sites (still needs consent)",
   "consents:manage": "Revoke consents only. Agents can never grant consent; only you can, here.",
 } satisfies Record<AccessTokenScope, string>;
-function PendingReview({ review }: { review: PendingReviewRow }) {
-  const [result, action] = useActionState(resolveReviewAction, idleActionResult);
+function formatCaptureTime(date: Date): string {
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "long", timeZone: "UTC" });
+}
+
+type RemovalTicket = {
+  sequence: number;
+  id: string;
+  message: string;
+  form: HTMLFormElement | null;
+};
+
+type RemovalFeedback = {
+  begin: (id: string, message: string, form: HTMLFormElement | null, initiatedWithinForm: boolean) => RemovalTicket;
+  complete: (ticket: RemovalTicket) => void;
+  cancel: (ticket: RemovalTicket) => void;
+};
+
+type FocusLedger = {
+  begin: (form: HTMLFormElement | null, initiatedWithinForm: boolean) => number;
+  consume: (sequence: number) => boolean;
+  cancel: (sequence: number) => void;
+};
+
+/** One active handoff across all three sections, invalidated by later user intent. */
+function useRemovalFocusLedger(): FocusLedger {
+  const next = useRef(0);
+  const mounted = useRef(true);
+  const active = useRef<{ sequence: number; form: HTMLFormElement } | null>(null);
+  const detach = useRef<(() => void) | null>(null);
+  const stop = useCallback(() => {
+    active.current = null;
+    detach.current?.();
+    detach.current = null;
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; stop(); };
+  }, [stop]);
+  const begin = useCallback((form: HTMLFormElement | null, initiatedWithinForm: boolean) => {
+    stop(); // A newer dispatch in any section supersedes the previous handoff.
+    const sequence = ++next.current;
+    if (!mounted.current || !form || !initiatedWithinForm) return sequence;
+    active.current = { sequence, form };
+    const pointer = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !form.contains(event.target)) stop();
+    };
+    // Any subsequent key is explicit interaction; the initiating submit key has already fired.
+    const key = () => stop();
+    const focus = (event: FocusEvent) => {
+      // Removing/disabling the original control can automatically leave focus on body.
+      if (event.target !== document.body && (!(event.target instanceof Node) || !form.contains(event.target))) stop();
+    };
+    const blur = () => stop();
+    document.addEventListener("pointerdown", pointer, true);
+    document.addEventListener("keydown", key, true);
+    document.addEventListener("focusin", focus, true);
+    window.addEventListener("blur", blur);
+    detach.current = () => {
+      document.removeEventListener("pointerdown", pointer, true);
+      document.removeEventListener("keydown", key, true);
+      document.removeEventListener("focusin", focus, true);
+      window.removeEventListener("blur", blur);
+    };
+    return sequence;
+  }, [stop]);
+  const cancel = useCallback((sequence: number) => {
+    if (active.current?.sequence === sequence) stop();
+  }, [stop]);
+  const consume = useCallback((sequence: number) => {
+    if (active.current?.sequence !== sequence) return false;
+    stop();
+    return true;
+  }, [stop]);
+  return { begin, consume, cancel };
+}
+
+/** Remains mounted after authoritative revalidation removes an action row. */
+function useRemovalFeedback(presentIds: readonly string[], ledger: FocusLedger, target: RefObject<HTMLParagraphElement | null>) {
+  const mounted = useRef(true);
+  const focusedSequence = useRef(0);
+  const [outcome, setOutcome] = useState<RemovalTicket | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const { begin: beginFocus, consume: consumeFocus, cancel: cancelFocus } = ledger;
+  const begin = useCallback((id: string, message: string, form: HTMLFormElement | null, initiatedWithinForm: boolean) => {
+    const ticket = {
+      sequence: beginFocus(form, initiatedWithinForm), id, message, form,
+    };
+    if (mounted.current) setOutcome(null);
+    return ticket;
+  }, [beginFocus]);
+  const complete = useCallback((ticket: RemovalTicket) => {
+    if (!mounted.current) return;
+    // An older completion must not overwrite a newer completed interaction.
+    setOutcome(current => current && current.sequence > ticket.sequence ? current : ticket);
+  }, []);
+  const cancel = useCallback((ticket: RemovalTicket) => cancelFocus(ticket.sequence), [cancelFocus]);
+  useEffect(() => {
+    if (!outcome || presentIds.includes(outcome.id) || focusedSequence.current >= outcome.sequence) return;
+    focusedSequence.current = outcome.sequence;
+    // Announce genuine success, but never take focus from a newer interaction.
+    if (!consumeFocus(outcome.sequence) || !document.hasFocus()) return;
+    const active = document.activeElement;
+    if (active === document.body || outcome.form?.contains(active)) target.current?.focus();
+  }, [outcome, presentIds, consumeFocus, target]);
+  return { begin, complete, cancel, message: outcome?.message ?? "" };
+}
+
+/** Notify outside the disappearing row; a row effect could be unmounted first. */
+function useRemovalAction(
+  serverAction: (previous: ActionResult, data: FormData) => Promise<ActionResult>,
+  id: string,
+  message: (data: FormData) => string,
+  feedback: RemovalFeedback,
+) {
+  const form = useRef<HTMLFormElement>(null);
+  const submittedFocus = useRef<boolean | null>(null);
+  const onSubmit = useCallback(() => {
+    // Capture before React disables the submit control for its pending state.
+    submittedFocus.current = form.current?.contains(document.activeElement) ?? false;
+  }, []);
+  const { begin, complete, cancel } = feedback;
+  const action = useCallback(async (previous: ActionResult, data: FormData) => {
+    const withinForm = submittedFocus.current ?? (form.current?.contains(document.activeElement) ?? false);
+    submittedFocus.current = null;
+    const ticket = begin(id, message(data), form.current, withinForm);
+    try {
+      const result = await serverAction(previous, data);
+      if (result.status === "success") complete(ticket);
+      else cancel(ticket);
+      return result;
+    } catch (error) {
+      cancel(ticket);
+      throw error;
+    }
+  }, [serverAction, id, message, begin, complete, cancel]);
+  const [result, formAction] = useActionState(action, idleActionResult);
+  return { form, result, formAction, onSubmit };
+}
+
+function PendingReview({ review, feedback }: { review: PendingReviewRow; feedback: RemovalFeedback }) {
+  const message = useCallback((data: FormData) => `${review.providerName} reading captured ${formatCaptureTime(review.observedAt)} ${data.get("decision") === "confirm" ? "confirmed" : "rejected"}.`, [review.providerName, review.observedAt]);
+  const { form, result, formAction, onSubmit } = useRemovalAction(resolveReviewAction, review.id, message, feedback);
+  const contextId = useId();
+  const summaryId = `${contextId}-summary`;
+  const capturedId = `${contextId}-captured`;
+  const confirmId = `${contextId}-confirm`;
+  const rejectId = `${contextId}-reject`;
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-line bg-midnight px-4 py-4 text-sm">
-      <p className="text-ink">
+      <p id={summaryId} className="text-ink">
         <span className="font-medium">{review.providerName}</span>:{" "}
         <strong>{review.points.toLocaleString("en-US")}</strong>
         {review.previousPoints !== null && (
@@ -70,12 +221,16 @@ function PendingReview({ review }: { review: PendingReviewRow }) {
       <p className="break-words text-sm leading-6 text-ink-muted">
         Reported by {review.agent} via {review.sourceHost}. Not saved until you confirm. Expires {formatDateTime(review.expiresAt)}.
       </p>
-      <form action={action} className="flex flex-wrap gap-2">
+      <div className="text-sm leading-6 text-ink-muted">
+        <p id={capturedId}>Captured: <time dateTime={review.observedAt.toISOString()}>{formatCaptureTime(review.observedAt)}</time></p>
+        <p>Submitted: <time dateTime={review.createdAt.toISOString()}>{formatCaptureTime(review.createdAt)}</time></p>
+      </div>
+      <form ref={form} onSubmit={onSubmit} action={formAction} className="flex flex-wrap gap-2">
         <input type="hidden" name="reviewId" value={review.id} />
-        <SubmitButton name="decision" value="confirm" size="sm" pendingLabel="Saving decision…">Confirm balance</SubmitButton>
-        <SubmitButton name="decision" value="reject" size="sm" variant="ghost" pendingLabel="Saving decision…">Reject balance</SubmitButton>
+        <SubmitButton id={confirmId} aria-labelledby={`${confirmId} ${summaryId} ${capturedId}`} name="decision" value="confirm" size="sm" pendingLabel="Saving decision…">Confirm balance</SubmitButton>
+        <SubmitButton id={rejectId} aria-labelledby={`${rejectId} ${summaryId} ${capturedId}`} name="decision" value="reject" size="sm" variant="ghost" pendingLabel="Saving decision…">Reject balance</SubmitButton>
       </form>
-      <FormFeedback result={result} successMessage="Decision saved." />
+      {result.status === "error" && <FormFeedback result={result} successMessage="" />}
     </li>
   );
 }
@@ -86,19 +241,22 @@ function RevokeAccessForm({
   id,
   label,
   successMessage,
+  feedback,
 }: {
   action: (previous: ActionResult, data: FormData) => Promise<ActionResult>;
   idField: "tokenId" | "consentId";
   id: string;
   label: string;
   successMessage: string;
+  feedback: RemovalFeedback;
 }) {
-  const [result, formAction] = useActionState(action, idleActionResult);
+  const message = useCallback(() => successMessage, [successMessage]);
+  const { form, result, formAction, onSubmit } = useRemovalAction(action, id, message, feedback);
   return (
-    <form action={formAction} className="flex flex-col items-end gap-2">
+    <form ref={form} onSubmit={onSubmit} action={formAction} className="flex flex-col items-end gap-2">
       <input type="hidden" name={idField} value={id} />
       <SubmitButton variant="ghost" size="sm" pendingLabel="Revoking…" aria-label={label}>Revoke</SubmitButton>
-      <FormFeedback result={result} successMessage={successMessage} />
+      {result.status === "error" && <FormFeedback result={result} successMessage="" />}
     </form>
   );
 }
@@ -127,9 +285,35 @@ export function AgentsPanel({
     createAccessTokenAction,
     idleActionResult,
   );
-  const [consentResult, consentAction] = useActionState(grantConsentAction, idleActionResult);
+  const consentSequence = useRef(0);
+  const [consentOutcome, setConsentOutcome] = useState<{ sequence: number; kind: "grant" | "revoke" } | null>(null);
+  const performConsentAction = useCallback(async (
+    action: (previous: ActionResult, data: FormData) => Promise<ActionResult>,
+    kind: "grant" | "revoke",
+    previous: ActionResult,
+    data: FormData,
+  ) => {
+    const sequence = ++consentSequence.current;
+    const result = await action(previous, data);
+    if (result.status === "success") {
+      setConsentOutcome(current => current && current.sequence > sequence ? current : { sequence, kind });
+    }
+    return result;
+  }, []);
+  const grantConsentWithFeedback = useCallback((previous: ActionResult, data: FormData) =>
+    performConsentAction(grantConsentAction, "grant", previous, data), [performConsentAction]);
+  const revokeConsentWithFeedback = useCallback((previous: ActionResult, data: FormData) =>
+    performConsentAction(revokeConsentAction, "revoke", previous, data), [performConsentAction]);
+  const [consentResult, consentAction] = useActionState(grantConsentWithFeedback, idleActionResult);
   const tokenSecretId = useId();
   const tokenSecretHelpId = `${tokenSecretId}-help`;
+  const removalFocus = useRemovalFocusLedger();
+  const reviewStatusRef = useRef<HTMLParagraphElement>(null);
+  const consentStatusRef = useRef<HTMLParagraphElement>(null);
+  const tokenStatusRef = useRef<HTMLParagraphElement>(null);
+  const reviewFeedback = useRemovalFeedback(pendingReviews.map(review => review.id), removalFocus, reviewStatusRef);
+  const consentFeedback = useRemovalFeedback(consents.filter(consent => consent.active).map(consent => consent.id), removalFocus, consentStatusRef);
+  const tokenFeedback = useRemovalFeedback(tokens.filter(token => !token.revokedAt).map(token => token.id), removalFocus, tokenStatusRef);
 
   return (
     <div className="flex flex-col gap-6">
@@ -141,10 +325,11 @@ export function AgentsPanel({
               provider site, then confirm or reject. Agents cannot do this for you.
             </p>
           </div>
+          <p ref={reviewStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{reviewFeedback.message}</p>
           {pendingReviews.length === 0 && <p className="text-sm text-ink-muted">No captured balances are waiting for your review.</p>}
           <ul className="flex flex-col gap-2">
             {pendingReviews.map((review) => (
-              <PendingReview key={review.id} review={review} />
+              <PendingReview key={review.id} review={review} feedback={reviewFeedback} />
             ))}
           </ul>
       </section>
@@ -158,6 +343,7 @@ export function AgentsPanel({
             written without one, and you can revoke it instantly.
           </p>
         </div>
+        <p ref={consentStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{consentOutcome?.kind === "revoke" ? consentFeedback.message : ""}</p>
         <ul className="flex flex-col gap-2">
           {consents.filter((c) => c.active).map((consent) => (
             <li key={consent.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-3 py-3 text-sm">
@@ -166,11 +352,12 @@ export function AgentsPanel({
                 <span className="text-ink-faint">until {formatDate(consent.expiresAt)}</span>
               </span>
               <RevokeAccessForm
-                action={revokeConsentAction}
+                action={revokeConsentWithFeedback}
                 idField="consentId"
                 id={consent.id}
                 label={`Revoke ${consent.providerName} capture consent`}
-                successMessage="Consent revoked."
+                successMessage={`${consent.providerName} capture consent revoked.`}
+                feedback={consentFeedback}
               />
             </li>
           ))}
@@ -189,11 +376,11 @@ export function AgentsPanel({
           </label>
           <label className="flex w-full flex-col gap-1.5 text-sm font-medium text-ink-muted sm:w-32">
             Days (1-90)
-            <input name="days" type="number" min={1} max={90} defaultValue={30} className={input} />
+            <input name="days" type="number" min={1} max={90} step={1} required defaultValue={30} className={input} />
           </label>
           <SubmitButton pendingLabel="Granting…">Allow agents</SubmitButton>
         </form>
-        <FormFeedback result={consentResult} successMessage="Consent granted." />
+        <FormFeedback result={consentResult.status === "success" && consentOutcome?.kind !== "grant" ? idleActionResult : consentResult} successMessage="Consent granted." />
       </section>
 
       <section id="agent-tokens" aria-labelledby="agent-tokens-title" className="card-surface flex flex-col gap-4 p-6">
@@ -204,6 +391,7 @@ export function AgentsPanel({
             <code className="break-all text-brand">{mcpUrl}</code>
           </p>
         </div>
+        <p ref={tokenStatusRef} role="status" aria-live="polite" aria-atomic="true" tabIndex={-1} className="text-sm text-positive">{tokenFeedback.message}</p>
         <ul className="flex flex-col gap-2">
           {tokens.filter((t) => !t.revokedAt).map((token) => (
             <li key={token.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">
@@ -221,7 +409,8 @@ export function AgentsPanel({
                 idField="tokenId"
                 id={token.id}
                 label={`Revoke ${token.name} token`}
-                successMessage="Token revoked."
+                successMessage={`${token.name} token revoked.`}
+                feedback={tokenFeedback}
               />
             </li>
           ))}
@@ -286,7 +475,10 @@ export function AgentsPanel({
                 <span className="min-w-0 break-words">
                   <span className="text-ink">{o.providerName}</span> {o.points.toLocaleString("en-US")} · {o.outcome} · {o.agent} via {o.sourceHost}
                 </span>
-                <span className="text-xs text-ink-faint">{formatDateTime(o.createdAt)}</span>
+                <span className="flex flex-col text-xs leading-5 text-ink-faint">
+                  <span>Captured: <time dateTime={o.observedAt.toISOString()}>{formatCaptureTime(o.observedAt)}</time></span>
+                  <span>Submitted: <time dateTime={o.createdAt.toISOString()}>{formatCaptureTime(o.createdAt)}</time></span>
+                </span>
               </li>
             ))}
           </ul>

@@ -65,6 +65,7 @@ export default async function AgentsPage() {
           sourceHost: o.sourceHost,
           points: o.points,
           outcome: o.outcome,
+          observedAt: o.observedAt,
           createdAt: o.createdAt,
         }))}
         pendingReviews={pendingReviews.map((o) => ({
@@ -74,6 +75,8 @@ export default async function AgentsPage() {
           sourceHost: o.sourceHost,
           points: o.points,
           previousPoints: o.previousPoints,
+          observedAt: o.observedAt,
+          createdAt: o.createdAt,
           expiresAt: reviewExpiresAt(o),
         }))}
         providers={PROVIDER_CATALOG.map((p) => ({ id: p.id, name: p.displayName }))}

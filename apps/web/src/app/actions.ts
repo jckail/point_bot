@@ -1,7 +1,7 @@
 "use server";
 
 import { getSessionUserId } from "@/server/auth";
-import { DomainError, InvalidValuationError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
+import { isDomainError, InvalidValuationError, LoyaltyAccountId, ShareId, TripGoalId, type CardProductId } from "@pointup/core";
 import { createPortfolioShareRequestSchema, setCustomValuationRequestSchema } from "@pointup/core/contracts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -33,7 +33,7 @@ async function toActionResult(
     await run();
     return { status: "success" };
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       return { status: "error", message: messageForDomainError(error.code) };
     }
     throw error;
@@ -60,36 +60,55 @@ export async function linkLoyaltyAccountAction(
   return result;
 }
 
+/** Sync forms retain counts/feedback without exposing provider exceptions. */
+export type SyncActionResult = ActionResult & { message?: string };
+
 export async function syncLoyaltyAccountAction(
+  _previous: SyncActionResult,
   formData: FormData,
-): Promise<void> {
+): Promise<SyncActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
+  if (!userId) return UNAUTHENTICATED;
 
   const accountId = String(formData.get("accountId") ?? "");
+  let ownedId: LoyaltyAccountId | undefined;
   try {
-    await getContainer().useCases.syncLoyaltyAccount.execute({
-      userId,
-      accountId: LoyaltyAccountId.parse(accountId),
-    });
+    ownedId = LoyaltyAccountId.parse(accountId);
+    await getContainer().useCases.syncLoyaltyAccount.execute({ userId, accountId: ownedId });
+    return { status: "success", message: "Balance updated." };
   } catch (error) {
-    if (error instanceof DomainError) {
-      console.warn(`syncLoyaltyAccount rejected: ${error.code}`);
-      return;
-    }
+    if (isDomainError(error)) return { status: "error", message: messageForDomainError(error.code) };
+    // Unexpected failures retain the existing server-action error boundary.
     throw error;
+  } finally {
+    // A response can fail after commit; do not leave server readmodels stale.
+    revalidatePath("/dashboard");
+    if (ownedId) revalidatePath(`/dashboard/accounts/${ownedId}`);
   }
-
-  revalidatePath("/dashboard");
-  revalidatePath(`/dashboard/accounts/${accountId}`);
 }
 
-export async function syncAllLoyaltyAccountsAction(): Promise<void> {
+export async function syncAllLoyaltyAccountsAction(
+  _previous: SyncActionResult,
+  _formData: FormData,
+): Promise<SyncActionResult> {
   const userId = await getSessionUserId();
-  if (!userId) return;
+  if (!userId) return UNAUTHENTICATED;
 
-  await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
-  revalidatePath("/dashboard");
+  try {
+    const outcomes = await getContainer().useCases.syncAllLoyaltyAccounts.execute(userId);
+    const updated = outcomes.filter(outcome => outcome.ok).length;
+    const failed = outcomes.length - updated;
+    if (outcomes.length === 0) return { status: "error", message: "No linked programs to sync." };
+    if (failed > 0) return { status: "error", message: `Updated ${updated} of ${outcomes.length} programs. ${failed} could not sync. Check their details or record balances manually.` };
+    return { status: "success", message: `Updated ${updated} program${updated === 1 ? "" : "s"}.` };
+  } catch (error) {
+    if (isDomainError(error)) return { status: "error", message: `${messageForDomainError(error.code)} Some balances may have changed. Check your portfolio before trying again.` };
+    // No complete SyncOutcome[] exists here: some workers may have committed.
+    // Propagate unexpected faults rather than inventing successful/failed counts.
+    throw error;
+  } finally {
+    revalidatePath("/dashboard");
+  }
 }
 
 export async function recordManualBalanceAction(
@@ -178,7 +197,7 @@ export async function unlinkLoyaltyAccountAction(
       LoyaltyAccountId.parse(String(formData.get("accountId") ?? "")),
     );
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       console.warn(`unlinkLoyaltyAccount rejected: ${error.code}`);
       return;
     }
@@ -261,7 +280,7 @@ export async function seedDemoPortfolioAction(): Promise<void> {
   try {
     await getContainer().useCases.seedDemoPortfolio.execute(userId);
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       console.warn(`seedDemoPortfolio rejected: ${error.code}`);
       return;
     }
@@ -287,7 +306,7 @@ export async function togglePinAccountAction(
       pinned,
     });
   } catch (error) {
-    if (error instanceof DomainError) {
+    if (isDomainError(error)) {
       console.warn(`togglePinAccount rejected: ${error.code}`);
       return;
     }

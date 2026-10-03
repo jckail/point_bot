@@ -22,7 +22,9 @@ valid read 200/write-scope 403. The authentication fix is merged in [PR #50](htt
 
 The token display fix is released in [PR #51](https://github.com/jckail/point_bot/pull/51), and lifetime/revocation/keyboard polish in [PR #52](https://github.com/jckail/point_bot/pull/52). PR #52 master `f5ebad89db698be4ae0d15d384c2e7b95a7676b7` passed release checks and CodeQL with 1,892 workspace tests plus one paid skip; AWS deployment was skipped. Their native lifecycle acceptance remains pending.
 
-The next review-integrity iteration binds held readings to stored membership, invalidates portfolio cache after human confirmation, and reconciles completed proposals after lost replies. Corrected meaningful source comparisons and 101 focused cases pass with types/lint. Migration 0022 and full PostgreSQL/release acceptance remain pending; legacy held readings require recapture before confirmation. See [reviewed-balance-integrity-20261002.md](reviewed-balance-integrity-20261002.md) for exact evidence and rollout policy.
+The review-integrity changes are merged in [PR #53](https://github.com/jckail/point_bot/pull/53), master `706861980c8e1fd14ad692a40e2c2cd33d74dfdf`, with matching source tree `0522f608499a3dfe818a4c26bff9c9fa2858d323`. Candidate and master checks passed with 1,925 tests and one paid-model skip, including migration 0022 and PostgreSQL integration fixtures. AWS deployment was skipped for missing role configuration. Native review/proposal lifecycle acceptance remains pending; legacy held readings require recapture before confirmation. See [reviewed-balance-integrity-20261002.md](reviewed-balance-integrity-20261002.md) for rollout policy.
+
+The current frontend iteration adds individual sync feedback, truthful bulk success/failure counts and strict 1–90 day web consent validation. It passes 52 focused actual-core/controller and qualified SSR cases; browser dispatch and candidate release verification remain pending. See [sync-consent-feedback-20261003.md](sync-consent-feedback-20261003.md).
 
 
 

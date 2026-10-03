@@ -5,6 +5,8 @@ import {
   AccessTokenId,
   ConsentId,
   InvalidAccessTokenRequestError,
+  InvalidConsentError,
+  MAX_CONSENT_DAYS,
   isDomainError,
   isScope,
   ObservationId,
@@ -88,10 +90,15 @@ export async function grantConsentAction(
   const userId = await getSessionUserId();
   if (!userId) return { status: "error", message: "Your session expired - sign in again." };
   try {
+    const rawDays = formData.get("days");
+    const days = typeof rawDays === "string" && rawDays.trim() !== "" ? Number(rawDays) : Number.NaN;
+    if (!Number.isFinite(days) || !Number.isInteger(days) || days < 1 || days > MAX_CONSENT_DAYS) {
+      throw new InvalidConsentError("Consent duration must be 1-90 whole days");
+    }
     await getContainer().useCases.grantConsent.execute({
       userId,
       providerId: String(formData.get("providerId") ?? ""),
-      days: Number(formData.get("days") ?? 30) || 30,
+      days,
     });
     revalidatePath("/dashboard/agents");
     return { status: "success" };
