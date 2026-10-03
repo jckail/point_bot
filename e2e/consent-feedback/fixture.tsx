@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AgentsPanel,
@@ -22,7 +22,12 @@ let update: ((next: (rows: ConsentRow[]) => ConsentRow[]) => void) | null = null
 
 function App() {
   const [consents, setConsents] = useState([row("fixture-consent-a", true)]);
-  update = setConsents;
+  useEffect(() => {
+    update = setConsents;
+    return () => {
+      if (update === setConsents) update = null;
+    };
+  }, []);
   return (
     <AgentsPanel
       tokens={[]}

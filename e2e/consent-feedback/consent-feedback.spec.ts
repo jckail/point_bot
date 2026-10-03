@@ -27,8 +27,8 @@ async function fingerprints(): Promise<Record<string, string>> {
 }
 
 type Harness = { page: Page; origin: string };
-const test = base.extend<{}, { consentHarness: Harness }>({
-  consentHarness: [async ({ browser }, use) => {
+const test = base.extend<Record<never, never>, { consentHarness: Harness }>({
+  consentHarness: [async ({ browser }, provideHarness) => {
     const sourceHashes = await fingerprints();
     const esbuild = require("esbuild") as typeof import("esbuild");
     let javascript: Uint8Array;
@@ -97,7 +97,7 @@ const test = base.extend<{}, { consentHarness: Harness }>({
         }
       });
       const page = await context.newPage();
-      await use({ page, origin });
+      await provideHarness({ page, origin });
     } finally {
       try {
         if (context) {
