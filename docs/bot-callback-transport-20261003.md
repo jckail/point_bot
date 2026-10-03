@@ -66,7 +66,44 @@ Eight additional cases cover both origins, double-slash paths, encoded slash and
 backslash characters, external URLs in queries and empty queries. The exact
 modified source passed bot type checking, scoped lint, all **64 bot tests** without
 skips and the bot build. Tests mock outbound requests; they do not establish live
-Slack acceptance. A new CodeQL scan must qualify the committed refinement.
+Slack acceptance. The subsequent scan at `0d973d3` verified all 567 expected
+JavaScript/TypeScript source files. Its guarded Slack request-forgery warning
+remained; independent review did not identify an attacker-controlled origin.
+That scan predates the inbound HTTP boundary changes below.
+
+## Inbound request boundary
+
+The production entrypoint retains environment loading, use-case composition and
+server listening. The testable server factory applies a 64 KiB raw-byte body
+limit before signature verification and a fifteen-second body-read deadline.
+These are local resource policies. Declared oversize and streamed oversize return
+413; an incomplete timed-out body returns 408. Body errors return bounded public
+messages, release buffered chunks and listeners, and close the connection after
+the response flush. An interrupted client may already be disconnected.
+
+Slack HMAC and Discord Ed25519 verification still precede command dispatch.
+Invalid signatures return 401 without invoking use cases. Command and request
+failures log fixed categories without inspecting exceptions, getters, request
+fragments, model text or credentials. Inline fallback text, private deferred
+acknowledgements and callback transport policy remain intact.
+
+The local Node 22.23.2 qualification used real ephemeral loopback HTTP servers,
+synthetic signatures and structural use-case fixtures. The original handler
+comparison added only a factory seam and removed the listen side effect; its
+body-reading, dispatch and exception logging behavior remained unchanged. Eight
+body/privacy regressions failed against that original behavior while four
+signature/success controls passed. The patched bot suite passed all **81 tests**,
+including **17 HTTP boundary cases**, without skips. Bot type checking, scoped
+lint and the bot build also passed; the guarded original-source swap restored
+the patch and cleanup completed.
+
+The cases cover declared, chunked and multibyte oversize, exact-limit acceptance,
+one-byte-over rejection, a bounded timeout, valid and invalid signatures,
+private inline/deferred failures, signed malformed JSON and an observed
+request-abort-close sequence followed by a healthy request. Outbound callbacks
+are mocked and provider fetches are refused. This proves the synthetic HTTP
+boundary, not live platform, provider, database or browser acceptance. A fresh
+settled-commit CodeQL scan and full application qualification remain separate.
 
 All verification remains local through the shared owner and gate. Publication
 uses the supported `[skip ci]` route. Actual redirect transport, platform access,
